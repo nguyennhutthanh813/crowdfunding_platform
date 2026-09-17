@@ -1,0 +1,41 @@
+{
+  "name": "crowdfunding-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nền tảng gọi vốn cộng đồng — Crowdfunding Platform",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "db:generate": "pnpm --filter api prisma:generate",
+    "db:push": "pnpm --filter api prisma:push",
+    "db:migrate": "pnpm --filter api prisma:migrate",
+    "db:studio": "pnpm --filter api prisma:studio",
+    "db:seed": "pnpm --filter api prisma:seed",
+    "clean": "turbo run clean && rimraf node_modules",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "prettier": "^3.4.0",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.3.0",
+    "rimraf": "^6.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,css}": [
+      "prettier --write"
+    ]
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

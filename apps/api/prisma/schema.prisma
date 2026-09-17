@@ -1,0 +1,838 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════
+// Enums
+// ═══════════════════════════════════════════
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+
+  @@map("account_status")
+}
+
+enum GlobalRole {
+  BACKER
+  CREATOR
+  ADMIN
+
+  @@map("global_role")
+}
+
+enum CampaignStatus {
+  DRAFT
+  IN_REVIEW
+  PRE_LAUNCH
+  LIVE
+  SUCCESSFUL
+  FAILED
+  SUSPENDED
+
+  @@map("campaign_status")
+}
+
+enum CampaignMemberRole {
+  OWNER
+  COLLABORATOR
+
+  @@map("campaign_member_role")
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+
+  @@map("media_type")
+}
+
+enum PledgeStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  CANCELED
+  FAILED
+  REFUNDED
+
+  @@map("pledge_status")
+}
+
+enum PaymentStatus {
+  REQUIRES_ACTION
+  AUTHORIZED
+  CAPTURED
+  CANCELED
+  FAILED
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum FulfillmentStatus {
+  PENDING
+  SURVEY_SENT
+  ADDRESS_CONFIRMED
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELED
+
+  @@map("fulfillment_status")
+}
+
+enum InteractionType {
+  VIEW
+  SAVE
+  UNSAVE
+  FOLLOW_CREATOR
+  UNFOLLOW_CREATOR
+  NOTIFY_PRELAUNCH
+  PLEDGE
+
+  @@map("interaction_type")
+}
+
+enum CommentBadge {
+  BACKER
+  SUPERBACKER
+  CREATOR
+  COLLABORATOR
+  ADMIN
+
+  @@map("comment_badge")
+}
+
+enum ReviewDecision {
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+
+  @@map("review_decision")
+}
+
+enum FraudAlertStatus {
+  NEW
+  REVIEWING
+  CLEARED
+  ESCALATED
+
+  @@map("fraud_alert_status")
+}
+
+enum AiTask {
+  RECOMMENDATION
+  SUCCESS_PREDICTION
+  FRAUD_DETECTION
+
+  @@map("ai_task")
+}
+
+// ═══════════════════════════════════════════
+// Models — User & Auth
+// ═══════════════════════════════════════════
+
+model User {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String        @unique @db.Citext
+  passwordHash    String        @map("password_hash")
+  displayName     String        @map("display_name") @db.VarChar(120)
+  avatarUrl       String?       @map("avatar_url")
+  phone           String?       @db.VarChar(24)
+  bio             String?
+  location        String?       @db.VarChar(120)
+  status          AccountStatus @default(ACTIVE)
+  emailVerifiedAt DateTime?     @map("email_verified_at") @db.Timestamptz
+  lastLoginAt     DateTime?     @map("last_login_at") @db.Timestamptz
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  roles                  UserRole[]
+  campaigns              Campaign[]             @relation("CampaignCreator")
+  campaignMembers        CampaignMember[]       @relation("MemberUser")
+  campaignMembersInvited CampaignMember[]       @relation("InvitedBy")
+  pledges                Pledge[]
+  addresses              Address[]
+  comments               Comment[]
+  sentMessages           Message[]              @relation("Sender")
+  receivedMessages       Message[]              @relation("Recipient")
+  notifications          Notification[]
+  campaignUpdates        CampaignUpdate[]
+  savedCampaigns         SavedCampaign[]
+  followedCreators       CreatorFollow[]         @relation("Follower")
+  followers              CreatorFollow[]         @relation("Creator")
+  prelaunchSubscriptions PrelaunchSubscription[]
+  interactionEvents      InteractionEvent[]
+  campaignReviews        CampaignReview[]
+  moderationActions      ModerationAction[]
+  fraudAlertsAssigned    FraudAlert[]           @relation("AssignedAdmin")
+  fraudAlertsSubject     FraudAlert[]           @relation("SubjectUser")
+  recommendationResults  RecommendationResult[]
+  rolesGrantedBy         UserRole[]             @relation("GrantedBy")
+  statusChangedBy        CampaignStatusHistory[] @relation("ChangedBy")
+  platformSettingsUpdated PlatformSetting[]
+
+  @@map("users")
+}
+
+model UserRole {
+  userId    String     @map("user_id") @db.Uuid
+  role      GlobalRole
+  grantedBy String?    @map("granted_by") @db.Uuid
+  grantedAt DateTime   @default(now()) @map("granted_at") @db.Timestamptz
+
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  granter User? @relation("GrantedBy", fields: [grantedBy], references: [id], onDelete: SetNull)
+
+  @@id([userId, role])
+  @@map("user_roles")
+}
+
+// ═══════════════════════════════════════════
+// Models — Campaign Core
+// ═══════════════════════════════════════════
+
+model Category {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId  String?  @map("parent_id") @db.Uuid
+  name      String   @db.VarChar(80)
+  slug      String   @unique @db.VarChar(90)
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  parent   Category?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryParent")
+  campaigns Campaign[]
+
+  @@map("categories")
+}
+
+model Campaign {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creatorId       String         @map("creator_id") @db.Uuid
+  categoryId      String         @map("category_id") @db.Uuid
+  title           String         @db.VarChar(120)
+  slug            String         @unique @db.VarChar(150)
+  blurb           String         @db.VarChar(220)
+  storyMarkdown   String         @default("") @map("story_markdown")
+  risksMarkdown   String         @default("") @map("risks_markdown")
+  location        String         @default("Việt Nam") @db.VarChar(120)
+  status          CampaignStatus @default(DRAFT)
+  goalAmount      BigInt         @map("goal_amount")
+  currency        String         @default("VND") @db.Char(3)
+  durationDays    Int            @map("duration_days") @db.SmallInt
+  platformFeeBps  Int            @default(500) @map("platform_fee_bps") @db.SmallInt
+  startsAt        DateTime?      @map("starts_at") @db.Timestamptz
+  endsAt          DateTime?      @map("ends_at") @db.Timestamptz
+  submittedAt     DateTime?      @map("submitted_at") @db.Timestamptz
+  publishedAt     DateTime?      @map("published_at") @db.Timestamptz
+  closedAt        DateTime?      @map("closed_at") @db.Timestamptz
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  creator               User                   @relation("CampaignCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  category              Category               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  members               CampaignMember[]
+  media                 CampaignMedia[]
+  rewardTiers           RewardTier[]
+  addOns                AddOn[]
+  shippingOptions       ShippingOption[]
+  pledges               Pledge[]
+  statusHistory         CampaignStatusHistory[]
+  reviews               CampaignReview[]
+  savedBy               SavedCampaign[]
+  prelaunchSubscriptions PrelaunchSubscription[]
+  interactionEvents     InteractionEvent[]
+  updates               CampaignUpdate[]
+  faqs                  CampaignFaq[]
+  comments              Comment[]
+  messages              Message[]
+  dailyMetrics          DailyCampaignMetric[]
+  predictions           CampaignPrediction[]
+  fraudAlerts           FraudAlert[]
+  recommendationResults RecommendationResult[]
+
+  @@index([status, categoryId], map: "idx_campaigns_status_category")
+  @@index([creatorId, createdAt(sort: Desc)], map: "idx_campaigns_creator")
+  @@map("campaigns")
+}
+
+model CampaignMember {
+  campaignId         String             @map("campaign_id") @db.Uuid
+  userId             String             @map("user_id") @db.Uuid
+  role               CampaignMemberRole
+  canPostUpdates     Boolean            @default(true) @map("can_post_updates")
+  canReplyComments   Boolean            @default(true) @map("can_reply_comments")
+  canViewAiDashboard Boolean            @default(true) @map("can_view_ai_dashboard")
+  invitedBy          String?            @map("invited_by") @db.Uuid
+  joinedAt           DateTime           @default(now()) @map("joined_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation("MemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  inviter  User?    @relation("InvitedBy", fields: [invitedBy], references: [id], onDelete: SetNull)
+
+  @@id([campaignId, userId])
+  @@map("campaign_members")
+}
+
+model CampaignMedia {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String    @map("campaign_id") @db.Uuid
+  mediaType  MediaType @map("media_type")
+  url        String
+  altText    String?   @map("alt_text") @db.VarChar(240)
+  sortOrder  Int       @default(0) @map("sort_order") @db.SmallInt
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_media")
+}
+
+model RewardTier {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId        String   @map("campaign_id") @db.Uuid
+  title             String   @db.VarChar(120)
+  description       String
+  amount            BigInt
+  items             Json     @default("[]")
+  quantityLimit     Int?     @map("quantity_limit")
+  estimatedDelivery DateTime @map("estimated_delivery") @db.Date
+  isFeatured        Boolean  @default(false) @map("is_featured")
+  isActive          Boolean  @default(true) @map("is_active")
+  sortOrder         Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  pledges  Pledge[]
+
+  @@index([campaignId, sortOrder], map: "idx_rewards_campaign_active")
+  @@map("reward_tiers")
+}
+
+model AddOn {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId    String   @map("campaign_id") @db.Uuid
+  title         String   @db.VarChar(120)
+  description   String
+  amount        BigInt
+  quantityLimit Int?     @map("quantity_limit")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  pledgeAddOns PledgeAddOn[]
+
+  @@map("add_ons")
+}
+
+model ShippingOption {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId       String  @map("campaign_id") @db.Uuid
+  name             String  @db.VarChar(100)
+  provinceCode     String? @map("province_code") @db.VarChar(10)
+  feeAmount        BigInt  @default(0) @map("fee_amount")
+  estimatedDaysMin Int?    @map("estimated_days_min") @db.SmallInt
+  estimatedDaysMax Int?    @map("estimated_days_max") @db.SmallInt
+  isActive         Boolean @default(true) @map("is_active")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  pledges  Pledge[]
+
+  @@unique([campaignId, name, provinceCode])
+  @@map("shipping_options")
+}
+
+// ═══════════════════════════════════════════
+// Models — Address
+// ═══════════════════════════════════════════
+
+model Address {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  recipientName String   @map("recipient_name") @db.VarChar(120)
+  phone         String   @db.VarChar(24)
+  line1         String   @db.VarChar(220)
+  ward          String?  @db.VarChar(120)
+  district      String?  @db.VarChar(120)
+  province      String   @db.VarChar(120)
+  countryCode   String   @default("VN") @map("country_code") @db.Char(2)
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pledges Pledge[]
+
+  @@map("addresses")
+}
+
+// ═══════════════════════════════════════════
+// Models — Pledge & Payment
+// ═══════════════════════════════════════════
+
+model Pledge {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId        String       @map("campaign_id") @db.Uuid
+  backerId          String       @map("backer_id") @db.Uuid
+  rewardTierId      String?      @map("reward_tier_id") @db.Uuid
+  shippingOptionId  String?      @map("shipping_option_id") @db.Uuid
+  shippingAddressId String?      @map("shipping_address_id") @db.Uuid
+  status            PledgeStatus @default(PENDING)
+  rewardAmount      BigInt       @default(0) @map("reward_amount")
+  addOnAmount       BigInt       @default(0) @map("add_on_amount")
+  shippingAmount    BigInt       @default(0) @map("shipping_amount")
+  bonusAmount       BigInt       @default(0) @map("bonus_amount")
+  totalAmount       BigInt?      @map("total_amount")
+  currency          String       @default("VND") @db.Char(3)
+  pledgedAt         DateTime     @default(now()) @map("pledged_at") @db.Timestamptz
+  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign        Campaign              @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  backer          User                  @relation(fields: [backerId], references: [id], onDelete: Restrict)
+  rewardTier      RewardTier?           @relation(fields: [rewardTierId], references: [id], onDelete: SetNull)
+  shippingOption  ShippingOption?       @relation(fields: [shippingOptionId], references: [id], onDelete: SetNull)
+  shippingAddress Address?              @relation(fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  addOns          PledgeAddOn[]
+  authorizations  PaymentAuthorization[]
+  fulfillment     Fulfillment?
+  fraudAlerts     FraudAlert[]
+
+  @@unique([campaignId, backerId])
+  @@index([campaignId, status], map: "idx_pledges_campaign_status")
+  @@index([backerId, pledgedAt(sort: Desc)], map: "idx_pledges_backer_recent")
+  @@map("pledges")
+}
+
+model PledgeAddOn {
+  pledgeId   String @map("pledge_id") @db.Uuid
+  addOnId    String @map("add_on_id") @db.Uuid
+  quantity   Int    @default(1) @db.SmallInt
+  unitAmount BigInt @map("unit_amount")
+
+  pledge Pledge @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  addOn  AddOn  @relation(fields: [addOnId], references: [id], onDelete: Restrict)
+
+  @@id([pledgeId, addOnId])
+  @@map("pledge_add_ons")
+}
+
+model PaymentAuthorization {
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pledgeId               String        @map("pledge_id") @db.Uuid
+  provider               String        @default("STRIPE") @db.VarChar(30)
+  providerPaymentId      String        @unique @map("provider_payment_id") @db.VarChar(180)
+  status                 PaymentStatus @default(REQUIRES_ACTION)
+  amount                 BigInt
+  currency               String        @default("VND") @db.Char(3)
+  authorizedAt           DateTime?     @map("authorized_at") @db.Timestamptz
+  authorizationExpiresAt DateTime?     @map("authorization_expires_at") @db.Timestamptz
+  capturedAt             DateTime?     @map("captured_at") @db.Timestamptz
+  canceledAt             DateTime?     @map("canceled_at") @db.Timestamptz
+  failureCode            String?       @map("failure_code") @db.VarChar(80)
+  failureMessage         String?       @map("failure_message")
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  pledge Pledge         @relation(fields: [pledgeId], references: [id], onDelete: Restrict)
+  events PaymentEvent[]
+
+  @@index([status, authorizationExpiresAt], map: "idx_payments_status_expiry")
+  @@map("payment_authorizations")
+}
+
+model PaymentEvent {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentAuthorizationId String?   @map("payment_authorization_id") @db.Uuid
+  providerEventId        String    @unique @map("provider_event_id") @db.VarChar(180)
+  eventType              String    @map("event_type") @db.VarChar(100)
+  payload                Json
+  receivedAt             DateTime  @default(now()) @map("received_at") @db.Timestamptz
+  processedAt            DateTime? @map("processed_at") @db.Timestamptz
+  processingError        String?   @map("processing_error")
+
+  paymentAuthorization PaymentAuthorization? @relation(fields: [paymentAuthorizationId], references: [id], onDelete: SetNull)
+
+  @@map("payment_events")
+}
+
+model Fulfillment {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pledgeId     String            @unique @map("pledge_id") @db.Uuid
+  status       FulfillmentStatus @default(PENDING)
+  carrier      String?           @db.VarChar(100)
+  trackingCode String?           @map("tracking_code") @db.VarChar(120)
+  shippedAt    DateTime?         @map("shipped_at") @db.Timestamptz
+  deliveredAt  DateTime?         @map("delivered_at") @db.Timestamptz
+  note         String?
+  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  pledge Pledge @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+
+  @@map("fulfillments")
+}
+
+// ═══════════════════════════════════════════
+// Models — Campaign Status & Review
+// ═══════════════════════════════════════════
+
+model CampaignStatusHistory {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String          @map("campaign_id") @db.Uuid
+  fromStatus CampaignStatus? @map("from_status")
+  toStatus   CampaignStatus  @map("to_status")
+  changedBy  String?         @map("changed_by") @db.Uuid
+  reason     String?
+  changedAt  DateTime        @default(now()) @map("changed_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  changer  User?    @relation("ChangedBy", fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@map("campaign_status_history")
+}
+
+model CampaignReview {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String         @map("campaign_id") @db.Uuid
+  reviewerId String         @map("reviewer_id") @db.Uuid
+  decision   ReviewDecision @default(PENDING)
+  checklist  Json           @default("{}")
+  feedback   String?
+  decidedAt  DateTime?      @map("decided_at") @db.Timestamptz
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reviewer User     @relation(fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@map("campaign_reviews")
+}
+
+// ═══════════════════════════════════════════
+// Models — Social & Communication
+// ═══════════════════════════════════════════
+
+model SavedCampaign {
+  userId     String   @map("user_id") @db.Uuid
+  campaignId String   @map("campaign_id") @db.Uuid
+  savedAt    DateTime @default(now()) @map("saved_at") @db.Timestamptz
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([userId, campaignId])
+  @@map("saved_campaigns")
+}
+
+model CreatorFollow {
+  followerId String   @map("follower_id") @db.Uuid
+  creatorId  String   @map("creator_id") @db.Uuid
+  followedAt DateTime @default(now()) @map("followed_at") @db.Timestamptz
+
+  follower User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  creator  User @relation("Creator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, creatorId])
+  @@map("creator_follows")
+}
+
+model PrelaunchSubscription {
+  userId      String   @map("user_id") @db.Uuid
+  campaignId  String   @map("campaign_id") @db.Uuid
+  notifyEmail Boolean  @default(true) @map("notify_email")
+  subscribedAt DateTime @default(now()) @map("subscribed_at") @db.Timestamptz
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([userId, campaignId])
+  @@map("prelaunch_subscriptions")
+}
+
+model InteractionEvent {
+  id          BigInt          @id @default(autoincrement())
+  userId      String?         @map("user_id") @db.Uuid
+  campaignId  String          @map("campaign_id") @db.Uuid
+  eventType   InteractionType @map("event_type")
+  sessionHash String?         @map("session_hash") @db.VarChar(128)
+  source      String?         @db.VarChar(50)
+  metadata    Json            @default("{}")
+  occurredAt  DateTime        @default(now()) @map("occurred_at") @db.Timestamptz
+
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt(sort: Desc)], map: "idx_interactions_user_recent")
+  @@index([campaignId, eventType, occurredAt(sort: Desc)], map: "idx_interactions_campaign_type")
+  @@map("interaction_events")
+}
+
+model CampaignUpdate {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId    String    @map("campaign_id") @db.Uuid
+  authorId      String    @map("author_id") @db.Uuid
+  title         String    @db.VarChar(180)
+  bodyMarkdown  String    @map("body_markdown")
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  comments Comment[]
+
+  @@index([campaignId, publishedAt(sort: Desc)], map: "idx_updates_campaign_published")
+  @@map("campaign_updates")
+}
+
+model CampaignFaq {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String   @map("campaign_id") @db.Uuid
+  question   String   @db.VarChar(260)
+  answer     String
+  sortOrder  Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_faqs")
+}
+
+model Comment {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId      String       @map("campaign_id") @db.Uuid
+  updateId        String?      @map("update_id") @db.Uuid
+  authorId        String       @map("author_id") @db.Uuid
+  parentCommentId String?      @map("parent_comment_id") @db.Uuid
+  body            String
+  badge           CommentBadge @default(BACKER)
+  likeCount       Int          @default(0) @map("like_count")
+  isHidden        Boolean      @default(false) @map("is_hidden")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign      Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  update        CampaignUpdate? @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  author        User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  parentComment Comment?        @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       Comment[]       @relation("CommentReplies")
+
+  @@index([campaignId, createdAt(sort: Desc)], map: "idx_comments_campaign_recent")
+  @@index([parentCommentId], map: "idx_comments_parent")
+  @@map("comments")
+}
+
+model Message {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId      String?   @map("campaign_id") @db.Uuid
+  senderId        String    @map("sender_id") @db.Uuid
+  recipientId     String    @map("recipient_id") @db.Uuid
+  parentMessageId String?   @map("parent_message_id") @db.Uuid
+  subject         String    @db.VarChar(180)
+  body            String
+  readAt          DateTime? @map("read_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  campaign      Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  sender        User      @relation("Sender", fields: [senderId], references: [id], onDelete: Restrict)
+  recipient     User      @relation("Recipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  parentMessage Message?  @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  replies       Message[] @relation("MessageThread")
+
+  @@index([recipientId, createdAt(sort: Desc)], map: "idx_messages_recipient_unread")
+  @@map("messages")
+}
+
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String    @db.VarChar(80)
+  title     String    @db.VarChar(180)
+  body      String
+  actionUrl String?   @map("action_url")
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], map: "idx_notifications_user_unread")
+  @@map("notifications")
+}
+
+// ═══════════════════════════════════════════
+// Models — Analytics
+// ═══════════════════════════════════════════
+
+model DailyCampaignMetric {
+  campaignId      String @map("campaign_id") @db.Uuid
+  metricDate      DateTime @map("metric_date") @db.Date
+  pledgedAmount   BigInt @default(0) @map("pledged_amount")
+  newPledgedAmount BigInt @default(0) @map("new_pledged_amount")
+  backerCount     Int    @default(0) @map("backer_count")
+  newBackerCount  Int    @default(0) @map("new_backer_count")
+  saveCount       Int    @default(0) @map("save_count")
+  notifyCount     Int    @default(0) @map("notify_count")
+  viewCount       Int    @default(0) @map("view_count")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, metricDate])
+  @@map("daily_campaign_metrics")
+}
+
+// ═══════════════════════════════════════════
+// Models — AI / ML
+// ═══════════════════════════════════════════
+
+model AiModelVersion {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task          AiTask
+  name          String    @db.VarChar(120)
+  version       String    @db.VarChar(40)
+  metrics       Json      @default("{}")
+  featureSchema Json      @default("{}") @map("feature_schema")
+  artifactUri   String?   @map("artifact_uri")
+  isActive      Boolean   @default(false) @map("is_active")
+  trainedAt     DateTime? @map("trained_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  recommendations RecommendationResult[]
+  predictions     CampaignPrediction[]
+  fraudAlerts     FraudAlert[]
+
+  @@unique([task, name, version])
+  @@map("ai_model_versions")
+}
+
+model RecommendationResult {
+  id             BigInt   @id @default(autoincrement())
+  userId         String   @map("user_id") @db.Uuid
+  campaignId     String   @map("campaign_id") @db.Uuid
+  modelVersionId String?  @map("model_version_id") @db.Uuid
+  score          Decimal  @db.Decimal(8, 6)
+  rank           Int      @db.SmallInt
+  reason         String?  @db.VarChar(220)
+  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign     Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  modelVersion AiModelVersion? @relation(fields: [modelVersionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, generatedAt(sort: Desc), rank], map: "idx_recommendations_user_rank")
+  @@map("recommendation_results")
+}
+
+model CampaignPrediction {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId      String   @map("campaign_id") @db.Uuid
+  modelVersionId  String   @map("model_version_id") @db.Uuid
+  probability     Decimal  @db.Decimal(6, 5)
+  riskLevel       String   @map("risk_level") @db.VarChar(20)
+  inputSnapshot   Json     @map("input_snapshot")
+  predictionStage String   @map("prediction_stage") @db.VarChar(20)
+  predictedAt     DateTime @default(now()) @map("predicted_at") @db.Timestamptz
+
+  campaign     Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  modelVersion AiModelVersion @relation(fields: [modelVersionId], references: [id], onDelete: Restrict)
+  factors      PredictionFactor[]
+
+  @@index([campaignId, predictedAt(sort: Desc)], map: "idx_predictions_campaign_recent")
+  @@map("campaign_predictions")
+}
+
+model PredictionFactor {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  predictionId String  @map("prediction_id") @db.Uuid
+  featureName  String  @map("feature_name") @db.VarChar(120)
+  featureValue Json    @map("feature_value")
+  impact       Decimal @db.Decimal(10, 6)
+  direction    String  @db.VarChar(10)
+  explanation  String  @db.VarChar(260)
+  sortOrder    Int     @default(0) @map("sort_order") @db.SmallInt
+
+  prediction CampaignPrediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+
+  @@map("prediction_factors")
+}
+
+// ═══════════════════════════════════════════
+// Models — Admin & Moderation
+// ═══════════════════════════════════════════
+
+model FraudAlert {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pledgeId        String?          @map("pledge_id") @db.Uuid
+  campaignId      String           @map("campaign_id") @db.Uuid
+  subjectUserId   String?          @map("subject_user_id") @db.Uuid
+  modelVersionId  String?          @map("model_version_id") @db.Uuid
+  riskScore       Decimal          @map("risk_score") @db.Decimal(5, 2)
+  status          FraudAlertStatus @default(NEW)
+  assignedAdminId String?          @map("assigned_admin_id") @db.Uuid
+  resolutionNote  String?          @map("resolution_note")
+  detectedAt      DateTime         @default(now()) @map("detected_at") @db.Timestamptz
+  resolvedAt      DateTime?        @map("resolved_at") @db.Timestamptz
+
+  pledge        Pledge?         @relation(fields: [pledgeId], references: [id], onDelete: SetNull)
+  campaign      Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  subjectUser   User?           @relation("SubjectUser", fields: [subjectUserId], references: [id], onDelete: SetNull)
+  modelVersion  AiModelVersion? @relation(fields: [modelVersionId], references: [id], onDelete: SetNull)
+  assignedAdmin User?           @relation("AssignedAdmin", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  signals       FraudSignal[]
+
+  @@index([status, riskScore(sort: Desc), detectedAt(sort: Desc)], map: "idx_fraud_alerts_queue")
+  @@map("fraud_alerts")
+}
+
+model FraudSignal {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  alertId     String  @map("alert_id") @db.Uuid
+  signalCode  String  @map("signal_code") @db.VarChar(80)
+  weight      Decimal @db.Decimal(7, 4)
+  explanation String  @db.VarChar(300)
+  evidence    Json    @default("{}")
+
+  alert FraudAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@map("fraud_signals")
+}
+
+model ModerationAction {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId    String   @map("admin_id") @db.Uuid
+  targetType String   @map("target_type") @db.VarChar(30)
+  targetId   String   @map("target_id") @db.Uuid
+  action     String   @db.VarChar(50)
+  reason     String
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@map("moderation_actions")
+}
+
+model PlatformSetting {
+  key       String   @id @db.VarChar(80)
+  value     Json
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  updater User? @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("platform_settings")
+}
