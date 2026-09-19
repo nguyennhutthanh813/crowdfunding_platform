@@ -1,4 +1,4 @@
-as integer VND (BIGINT)
+-- as integer VND (BIGINT)
 
 BEGIN;
 
