@@ -47,7 +47,10 @@ async function bootstrap() {
     .addTag('users', 'User management')
     .addTag('campaigns', 'Campaign management')
     .addTag('pledges', 'Pledge & payment')
+    .addTag('fulfillment', 'Fulfillment & tracking management')
     .addTag('social', 'Social features')
+    .addTag('communication', 'Messages and notifications')
+    .addTag('analytics', 'Campaign analytics and metrics')
     .addTag('admin', 'Admin panel')
     .build();
 
