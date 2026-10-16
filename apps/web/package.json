@@ -1,0 +1,42 @@
+{
+  "name": "@crowdfunding/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf .next"
+  },
+  "dependencies": {
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "@tanstack/react-query": "^5.65.0",
+    "zustand": "^5.0.0",
+    "axios": "^1.7.0",
+    "react-hook-form": "^7.54.0",
+    "@hookform/resolvers": "^4.1.0",
+    "zod": "^3.24.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^3.0.0",
+    "lucide-react": "^0.475.0",
+    "sonner": "^2.0.0",
+    "date-fns": "^4.1.0",
+    "@crowdfunding/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "rimraf": "^6.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
