@@ -16,7 +16,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger'
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser, Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
-import { GlobalRole } from '@crowdfunding/shared-types';
+import { GlobalRole } from '@prisma/client';
 import { PaginationQueryDto } from '../../common/dto';
 import { AdminService } from './admin.service';
 import { UpdateUserStatusDto } from '../users/dto/update-user-status.dto';

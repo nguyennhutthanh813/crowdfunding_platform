@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { GlobalRole } from '@crowdfunding/shared-types';
+import { GlobalRole } from '@prisma/client';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 /**

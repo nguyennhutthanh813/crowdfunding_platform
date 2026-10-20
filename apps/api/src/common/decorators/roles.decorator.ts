@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import { GlobalRole } from '@crowdfunding/shared-types';
+import { GlobalRole } from '@prisma/client';
 
 export const ROLES_KEY = 'roles';
 
