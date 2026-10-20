@@ -64,8 +64,8 @@ export function AuthProvider({
           roles: session.user.roles,
         },
         {
-          accessToken: session.sessionId,
-          refreshToken: session.sessionId,
+          accessToken: session.tokens?.accessToken ?? session.sessionId,
+          refreshToken: session.tokens?.refreshToken ?? session.sessionId,
         },
       );
     } else {

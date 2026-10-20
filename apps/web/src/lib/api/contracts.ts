@@ -594,6 +594,11 @@ export interface SessionResult {
     roles: UserRole[];
     activeRole: UserRole;
   };
+  tokens?: {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn?: number;
+  };
   previewState?: {
     notificationPreferences?: {
       projectUpdates: boolean;

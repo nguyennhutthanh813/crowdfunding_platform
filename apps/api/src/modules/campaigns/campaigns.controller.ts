@@ -29,6 +29,7 @@ import {
   CreateAddOnDto,
   UpdateAddOnDto,
   CreateShippingOptionDto,
+  UpdateShippingOptionDto,
   CreateCampaignMediaDto,
   CreateCampaignFaqDto,
   UpdateCampaignFaqDto,
@@ -41,6 +42,22 @@ import {
 export class CampaignsController {
   constructor(private readonly campaignsService: CampaignsService) {}
 
+  // ─── Categories & Creator Endpoints ─────────────────────
+
+  @Get('categories')
+  @ApiOperation({ summary: 'List all active campaign categories' })
+  async getCategories() {
+    return this.campaignsService.getCategories();
+  }
+
+  @Get('creator/my')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List campaigns owned or collaborated by current user' })
+  async getMyCampaigns(@CurrentUser('id') userId: string) {
+    return this.campaignsService.getCreatorCampaigns(userId);
+  }
+
   // ─── Campaign CRUD ─────────────────────────────────────
 
   @Get()
@@ -50,8 +67,8 @@ export class CampaignsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get campaign details' })
-  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  @ApiOperation({ summary: 'Get campaign details by UUID or slug' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID or slug' })
   async findOne(@Param('id') id: string) {
     return this.campaignsService.findById(id);
   }
@@ -181,6 +198,66 @@ export class CampaignsController {
     return this.campaignsService.updateAddOn(id, addOnId, userId, dto);
   }
 
+  @Delete(':id/add-ons/:addOnId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete an add-on' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  @ApiParam({ name: 'addOnId', description: 'Add-on UUID' })
+  async deleteAddOn(
+    @Param('id') id: string,
+    @Param('addOnId') addOnId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.campaignsService.deleteAddOn(id, addOnId, userId);
+  }
+
+  // ─── Shipping Options ───────────────────────────────────
+
+  @Post(':id/shipping-options')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a shipping option' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async createShippingOption(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateShippingOptionDto,
+  ) {
+    return this.campaignsService.createShippingOption(id, userId, dto);
+  }
+
+  @Patch(':id/shipping-options/:optionId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a shipping option' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  @ApiParam({ name: 'optionId', description: 'Shipping option UUID' })
+  async updateShippingOption(
+    @Param('id') id: string,
+    @Param('optionId') optionId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateShippingOptionDto,
+  ) {
+    return this.campaignsService.updateShippingOption(id, optionId, userId, dto);
+  }
+
+  @Delete(':id/shipping-options/:optionId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a shipping option' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  @ApiParam({ name: 'optionId', description: 'Shipping option UUID' })
+  async deleteShippingOption(
+    @Param('id') id: string,
+    @Param('optionId') optionId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.campaignsService.deleteShippingOption(id, optionId, userId);
+  }
+
   // ─── Media ─────────────────────────────────────────────
 
   @Post(':id/media')
@@ -239,6 +316,59 @@ export class CampaignsController {
     @Body() dto: UpdateCampaignFaqDto,
   ) {
     return this.campaignsService.updateFaq(id, faqId, userId, dto);
+  }
+
+  @Delete(':id/faqs/:faqId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a FAQ' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  @ApiParam({ name: 'faqId', description: 'FAQ UUID' })
+  async deleteFaq(
+    @Param('id') id: string,
+    @Param('faqId') faqId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.campaignsService.deleteFaq(id, faqId, userId);
+  }
+
+  // ─── Lifecycle: Launch ─────────────────────────────────
+
+  @Post(':id/launch')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Launch a campaign (start funding)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async launch(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.campaignsService.launch(id, userId);
+  }
+
+  // ─── Public Sub-resources ──────────────────────────────
+
+  @Get(':id/updates')
+  @ApiOperation({ summary: 'Get published updates of a campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID or slug' })
+  async getUpdates(@Param('id') id: string) {
+    return this.campaignsService.getUpdates(id);
+  }
+
+  @Get(':id/faqs')
+  @ApiOperation({ summary: 'Get FAQs of a campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID or slug' })
+  async getFaqs(@Param('id') id: string) {
+    return this.campaignsService.getFaqs(id);
+  }
+
+  @Get(':id/rewards')
+  @ApiOperation({ summary: 'Get rewards, add-ons and shipping options of a campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID or slug' })
+  async getRewards(@Param('id') id: string) {
+    return this.campaignsService.getRewards(id);
   }
 
   // ─── Campaign Updates ──────────────────────────────────

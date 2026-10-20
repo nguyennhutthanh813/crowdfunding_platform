@@ -14,6 +14,7 @@ import { UpdateRewardTierDto } from './dto/update-reward-tier.dto';
 import { CreateAddOnDto } from './dto/create-add-on.dto';
 import { UpdateAddOnDto } from './dto/update-add-on.dto';
 import { CreateShippingOptionDto } from './dto/create-shipping-option.dto';
+import { UpdateShippingOptionDto } from './dto/update-shipping-option.dto';
 import { CreateCampaignMediaDto } from './dto/create-campaign-media.dto';
 import { CreateCampaignFaqDto } from './dto/create-campaign-faq.dto';
 import { UpdateCampaignFaqDto } from './dto/update-campaign-faq.dto';
@@ -23,6 +24,35 @@ import { AddCampaignMemberDto } from './dto/campaign-member.dto';
 @Injectable()
 export class CampaignsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ─── Categories & Creator queries ─────────────────────────
+
+  async getCategories() {
+    return this.prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        children: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+        _count: { select: { campaigns: true } },
+      },
+    });
+  }
+
+  async getCreatorCampaigns(userId: string) {
+    return this.prisma.campaign.findMany({
+      where: {
+        OR: [
+          { creatorId: userId },
+          { members: { some: { userId } } },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { pledges: true, comments: true } },
+      },
+    });
+  }
 
   // ─── Campaign CRUD ─────────────────────────────────────
 
@@ -58,17 +88,21 @@ export class CampaignsService {
     return buildPaginatedResponse(data, total, query);
   }
 
-  async findById(id: string) {
+  async findById(idOrSlug: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const where = isUuid ? { id: idOrSlug } : { slug: idOrSlug };
+
     const campaign = await this.prisma.campaign.findUnique({
-      where: { id },
+      where,
       include: {
-        creator: { select: { id: true, displayName: true, avatarUrl: true } },
+        creator: { select: { id: true, displayName: true, avatarUrl: true, bio: true } },
         category: { select: { id: true, name: true, slug: true } },
         media: { orderBy: { sortOrder: 'asc' } },
         rewardTiers: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
         addOns: { where: { isActive: true } },
         shippingOptions: { where: { isActive: true } },
         faqs: { orderBy: { sortOrder: 'asc' } },
+        updates: { orderBy: { publishedAt: 'desc' } },
         members: {
           include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
         },
@@ -238,6 +272,61 @@ export class CampaignsService {
     return this.prisma.addOn.update({ where: { id: addOnId }, data: dto });
   }
 
+  async deleteAddOn(campaignId: string, addOnId: string, userId: string) {
+    await this.ensureOwnership(campaignId, userId);
+
+    const addOn = await this.prisma.addOn.findUnique({ where: { id: addOnId } });
+    if (!addOn || addOn.campaignId !== campaignId) {
+      throw new NotFoundException('Add-on not found');
+    }
+
+    await this.prisma.addOn.delete({ where: { id: addOnId } });
+    return { message: 'Add-on deleted successfully' };
+  }
+
+  // ─── Shipping Options ───────────────────────────────────
+
+  async createShippingOption(campaignId: string, userId: string, dto: CreateShippingOptionDto) {
+    await this.ensureOwnership(campaignId, userId);
+
+    return this.prisma.shippingOption.create({
+      data: {
+        campaignId,
+        name: dto.name,
+        provinceCode: dto.provinceCode,
+        feeAmount: dto.feeAmount ?? 0,
+        estimatedDaysMin: dto.estimatedDaysMin,
+        estimatedDaysMax: dto.estimatedDaysMax,
+      },
+    });
+  }
+
+  async updateShippingOption(campaignId: string, optionId: string, userId: string, dto: UpdateShippingOptionDto) {
+    await this.ensureOwnership(campaignId, userId);
+
+    const option = await this.prisma.shippingOption.findUnique({ where: { id: optionId } });
+    if (!option || option.campaignId !== campaignId) {
+      throw new NotFoundException('Shipping option not found');
+    }
+
+    return this.prisma.shippingOption.update({
+      where: { id: optionId },
+      data: dto,
+    });
+  }
+
+  async deleteShippingOption(campaignId: string, optionId: string, userId: string) {
+    await this.ensureOwnership(campaignId, userId);
+
+    const option = await this.prisma.shippingOption.findUnique({ where: { id: optionId } });
+    if (!option || option.campaignId !== campaignId) {
+      throw new NotFoundException('Shipping option not found');
+    }
+
+    await this.prisma.shippingOption.delete({ where: { id: optionId } });
+    return { message: 'Shipping option deleted successfully' };
+  }
+
   // ─── Media ─────────────────────────────────────────────
 
   async createMedia(campaignId: string, userId: string, dto: CreateCampaignMediaDto) {
@@ -290,6 +379,102 @@ export class CampaignsService {
     }
 
     return this.prisma.campaignFaq.update({ where: { id: faqId }, data: dto });
+  }
+
+  async deleteFaq(campaignId: string, faqId: string, userId: string) {
+    await this.ensureOwnership(campaignId, userId);
+
+    const faq = await this.prisma.campaignFaq.findUnique({ where: { id: faqId } });
+    if (!faq || faq.campaignId !== campaignId) {
+      throw new NotFoundException('FAQ not found');
+    }
+
+    await this.prisma.campaignFaq.delete({ where: { id: faqId } });
+    return { message: 'FAQ deleted successfully' };
+  }
+
+  // ─── Launch Campaign ───────────────────────────────────
+
+  async launch(campaignId: string, userId: string) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        creator: { select: { id: true, roles: { select: { role: true } } } },
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    if (campaign.creatorId !== userId) {
+      throw new ForbiddenException('Only the campaign creator can launch this campaign');
+    }
+
+    const durationDays = campaign.durationDays || 30;
+    const now = new Date();
+    const endsAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    return this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: {
+        status: 'LIVE',
+        startsAt: now,
+        publishedAt: now,
+        endsAt,
+        statusHistory: {
+          create: {
+            fromStatus: campaign.status,
+            toStatus: 'LIVE',
+            changedBy: userId,
+            reason: 'Chiến dịch được xuất bản và chính thức gọi vốn',
+          },
+        },
+      },
+      include: {
+        creator: { select: { id: true, displayName: true, avatarUrl: true } },
+        category: { select: { id: true, name: true, slug: true } },
+      },
+    });
+  }
+
+  // ─── Public Sub-resources ──────────────────────────────
+
+  async getUpdates(idOrSlug: string) {
+    const campaign = await this.findById(idOrSlug);
+    return this.prisma.campaignUpdate.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { publishedAt: 'desc' },
+      include: {
+        author: { select: { id: true, displayName: true, avatarUrl: true } },
+        _count: { select: { comments: true } },
+      },
+    });
+  }
+
+  async getFaqs(idOrSlug: string) {
+    const campaign = await this.findById(idOrSlug);
+    return this.prisma.campaignFaq.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  async getRewards(idOrSlug: string) {
+    const campaign = await this.findById(idOrSlug);
+    const [rewardTiers, addOns, shippingOptions] = await Promise.all([
+      this.prisma.rewardTier.findMany({
+        where: { campaignId: campaign.id, isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      this.prisma.addOn.findMany({
+        where: { campaignId: campaign.id, isActive: true },
+      }),
+      this.prisma.shippingOption.findMany({
+        where: { campaignId: campaign.id, isActive: true },
+      }),
+    ]);
+    return { rewardTiers, addOns, shippingOptions };
   }
 
   // ─── Campaign Updates (posts for backers) ──────────────

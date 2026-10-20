@@ -6,9 +6,9 @@ export class RegisterDto {
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ description: 'Password (8–128 characters)', minLength: 8, maxLength: 128 })
+  @ApiProperty({ description: 'Password (6–128 characters)', minLength: 6, maxLength: 128 })
   @IsString()
-  @MinLength(8)
+  @MinLength(6)
   @MaxLength(128)
   password!: string;
 

@@ -13,9 +13,10 @@ export class AuthService {
   ) {}
 
   async register(email: string, password: string, displayName: string) {
+    const normalizedEmail = email.trim().toLowerCase();
     // Check if email already exists
     const existingUser = await this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       select: { id: true },
     });
 
@@ -27,9 +28,9 @@ export class AuthService {
 
     const user = await this.prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         passwordHash,
-        displayName,
+        displayName: displayName.trim(),
         roles: {
           create: { role: 'BACKER' },
         },
@@ -52,19 +53,24 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       include: { roles: true },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Tài khoản đã bị tạm khóa hoặc vô hiệu hóa');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
     }
 
     // Update last login
@@ -84,6 +90,28 @@ export class AuthService {
         roles: user.roles.map((r) => r.role),
       },
       tokens,
+    };
+  }
+
+  async getMe(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roles: true },
+    });
+
+    if (!user || user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị khóa');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      location: user.location,
+      status: user.status,
+      roles: user.roles.map((r) => r.role),
     };
   }
 

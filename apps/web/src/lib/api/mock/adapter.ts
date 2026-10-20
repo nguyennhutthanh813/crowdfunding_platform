@@ -16,9 +16,11 @@ import {
 import { campaignDetailsBySlug } from "./campaign-details";
 import { campaignOperationsBySlug } from "./operations";
 import { creatorPortfolio } from "./creator-portfolio";
-import { previewAccounts } from "@/lib/auth/preview-accounts";
+import { previewAccounts, type PreviewAccount } from "@/lib/auth/preview-accounts";
 import { getInitialPreviewState } from "@/lib/auth/preview-state";
 import { getInitials } from "@/lib/auth/roles";
+
+const dynamicRegisteredAccounts = new Map<string, PreviewAccount>();
 
 const normalize = (value: string) =>
   value
@@ -143,15 +145,16 @@ export const mockApi: PlatformApi = {
       : 2 * 60 * 60 * 1000;
 
     if (input.mode === "SIGN_IN") {
-      const account = previewAccounts.find(
-        (item) => item.email === normalizedEmail,
-      );
+      const account =
+        previewAccounts.find((item) => item.email === normalizedEmail) ??
+        dynamicRegisteredAccounts.get(normalizedEmail);
       if (!account || account.password !== input.password) {
         throw new Error("INVALID_CREDENTIALS");
       }
 
+      const sessionId = `session_${crypto.randomUUID().slice(0, 8)}`;
       return {
-        sessionId: `session_${crypto.randomUUID().slice(0, 8)}`,
+        sessionId,
         user: {
           id: account.id,
           name: account.name,
@@ -161,6 +164,11 @@ export const mockApi: PlatformApi = {
           roles: account.roles,
           activeRole: account.activeRole,
         },
+        tokens: {
+          accessToken: sessionId,
+          refreshToken: sessionId,
+          expiresIn: Math.floor(expiresInMs / 1000),
+        },
         previewState: getInitialPreviewState(account.id),
         expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
         notice:
@@ -169,11 +177,24 @@ export const mockApi: PlatformApi = {
     }
 
     const registeredName = input.fullName?.trim() || "Thành viên Góp";
-
     const registeredId = `usr_${crypto.randomUUID().slice(0, 8)}`;
+    const sessionId = `session_${crypto.randomUUID().slice(0, 8)}`;
+
+    const registeredAccount: PreviewAccount = {
+      id: registeredId,
+      name: registeredName,
+      email: normalizedEmail,
+      password: input.password,
+      initials: getInitials(registeredName),
+      headline: "Thành viên mới của cộng đồng Góp",
+      roles: ["BACKER"],
+      activeRole: "BACKER",
+      description: "Ủng hộ dự án, lưu chiến dịch và theo dõi quà tặng.",
+    };
+    dynamicRegisteredAccounts.set(normalizedEmail, registeredAccount);
 
     return {
-      sessionId: `session_${crypto.randomUUID().slice(0, 8)}`,
+      sessionId,
       user: {
         id: registeredId,
         name: registeredName,
@@ -182,6 +203,11 @@ export const mockApi: PlatformApi = {
         headline: "Thành viên mới của cộng đồng Góp",
         roles: ["BACKER"],
         activeRole: "BACKER",
+      },
+      tokens: {
+        accessToken: sessionId,
+        refreshToken: sessionId,
+        expiresIn: Math.floor(expiresInMs / 1000),
       },
       previewState: getInitialPreviewState(registeredId),
       expiresAt: new Date(Date.now() + expiresInMs).toISOString(),

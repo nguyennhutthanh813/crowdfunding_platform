@@ -6,6 +6,12 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
 
+// Allow BigInt to be serialized to JSON
+(BigInt.prototype as unknown as { toJSON: () => number | string }).toJSON = function () {
+  const int = Number.parseInt(this.toString(), 10);
+  return Number.isNaN(int) ? this.toString() : int;
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);

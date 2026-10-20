@@ -8,7 +8,10 @@ import {
   requestError,
 } from "@/lib/api/request-validation";
 import { isNotificationPreferences } from "@/lib/auth/notification-preferences";
-import { getEffectivePreviewState } from "@/lib/auth/preview-state";
+import {
+  getEffectivePreviewState,
+  getInitialPreviewState,
+} from "@/lib/auth/preview-state";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
 import { decodeSession, SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { getInitials } from "@/lib/auth/roles";
@@ -94,6 +97,147 @@ export async function POST(request: Request) {
       },
       { status: 422 },
     );
+  }
+
+  const apiUrl =
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:3001/api";
+
+  // Thử kết nối với backend NestJS nếu server đang chạy
+  try {
+    if (body.mode === "SIGN_IN") {
+      const apiRes = await fetch(`${apiUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: body.email.trim().toLowerCase(),
+          password: body.password,
+        }),
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (apiRes.ok) {
+        const data = (await apiRes.json()) as {
+          user: {
+            id: string;
+            email: string;
+            displayName: string;
+            avatarUrl: string | null;
+            roles: string[];
+          };
+          tokens: {
+            accessToken: string;
+            refreshToken: string;
+            expiresIn: number;
+          };
+        };
+
+        const expiresInMs = body.remember
+          ? 7 * 24 * 60 * 60 * 1000
+          : 2 * 60 * 60 * 1000;
+        const roles = (data.user?.roles || ["BACKER"]) as UserRole[];
+        const activeRole: UserRole = roles.includes("CREATOR")
+          ? "CREATOR"
+          : (roles[0] || "BACKER");
+        const displayName = data.user?.displayName || "Thành viên Góp";
+
+        const realSession: SessionResult = {
+          sessionId: `session_${data.user?.id ? data.user.id.slice(0, 8) : crypto.randomUUID().slice(0, 8)}`,
+          user: {
+            id: data.user?.id || `usr_${crypto.randomUUID().slice(0, 8)}`,
+            name: displayName,
+            email: data.user?.email || body.email,
+            initials: getInitials(displayName),
+            headline: "Thành viên cộng đồng Góp",
+            roles,
+            activeRole,
+          },
+          tokens: {
+            accessToken: data.tokens.accessToken,
+            refreshToken: data.tokens.refreshToken,
+            expiresIn: data.tokens.expiresIn,
+          },
+          previewState: getInitialPreviewState(data.user?.id),
+          expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
+          notice: "Đăng nhập thành công qua máy chủ API.",
+        };
+
+        const response = NextResponse.json(realSession, { status: 200 });
+        return writePreviewSessionCookie(response, realSession) ?? response;
+      }
+    } else if (body.mode === "REGISTER") {
+      const apiRes = await fetch(`${apiUrl}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: body.email.trim().toLowerCase(),
+          password: body.password,
+          displayName: body.fullName?.trim() || "Thành viên Góp",
+        }),
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (apiRes.ok) {
+        const data = (await apiRes.json()) as {
+          user: {
+            id: string;
+            email: string;
+            displayName: string;
+            avatarUrl: string | null;
+            roles: string[];
+          };
+          tokens: {
+            accessToken: string;
+            refreshToken: string;
+            expiresIn: number;
+          };
+        };
+
+        const expiresInMs = body.remember
+          ? 7 * 24 * 60 * 60 * 1000
+          : 2 * 60 * 60 * 1000;
+        const roles = (data.user?.roles || ["BACKER"]) as UserRole[];
+        const displayName = data.user?.displayName || body.fullName || "Thành viên Góp";
+
+        const realSession: SessionResult = {
+          sessionId: `session_${data.user?.id ? data.user.id.slice(0, 8) : crypto.randomUUID().slice(0, 8)}`,
+          user: {
+            id: data.user?.id || `usr_${crypto.randomUUID().slice(0, 8)}`,
+            name: displayName,
+            email: data.user?.email || body.email,
+            initials: getInitials(displayName),
+            headline: "Thành viên mới của cộng đồng Góp",
+            roles,
+            activeRole: "BACKER",
+          },
+          tokens: {
+            accessToken: data.tokens.accessToken,
+            refreshToken: data.tokens.refreshToken,
+            expiresIn: data.tokens.expiresIn,
+          },
+          previewState: getInitialPreviewState(data.user?.id),
+          expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
+          notice: "Tài khoản đã được tạo thành công trên hệ thống.",
+        };
+
+        const response = NextResponse.json(realSession, { status: 201 });
+        return writePreviewSessionCookie(response, realSession) ?? response;
+      } else if (apiRes.status === 409) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "EMAIL_TAKEN",
+              message: "Email này đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.",
+              fieldErrors: { email: "Email đã tồn tại" },
+            },
+          },
+          { status: 409 },
+        );
+      }
+    }
+  } catch {
+    // Nếu backend chưa chạy hoặc lỗi kết nối, tiếp tục luồng mock adapter
   }
 
   try {

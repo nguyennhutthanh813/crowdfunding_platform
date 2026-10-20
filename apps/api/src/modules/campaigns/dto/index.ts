@@ -6,6 +6,7 @@ export { UpdateRewardTierDto } from './update-reward-tier.dto';
 export { CreateAddOnDto } from './create-add-on.dto';
 export { UpdateAddOnDto } from './update-add-on.dto';
 export { CreateShippingOptionDto } from './create-shipping-option.dto';
+export { UpdateShippingOptionDto } from './update-shipping-option.dto';
 export { CreateCampaignMediaDto } from './create-campaign-media.dto';
 export { CreateCampaignFaqDto } from './create-campaign-faq.dto';
 export { UpdateCampaignFaqDto } from './update-campaign-faq.dto';
