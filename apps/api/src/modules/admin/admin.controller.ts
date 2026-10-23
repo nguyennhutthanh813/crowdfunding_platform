@@ -17,7 +17,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser, Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { GlobalRole } from '@prisma/client';
-import { PaginationQueryDto } from '../../common/dto';
 import { AdminService } from './admin.service';
 import { UpdateUserStatusDto } from '../users/dto/update-user-status.dto';
 import { AssignRoleDto } from '../users/dto/assign-role.dto';
@@ -27,6 +26,9 @@ import {
   FraudAlertQueryDto,
   UpdateFraudAlertDto,
   UpdatePlatformSettingDto,
+  AdminUserQueryDto,
+  CreateUserAdminDto,
+  ResetPasswordAdminDto,
 } from './dto';
 
 @ApiTags('admin')
@@ -40,19 +42,48 @@ export class AdminController {
   // ─── User Management ───────────────────────────────────
 
   @Get('users')
-  @ApiOperation({ summary: 'List all users (admin only)' })
-  async listUsers(@Query() query: PaginationQueryDto) {
+  @ApiOperation({ summary: 'List and search users with filters (admin only)' })
+  async listUsers(@Query() query: AdminUserQueryDto) {
     return this.adminService.listUsers(query);
   }
 
+  @Get('users/:id')
+  @ApiOperation({ summary: 'Get full user details including relations and audit log (admin only)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  async getUserDetail(@Param('id') id: string) {
+    return this.adminService.getUserDetail(id);
+  }
+
+  @Post('users')
+  @ApiOperation({ summary: 'Create new user directly (admin only)' })
+  async createUser(
+    @CurrentUser('id') adminId: string,
+    @Body() dto: CreateUserAdminDto,
+  ) {
+    return this.adminService.createUser(dto, adminId);
+  }
+
   @Patch('users/:id/status')
-  @ApiOperation({ summary: 'Update user status (admin only)' })
+  @ApiOperation({ summary: 'Update user status with audit log (admin only)' })
   @ApiParam({ name: 'id', description: 'User UUID' })
   async updateUserStatus(
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
+    @CurrentUser('id') adminId: string,
   ) {
-    return this.adminService.updateUserStatus(id, dto.status);
+    return this.adminService.updateUserStatus(id, dto.status, dto.reason, adminId);
+  }
+
+  @Post('users/:id/reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset a user password by admin (admin only)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  async resetPassword(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: ResetPasswordAdminDto,
+  ) {
+    return this.adminService.resetPassword(id, dto, adminId);
   }
 
   @Post('users/:id/roles')
@@ -74,8 +105,9 @@ export class AdminController {
   async removeRole(
     @Param('id') id: string,
     @Param('role') role: string,
+    @CurrentUser('id') adminId: string,
   ) {
-    return this.adminService.removeRole(id, role);
+    return this.adminService.removeRole(id, role, adminId);
   }
 
   // ─── Campaign Review ───────────────────────────────────

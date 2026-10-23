@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getServerSession } from "@/lib/auth/server-session";
 import { applyAdminPreviewState } from "@/lib/preview-read-models";
+import { fetchRealAdminUsers } from "@/lib/api/real-admin-users";
 
 export const metadata: Metadata = {
   title: "Quản trị hệ thống",
@@ -17,6 +18,13 @@ export default async function AdminPage() {
     getServerSession(),
     getServerPlatformPreviewState(),
   ]);
+
+  // Lấy dữ liệu người dùng thật trực tiếp từ PostgreSQL thông qua NestJS API
+  const realUsers = await fetchRealAdminUsers(session?.tokens?.accessToken);
+  if (realUsers && realUsers.length > 0) {
+    baseData.users = realUsers;
+  }
+
   const data = applyAdminPreviewState(baseData, session, platformState);
   return <AdminWorkspace data={data} />;
 }

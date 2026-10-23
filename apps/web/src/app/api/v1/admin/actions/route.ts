@@ -16,6 +16,7 @@ import {
 } from "@/lib/auth/platform-preview-cookie";
 import { requireSession } from "@/lib/auth/require-session";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
+import { forwardUserActionToBackend } from "@/lib/api/real-admin-users";
 
 const allowedActions = new Set([
   "REVIEW_CAMPAIGN",
@@ -23,6 +24,10 @@ const allowedActions = new Set([
   "UPDATE_PLATFORM_FEE",
   "SET_USER_STATUS",
   "SET_CAMPAIGN_STATUS",
+  "ASSIGN_USER_ROLE",
+  "REMOVE_USER_ROLE",
+  "CREATE_USER",
+  "RESET_USER_PASSWORD",
 ]);
 
 function apiError(status: number, code: string, message: string) {
@@ -42,6 +47,7 @@ export async function POST(request: Request) {
   const platformState = decodePlatformPreview(
     cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
   );
+  const previewState = getEffectivePreviewState(access.session!);
 
   let rawBody: unknown;
   try {
@@ -140,7 +146,7 @@ export async function POST(request: Request) {
     const status = typeof payload.status === "string" ? payload.status : "";
     const reason =
       typeof payload.reason === "string" ? payload.reason.trim() : "";
-    if (!mockUsers.some((user) => user.id === userId)) {
+    if (!userId) {
       return apiError(404, "USER_NOT_FOUND", "Không tìm thấy tài khoản.");
     }
     if (!new Set(["ACTIVE", "SUSPENDED"]).has(status) || !reason) {
@@ -148,6 +154,69 @@ export async function POST(request: Request) {
         422,
         "USER_STATUS_INVALID",
         "Cần chọn trạng thái và nêu lý do cập nhật tài khoản.",
+      );
+    }
+  }
+
+  if (action === "ASSIGN_USER_ROLE") {
+    const userId = typeof payload.userId === "string" ? payload.userId : "";
+    const role = typeof payload.role === "string" ? payload.role : "";
+    if (!userId || !role) {
+      return apiError(
+        422,
+        "USER_ROLE_INVALID",
+        "Cần chọn tài khoản và vai trò hợp lệ.",
+      );
+    }
+  }
+
+  if (action === "REMOVE_USER_ROLE") {
+    const userId = typeof payload.userId === "string" ? payload.userId : "";
+    const role = typeof payload.role === "string" ? payload.role : "";
+    if (!userId || !role) {
+      return apiError(
+        422,
+        "USER_ROLE_INVALID",
+        "Cần chọn tài khoản và vai trò cần thu hồi.",
+      );
+    }
+  }
+
+  if (action === "CREATE_USER") {
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    const email =
+      typeof payload.email === "string"
+        ? payload.email.trim().toLowerCase()
+        : "";
+    const password =
+      typeof payload.password === "string" ? payload.password : "";
+    if (!name || !email || !email.includes("@")) {
+      return apiError(
+        422,
+        "USER_DATA_INVALID",
+        "Vui lòng nhập họ tên và email hợp lệ.",
+      );
+    }
+    if (password.length < 8) {
+      return apiError(
+        422,
+        "PASSWORD_TOO_SHORT",
+        "Mật khẩu tối thiểu 8 ký tự.",
+      );
+    }
+  }
+
+  if (action === "RESET_USER_PASSWORD") {
+    const userId = typeof payload.userId === "string" ? payload.userId : "";
+    const newPassword =
+      typeof payload.newPassword === "string" ? payload.newPassword : "";
+    const reason =
+      typeof payload.reason === "string" ? payload.reason.trim() : "";
+    if (!userId || newPassword.length < 8 || !reason) {
+      return apiError(
+        422,
+        "RESET_PASSWORD_INVALID",
+        "Mật khẩu mới tối thiểu 8 ký tự và bắt buộc nhập lý do đặt lại.",
       );
     }
   }
@@ -169,8 +238,6 @@ export async function POST(request: Request) {
       );
     }
   }
-
-  const previewState = getEffectivePreviewState(access.session!);
 
   if (action === "REVIEW_CAMPAIGN") {
     previewState.reviewDecisions = {
@@ -204,10 +271,171 @@ export async function POST(request: Request) {
     previewState.platformFeePercent = payload.percent as number;
   }
 
+  if (
+    action === "SET_USER_STATUS" ||
+    action === "ASSIGN_USER_ROLE" ||
+    action === "REMOVE_USER_ROLE" ||
+    action === "CREATE_USER" ||
+    action === "RESET_USER_PASSWORD"
+  ) {
+    try {
+      await forwardUserActionToBackend(
+        action,
+        payload,
+        access.session?.tokens?.accessToken,
+      );
+    } catch (err) {
+      console.warn("Failed to forward admin user action to backend API:", err);
+    }
+  }
+
   if (action === "SET_USER_STATUS") {
+    const userId = payload.userId as string;
+    const status = payload.status as "ACTIVE" | "SUSPENDED";
+    const reason = (payload.reason as string) || "Cập nhật từ quản trị viên";
     previewState.userStatuses = {
       ...(previewState.userStatuses ?? {}),
-      [payload.userId as string]: payload.status as "ACTIVE" | "SUSPENDED",
+      [userId]: status,
+    };
+    const userMods = previewState.userModerations?.[userId] ?? [];
+    previewState.userModerations = {
+      ...(previewState.userModerations ?? {}),
+      [userId]: [
+        {
+          id: `mod_${crypto.randomUUID().slice(0, 8)}`,
+          action:
+            status === "ACTIVE"
+              ? "MỞ KHÓA TÀI KHOẢN"
+              : "TẠM KHÓA TÀI KHOẢN",
+          reason,
+          createdAt: "Vừa xong",
+          adminName: access.session?.user.name ?? "Quản trị viên",
+        },
+        ...userMods,
+      ],
+    };
+  }
+
+  if (action === "ASSIGN_USER_ROLE") {
+    const userId = payload.userId as string;
+    const role = payload.role as string;
+    const reason = (payload.reason as string) || "Cấp quyền từ quản trị viên";
+    const existingRoles = previewState.userRoles?.[userId] ?? [];
+    const updatedRoles = Array.from(new Set([...existingRoles, role]));
+    previewState.userRoles = {
+      ...(previewState.userRoles ?? {}),
+      [userId]: updatedRoles,
+    };
+    const userMods = previewState.userModerations?.[userId] ?? [];
+    previewState.userModerations = {
+      ...(previewState.userModerations ?? {}),
+      [userId]: [
+        {
+          id: `mod_${crypto.randomUUID().slice(0, 8)}`,
+          action: `CẤP QUYỀN ${role.toUpperCase()}`,
+          reason,
+          createdAt: "Vừa xong",
+          adminName: access.session?.user.name ?? "Quản trị viên",
+        },
+        ...userMods,
+      ],
+    };
+  }
+
+  if (action === "REMOVE_USER_ROLE") {
+    const userId = payload.userId as string;
+    const role = payload.role as string;
+    const reason =
+      (payload.reason as string) || "Thu hồi quyền từ quản trị viên";
+    const existingRoles = previewState.userRoles?.[userId] ?? [];
+    const updatedRoles = existingRoles.filter((r) => r !== role);
+    previewState.userRoles = {
+      ...(previewState.userRoles ?? {}),
+      [userId]: updatedRoles,
+    };
+    const userMods = previewState.userModerations?.[userId] ?? [];
+    previewState.userModerations = {
+      ...(previewState.userModerations ?? {}),
+      [userId]: [
+        {
+          id: `mod_${crypto.randomUUID().slice(0, 8)}`,
+          action: `THU HỒI QUYỀN ${role.toUpperCase()}`,
+          reason,
+          createdAt: "Vừa xong",
+          adminName: access.session?.user.name ?? "Quản trị viên",
+        },
+        ...userMods,
+      ],
+    };
+  }
+
+  if (action === "CREATE_USER") {
+    const id = `usr_${crypto.randomUUID().slice(0, 8)}`;
+    const name = (payload.name as string).trim();
+    const email = (payload.email as string).trim().toLowerCase();
+    const role = (payload.role as string) || "Người ủng hộ";
+    const location = (payload.location as string)?.trim() || "Việt Nam";
+    const phone = (payload.phone as string)?.trim() || "0900 000 000";
+
+    const parts = name.split(/\s+/);
+    const initials =
+      parts.length === 1
+        ? parts[0].slice(0, 2).toUpperCase()
+        : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+
+    const newUser = {
+      id,
+      name,
+      initials,
+      email,
+      location,
+      phone,
+      roles: [role],
+      status: "ACTIVE" as const,
+      lastSeen: "Vừa tạo",
+      createdAt: "Hôm nay",
+      emailVerified: true,
+      campaignCount: 0,
+      pledgeCount: 0,
+      totalPledgedAmount: 0,
+      fraudAlertCount: 0,
+      campaigns: [],
+      pledges: [],
+      moderationActions: [
+        {
+          id: `mod_${crypto.randomUUID().slice(0, 8)}`,
+          action: "TẠO TÀI KHOẢN MỚI",
+          reason: "Tạo trực tiếp từ trung tâm quản trị viên",
+          createdAt: "Vừa xong",
+          adminName: access.session?.user.name ?? "Quản trị viên",
+        },
+      ],
+    };
+
+    previewState.createdUsers = [
+      newUser,
+      ...(previewState.createdUsers ?? []),
+    ];
+  }
+
+  if (action === "RESET_USER_PASSWORD") {
+    const userId = payload.userId as string;
+    const reason =
+      (payload.reason as string) ||
+      "Đặt lại mật khẩu tạm thời từ quản trị viên";
+    const userMods = previewState.userModerations?.[userId] ?? [];
+    previewState.userModerations = {
+      ...(previewState.userModerations ?? {}),
+      [userId]: [
+        {
+          id: `mod_${crypto.randomUUID().slice(0, 8)}`,
+          action: "ĐẶT LẠI MẬT KHẨU TẠM THỜI",
+          reason,
+          createdAt: "Vừa xong",
+          adminName: access.session?.user.name ?? "Quản trị viên",
+        },
+        ...userMods,
+      ],
     };
   }
 

@@ -157,11 +157,66 @@ function rolesForUser(userId: string, email?: string) {
 
 export const adminUsers: AdminDashboardData["users"] = mockUsers.map(
   (user, index) => {
-    const underReview = mockFraudAlerts.some(
-      (alert) =>
-        alert.subjectUserId === user.id &&
-        alert.status !== "CLEARED",
+    const userAlerts = mockFraudAlerts.filter(
+      (alert) => alert.subjectUserId === user.id,
     );
+    const underReview = userAlerts.some((alert) => alert.status !== "CLEARED");
+
+    const userCampaigns = mockCampaigns
+      .filter((c) => c.creatorId === user.id)
+      .map((c) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        goalAmount: c.goalAmount,
+        pledgedAmount: c.pledgedAmount,
+        backerCount: c.backerCount,
+        createdAt: c.startsAt || DEMO_SNAPSHOT_AT,
+      }));
+
+    const userPledges = mockPledges
+      .filter((p) => p.backerId === user.id)
+      .map((p) => {
+        const campaign = getMockCampaign(p.campaignId);
+        return {
+          id: p.id,
+          campaignTitle: campaign.title,
+          amount: getMockPledgeTotal(p),
+          status: p.status,
+          pledgedAt: p.pledgedAt,
+        };
+      });
+
+    const totalPledged = userPledges.reduce((sum, item) => sum + item.amount, 0);
+
+    const mockPhones = [
+      "0903 123 456",
+      "0988 654 321",
+      "0912 345 678",
+      "0977 889 900",
+      "0933 221 144",
+      "0966 554 433",
+    ];
+
+    const mockBios: Record<string, string> = {
+      usr_minh_anh: "Nhà thiết kế sản phẩm và người ủng hộ các sáng kiến bền vững.",
+      usr_hoang_linh: "Kỹ sư robotics, người sáng lập ORBIT Vietnam và dự án ORBIT One.",
+      usr_gia_huy: "Kỹ sư nhúng & phần cứng IoT với hơn 6 năm kinh nghiệm chế tạo.",
+      usr_khanh_an: "Quản trị viên vận hành & tuân thủ quy chuẩn nền tảng Góp.",
+      usr_minh: "Studio thiết kế font chữ và sản phẩm văn hóa Việt Nam đương đại.",
+      usr_moc: "Xưởng thủ công chế tác nhạc cụ và phụ kiện âm nhạc từ gỗ tự nhiên.",
+    };
+
+    const mockDates = [
+      "12/01/2025",
+      "05/02/2025",
+      "18/03/2025",
+      "22/04/2025",
+      "10/05/2025",
+      "14/06/2025",
+      "03/07/2025",
+    ];
+
     return {
       id: user.id,
       name: user.displayName,
@@ -171,6 +226,25 @@ export const adminUsers: AdminDashboardData["users"] = mockUsers.map(
       roles: rolesForUser(user.id, user.email),
       status: underReview ? "REVIEWING" : user.status,
       lastSeen: lastSeenLabels[index % lastSeenLabels.length],
+      phone: mockPhones[index % mockPhones.length],
+      bio: mockBios[user.id] || "Thành viên cộng đồng gọi vốn cộng đồng Góp.",
+      createdAt: mockDates[index % mockDates.length],
+      emailVerified: true,
+      campaignCount: userCampaigns.length,
+      pledgeCount: userPledges.length,
+      totalPledgedAmount: totalPledged,
+      fraudAlertCount: userAlerts.length,
+      campaigns: userCampaigns,
+      pledges: userPledges,
+      moderationActions: [
+        {
+          id: `mod_${user.id}_1`,
+          action: "TẠO TÀI KHOẢN",
+          reason: "Đăng ký thành viên và xác thực qua email thành công.",
+          createdAt: mockDates[index % mockDates.length],
+          adminName: "Hệ thống tự động",
+        },
+      ],
     };
   },
 );

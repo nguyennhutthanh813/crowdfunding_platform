@@ -243,10 +243,20 @@ export function applyAdminPreviewState(
     },
     reviewQueue: allReviews.filter((review) => !reviewDecisions[review.id]),
     alerts,
-    users: data.users.map((user) => ({
-      ...user,
-      status: state?.userStatuses?.[user.id] ?? user.status,
-    })),
+    users: [
+      ...(state?.createdUsers ?? []),
+      ...data.users.map((user) => ({
+        ...user,
+        status: state?.userStatuses?.[user.id] ?? user.status,
+        roles: state?.userRoles?.[user.id] ?? user.roles,
+        moderationActions: [
+          ...(state?.userModerations?.[user.id] ?? []),
+          ...(user.moderationActions ?? []),
+        ],
+      })),
+    ].filter(
+      (user, idx, list) => list.findIndex((u) => u.id === user.id) === idx,
+    ),
     operations: {
       ...data.operations,
       reviewsDueToday: Math.max(

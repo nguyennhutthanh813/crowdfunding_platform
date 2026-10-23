@@ -508,6 +508,37 @@ export interface AdminDashboardData {
     roles: string[];
     status: "ACTIVE" | "SUSPENDED" | "REVIEWING";
     lastSeen: string;
+    phone?: string;
+    bio?: string;
+    createdAt?: string;
+    emailVerified?: boolean;
+    campaignCount?: number;
+    pledgeCount?: number;
+    totalPledgedAmount?: number;
+    fraudAlertCount?: number;
+    campaigns?: Array<{
+      id: string;
+      title: string;
+      status: string;
+      goalAmount: number;
+      pledgedAmount: number;
+      backerCount: number;
+      createdAt: string;
+    }>;
+    pledges?: Array<{
+      id: string;
+      campaignTitle: string;
+      amount: number;
+      status: string;
+      pledgedAt: string;
+    }>;
+    moderationActions?: Array<{
+      id: string;
+      action: string;
+      reason: string;
+      createdAt: string;
+      adminName: string;
+    }>;
   }>;
   fundingSeries: Array<{ month: string; amount: number }>;
   operations: {
@@ -621,6 +652,18 @@ export interface SessionResult {
     reviewDecisions?: Record<string, "APPROVED" | "CHANGES" | "REJECTED">;
     fraudStatuses?: Record<string, "CLEARED" | "ESCALATED">;
     userStatuses?: Record<string, "ACTIVE" | "SUSPENDED">;
+    userRoles?: Record<string, string[]>;
+    createdUsers?: AdminDashboardData["users"];
+    userModerations?: Record<
+      string,
+      Array<{
+        id: string;
+        action: string;
+        reason: string;
+        createdAt: string;
+        adminName: string;
+      }>
+    >;
     campaignStatuses?: Record<string, "LIVE" | "SUSPENDED">;
     platformFeePercent?: number;
     readMessageIds?: string[];

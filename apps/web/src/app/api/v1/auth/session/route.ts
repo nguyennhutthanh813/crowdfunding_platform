@@ -165,6 +165,36 @@ export async function POST(request: Request) {
 
         const response = NextResponse.json(realSession, { status: 200 });
         return writePreviewSessionCookie(response, realSession) ?? response;
+      } else {
+        const errorData = (await apiRes.json().catch(() => ({}))) as {
+          message?: string | string[];
+          statusCode?: number;
+          error?: string;
+        };
+
+        const rawMsg = Array.isArray(errorData.message)
+          ? errorData.message.join(", ")
+          : (errorData.message || "");
+
+        const isSuspended =
+          rawMsg.toLowerCase().includes("tạm khóa") ||
+          rawMsg.toLowerCase().includes("vô hiệu hóa") ||
+          rawMsg.toLowerCase().includes("khóa");
+
+        return NextResponse.json(
+          {
+            error: {
+              code: isSuspended ? "ACCOUNT_SUSPENDED" : "INVALID_CREDENTIALS",
+              message:
+                rawMsg ||
+                (apiRes.status === 401
+                  ? "Email hoặc mật khẩu chưa đúng"
+                  : "Đăng nhập không thành công"),
+              fieldErrors: {},
+            },
+          },
+          { status: apiRes.status || 401 },
+        );
       }
     } else if (body.mode === "REGISTER") {
       const apiRes = await fetch(`${apiUrl}/auth/register`, {
@@ -234,10 +264,31 @@ export async function POST(request: Request) {
           },
           { status: 409 },
         );
+      } else {
+        const errorData = (await apiRes.json().catch(() => ({}))) as {
+          message?: string | string[];
+          statusCode?: number;
+          error?: string;
+        };
+
+        const rawMsg = Array.isArray(errorData.message)
+          ? errorData.message.join(", ")
+          : (errorData.message || "");
+
+        return NextResponse.json(
+          {
+            error: {
+              code: "REGISTER_FAILED",
+              message: rawMsg || "Đăng ký không thành công. Vui lòng thử lại sau.",
+              fieldErrors: {},
+            },
+          },
+          { status: apiRes.status || 400 },
+        );
       }
     }
   } catch {
-    // Nếu backend chưa chạy hoặc lỗi kết nối, tiếp tục luồng mock adapter
+    // Nếu backend chưa chạy hoặc lỗi kết nối mạng, tiếp tục luồng mock adapter
   }
 
   try {
@@ -247,6 +298,18 @@ export async function POST(request: Request) {
     });
     return writePreviewSessionCookie(response, result) ?? response;
   } catch (error) {
+    if (error instanceof Error && error.message === "ACCOUNT_SUSPENDED") {
+      return NextResponse.json(
+        {
+          error: {
+            code: "ACCOUNT_SUSPENDED",
+            message: "Tài khoản đã bị tạm khóa hoặc vô hiệu hóa",
+            fieldErrors: {},
+          },
+        },
+        { status: 401 },
+      );
+    }
     if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
       return NextResponse.json(
         {

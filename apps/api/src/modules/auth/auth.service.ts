@@ -1,8 +1,15 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class AuthService {
@@ -10,6 +17,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(email: string, password: string, displayName: string) {
@@ -150,7 +158,116 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: 900, // 15 minutes in seconds
+      expiresIn: 900,
+    };
+  }
+
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, email: true, displayName: true, status: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản với email này');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException(
+        'Tài khoản đã bị tạm khóa hoặc vô hiệu hóa. Không thể đặt lại mật khẩu.',
+      );
+    }
+
+    // Sinh mã OTP 6 chữ số ngẫu nhiên
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const codeHash = await bcrypt.hash(code, 8);
+
+    const resetToken = this.jwtService.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        codeHash,
+        type: 'RESET_PASSWORD',
+      },
+      {
+        expiresIn: '15m',
+      },
+    );
+
+    console.log(`\n======================================================`);
+    console.log(`🔑 [AUTH RECOVERY] Mã xác nhận đặt lại mật khẩu:`);
+    console.log(`   Email: ${user.email}`);
+    console.log(`   Họ tên: ${user.displayName}`);
+    console.log(`   Mã OTP: ${code}`);
+    console.log(`   Hết hạn: 15 phút`);
+    console.log(`======================================================\n`);
+
+    // Gửi email thật qua SMTP Gmail bất đồng bộ (không chặn HTTP response)
+    this.mailService
+      .sendPasswordResetOtp(user.email, user.displayName, code)
+      .catch((err) => console.error('Lỗi gửi email:', err));
+
+    return {
+      success: true,
+      message: `Mã xác nhận 6 chữ số đã được gửi tới ${user.email}. Mã có hiệu lực trong 15 phút.`,
+      resetToken,
+    };
+  }
+
+  async resetPassword(dto: {
+    email: string;
+    code: string;
+    resetToken: string;
+    newPassword: string;
+  }) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    let payload: { sub: string; email: string; codeHash: string; type: string };
+
+    try {
+      payload = this.jwtService.verify(dto.resetToken);
+    } catch {
+      throw new BadRequestException(
+        'Mã xác nhận hoặc phiên khôi phục đã hết hạn. Vui lòng gửi lại yêu cầu mới.',
+      );
+    }
+
+    if (
+      payload.type !== 'RESET_PASSWORD' ||
+      payload.email.toLowerCase() !== normalizedEmail
+    ) {
+      throw new BadRequestException('Thông tin phiên khôi phục mật khẩu không khớp.');
+    }
+
+    const isCodeValid = await bcrypt.compare(dto.code.trim(), payload.codeHash);
+    if (!isCodeValid) {
+      throw new BadRequestException('Mã xác nhận OTP không chính xác.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Tài khoản không tồn tại.');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Tài khoản đã bị tạm khóa hoặc vô hiệu hóa.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    console.log(`✅ [AUTH RECOVERY] Đã đặt lại mật khẩu thành công cho ${user.email}`);
+
+    return {
+      success: true,
+      message: 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay với mật khẩu mới.',
     };
   }
 }

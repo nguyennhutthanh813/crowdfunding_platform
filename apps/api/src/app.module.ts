@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { DatabaseModule } from './database/database.module';
+import { MailModule } from './modules/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
@@ -39,8 +40,9 @@ import { AdminModule } from './modules/admin/admin.module';
       },
     ]),
 
-    // Database
+    // Database & Mail
     DatabaseModule,
+    MailModule,
 
     // Feature modules
     AuthModule,
