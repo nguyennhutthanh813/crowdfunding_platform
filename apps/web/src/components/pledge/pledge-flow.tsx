@@ -11,12 +11,17 @@ import {
   LockKeyhole,
   MapPin,
   PackagePlus,
+  Plus,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import type { AuthorizePledgeResult, CampaignDetail } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import type {
+  AuthorizePledgeResult,
+  CampaignDetail,
+  UserAddress,
+} from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatVnd } from "@/lib/format";
 
@@ -55,11 +60,71 @@ export function PledgeFlow({
     line1: "",
     city: "TP. Hồ Chí Minh",
   });
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [isUsingCustomAddress, setIsUsingCustomAddress] = useState(false);
+  const [saveToAddressBook, setSaveToAddressBook] = useState(false);
+
   const [card, setCard] = useState({ number: "", expiry: "", cvc: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AuthorizePledgeResult | null>(null);
   const [attemptedStep, setAttemptedStep] = useState<number | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/v1/me/addresses")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !data?.addresses?.length) return;
+        const list = data.addresses as UserAddress[];
+        setSavedAddresses(list);
+        const defaultAddr = list.find((a) => a.isDefault) || list[0];
+        if (defaultAddr) {
+          setSelectedAddressId(defaultAddr.id);
+          const fullLine = [defaultAddr.line1, defaultAddr.ward, defaultAddr.district]
+            .filter(Boolean)
+            .join(", ");
+          setAddress({
+            fullName: defaultAddr.recipientName,
+            phone: defaultAddr.phone,
+            line1: fullLine,
+            city: defaultAddr.province,
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Không thể tải sổ địa chỉ nhận hàng:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSelectSavedAddress = (addr: UserAddress) => {
+    setSelectedAddressId(addr.id);
+    setIsUsingCustomAddress(false);
+    const fullLine = [addr.line1, addr.ward, addr.district]
+      .filter(Boolean)
+      .join(", ");
+    setAddress({
+      fullName: addr.recipientName,
+      phone: addr.phone,
+      line1: fullLine,
+      city: addr.province,
+    });
+  };
+
+  const handleUseNewAddress = () => {
+    setSelectedAddressId(null);
+    setIsUsingCustomAddress(true);
+    setAddress({
+      fullName: "",
+      phone: "",
+      line1: "",
+      city: "TP. Hồ Chí Minh",
+    });
+  };
 
   const reward = campaign.rewards.find((item) => item.id === rewardId) ?? null;
   const selectedAddOns = reward
@@ -131,22 +196,51 @@ export function PledgeFlow({
     setSubmitting(true);
     setError("");
     try {
+      // Nếu người dùng nhập địa chỉ mới và chọn lưu vào sổ địa chỉ
+      if (
+        isUsingCustomAddress &&
+        saveToAddressBook &&
+        address.fullName.trim() &&
+        address.line1.trim()
+      ) {
+        try {
+          await fetch("/api/v1/me/addresses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              recipientName: address.fullName.trim(),
+              phone: address.phone.trim(),
+              line1: address.line1.trim(),
+              province: address.city,
+              isDefault: false,
+            }),
+          });
+        } catch {
+          // Bỏ qua lỗi phụ lưu sổ địa chỉ
+        }
+      }
+
       const data = await clientRequest<AuthorizePledgeResult>(
         "/api/v1/pledges/authorize",
         {
-        method: "POST",
-        body: JSON.stringify({
-          campaignId: campaign.id,
-          rewardId: reward?.id ?? null,
-          addOnIds: reward ? addOnIds : [],
-          bonusAmount,
-          address,
-        }),
+          method: "POST",
+          body: JSON.stringify({
+            campaignId: campaign.id,
+            rewardId: reward?.id ?? null,
+            addOnIds: reward ? addOnIds : [],
+            bonusAmount,
+            address,
+          }),
         },
       );
       setResult(data);
     } catch (error) {
-      setError(clientRequestMessage(error, "Chưa thể ghi nhận cam kết. Bạn kiểm tra lại thông tin rồi thử thêm một lần nhé."));
+      setError(
+        clientRequestMessage(
+          error,
+          "Chưa thể ghi nhận cam kết. Bạn kiểm tra lại thông tin rồi thử thêm một lần nhé.",
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -394,98 +488,219 @@ export function PledgeFlow({
             <div>
               <p className="eyebrow text-coral">Bước 3</p>
               <h2 className="mt-2 font-display text-2xl font-extrabold">
-                Địa chỉ giao hàng
+                Địa chỉ giao nhận phần thưởng
               </h2>
               <p className="mt-2 text-sm text-ink-muted">
                 Hiện Góp hỗ trợ giao quà đến các địa chỉ tại Việt Nam.
               </p>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <label className="sm:col-span-1">
-                  <span className="text-xs font-bold text-ink-soft">
-                    Họ và tên
-                  </span>
-                  <input
-                    name="shipping-full-name"
-                    value={address.fullName}
-                    onChange={(event) =>
-                      setAddress({ ...address, fullName: event.target.value })
-                    }
-                    className="input-field mt-2"
-                    placeholder="Nguyễn Minh Anh"
-                    autoComplete="name"
-                    required
-                    aria-invalid={
-                      showStepErrors && address.fullName.trim().length < 2
-                    }
-                    aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
-                  />
-                </label>
-                <label>
-                  <span className="text-xs font-bold text-ink-soft">
-                    Số điện thoại
-                  </span>
-                  <input
-                    name="shipping-phone"
-                    type="tel"
-                    value={address.phone}
-                    onChange={(event) =>
-                      setAddress({ ...address, phone: event.target.value })
-                    }
-                    className="input-field mt-2"
-                    placeholder="09xx xxx xxx"
-                    autoComplete="tel"
-                    required
-                    aria-invalid={
-                      showStepErrors &&
-                      !/^0\d{9}$/.test(address.phone.replace(/\D/g, ""))
-                    }
-                    aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
-                  />
-                </label>
-                <label className="sm:col-span-2">
-                  <span className="text-xs font-bold text-ink-soft">
-                    Địa chỉ
-                  </span>
-                  <input
-                    name="shipping-address-line1"
-                    value={address.line1}
-                    onChange={(event) =>
-                      setAddress({ ...address, line1: event.target.value })
-                    }
-                    className="input-field mt-2"
-                    placeholder="Số nhà, tên đường, phường/xã"
-                    autoComplete="street-address"
-                    required
-                    aria-invalid={
-                      showStepErrors && address.line1.trim().length < 5
-                    }
-                    aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
-                  />
-                </label>
-                <label className="sm:col-span-2">
-                  <span className="text-xs font-bold text-ink-soft">
-                    Tỉnh / Thành phố
-                  </span>
-                  <select
-                    name="shipping-city"
-                    value={address.city}
-                    onChange={(event) =>
-                      setAddress({ ...address, city: event.target.value })
-                    }
-                    className="input-field mt-2 cursor-pointer"
-                    autoComplete="address-level1"
-                    required
-                    aria-invalid={showStepErrors && !address.city}
-                    aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
-                  >
-                    <option>TP. Hồ Chí Minh</option>
-                    <option>Hà Nội</option>
-                    <option>Đà Nẵng</option>
-                    <option>Cần Thơ</option>
-                    <option>Bình Dương</option>
-                  </select>
-                </label>
-              </div>
+
+              {/* Lựa chọn Sổ địa chỉ đã lưu */}
+              {savedAddresses.length > 0 && !isUsingCustomAddress && (
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-ink-soft">
+                      Chọn địa chỉ nhận hàng đã lưu
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleUseNewAddress}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-coral-dark hover:underline"
+                    >
+                      <Plus className="size-3.5" /> Giao đến địa chỉ mới khác
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {savedAddresses.map((addr) => {
+                      const fullLine = [
+                        addr.line1,
+                        addr.ward,
+                        addr.district,
+                        addr.province,
+                      ]
+                        .filter(Boolean)
+                        .join(", ");
+                      const selected = selectedAddressId === addr.id;
+                      return (
+                        <div
+                          key={addr.id}
+                          onClick={() => handleSelectSavedAddress(addr)}
+                          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                            selected
+                              ? "border-forest bg-[#f6f8f1] ring-2 ring-forest/20 shadow-sm"
+                              : "border-line bg-white hover:border-forest/30"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-ink">
+                                  {addr.recipientName}
+                                </span>
+                                <span className="text-xs text-ink-muted">|</span>
+                                <span className="text-xs font-medium text-ink-soft">
+                                  {addr.phone}
+                                </span>
+                              </div>
+                              <p className="mt-1.5 text-xs leading-relaxed text-ink-muted line-clamp-2">
+                                {fullLine}
+                              </p>
+                            </div>
+                            {addr.isDefault && (
+                              <span className="shrink-0 rounded-full bg-forest px-2 py-0.5 text-[9px] font-bold text-lime">
+                                Mặc định
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Form nhập địa chỉ mới (hiển thị khi chưa có địa chỉ lưu hoặc bấm thêm mới) */}
+              {(isUsingCustomAddress || savedAddresses.length === 0) && (
+                <div className="mt-6 space-y-4 rounded-2xl border border-line bg-[#f8f9f4] p-5 sm:p-6">
+                  <div className="flex items-center justify-between border-b border-line/60 pb-2">
+                    <span className="text-sm font-bold text-ink">
+                      Thông tin địa chỉ giao nhận mới
+                    </span>
+                    {savedAddresses.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const defaultAddr =
+                            savedAddresses.find((a) => a.isDefault) ||
+                            savedAddresses[0];
+                          if (defaultAddr) handleSelectSavedAddress(defaultAddr);
+                        }}
+                        className="text-xs font-semibold text-ink-muted hover:text-ink"
+                      >
+                        Quay lại chọn từ sổ địa chỉ
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="sm:col-span-1">
+                      <span className="text-xs font-bold text-ink-soft">
+                        Họ và tên người nhận <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        name="shipping-full-name"
+                        value={address.fullName}
+                        onChange={(event) =>
+                          setAddress({ ...address, fullName: event.target.value })
+                        }
+                        className="input-field mt-1.5"
+                        placeholder="Nguyễn Văn A"
+                        autoComplete="name"
+                        required
+                        aria-invalid={
+                          showStepErrors && address.fullName.trim().length < 2
+                        }
+                        aria-describedby={
+                          showStepErrors ? "pledge-step-errors" : undefined
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span className="text-xs font-bold text-ink-soft">
+                        Số điện thoại <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        name="shipping-phone"
+                        type="tel"
+                        value={address.phone}
+                        onChange={(event) =>
+                          setAddress({ ...address, phone: event.target.value })
+                        }
+                        className="input-field mt-1.5"
+                        placeholder="0912 345 678"
+                        autoComplete="tel"
+                        required
+                        aria-invalid={
+                          showStepErrors &&
+                          !/^0\d{9}$/.test(address.phone.replace(/\D/g, ""))
+                        }
+                        aria-describedby={
+                          showStepErrors ? "pledge-step-errors" : undefined
+                        }
+                      />
+                    </label>
+                    <label className="sm:col-span-2">
+                      <span className="text-xs font-bold text-ink-soft">
+                        Địa chỉ chi tiết (Số nhà, tên đường, phường/xã){" "}
+                        <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        name="shipping-address-line1"
+                        value={address.line1}
+                        onChange={(event) =>
+                          setAddress({ ...address, line1: event.target.value })
+                        }
+                        className="input-field mt-1.5"
+                        placeholder="Số 123 Đường Lê Lợi, Phường Bến Nghé"
+                        autoComplete="street-address"
+                        required
+                        aria-invalid={
+                          showStepErrors && address.line1.trim().length < 5
+                        }
+                        aria-describedby={
+                          showStepErrors ? "pledge-step-errors" : undefined
+                        }
+                      />
+                    </label>
+                    <label className="sm:col-span-2">
+                      <span className="text-xs font-bold text-ink-soft">
+                        Tỉnh / Thành phố <span className="text-red-500">*</span>
+                      </span>
+                      <select
+                        name="shipping-city"
+                        value={address.city}
+                        onChange={(event) =>
+                          setAddress({ ...address, city: event.target.value })
+                        }
+                        className="input-field mt-1.5 cursor-pointer"
+                        autoComplete="address-level1"
+                        required
+                        aria-invalid={showStepErrors && !address.city}
+                        aria-describedby={
+                          showStepErrors ? "pledge-step-errors" : undefined
+                        }
+                      >
+                        <option>TP. Hồ Chí Minh</option>
+                        <option>Hà Nội</option>
+                        <option>Đà Nẵng</option>
+                        <option>Hải Phòng</option>
+                        <option>Cần Thơ</option>
+                        <option>Bình Dương</option>
+                        <option>Đồng Nai</option>
+                        <option>Bà Rịa - Vũng Tàu</option>
+                        <option>Quảng Ninh</option>
+                        <option>Khánh Hòa</option>
+                        <option>Lâm Đồng</option>
+                        <option>Thừa Thiên Huế</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="flex cursor-pointer items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      checked={saveToAddressBook}
+                      onChange={(e) => setSaveToAddressBook(e.target.checked)}
+                      className="rounded border-line text-forest focus:ring-forest"
+                    />
+                    <span className="text-xs font-medium text-ink">
+                      Lưu địa chỉ này vào Sổ địa chỉ của tôi cho các lần ủng hộ
+                      sau
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4f6e8] p-4 text-xs leading-5 text-[#4c612d]">
                 <MapPin className="mt-0.5 size-4 shrink-0" /> Phí giao hàng tạm
                 tính: {formatVnd(shippingAmount)}.

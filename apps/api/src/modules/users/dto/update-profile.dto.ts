@@ -33,8 +33,8 @@ export class UpdateProfileDto {
   @MaxLength(120)
   location?: string;
 
-  @ApiPropertyOptional({ description: 'Avatar URL' })
+  @ApiPropertyOptional({ description: 'Avatar URL or Base64 Image' })
   @IsOptional()
-  @IsUrl()
+  @IsString()
   avatarUrl?: string;
 }

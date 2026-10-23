@@ -26,6 +26,10 @@ interface AuthContextValue {
   updateProfile: (profile: {
     name: string;
     headline: string;
+    phone?: string;
+    location?: string;
+    bio?: string;
+    avatarUrl?: string;
   }) => Promise<boolean>;
   signOut: (destination?: string) => Promise<void>;
 }
@@ -114,7 +118,14 @@ export function AuthProvider({
   }, [router]);
 
   const updateProfile = useCallback(
-    async (profile: { name: string; headline: string }) => {
+    async (profile: {
+      name: string;
+      headline: string;
+      phone?: string;
+      location?: string;
+      bio?: string;
+      avatarUrl?: string;
+    }) => {
       setBusy(true);
       try {
         const nextSession = await updateSession({ profile });

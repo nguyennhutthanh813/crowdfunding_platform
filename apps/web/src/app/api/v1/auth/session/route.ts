@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import fs from "node:fs";
+import path from "node:path";
 import type { SessionInput, SessionResult, UserRole } from "@/lib/api";
 import { api } from "@/lib/api";
 import {
@@ -17,6 +19,14 @@ import { decodeSession, SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { getInitials } from "@/lib/auth/roles";
 
 export const runtime = "nodejs";
+
+function getUploadsDir() {
+  const cwd = process.cwd();
+  if (fs.existsSync(path.join(cwd, "public"))) {
+    return path.join(cwd, "public", "uploads", "avatars");
+  }
+  return path.join(cwd, "apps", "web", "public", "uploads", "avatars");
+}
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -124,6 +134,9 @@ export async function POST(request: Request) {
             email: string;
             displayName: string;
             avatarUrl: string | null;
+            phone?: string | null;
+            bio?: string | null;
+            location?: string | null;
             roles: string[];
           };
           tokens: {
@@ -149,7 +162,11 @@ export async function POST(request: Request) {
             name: displayName,
             email: data.user?.email || body.email,
             initials: getInitials(displayName),
-            headline: "Thành viên cộng đồng Góp",
+            headline: data.user?.bio || "Thành viên cộng đồng Góp",
+            phone: data.user?.phone ?? null,
+            location: data.user?.location ?? null,
+            bio: data.user?.bio ?? null,
+            avatarUrl: data.user?.avatarUrl ?? null,
             roles,
             activeRole,
           },
@@ -417,11 +434,69 @@ export async function PATCH(request: Request) {
 
   const profileName =
     typeof profile?.name === "string" ? profile.name.trim() : undefined;
+  const profileHeadline =
+    typeof profile?.headline === "string" ? profile.headline.trim() : undefined;
+  const profilePhone =
+    typeof profile?.phone === "string" ? profile.phone.trim() : undefined;
+  const profileLocation =
+    typeof profile?.location === "string" ? profile.location.trim() : undefined;
+  const profileBio =
+    typeof profile?.bio === "string" ? profile.bio.trim() : undefined;
+  let profileAvatarUrl =
+    typeof profile?.avatarUrl === "string" ? profile.avatarUrl.trim() : undefined;
+
+  // Nếu avatarUrl là chuỗi Data URL Base64, lưu thành tệp tĩnh để tránh làm tràn cookie session (giới hạn 3800 bytes)
+  if (profileAvatarUrl && profileAvatarUrl.startsWith("data:image/")) {
+    try {
+      const match = profileAvatarUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+      if (match) {
+        const ext = match[1] === "jpeg" ? "jpg" : match[1];
+        const buffer = Buffer.from(match[2], "base64");
+        const userId = (session.user.id ?? "user").replace(/[^a-zA-Z0-9_-]/g, "");
+        const filename = `avatar-${userId}-${Date.now()}.${ext}`;
+        const uploadsDir = getUploadsDir();
+        await fs.promises.mkdir(uploadsDir, { recursive: true });
+        await fs.promises.writeFile(path.join(uploadsDir, filename), buffer);
+        profileAvatarUrl = `/uploads/avatars/${filename}`;
+      }
+    } catch (err) {
+      console.warn("Failed to save base64 avatar to file:", err);
+    }
+  }
+
   if (body.profile && (!profileName || profileName.length < 2)) {
     return NextResponse.json(
       { error: { code: "INVALID_PROFILE", message: "Họ tên chưa hợp lệ" } },
       { status: 422 },
     );
+  }
+
+  // Cập nhật lên máy chủ backend NestJS nếu người dùng đăng nhập bằng token thật
+  if (body.profile && session.tokens?.accessToken && !session.tokens.accessToken.startsWith("session_")) {
+    const apiUrl =
+      process.env.API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      "http://localhost:3001/api";
+
+    try {
+      await fetch(`${apiUrl}/users/me`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.tokens.accessToken}`,
+        },
+        body: JSON.stringify({
+          displayName: profileName,
+          phone: profilePhone,
+          location: profileLocation,
+          bio: profileBio || profileHeadline,
+          avatarUrl: profileAvatarUrl,
+        }),
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch (err) {
+      console.warn("Failed to update profile on backend API:", err);
+    }
   }
 
   const nextSession: SessionResult = {
@@ -435,10 +510,11 @@ export async function PATCH(request: Request) {
         profileName && profileName !== session.user.name
           ? getInitials(profileName)
           : session.user.initials,
-      headline:
-        typeof profile?.headline === "string"
-          ? profile.headline.trim()
-          : session.user.headline,
+      headline: profileHeadline ?? session.user.headline,
+      phone: profilePhone !== undefined ? profilePhone : session.user.phone,
+      location: profileLocation !== undefined ? profileLocation : session.user.location,
+      bio: profileBio !== undefined ? profileBio : session.user.bio,
+      avatarUrl: profileAvatarUrl !== undefined ? profileAvatarUrl : session.user.avatarUrl,
     },
     previewState: isNotificationPreferences(body.notificationPreferences)
       ? {

@@ -614,6 +614,20 @@ export interface PreviewAuthorizedPledge {
   authorizedAt: string;
 }
 
+export interface UserAddress {
+  id: string;
+  recipientName: string;
+  phone: string;
+  line1: string;
+  ward?: string | null;
+  district?: string | null;
+  province: string;
+  countryCode?: string;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface SessionResult {
   sessionId: string;
   user: {
@@ -622,6 +636,10 @@ export interface SessionResult {
     email: string;
     initials: string;
     headline: string;
+    phone?: string | null;
+    location?: string | null;
+    bio?: string | null;
+    avatarUrl?: string | null;
     roles: UserRole[];
     activeRole: UserRole;
   };
