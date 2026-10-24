@@ -30,7 +30,7 @@ import { roleDescriptions, roleLabels } from "@/lib/auth/roles";
 
 const tabs = [
   { id: "profile", label: "Hồ sơ", icon: UserRound },
-  { id: "addresses", label: "Sổ địa chỉ nhận hàng", icon: MapPin },
+  { id: "addresses", label: "Địa chỉ nhận hàng", icon: MapPin },
   { id: "interests", label: "Sở thích", icon: Compass },
   { id: "roles", label: "Vai trò & quyền", icon: UsersRound },
   { id: "notifications", label: "Thông báo", icon: Bell },
@@ -885,7 +885,7 @@ function AddressesPanel() {
   };
 
   const handleDelete = async (addressId: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa địa chỉ này khỏi sổ địa chỉ không?")) return;
+    if (!window.confirm("Bạn có chắc chắn muốn xóa địa chỉ này không?")) return;
     try {
       const res = await fetch(`/api/v1/me/addresses/${addressId}`, {
         method: "DELETE",
@@ -910,14 +910,14 @@ function AddressesPanel() {
         <div>
           <p className="eyebrow text-coral">Giao nhận quà tặng</p>
           <h2 className="mt-2 font-display text-2xl font-extrabold">
-            Sổ địa chỉ nhận hàng
+            Địa chỉ nhận hàng
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">
             Quản lý các địa chỉ giao nhận vật phẩm, quà tri ân từ các chiến dịch
             gọi vốn mà bạn đã ủng hộ.
           </p>
         </div>
-        {!isAdding && (
+        {!isAdding && !loading && addresses.length > 0 && (
           <button
             type="button"
             onClick={handleStartAdd}
@@ -1080,26 +1080,28 @@ function AddressesPanel() {
         {loading ? (
           <div className="flex items-center justify-center p-12 text-ink-muted">
             <LoaderCircle className="mr-2 size-6 animate-spin" />
-            <span className="text-sm">Đang tải sổ địa chỉ...</span>
+            <span className="text-sm">Đang tải danh sách địa chỉ...</span>
           </div>
         ) : addresses.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-line bg-[#fafbf7] p-8 text-center">
-            <MapPin className="mx-auto mb-2 size-8 text-ink-muted/50" />
-            <p className="text-sm font-bold text-ink">
-              Chưa có địa chỉ nhận hàng nào
-            </p>
-            <p className="mt-1 text-xs text-ink-muted">
-              Thêm địa chỉ để sẵn sàng nhận các phần quà và vật phẩm khi ủng hộ
-              dự án.
-            </p>
-            <button
-              type="button"
-              onClick={handleStartAdd}
-              className="button-dark mt-4 inline-flex items-center gap-2 text-xs"
-            >
-              <Plus className="size-3.5" /> Thêm địa chỉ đầu tiên
-            </button>
-          </div>
+          !isAdding && (
+            <div className="rounded-2xl border border-dashed border-line bg-[#fafbf7] p-8 text-center">
+              <MapPin className="mx-auto mb-2 size-8 text-ink-muted/50" />
+              <p className="text-sm font-bold text-ink">
+                Chưa có địa chỉ nhận hàng nào
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">
+                Thêm địa chỉ để sẵn sàng nhận các phần quà và vật phẩm khi ủng hộ
+                dự án.
+              </p>
+              <button
+                type="button"
+                onClick={handleStartAdd}
+                className="button-dark mt-4 inline-flex items-center gap-2 text-xs"
+              >
+                <Plus className="size-3.5" /> Thêm địa chỉ mới
+              </button>
+            </div>
+          )
         ) : (
           addresses.map((address) => {
             const fullAddress = [

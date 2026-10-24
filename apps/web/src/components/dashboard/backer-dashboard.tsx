@@ -862,7 +862,7 @@ function MessagesPanel({
                 }
                 className="input-field mt-2"
                 placeholder="Ví dụ: Hỏi về thời gian giao quà"
-                maxLength={80}
+                maxLength={180}
               />
             </label>
           </div>
@@ -879,11 +879,11 @@ function MessagesPanel({
               }
               className="input-field mt-2 min-h-28 resize-y"
               placeholder="Viết nội dung bạn muốn trao đổi với nhóm dự án…"
-              maxLength={240}
+              maxLength={4000}
             />
             <span className="mt-1.5 flex justify-between gap-4 text-[10px] text-ink-muted">
-              <span>Viết ngắn gọn để nhóm dự án phản hồi nhanh hơn.</span>
-              <span>{draftMessage.body.length}/240</span>
+              <span>Viết chi tiết để nhóm dự án phản hồi chính xác.</span>
+              <span>{draftMessage.body.length}/4000</span>
             </span>
           </label>
           <div className="mt-4 flex justify-end gap-2">

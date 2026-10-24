@@ -12,10 +12,12 @@ import { CampaignVisual } from "@/components/campaign/campaign-visual";
 import { NotifyButton } from "@/components/notify-button";
 import { ProjectActions } from "@/components/campaign/project-actions";
 import { ProjectExperience } from "@/components/campaign/project-experience";
+import { ProjectViewTracker } from "@/components/campaign/project-view-tracker";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { api } from "@/lib/api";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
+
 
 export async function generateStaticParams() {
   const campaigns = await api.listCampaigns();
@@ -62,7 +64,9 @@ export default async function ProjectDetailPage({
 
   return (
     <>
+      <ProjectViewTracker campaignId={campaign.slug} />
       <section className="border-b border-line bg-canvas-soft pb-12 pt-7 sm:pt-9">
+
         <div className="container-shell">
           <nav
             aria-label="Đường dẫn trang"

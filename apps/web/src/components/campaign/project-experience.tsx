@@ -7,7 +7,11 @@ import {
   ChevronDown,
   CircleDashed,
   Clock3,
+  Edit2,
+  Eye,
+  EyeOff,
   Heart,
+  Mail,
   MessageCircle,
   PackageCheck,
   Quote,
@@ -16,6 +20,7 @@ import {
   Send,
   ShieldCheck,
   ThumbsUp,
+  Trash2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -59,12 +64,14 @@ const badgeLabels: Record<CommentBadge, string> = {
   COLLABORATOR: "Cộng tác viên",
   SUPERBACKER: "Ủng hộ tích cực",
   BACKER: "Người ủng hộ",
+  ADMIN: "Quản trị viên",
 };
 const badgeTones: Record<CommentBadge, string> = {
   CREATOR: "bg-forest text-white",
   COLLABORATOR: "bg-[#e8edce] text-[#536227]",
   SUPERBACKER: "bg-[#fff0e9] text-coral-dark",
   BACKER: "bg-stone-100 text-stone-600",
+  ADMIN: "bg-purple-100 text-purple-700",
 };
 
 async function saveMemberAction(
@@ -78,6 +85,7 @@ async function saveMemberAction(
 }
 
 function getCommentBadge(role: UserRole): CommentBadge {
+  if (role === "ADMIN") return "ADMIN";
   if (role === "CREATOR" || role === "COLLABORATOR") return role;
   return "BACKER";
 }
@@ -362,6 +370,15 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
+  // Contact modal state (MSG-01)
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactSubject, setContactSubject] = useState("");
+  const [contactBody, setContactBody] = useState("");
+  const [contactBusy, setContactBusy] = useState(false);
+  const [contactNotice, setContactNotice] = useState("");
+
+  const isOwner = Boolean(session && session.user.id === campaign.creator.id);
+
   const toggleFollowing = async () => {
     if (!session) {
       router.push(`/auth?next=${encodeURIComponent(pathname)}`);
@@ -389,6 +406,41 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
       setNotice(clientRequestMessage(error, "Chưa thể lưu theo dõi. Bạn thử lại sau nhé."));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactSubject.trim() || !contactBody.trim()) return;
+    if (!session) {
+      router.push(`/auth?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    if (isOwner) {
+      setContactNotice("Bạn không thể gửi tin nhắn cho chính mình.");
+      return;
+    }
+
+    setContactBusy(true);
+    setContactNotice("");
+    try {
+      await saveMemberAction("SEND_MESSAGE", {
+        campaignId: campaign.id,
+        recipientUserId: campaign.creator.id,
+        subject: contactSubject.trim(),
+        body: contactBody.trim(),
+      });
+      setContactSubject("");
+      setContactBody("");
+      setContactNotice("Tin nhắn đã được gửi thành công đến chủ dự án!");
+      setTimeout(() => {
+        setContactOpen(false);
+        setContactNotice("");
+      }, 1500);
+    } catch (error) {
+      setContactNotice(clientRequestMessage(error, "Chưa thể gửi tin nhắn. Bạn thử lại sau nhé."));
+    } finally {
+      setContactBusy(false);
     }
   };
 
@@ -433,20 +485,37 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            disabled={busy}
-            aria-pressed={following}
-            onClick={() => void toggleFollowing()}
-            className={following ? "button-secondary" : "button-primary"}
-          >
-            {following ? (
-              <Check className="size-4" />
-            ) : (
-              <Heart className="size-4" />
-            )}{" "}
-            {busy ? "Đang lưu…" : following ? "Đang theo dõi" : "Theo dõi"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              disabled={isOwner}
+              title={isOwner ? "Bạn là chủ dự án này" : undefined}
+              onClick={() => {
+                if (!session) {
+                  router.push(`/auth?next=${encodeURIComponent(pathname)}`);
+                  return;
+                }
+                setContactOpen(true);
+              }}
+              className="button-dark"
+            >
+              <Mail className="size-4" /> Liên hệ Chủ dự án
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              aria-pressed={following}
+              onClick={() => void toggleFollowing()}
+              className={following ? "button-secondary" : "button-primary"}
+            >
+              {following ? (
+                <Check className="size-4" />
+              ) : (
+                <Heart className="size-4" />
+              )}{" "}
+              {busy ? "Đang lưu…" : following ? "Đang theo dõi" : "Theo dõi"}
+            </button>
+          </div>
         </div>
         {notice ? (
           <p
@@ -457,6 +526,74 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
           </p>
         ) : null}
       </div>
+
+      <Modal
+        open={contactOpen}
+        title={`Liên hệ ${campaign.creator.name}`}
+        description="Gửi tin nhắn trực tiếp đến đội ngũ sáng tạo của chiến dịch này."
+        onClose={() => {
+          setContactOpen(false);
+          setContactNotice("");
+        }}
+        locked={contactBusy}
+      >
+        <form onSubmit={handleSendMessage} className="rounded-[18px] border border-coral/25 bg-[#fffaf6] p-4 sm:p-5">
+          <div>
+            <label htmlFor="contact-subj" className="text-xs font-bold text-ink-soft">
+              Chủ đề tin nhắn <span className="text-coral">*</span>
+            </label>
+            <input
+              id="contact-subj"
+              type="text"
+              value={contactSubject}
+              onChange={(e) => setContactSubject(e.target.value)}
+              placeholder="Ví dụ: Hỏi về kế hoạch giao quà, chính sách bảo hành..."
+              maxLength={180}
+              className="input-field mt-1.5"
+              required
+            />
+          </div>
+          <div className="mt-4">
+            <label htmlFor="contact-body" className="text-xs font-bold text-ink-soft">
+              Nội dung trao đổi <span className="text-coral">*</span>
+            </label>
+            <textarea
+              id="contact-body"
+              value={contactBody}
+              onChange={(e) => setContactBody(e.target.value)}
+              placeholder="Nhập nội dung tin nhắn của bạn (tối đa 4000 ký tự)..."
+              rows={4}
+              maxLength={4000}
+              className="input-field mt-1.5 min-h-24 resize-y"
+              required
+            />
+          </div>
+          {contactNotice ? (
+            <p className={`mt-3 text-xs ${contactNotice.startsWith("Chưa") || contactNotice.startsWith("Bạn") ? "text-red-600" : "text-emerald-700"}`}>
+              {contactNotice}
+            </p>
+          ) : null}
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setContactOpen(false);
+                setContactNotice("");
+              }}
+              className="button-ghost"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={!contactSubject.trim() || !contactBody.trim() || contactBusy}
+              className="button-dark"
+            >
+              <Send className="size-4" /> {contactBusy ? "Đang gửi…" : "Gửi tin nhắn"}
+            </button>
+          </div>
+        </form>
+      </Modal>
       <div className="mt-8">
         <p className="eyebrow text-coral">Nhóm dự án</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -548,21 +685,120 @@ function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
 function CommentItem({
   comment,
   campaignId,
+  isCampaignCreator = false,
   nested = false,
+  onDeleteComment,
 }: {
   comment: CampaignComment;
   campaignId: string;
+  isCampaignCreator?: boolean;
   nested?: boolean;
+  onDeleteComment?: (id: string) => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const { session } = useAuth();
+  const [likes, setLikes] = useState(comment.likes);
   const [liked, setLiked] = useState(false);
   const [replying, setReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [replies, setReplies] = useState(comment.replies ?? []);
-  const [actionBusy, setActionBusy] = useState<"like" | "reply" | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editBody, setEditBody] = useState(comment.body);
+  const [currentBody, setCurrentBody] = useState(comment.body);
+  const [isHidden, setIsHidden] = useState(Boolean(comment.isHidden));
+  const [actionBusy, setActionBusy] = useState<"like" | "reply" | "edit" | "delete" | "hide" | null>(null);
   const [notice, setNotice] = useState("");
+
+  const isAuthor = Boolean(
+    session && (comment.authorId ? comment.authorId === session.user.id : comment.author === session.user.name),
+  );
+  const isAdmin = Boolean(session && session.user.roles.includes("ADMIN"));
+  const canModerate = isCampaignCreator || isAdmin;
+  const canDelete = isAuthor || canModerate;
+
+  const requireMember = () => {
+    if (!session) {
+      router.push(`/auth?next=${encodeURIComponent(pathname)}`);
+      return false;
+    }
+    return true;
+  };
+
+  const toggleLike = async () => {
+    if (!requireMember()) return;
+    setActionBusy("like");
+    setNotice("");
+    try {
+      await saveMemberAction("LIKE_COMMENT", {
+        campaignId,
+        commentId: comment.id,
+      });
+      setLiked(true);
+      setLikes((val) => val + 1);
+    } catch (error) {
+      setNotice(clientRequestMessage(error, "Chưa thể lưu lượt thích."));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    const val = editBody.trim();
+    if (!val || val === currentBody) {
+      setEditing(false);
+      return;
+    }
+    setActionBusy("edit");
+    setNotice("");
+    try {
+      await saveMemberAction("UPDATE_COMMENT", {
+        commentId: comment.id,
+        body: val,
+      });
+      setCurrentBody(val);
+      setEditing(false);
+      setNotice("Đã cập nhật bình luận.");
+    } catch (error) {
+      setNotice(clientRequestMessage(error, "Chưa thể lưu chỉnh sửa."));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa bình luận này?")) return;
+    setActionBusy("delete");
+    setNotice("");
+    try {
+      await saveMemberAction("DELETE_COMMENT", {
+        commentId: comment.id,
+      });
+      onDeleteComment?.(comment.id);
+    } catch (error) {
+      setNotice(clientRequestMessage(error, "Chưa thể xóa bình luận."));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleToggleHide = async () => {
+    setActionBusy("hide");
+    setNotice("");
+    try {
+      await saveMemberAction("HIDE_COMMENT", {
+        commentId: comment.id,
+        isHidden: !isHidden,
+        reason: isHidden ? "Bỏ ẩn bình luận" : "Ẩn bình luận vi phạm tiêu chuẩn",
+      });
+      setIsHidden(!isHidden);
+      setNotice(!isHidden ? "Đã ẩn bình luận." : "Đã bỏ ẩn bình luận.");
+    } catch (error) {
+      setNotice(clientRequestMessage(error, "Chưa thể thay đổi trạng thái ẩn."));
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   const addReply = async () => {
     const value = replyBody.trim();
@@ -573,6 +809,7 @@ function CommentItem({
       await saveMemberAction("CREATE_COMMENT", {
         campaignId,
         parentId: comment.id,
+        parentCommentId: comment.id,
         body: value,
       });
       setReplies((current) => [
@@ -590,45 +827,15 @@ function CommentItem({
       setReplyBody("");
       setReplying(false);
     } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể gửi trả lời. Nội dung của bạn vẫn được giữ lại."));
+      setNotice(clientRequestMessage(error, "Chưa thể gửi trả lời."));
     } finally {
       setActionBusy(null);
     }
   };
 
-  const requireMember = () => {
-    if (!session) {
-      router.push(`/auth?next=${encodeURIComponent(pathname)}`);
-      return false;
-    }
-    if (
-      !session.user.roles.some((role) =>
-        ["BACKER", "CREATOR", "COLLABORATOR"].includes(role),
-      )
-    ) {
-      router.push("/account?tab=roles");
-      return false;
-    }
-    return true;
-  };
-
-  const toggleLike = async () => {
-    if (!requireMember()) return;
-    setActionBusy("like");
-    setNotice("");
-    try {
-      await saveMemberAction("LIKE_COMMENT", {
-        campaignId,
-        commentId: comment.id,
-        liked: !liked,
-      });
-      setLiked((value) => !value);
-    } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể lưu lượt thích. Bạn thử lại sau nhé."));
-    } finally {
-      setActionBusy(null);
-    }
-  };
+  if (isHidden && !canModerate) {
+    return null;
+  }
 
   return (
     <article
@@ -648,22 +855,63 @@ function CommentItem({
             >
               {badgeLabels[comment.badge]}
             </span>
+            {isHidden ? (
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold text-rose-700">
+                Đã bị ẩn
+              </span>
+            ) : null}
             <span className="text-[10px] text-ink-muted">
               {comment.createdAt}
             </span>
           </div>
-          <p className="mt-2 text-sm leading-6 text-ink-soft">{comment.body}</p>
-          <div className="mt-3 flex gap-4 text-[11px] font-bold text-ink-muted">
+
+          {editing ? (
+            <div className="mt-2 rounded-2xl bg-[#f6f5f0] p-3">
+              <label>
+                <span className="sr-only">Nội dung chỉnh sửa</span>
+                <textarea
+                  value={editBody}
+                  onChange={(e) => setEditBody(e.target.value)}
+                  maxLength={4000}
+                  className="input-field min-h-20 resize-y text-xs"
+                />
+              </label>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  disabled={!editBody.trim() || actionBusy === "edit"}
+                  onClick={() => void handleSaveEdit()}
+                  className="button-dark min-h-9 px-3 text-xs"
+                >
+                  {actionBusy === "edit" ? "Đang lưu…" : "Lưu thay đổi"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(false);
+                    setEditBody(currentBody);
+                  }}
+                  className="button-ghost min-h-9 px-3 text-xs"
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm leading-6 text-ink-soft">{currentBody}</p>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] font-bold text-ink-muted">
             <button
               type="button"
               disabled={actionBusy === "like"}
               aria-pressed={liked}
-              aria-label={`${liked ? "Bỏ thích" : "Thích"} bình luận của ${comment.author}. Hiện có ${comment.likes + (liked ? 1 : 0)} lượt thích`}
+              aria-label={`${liked ? "Đã thích" : "Thích"} bình luận của ${comment.author}. Hiện có ${likes + (liked ? 1 : 0)} lượt thích`}
               onClick={() => void toggleLike()}
-              className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 hover:text-coral ${liked ? "text-coral-dark" : ""}`}
+              className={`inline-flex min-h-9 cursor-pointer items-center gap-1.5 hover:text-coral ${liked ? "text-coral-dark" : ""}`}
             >
               <ThumbsUp className="size-3.5" />
-              {comment.likes + (liked ? 1 : 0)}
+              {likes + (liked ? 1 : 0)}
             </button>
             <button
               type="button"
@@ -672,11 +920,45 @@ function CommentItem({
               onClick={() => {
                 if (requireMember()) setReplying((value) => !value);
               }}
-              className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 hover:text-coral"
+              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 hover:text-coral"
             >
               <Reply className="size-3.5" /> Trả lời
             </button>
+
+            {isAuthor && !editing ? (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex min-h-9 cursor-pointer items-center gap-1 text-ink-muted hover:text-coral"
+              >
+                <Edit2 className="size-3.5" /> Sửa
+              </button>
+            ) : null}
+
+            {canDelete ? (
+              <button
+                type="button"
+                disabled={actionBusy === "delete"}
+                onClick={() => void handleDelete()}
+                className="inline-flex min-h-9 cursor-pointer items-center gap-1 text-red-500 hover:text-red-700"
+              >
+                <Trash2 className="size-3.5" /> Xóa
+              </button>
+            ) : null}
+
+            {canModerate ? (
+              <button
+                type="button"
+                disabled={actionBusy === "hide"}
+                onClick={() => void handleToggleHide()}
+                className="inline-flex min-h-9 cursor-pointer items-center gap-1 text-amber-600 hover:text-amber-800"
+              >
+                {isHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                {isHidden ? "Bỏ ẩn" : "Ẩn"}
+              </button>
+            ) : null}
           </div>
+
           {replying ? (
             <div className="mt-4 rounded-2xl bg-[#f6f5f0] p-3">
               <label>
@@ -685,6 +967,7 @@ function CommentItem({
                   name={`reply-${comment.id}`}
                   value={replyBody}
                   onChange={(event) => setReplyBody(event.target.value)}
+                  maxLength={4000}
                   className="input-field min-h-20 resize-y text-xs"
                   placeholder={`Trả lời ${comment.author}…`}
                 />
@@ -694,7 +977,7 @@ function CommentItem({
                   type="button"
                   disabled={!replyBody.trim() || actionBusy === "reply"}
                   onClick={() => void addReply()}
-                  className="button-dark min-h-11 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  className="button-dark min-h-9 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Send className="size-3.5" />
                   {actionBusy === "reply" ? "Đang gửi…" : "Gửi trả lời"}
@@ -705,7 +988,7 @@ function CommentItem({
                     setReplying(false);
                     setReplyBody("");
                   }}
-                  className="button-ghost min-h-11 px-3 text-xs"
+                  className="button-ghost min-h-9 px-3 text-xs"
                 >
                   Hủy
                 </button>
@@ -726,6 +1009,8 @@ function CommentItem({
               key={reply.id}
               comment={reply}
               campaignId={campaignId}
+              isCampaignCreator={isCampaignCreator}
+              onDeleteComment={(id) => setReplies((r) => r.filter((item) => item.id !== id))}
               nested
             />
           ))}
@@ -893,7 +1178,14 @@ function CommentsPanel({
       <div className="mt-6 divide-y divide-line rounded-[18px] border border-line bg-white px-5">
         {comments.map((comment) => (
           <div key={comment.id} className="py-6">
-            <CommentItem comment={comment} campaignId={campaign.id} />
+            <CommentItem
+              comment={comment}
+              campaignId={campaign.id}
+              isCampaignCreator={session?.user.id === campaign.creator.id}
+              onDeleteComment={(id) =>
+                setComments((current) => current.filter((c) => c.id !== id))
+              }
+            />
           </div>
         ))}
       </div>

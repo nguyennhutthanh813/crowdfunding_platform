@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class FollowCreatorDto {
-  @ApiProperty({ description: 'Creator UUID to follow', format: 'uuid' })
-  @IsUUID()
+  @ApiProperty({ description: 'Creator UUID or email to follow' })
+  @IsString()
   creatorId!: string;
 }

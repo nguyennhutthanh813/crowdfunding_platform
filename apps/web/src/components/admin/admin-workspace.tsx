@@ -399,8 +399,19 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
   );
 }
 
+const presetReviewFeedbacks = [
+  "Cần bổ sung chi tiết kế hoạch sản xuất và nguồn cung linh kiện dự phòng.",
+  "Lịch giao hàng dự kiến cần rõ ràng hơn cho từng gói quà ủng hộ.",
+  "Đính kèm thêm video hoặc hình ảnh bản mẫu thử nghiệm hoạt động thực tế.",
+  "Kế hoạch sử dụng vốn cần có bảng tỷ lệ phần trăm phân bổ minh bạch.",
+];
+
 function ReviewPanel({ data }: { data: AdminDashboardData }) {
   const [reviews, setReviews] = useState(data.reviewQueue);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<
+    "ALL" | "PENDING" | "NEEDS_CHANGES"
+  >("ALL");
   const [feedback, setFeedback] = useState<Record<string, string>>({
     rev_03: "Bổ sung kế hoạch giao hàng và mô tả rõ rủi ro nhà cung cấp.",
   });
@@ -410,6 +421,9 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expandedReview, setExpandedReview] = useState<string | null>(null);
+  const [dossierModal, setDossierModal] = useState<
+    (typeof data.reviewQueue)[number] | null
+  >(null);
   const [pendingDecision, setPendingDecision] = useState<{
     id: string;
     decision: ReviewDecision;
@@ -441,7 +455,11 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
       setDecisions((current) => ({ ...current, [id]: decision }));
       setReviews((current) => current.filter((review) => review.id !== id));
       setPendingDecision(null);
-      setNotice("Đã lưu quyết định và gửi phản hồi cho chủ dự án.");
+      if (dossierModal?.id === id) {
+        setDossierModal(null);
+      }
+      const label = reviewDecisionLabels[decision] || decision;
+      setNotice(`Đã lưu quyết định "${label}" và gửi thông báo cho chủ dự án.`);
     } catch (error) {
       setNotice(
         adminRequestError(
@@ -454,136 +472,254 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
     }
   };
 
+  const filteredReviews = useMemo(() => {
+    return reviews.filter((item) => {
+      if (filterStatus === "PENDING" && item.status !== "PENDING") return false;
+      if (filterStatus === "NEEDS_CHANGES" && item.status !== "NEEDS_CHANGES")
+        return false;
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase();
+        const matchTitle = item.title.toLowerCase().includes(query);
+        const matchCreator = item.creator.toLowerCase().includes(query);
+        const matchCategory = item.category.toLowerCase().includes(query);
+        return matchTitle || matchCreator || matchCategory;
+      }
+      return true;
+    });
+  }, [reviews, filterStatus, searchTerm]);
+
+  const pendingCount = reviews.filter((r) => r.status === "PENDING").length;
+  const needsChangesCount = reviews.filter(
+    (r) => r.status === "NEEDS_CHANGES",
+  ).length;
+
   return (
     <div>
-      <div>
-        <p className="eyebrow text-coral">
-          <FileCheck2 className="size-4" /> Hàng chờ xét duyệt
-        </p>
-        <h2 className="mt-2 font-display text-2xl font-extrabold">
-          Chiến dịch chờ duyệt
-        </h2>
-        <p className="mt-2 text-xs text-ink-muted">
-          Checklist, quyết định và phản hồi đều được lưu vào nhật ký hệ thống.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="eyebrow text-coral">
+            <FileCheck2 className="size-4" /> Hàng chờ xét duyệt
+          </p>
+          <h2 className="mt-2 font-display text-2xl font-extrabold">
+            Chiến dịch chờ duyệt ({reviews.length})
+          </h2>
+          <p className="mt-2 text-xs text-ink-muted">
+            Checklist thẩm định, quyết định duyệt và phản hồi đều được lưu vào cơ
+            sở dữ liệu & nhật ký kiểm duyệt.
+          </p>
+        </div>
       </div>
-      {notice ? (
-        <AdminNotice message={notice} className="mt-4" />
-      ) : null}
-      <div className="mt-6 space-y-4">
-        {reviews.map((item) => {
+
+      {notice ? <AdminNotice message={notice} className="mt-4" /> : null}
+
+      {/* Filter and Search Bar */}
+      <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setFilterStatus("ALL")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+              filterStatus === "ALL"
+                ? "bg-forest text-white"
+                : "text-ink-muted hover:bg-forest/5 hover:text-ink"
+            }`}
+          >
+            Tất cả ({reviews.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus("PENDING")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+              filterStatus === "PENDING"
+                ? "bg-amber-600 text-white"
+                : "text-ink-muted hover:bg-amber-50 hover:text-amber-800"
+            }`}
+          >
+            Chờ duyệt ({pendingCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus("NEEDS_CHANGES")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+              filterStatus === "NEEDS_CHANGES"
+                ? "bg-red-600 text-white"
+                : "text-ink-muted hover:bg-red-50 hover:text-red-800"
+            }`}
+          >
+            Cần bổ sung ({needsChangesCount})
+          </button>
+        </div>
+
+        <div className="relative min-w-[240px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-muted" />
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Tìm theo tên dự án, chủ dự án..."
+            className="input-field py-1.5 pl-8 text-xs bg-[#faf9f5]"
+          />
+        </div>
+      </div>
+
+      {/* Review items */}
+      <div className="mt-4 space-y-4">
+        {filteredReviews.map((item) => {
           const decision = decisions[item.id];
           return (
             <article
               key={item.id}
-              className="rounded-[22px] border border-line bg-white p-5"
+              className="rounded-[22px] border border-line bg-white p-5 shadow-sm transition-shadow hover:shadow"
             >
-              <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+              <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
                 <div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${item.status === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}
+                      className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${
+                        item.status === "PENDING"
+                          ? "bg-amber-100 text-amber-900"
+                          : "bg-red-100 text-red-900"
+                      }`}
                     >
                       {item.status === "PENDING" ? "CHỜ DUYỆT" : "CẦN BỔ SUNG"}
                     </span>
+                    {item.category ? (
+                      <span className="rounded-full bg-forest/8 px-2 py-0.5 text-[10px] font-semibold text-forest">
+                        {item.category}
+                      </span>
+                    ) : null}
                     {decision ? (
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-bold text-emerald-700">
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-bold text-emerald-800">
                         {reviewDecisionLabels[decision]}
                       </span>
                     ) : null}
                   </div>
-                  <h3 className="mt-3 font-display text-lg font-extrabold">
+
+                  <h3 className="mt-3 font-display text-lg font-extrabold text-ink">
                     {item.title}
                   </h3>
-                  <p className="mt-2 text-xs text-ink-muted">
-                    {item.creator} · {item.category} · bản gửi v{item.submissionVersion}
+
+                  <p className="mt-1 text-xs text-ink-muted">
+                    Chủ dự án: <strong className="text-ink">{item.creator}</strong>{" "}
+                    {item.creatorEmail ? `(${item.creatorEmail})` : ""}{" "}
+                    · Bản nộp v{item.submissionVersion} · {item.submittedAt}
                   </p>
+
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-semibold text-ink-soft">
-                    <span>{item.documentCount} tài liệu đính kèm</span>
+                    <span>{item.documentCount} tài liệu & gói quà</span>
                     <span>Phụ trách: {item.assignedTo}</span>
                     <span
                       className={
                         item.reviewDueAt.startsWith("Quá")
-                          ? "text-red-700"
+                          ? "text-red-700 font-bold"
                           : "text-ink-soft"
                       }
                     >
                       SLA: {item.reviewDueAt}
                     </span>
                   </div>
+
                   <div className="mt-4 flex items-center gap-3">
-                    <div className="h-1.5 w-40 rounded-full bg-forest/7">
+                    <div className="h-1.5 w-40 rounded-full bg-forest/8">
                       <div
-                        className="h-full rounded-full bg-emerald-500"
+                        className="h-full rounded-full bg-emerald-500 transition-all"
                         style={{ width: `${item.completeness}%` }}
                       />
                     </div>
                     <span className="text-[10px] font-bold text-ink-muted">
-                      {item.completeness}% đầy đủ
+                      {item.completeness}% điểm hoàn thiện
                     </span>
                   </div>
+
+                  {/* Checklist indicators */}
                   <div className="mt-4 grid gap-2 text-[10px] sm:grid-cols-3">
                     {item.checks.map((check) => (
                       <span
                         key={check.label}
                         title={check.detail}
-                        className={`flex items-center gap-1.5 rounded-lg px-2 py-2 ${check.status === "PASS" ? "bg-emerald-50 text-emerald-700" : check.status === "WARN" ? "bg-amber-50 text-amber-800" : "bg-red-50 text-red-700"}`}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 font-medium ${
+                          check.status === "PASS"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : check.status === "WARN"
+                              ? "bg-amber-50 text-amber-900 border border-amber-200"
+                              : "bg-red-50 text-red-800 border border-red-200"
+                        }`}
                       >
                         {check.status === "PASS" ? (
-                          <Check className="size-3" />
+                          <Check className="size-3.5 shrink-0 text-emerald-600" />
                         ) : (
-                          <AlertTriangle className="size-3" />
+                          <AlertTriangle className="size-3.5 shrink-0 text-amber-600" />
                         )}
-                        {check.label}
+                        <span className="truncate">{check.label}</span>
                       </span>
                     ))}
                   </div>
                 </div>
-                <div>
-                  <label>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
-                      Phản hồi cho chủ dự án
-                    </span>
-                    <textarea
-                      name={`review-feedback-${item.id}`}
-                      value={feedback[item.id] ?? ""}
-                      onChange={(event) =>
-                        setFeedback((current) => ({
-                          ...current,
-                          [item.id]: event.target.value,
-                        }))
-                      }
-                      className="input-field mt-2 min-h-24 resize-y text-xs"
-                      placeholder="Nêu rõ mục cần sửa hoặc lý do từ chối…"
-                    />
-                  </label>
-                  <div className="mt-3 flex flex-wrap gap-2">
+
+                {/* Action Column */}
+                <div className="flex flex-col justify-between border-t border-line pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+                  <div>
+                    <label>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                        Phản hồi thẩm định cho Creator
+                      </span>
+                      <textarea
+                        name={`review-feedback-${item.id}`}
+                        value={feedback[item.id] ?? ""}
+                        onChange={(event) =>
+                          setFeedback((current) => ({
+                            ...current,
+                            [item.id]: event.target.value,
+                          }))
+                        }
+                        className="input-field mt-1.5 min-h-20 resize-y text-xs bg-[#faf9f5]"
+                        placeholder="Nêu rõ nội dung cần sửa hoặc lý do từ chối..."
+                      />
+                    </label>
+
+                    {/* Quick Preset Feedback Chips */}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {presetReviewFeedbacks.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setFeedback((current) => ({
+                              ...current,
+                              [item.id]: preset,
+                            }));
+                          }}
+                          className="rounded bg-forest/5 px-1.5 py-0.5 text-[9px] text-forest hover:bg-forest/10 hover:text-ink truncate max-w-full text-left"
+                          title={preset}
+                        >
+                          + {preset.slice(0, 32)}...
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      aria-expanded={expandedReview === item.id}
-                      onClick={() =>
-                        setExpandedReview((current) =>
-                          current === item.id ? null : item.id,
-                        )
-                      }
-                      className="button-ghost min-h-11 px-3 text-xs"
+                      onClick={() => setDossierModal(item)}
+                      className="button-ghost min-h-10 px-3 text-xs"
                     >
-                      <Eye className="size-3.5" />
-                      {expandedReview === item.id ? "Thu gọn" : "Xem hồ sơ"}
+                      <Eye className="size-3.5 text-forest" />
+                      Xem hồ sơ
                     </button>
                     <button
                       type="button"
                       disabled={busy === item.id}
                       onClick={() => requestDecision(item.id, "CHANGES")}
-                      className="button-secondary min-h-11 px-3 text-xs"
+                      className="button-secondary min-h-10 px-3 text-xs"
                     >
-                      <X className="size-3.5" /> Yêu cầu sửa
+                      <X className="size-3.5 text-amber-600" /> Yêu cầu sửa
                     </button>
                     <button
                       type="button"
                       disabled={busy === item.id}
                       onClick={() => requestDecision(item.id, "REJECTED")}
-                      className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-wait"
+                      className="inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-wait"
                     >
                       <Ban className="size-3.5" /> Từ chối
                     </button>
@@ -591,35 +727,36 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                       type="button"
                       disabled={busy === item.id}
                       onClick={() => requestDecision(item.id, "APPROVED")}
-                      className="button-dark min-h-11 px-3 text-xs"
+                      className="button-dark min-h-10 px-3 text-xs"
                     >
                       {busy === item.id ? (
                         <LoaderCircle className="size-3.5 animate-spin" />
                       ) : (
-                        <Check className="size-3.5" />
+                        <Check className="size-3.5 text-lime" />
                       )}{" "}
                       Duyệt
                     </button>
                   </div>
+
                   {pendingDecision?.id === item.id ? (
                     <InlineActionConfirm
                       title={
                         pendingDecision.decision === "APPROVED"
-                          ? "Duyệt chiến dịch này?"
+                          ? "Phê duyệt chiến dịch này?"
                           : pendingDecision.decision === "CHANGES"
                             ? "Gửi yêu cầu chỉnh sửa?"
                             : "Từ chối chiến dịch này?"
                       }
                       detail={
                         pendingDecision.decision === "APPROVED"
-                          ? "Chiến dịch sẽ rời hàng chờ và chủ dự án nhận thông báo đã duyệt."
-                          : "Chiến dịch sẽ rời hàng chờ hiện tại. Phản hồi vừa nhập sẽ được gửi cho chủ dự án."
+                          ? "Chiến dịch sẽ chuyển trạng thái sẵn sàng khởi chạy (PRE_LAUNCH). Chủ dự án sẽ nhận thông báo đã duyệt."
+                          : "Chiến dịch sẽ rời hàng chờ hiện tại. Phản hồi vừa nhập sẽ được gửi trực tiếp cho chủ dự án."
                       }
                       confirmLabel={
                         pendingDecision.decision === "APPROVED"
                           ? "Xác nhận duyệt"
                           : pendingDecision.decision === "CHANGES"
-                            ? "Gửi yêu cầu"
+                            ? "Gửi yêu cầu sửa"
                             : "Xác nhận từ chối"
                       }
                       danger={pendingDecision.decision === "REJECTED"}
@@ -632,11 +769,12 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                   ) : null}
                 </div>
               </div>
+
               {expandedReview === item.id ? (
                 <div className="mt-5 rounded-2xl bg-[#f6f5f0] p-4 text-xs text-ink-soft">
                   <div className="flex flex-col justify-between gap-2 border-b border-line pb-3 sm:flex-row">
-                    <p className="font-bold text-ink">Chi tiết checklist kiểm duyệt</p>
-                    <p className="text-[10px] text-ink-muted">Gửi {item.submittedAt}</p>
+                    <p className="font-bold text-ink">Chi tiết checklist thẩm định</p>
+                    <p className="text-[10px] text-ink-muted">Gửi lúc: {item.submittedAt}</p>
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     {item.checks.map((check) => (
@@ -651,21 +789,216 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
             </article>
           );
         })}
-        {!reviews.length ? (
-          <div className="rounded-[20px] border border-dashed border-emerald-300 bg-emerald-50/70 px-5 py-10 text-center">
-            <span className="mx-auto grid size-11 place-items-center rounded-[10px] bg-emerald-100 text-emerald-700">
-              <ShieldCheck className="size-5" />
+
+        {!filteredReviews.length ? (
+          <div className="rounded-[20px] border border-dashed border-emerald-300 bg-emerald-50/70 px-5 py-12 text-center">
+            <span className="mx-auto grid size-12 place-items-center rounded-[12px] bg-emerald-100 text-emerald-700">
+              <ShieldCheck className="size-6" />
             </span>
             <h3 className="mt-4 font-display text-lg font-extrabold text-emerald-950">
-              Hàng chờ trong phiên đã xử lý xong
+              Không có chiến dịch nào trong hàng chờ
             </h3>
-            <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-emerald-800/70">
-              Các quyết định vừa thực hiện đã chuyển sang nhật ký. Hồ sơ mới sẽ
-              xuất hiện ở đây khi chủ dự án gửi lại.
+            <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-emerald-800/80">
+              Tất cả hồ sơ trong ca trực đã được xử lý xong. Hồ sơ mới sẽ xuất
+              hiện tại đây ngay khi chủ dự án nộp duyệt.
             </p>
           </div>
         ) : null}
       </div>
+
+      {/* Dossier Modal */}
+      {dossierModal ? (
+        <Modal
+          open
+          size="lg"
+          title={`Hồ sơ thẩm định: ${dossierModal.title}`}
+          description={`Chủ dự án: ${dossierModal.creator} · Danh mục: ${dossierModal.category} · Bản gửi v${dossierModal.submissionVersion}`}
+          onClose={() => setDossierModal(null)}
+        >
+          <div className="space-y-6 max-h-[72vh] overflow-y-auto pr-1">
+            {/* Visual preview */}
+            {dossierModal.videoUrl ? (
+              <div className="rounded-xl overflow-hidden bg-black aspect-video max-h-64 w-full">
+                <video
+                  controls
+                  className="w-full h-full object-contain"
+                  src={dossierModal.videoUrl}
+                />
+              </div>
+            ) : dossierModal.imageUrl ? (
+              <div className="rounded-xl overflow-hidden aspect-[16/8] max-h-60 w-full bg-forest/10">
+                <img
+                  src={dossierModal.imageUrl}
+                  alt={dossierModal.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : null}
+
+            {/* Quick stats strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-line bg-[#faf9f5] p-3 text-center">
+                <p className="text-[10px] text-ink-muted">Mục tiêu gọi vốn</p>
+                <p className="mt-1 font-display font-extrabold text-sm sm:text-base text-forest">
+                  {dossierModal.goalAmount
+                    ? formatVnd(dossierModal.goalAmount, true)
+                    : "Chưa đặt"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-[#faf9f5] p-3 text-center">
+                <p className="text-[10px] text-ink-muted">Thời lượng</p>
+                <p className="mt-1 font-display font-extrabold text-sm sm:text-base">
+                  {dossierModal.durationDays || 30} ngày
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-[#faf9f5] p-3 text-center">
+                <p className="text-[10px] text-ink-muted">Khu vực</p>
+                <p className="mt-1 font-display font-extrabold text-sm sm:text-base">
+                  {dossierModal.location || "Việt Nam"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-[#faf9f5] p-3 text-center">
+                <p className="text-[10px] text-ink-muted">Độ hoàn thiện</p>
+                <p className="mt-1 font-display font-extrabold text-sm sm:text-base text-emerald-600">
+                  {dossierModal.completeness}%
+                </p>
+              </div>
+            </div>
+
+            {/* Blurb */}
+            {dossierModal.blurb ? (
+              <div className="rounded-xl border border-line p-4 bg-white">
+                <p className="text-xs font-bold text-ink-soft">Mô tả ngắn</p>
+                <p className="mt-1 text-xs text-ink leading-6">
+                  {dossierModal.blurb}
+                </p>
+              </div>
+            ) : null}
+
+            {/* Story */}
+            <div className="rounded-xl border border-line p-4 bg-white">
+              <p className="text-xs font-bold text-ink-soft">
+                Câu chuyện & Kế hoạch triển khai
+              </p>
+              <div className="mt-2 text-xs text-ink leading-6 whitespace-pre-wrap font-sans">
+                {dossierModal.story ||
+                  "Dự án chưa cập nhật chi tiết nội dung câu chuyện."}
+              </div>
+            </div>
+
+            {/* Risks */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+              <p className="text-xs font-bold text-amber-900">
+                Rủi ro & Thách thức dự án
+              </p>
+              <div className="mt-2 text-xs text-amber-950 leading-6 whitespace-pre-wrap">
+                {dossierModal.risks ||
+                  "Chưa có phân tích rủi ro và phương án dự phòng."}
+              </div>
+            </div>
+
+            {/* Reward tiers */}
+            {dossierModal.rewardTiers && dossierModal.rewardTiers.length > 0 ? (
+              <div>
+                <p className="text-xs font-bold text-ink-soft mb-2">
+                  Các gói ủng hộ ({dossierModal.rewardTiers.length} gói)
+                </p>
+                <div className="space-y-2">
+                  {dossierModal.rewardTiers.map((r) => (
+                    <div
+                      key={r.id}
+                      className="rounded-lg border border-line p-3 flex justify-between items-start gap-3 bg-white"
+                    >
+                      <div>
+                        <p className="text-xs font-bold">{r.title}</p>
+                        {r.items && r.items.length > 0 ? (
+                          <p className="mt-0.5 text-[11px] text-ink-muted">
+                            Quyền lợi: {r.items.join(", ")}
+                          </p>
+                        ) : null}
+                        {r.estimatedDelivery ? (
+                          <p className="mt-0.5 text-[10px] text-forest font-semibold">
+                            Giao dự kiến: {r.estimatedDelivery}
+                          </p>
+                        ) : null}
+                      </div>
+                      <p className="text-xs font-extrabold text-coral shrink-0">
+                        {formatVnd(r.amount, true)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Public Link */}
+            {dossierModal.slug ? (
+              <div className="flex items-center justify-between border-t border-line pt-4 text-xs">
+                <span className="text-ink-muted">
+                  Đường dẫn trang dự án công khai:
+                </span>
+                <a
+                  href={`/projects/${dossierModal.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-bold text-forest hover:underline"
+                >
+                  Mở trang dự án <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+            ) : null}
+
+            {/* Decision panel inside modal */}
+            <div className="rounded-xl border border-line bg-[#faf9f5] p-4">
+              <p className="text-xs font-bold text-ink">
+                Ra quyết định kiểm duyệt ngay:
+              </p>
+              <textarea
+                value={feedback[dossierModal.id] ?? ""}
+                onChange={(e) =>
+                  setFeedback((prev) => ({
+                    ...prev,
+                    [dossierModal.id]: e.target.value,
+                  }))
+                }
+                className="input-field mt-2 text-xs min-h-20 bg-white"
+                placeholder="Nhập nhận xét / phản hồi cho chủ dự án..."
+              />
+              <div className="mt-3 flex flex-wrap gap-2 justify-end">
+                <button
+                  type="button"
+                  disabled={busy === dossierModal.id}
+                  onClick={() => requestDecision(dossierModal.id, "CHANGES")}
+                  className="button-secondary min-h-10 px-4 text-xs"
+                >
+                  <X className="size-3.5 text-amber-600" /> Yêu cầu sửa
+                </button>
+                <button
+                  type="button"
+                  disabled={busy === dossierModal.id}
+                  onClick={() => requestDecision(dossierModal.id, "REJECTED")}
+                  className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-700 hover:bg-red-100"
+                >
+                  <Ban className="size-3.5" /> Từ chối
+                </button>
+                <button
+                  type="button"
+                  disabled={busy === dossierModal.id}
+                  onClick={() => requestDecision(dossierModal.id, "APPROVED")}
+                  className="button-dark min-h-10 px-4 text-xs"
+                >
+                  {busy === dossierModal.id ? (
+                    <LoaderCircle className="size-3.5 animate-spin" />
+                  ) : (
+                    <Check className="size-3.5 text-lime" />
+                  )}{" "}
+                  Duyệt chiến dịch
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

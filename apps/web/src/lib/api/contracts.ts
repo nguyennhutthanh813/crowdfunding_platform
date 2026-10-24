@@ -127,16 +127,23 @@ export interface CampaignUpdate {
 }
 
 export type CommentBadge =
-  "CREATOR" | "COLLABORATOR" | "SUPERBACKER" | "BACKER";
+  | "CREATOR"
+  | "COLLABORATOR"
+  | "SUPERBACKER"
+  | "BACKER"
+  | "ADMIN";
 
 export interface CampaignComment {
   id: string;
+  authorId?: string;
   author: string;
   initials: string;
   badge: CommentBadge;
   body: string;
   createdAt: string;
   likes: number;
+  isHidden?: boolean;
+  parentCommentId?: string;
   replies?: CampaignComment[];
 }
 
@@ -473,8 +480,20 @@ export interface FraudAlert {
 
 export interface ReviewQueueItem {
   id: string;
+  campaignId?: string;
   title: string;
+  slug?: string;
+  blurb?: string;
+  story?: string;
+  risks?: string;
+  location?: string;
+  goalAmount?: number;
+  durationDays?: number;
+  videoUrl?: string;
+  imageUrl?: string;
   creator: string;
+  creatorEmail?: string;
+  creatorAvatar?: string | null;
   submittedAt: string;
   category: string;
   completeness: number;
@@ -487,6 +506,19 @@ export interface ReviewQueueItem {
     label: string;
     status: "PASS" | "WARN" | "MISSING";
     detail: string;
+  }>;
+  rewardTiers?: Array<{
+    id: string;
+    title: string;
+    amount: number;
+    estimatedDelivery?: string;
+    quantityLimit?: number | null;
+    items?: string[];
+  }>;
+  addOns?: Array<{
+    id: string;
+    title: string;
+    amount: number;
   }>;
 }
 

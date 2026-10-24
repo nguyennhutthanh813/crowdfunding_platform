@@ -45,6 +45,12 @@ export class CommunicationController {
     return this.communicationService.listMessages(userId, query);
   }
 
+  @Get('messages/unread-count')
+  @ApiOperation({ summary: 'Get unread message count' })
+  async getUnreadCount(@CurrentUser('id') userId: string) {
+    return this.communicationService.getUnreadMessageCount(userId);
+  }
+
   @Get('messages/:id')
   @ApiOperation({ summary: 'Get message details (auto-marks as read)' })
   @ApiParam({ name: 'id', description: 'Message UUID' })

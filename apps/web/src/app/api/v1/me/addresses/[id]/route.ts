@@ -4,6 +4,7 @@ import {
   deleteMemoryAddress,
   updateMemoryAddress,
 } from "@/lib/auth/address-memory-store";
+import { fetchBackendWithAuth } from "@/lib/auth/backend-fetch";
 
 export const runtime = "nodejs";
 
@@ -17,33 +18,33 @@ export async function PATCH(
   const { id } = await props.params;
   const body = await request.json().catch(() => ({}));
 
-  const apiUrl =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:3001/api";
+  const session = access.session;
+  const token = session?.tokens?.accessToken;
 
-  const token = access.session?.tokens?.accessToken;
   if (token && !token.startsWith("session_")) {
     try {
-      const res = await fetch(`${apiUrl}/users/me/addresses/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const { response: res } = await fetchBackendWithAuth(
+        `/users/me/addresses/${id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(3500),
-      });
+        session,
+      );
 
       if (res.ok) {
         return NextResponse.json({ success: true, address: await res.json() });
+      } else {
+        const errText = await res.text().catch(() => "");
+        console.warn(`Backend PATCH /users/me/addresses/${id} returned ${res.status}:`, errText);
       }
     } catch (err) {
       console.warn("Failed to update address on backend API:", err);
     }
   }
 
-  // Fallback memory store
+  // Fallback memory store cho tài khoản demo
   const userId = access.session?.user.id ?? "user_default";
   const updated = updateMemoryAddress(userId, id, body);
 
@@ -58,33 +59,33 @@ export async function DELETE(
   if (access.response) return access.response;
 
   const { id } = await props.params;
+  const session = access.session;
+  const token = session?.tokens?.accessToken;
 
-  const apiUrl =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:3001/api";
-
-  const token = access.session?.tokens?.accessToken;
   if (token && !token.startsWith("session_")) {
     try {
-      const res = await fetch(`${apiUrl}/users/me/addresses/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(3500),
-      });
+      const { response: res } = await fetchBackendWithAuth(
+        `/users/me/addresses/${id}`,
+        {
+          method: "DELETE",
+        },
+        session,
+      );
 
       if (res.ok) {
         return NextResponse.json({ success: true });
+      } else {
+        const errText = await res.text().catch(() => "");
+        console.warn(`Backend DELETE /users/me/addresses/${id} returned ${res.status}:`, errText);
       }
     } catch (err) {
       console.warn("Failed to delete address on backend API:", err);
     }
   }
 
-  // Fallback memory store
+  // Fallback memory store cho tài khoản demo
   const userId = access.session?.user.id ?? "user_default";
   deleteMemoryAddress(userId, id);
 
   return NextResponse.json({ success: true });
 }
-

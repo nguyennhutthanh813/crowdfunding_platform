@@ -17,6 +17,7 @@ import {
 import { requireSession } from "@/lib/auth/require-session";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
 import { forwardUserActionToBackend } from "@/lib/api/real-admin-users";
+import { forwardAdminCampaignReview } from "@/lib/api/real-admin-reviews";
 
 const allowedActions = new Set([
   "REVIEW_CAMPAIGN",
@@ -70,6 +71,10 @@ export async function POST(request: Request) {
   if (action === "REVIEW_CAMPAIGN") {
     const reviewId =
       typeof payload.reviewId === "string" ? payload.reviewId : "";
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        reviewId,
+      );
     const review = mockCampaignReviews.some((item) => item.id === reviewId)
       ? getMockCampaignReview(reviewId)
       : platformState.submittedReviews.find((item) => item.id === reviewId);
@@ -77,7 +82,7 @@ export async function POST(request: Request) {
       typeof payload.decision === "string" ? payload.decision : "";
     const feedback =
       typeof payload.feedback === "string" ? payload.feedback.trim() : "";
-    if (!review) {
+    if (!review && !isUuid) {
       return apiError(
         404,
         "REVIEW_NOT_FOUND",
@@ -258,6 +263,23 @@ export async function POST(request: Request) {
           ? "Hồ sơ đã đạt checklist của vòng duyệt hiện tại."
           : "Quản trị viên chưa để lại phản hồi."),
     };
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        payload.reviewId as string,
+      );
+    if (isUuid) {
+      try {
+        await forwardAdminCampaignReview(
+          payload.reviewId as string,
+          payload.decision as "APPROVED" | "CHANGES" | "REJECTED",
+          (payload.feedback as string | undefined)?.trim(),
+          access.session?.tokens?.accessToken,
+        );
+      } catch (err) {
+        console.warn("Failed to forward campaign review to backend API:", err);
+      }
+    }
   }
 
   if (action === "RESOLVE_FRAUD") {

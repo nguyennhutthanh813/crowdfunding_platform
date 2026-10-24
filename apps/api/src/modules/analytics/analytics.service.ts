@@ -84,4 +84,52 @@ export class AnalyticsService {
       },
     };
   }
+
+  async recordEvent(
+    userId: string | null,
+    dto: {
+      campaignId: string;
+      eventType: any;
+      sessionHash?: string;
+      source?: string;
+      metadata?: any;
+    },
+  ) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dto.campaignId);
+    let campaignId = dto.campaignId;
+    if (!isUuid) {
+      const campaign = await this.prisma.campaign.findFirst({
+        where: {
+          OR: [
+            { slug: dto.campaignId },
+            { slug: { contains: dto.campaignId.replace(/^cmp_/, '') } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!campaign) {
+        throw new NotFoundException('Campaign not found');
+      }
+      campaignId = campaign.id;
+    }
+
+    const event = await this.prisma.interactionEvent.create({
+      data: {
+        userId: userId || undefined,
+        campaignId,
+        eventType: dto.eventType,
+        sessionHash: dto.sessionHash,
+        source: dto.source ?? 'web',
+        metadata: dto.metadata ?? {},
+      },
+    });
+
+    return {
+      id: event.id.toString(),
+      campaignId: event.campaignId,
+      eventType: event.eventType,
+      occurredAt: event.occurredAt,
+    };
+  }
 }
+

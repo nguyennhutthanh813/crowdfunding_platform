@@ -12,4 +12,9 @@ export class CommentQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   updateId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by parent comment UUID (for replies)', format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  parentCommentId?: string;
 }

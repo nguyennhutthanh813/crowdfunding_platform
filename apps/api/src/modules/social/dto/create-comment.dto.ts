@@ -2,8 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, IsUUID, MinLength, MaxLength } from 'class-validator';
 
 export class CreateCommentDto {
-  @ApiProperty({ description: 'Campaign UUID', format: 'uuid' })
-  @IsUUID()
+  @ApiProperty({ description: 'Campaign UUID or slug' })
+  @IsString()
   campaignId!: string;
 
   @ApiPropertyOptional({ description: 'Campaign update UUID (comment on an update)', format: 'uuid' })

@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class SaveCampaignDto {
-  @ApiProperty({ description: 'Campaign UUID to save', format: 'uuid' })
-  @IsUUID()
+  @ApiProperty({ description: 'Campaign UUID or slug to save' })
+  @IsString()
   campaignId!: string;
 }

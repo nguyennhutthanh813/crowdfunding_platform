@@ -4,27 +4,19 @@ const globalAddressesMap = new Map<string, UserAddress[]>();
 
 export function getMemoryAddresses(
   userId: string,
-  defaultName?: string,
-  defaultPhone?: string,
+  _defaultName?: string,
+  _defaultPhone?: string,
 ): UserAddress[] {
   if (!globalAddressesMap.has(userId)) {
-    globalAddressesMap.set(userId, [
-      {
-        id: `addr_default_${userId.replace(/[^a-zA-Z0-9]/g, "")}`,
-        recipientName: defaultName || "Người nhận",
-        phone: defaultPhone || "0912345678",
-        line1: "Số 123 Đường Nguyễn Huệ",
-        ward: "Phường Bến Nghé",
-        district: "Quận 1",
-        province: "TP. Hồ Chí Minh",
-        countryCode: "VN",
-        isDefault: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ]);
+    globalAddressesMap.set(userId, []);
   }
-  return globalAddressesMap.get(userId) || [];
+  const list = globalAddressesMap.get(userId) || [];
+  // Dọn dẹp bỏ địa chỉ mẫu mock (nếu đã lưu từ trước trong bộ nhớ)
+  const cleaned = list.filter((a) => !a.id.startsWith("addr_default_"));
+  if (cleaned.length !== list.length) {
+    globalAddressesMap.set(userId, cleaned);
+  }
+  return cleaned;
 }
 
 export function addMemoryAddress(
@@ -98,4 +90,8 @@ export function deleteMemoryAddress(
   }
   globalAddressesMap.set(userId, filtered);
   return true;
+}
+
+export function clearMemoryAddresses(userId: string): void {
+  globalAddressesMap.delete(userId);
 }

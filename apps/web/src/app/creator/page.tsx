@@ -73,18 +73,6 @@ export default async function CreatorPage() {
   };
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
 
-  if (session?.user.id !== "usr_hoang_linh") {
-    return <CreatorOnboarding givenName={givenName} />;
-  }
-
-  const campaign =
-    campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
-    campaigns.find((item) => item.id === operations.campaignId);
-  if (!campaign) {
-    return <CreatorOnboarding givenName={givenName} />;
-  }
-  const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
-  const openTasks = operations.tasks.filter((task) => task.status !== "DONE");
   const draftReview = platformState.submittedReviews.find(
     (review) => review.campaignId === "cmp_orbit_mini",
   );
@@ -102,6 +90,31 @@ export default async function CreatorPage() {
         : draftDecision === "REJECTED"
           ? "Đã bị từ chối"
           : "Đang chờ duyệt";
+
+  if (session?.user.id !== "usr_hoang_linh") {
+    return (
+      <CreatorOnboarding
+        givenName={givenName}
+        submittedTitle={draftReview?.title}
+        reviewStatus={draftReview ? reviewLabel : undefined}
+      />
+    );
+  }
+
+  const campaign =
+    campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
+    campaigns.find((item) => item.id === operations.campaignId);
+  if (!campaign) {
+    return (
+      <CreatorOnboarding
+        givenName={givenName}
+        submittedTitle={draftReview?.title}
+        reviewStatus={draftReview ? reviewLabel : undefined}
+      />
+    );
+  }
+  const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
+  const openTasks = operations.tasks.filter((task) => task.status !== "DONE");
 
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">

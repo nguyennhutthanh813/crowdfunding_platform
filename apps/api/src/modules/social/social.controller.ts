@@ -21,6 +21,7 @@ import { CommentQueryDto } from './dto/comment-query.dto';
 import { SaveCampaignDto } from './dto/save-campaign.dto';
 import { FollowCreatorDto } from './dto/follow-creator.dto';
 import { PrelaunchSubscribeDto } from './dto/prelaunch-subscribe.dto';
+import { ModerateCommentDto } from './dto/moderate-comment.dto';
 
 @ApiTags('social')
 @Controller('social')
@@ -70,6 +71,32 @@ export class SocialController {
     @CurrentUser('id') userId: string,
   ) {
     return this.socialService.deleteComment(id, userId);
+  }
+
+  @Post('comments/:id/like')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Like a comment (increment like count)' })
+  @ApiParam({ name: 'id', description: 'Comment UUID' })
+  async likeComment(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.socialService.likeComment(id, userId);
+  }
+
+  @Patch('comments/:id/hide')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Hide or moderate a comment (Creator or Admin)' })
+  @ApiParam({ name: 'id', description: 'Comment UUID' })
+  async hideComment(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: ModerateCommentDto,
+  ) {
+    return this.socialService.hideComment(id, userId, dto);
   }
 
   // ─── Saved Campaigns ───────────────────────────────────

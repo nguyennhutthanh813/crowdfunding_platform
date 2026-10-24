@@ -112,6 +112,19 @@ export class AdminController {
 
   // ─── Campaign Review ───────────────────────────────────
 
+  @Get('campaigns/review-queue')
+  @ApiOperation({ summary: 'List campaigns pending review (admin only)' })
+  async listCampaignReviewQueue() {
+    return this.adminService.listCampaignReviewQueue();
+  }
+
+  @Get('campaigns/:id/review-detail')
+  @ApiOperation({ summary: 'Get full campaign details for review audit (admin only)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async getCampaignReviewDetail(@Param('id') id: string) {
+    return this.adminService.getCampaignReviewDetail(id);
+  }
+
   @Post('campaigns/:id/review')
   @ApiOperation({ summary: 'Review a campaign (admin only)' })
   @ApiParam({ name: 'id', description: 'Campaign UUID' })

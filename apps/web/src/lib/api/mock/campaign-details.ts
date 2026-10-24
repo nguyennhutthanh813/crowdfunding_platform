@@ -1107,9 +1107,21 @@ const bepXanh = detail("cmp_bepxanh", {
 
 export const campaignDetailsBySlug: Record<string, CampaignDetail> = {
   [orbitDetail.slug]: orbitDetail,
+  "orbit-one-ca-phe-thong-minh": orbitDetail,
   [lacViet.slug]: lacViet,
+  "lac-viet-su-thi-the-bai": lacViet,
+  "lac-viet-boardgame": lacViet,
   [moc.slug]: moc,
+  "moc-lamp-chieu-sang-thong-minh": moc,
+  "moc-den-ban-tuan-hoan": moc,
   [pulse.slug]: pulse,
+  "pulse-band-vong-deo-suc-khoe": pulse,
+  "pulse-vong-tay-an-toan": pulse,
   [afterRain.slug]: afterRain,
+  "thanh-pho-sau-mua-dia-nhac-indie": afterRain,
+  "thanh-pho-sau-mua-album": afterRain,
   [bepXanh.slug]: bepXanh,
+  "bep-nho-khong-rac-so-tay-thuc-hanh": bepXanh,
+  "bep-nho-khong-rac": bepXanh,
 };
+

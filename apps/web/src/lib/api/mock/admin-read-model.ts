@@ -73,8 +73,15 @@ export const adminReviewQueue: ReviewQueueItem[] = mockCampaignReviews.map(
 
     return {
       id: review.id,
+      campaignId: campaign.id,
       title: campaign.title,
+      slug: campaign.slug,
+      blurb: campaign.blurb,
+      goalAmount: campaign.goalAmount,
+      durationDays: campaign.durationDays,
+      location: campaign.location,
       creator: creator.displayName,
+      creatorEmail: creator.email,
       submittedAt: `${submitted.date} · ${submitted.time}`,
       category: getMockCategory(campaign.categoryId).name,
       completeness: review.completeness,

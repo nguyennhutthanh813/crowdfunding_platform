@@ -30,7 +30,15 @@ const onboardingSteps = [
   },
 ];
 
-export function CreatorOnboarding({ givenName }: { givenName: string }) {
+export function CreatorOnboarding({
+  givenName,
+  submittedTitle,
+  reviewStatus,
+}: {
+  givenName: string;
+  submittedTitle?: string;
+  reviewStatus?: string;
+}) {
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
       <div className="border-b border-forest/10 bg-[#e5ece3] py-12 text-ink sm:py-16">
@@ -43,21 +51,38 @@ export function CreatorOnboarding({ givenName }: { givenName: string }) {
               Chào {givenName}, mình bắt đầu từ một ý tưởng thật rõ nhé.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-ink-soft">
-              Bạn đã mở vai trò Chủ dự án nhưng chưa có chiến dịch nào. Góp sẽ
-              chia hồ sơ thành từng bước ngắn để bạn có thể lưu nháp và quay lại
-              bất cứ lúc nào.
+              {submittedTitle
+                ? `Chiến dịch "${submittedTitle}" của bạn đang được ban quản trị xét duyệt. Bạn có thể theo dõi tiến độ hoặc tiếp tục chỉnh sửa.`
+                : "Bạn đã mở vai trò Chủ dự án. Góp sẽ chia hồ sơ thành từng bước ngắn để bạn có thể lưu nháp và quay lại bất cứ lúc nào."}
             </p>
           </div>
           <div className="rounded-[16px] border border-forest/12 bg-white p-5">
             <p className="text-[11px] font-bold text-forest">
               Trạng thái tài khoản
             </p>
-            <p className="mt-3 font-display text-xl font-extrabold">
-              Sẵn sàng tạo chiến dịch đầu tiên
-            </p>
-            <p className="mt-2 text-xs leading-6 text-ink-muted">
-              Bạn chỉ gửi xét duyệt khi đã điền đủ thông tin bắt buộc.
-            </p>
+            {submittedTitle ? (
+              <>
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
+                  <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+                  {reviewStatus || "Đang chờ duyệt"}
+                </div>
+                <p className="mt-2 text-xs font-semibold text-ink truncate">
+                  {submittedTitle}
+                </p>
+                <p className="mt-1 text-[11px] text-ink-muted">
+                  Ban quản trị thường phản hồi trong vòng 24 giờ.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-3 font-display text-xl font-extrabold">
+                  Sẵn sàng tạo chiến dịch đầu tiên
+                </p>
+                <p className="mt-2 text-xs leading-6 text-ink-muted">
+                  Bạn chỉ gửi xét duyệt khi đã điền đủ thông tin bắt buộc.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -115,11 +140,12 @@ export function CreatorOnboarding({ givenName }: { givenName: string }) {
               Bắt đầu tạo chiến dịch <ArrowRight className="size-4" />
             </Link>
             <Link
-              href="/system-design"
+              href="/creator/guidelines"
               className="mt-3 inline-flex min-h-11 w-full items-center justify-center text-xs font-bold text-forest hover:text-coral-dark"
             >
               Xem quy trình xét duyệt
             </Link>
+
           </aside>
         </div>
       </div>

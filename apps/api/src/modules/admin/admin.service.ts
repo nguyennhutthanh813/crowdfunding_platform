@@ -354,10 +354,148 @@ export class AdminService {
 
   // ─── Campaign Review ───────────────────────────────────
 
+  async listCampaignReviewQueue() {
+    const campaigns = await this.prisma.campaign.findMany({
+      where: {
+        OR: [
+          { status: 'IN_REVIEW' },
+          { status: 'DRAFT', reviews: { some: {} } },
+        ],
+      },
+      include: {
+        creator: {
+          select: { id: true, displayName: true, email: true, avatarUrl: true },
+        },
+        category: {
+          select: { id: true, name: true, slug: true },
+        },
+        rewardTiers: {
+          select: { id: true, title: true, amount: true, estimatedDelivery: true, quantityLimit: true, items: true },
+        },
+        addOns: {
+          select: { id: true, title: true, amount: true },
+        },
+        media: {
+          select: { id: true, mediaType: true, url: true, altText: true, sortOrder: true },
+        },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: {
+            reviewer: { select: { id: true, displayName: true, email: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return campaigns.map((campaign) => {
+      const hasStory = (campaign.storyMarkdown || '').length >= 100;
+      const hasRisks = (campaign.risksMarkdown || '').length >= 50;
+      const hasRewards = campaign.rewardTiers.length > 0;
+      const checks = [
+        {
+          label: 'Mục tiêu & thời lượng',
+          status: Number(campaign.goalAmount) > 0 && campaign.durationDays >= 15 ? ('PASS' as const) : ('WARN' as const),
+          detail: `Mục tiêu ${Number(campaign.goalAmount).toLocaleString('vi-VN')} đ · ${campaign.durationDays} ngày`,
+        },
+        {
+          label: 'Câu chuyện & rủi ro',
+          status: hasStory && hasRisks ? ('PASS' as const) : ('WARN' as const),
+          detail: hasStory ? 'Đã có mô tả kế hoạch và phân tích rủi ro' : 'Cần bổ sung chi tiết kế hoạch',
+        },
+        {
+          label: 'Gói ủng hộ & quyền lợi',
+          status: hasRewards ? ('PASS' as const) : ('MISSING' as const),
+          detail: `${campaign.rewardTiers.length} gói quà · ${campaign.addOns.length} phần bổ sung`,
+        },
+      ];
+
+      const passCount = checks.filter((c) => c.status === 'PASS').length;
+      const completeness = Math.round((passCount / checks.length) * 100);
+
+      const primaryVideo = campaign.media.find((m) => m.mediaType === 'VIDEO')?.url;
+      const primaryImage = campaign.media.find((m) => m.mediaType === 'IMAGE')?.url || campaign.media[0]?.url;
+
+      return {
+        id: campaign.id,
+        campaignId: campaign.id,
+        title: campaign.title,
+        slug: campaign.slug,
+        blurb: campaign.blurb,
+        story: campaign.storyMarkdown,
+        risks: campaign.risksMarkdown,
+        location: campaign.location,
+        goalAmount: Number(campaign.goalAmount),
+        durationDays: campaign.durationDays,
+        creator: campaign.creator.displayName,
+        creatorEmail: campaign.creator.email,
+        creatorAvatar: campaign.creator.avatarUrl,
+        category: campaign.category.name,
+        videoUrl: primaryVideo,
+        imageUrl: primaryImage,
+        completeness,
+        status: campaign.status === 'IN_REVIEW' ? ('PENDING' as const) : ('NEEDS_CHANGES' as const),
+        submissionVersion: campaign.reviews.length + 1,
+        assignedTo: 'Ban quản trị',
+        reviewDueAt: 'Trong 24 giờ',
+        documentCount: 3 + campaign.rewardTiers.length + campaign.addOns.length,
+        checks,
+        rewardTiers: campaign.rewardTiers.map((r) => ({
+          ...r,
+          amount: Number(r.amount),
+        })),
+        addOns: campaign.addOns.map((a) => ({
+          ...a,
+          amount: Number(a.amount),
+        })),
+        reviews: campaign.reviews,
+        submittedAt: campaign.submittedAt ? campaign.submittedAt.toISOString() : campaign.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async getCampaignReviewDetail(campaignId: string) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        creator: {
+          select: { id: true, displayName: true, email: true, phone: true, avatarUrl: true },
+        },
+        category: true,
+        rewardTiers: true,
+        addOns: true,
+        media: true,
+        faqs: true,
+        statusHistory: {
+          orderBy: { changedAt: 'desc' },
+          include: {
+            changer: { select: { id: true, displayName: true, email: true } },
+          },
+        },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            reviewer: { select: { id: true, displayName: true, email: true } },
+          },
+        },
+      },
+    });
+
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    return {
+      ...campaign,
+      goalAmount: Number(campaign.goalAmount),
+      rewardTiers: campaign.rewardTiers.map((r) => ({ ...r, amount: Number(r.amount) })),
+      addOns: campaign.addOns.map((a) => ({ ...a, amount: Number(a.amount) })),
+    };
+  }
+
   async reviewCampaign(campaignId: string, reviewerId: string, dto: ReviewCampaignDto) {
     const campaign = await this.prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, title: true, slug: true, creatorId: true },
     });
 
     if (!campaign) throw new NotFoundException('Campaign not found');
@@ -398,6 +536,46 @@ export class AdminService {
         },
       });
     }
+
+    // Ghi nhật ký kiểm duyệt ModerationAction (ADM-MOD-01)
+    await this.prisma.moderationAction.create({
+      data: {
+        adminId: reviewerId,
+        targetType: 'CAMPAIGN',
+        targetId: campaignId,
+        action: `REVIEW_${dto.decision}`,
+        reason: dto.feedback || `Quản trị viên quyết định ${dto.decision} chiến dịch`,
+        metadata: {
+          reviewId: review.id,
+          decision: dto.decision,
+          checklist: dto.checklist,
+        },
+      },
+    });
+
+    // Tạo thông báo cho Creator (NOTIF-01)
+    const titleNotice =
+      dto.decision === 'APPROVED'
+        ? `Chiến dịch "${campaign.title}" đã được phê duyệt!`
+        : dto.decision === 'CHANGES_REQUESTED'
+          ? `Chiến dịch "${campaign.title}" cần bổ sung thông tin`
+          : `Chiến dịch "${campaign.title}" đã bị từ chối`;
+
+    const bodyNotice =
+      dto.feedback ||
+      (dto.decision === 'APPROVED'
+        ? 'Chiến dịch của bạn đã sẵn sàng để chuẩn bị ra mắt (Pre-launch) hoặc khởi chạy gọi vốn.'
+        : 'Vui lòng kiểm tra lại phản hồi chi tiết từ ban quản trị.');
+
+    await this.prisma.notification.create({
+      data: {
+        userId: campaign.creatorId,
+        type: 'CAMPAIGN_STATUS',
+        title: titleNotice,
+        body: bodyNotice,
+        actionUrl: `/creator/campaigns/${campaign.slug}/manage`,
+      },
+    });
 
     return review;
   }

@@ -518,8 +518,15 @@ export async function POST(request: Request) {
   }
 
   if (action === "SUBMIT_REVIEW") {
-    const campaign = campaignAccess.campaign;
-    const creator = getMockUser(campaign.creatorId);
+    const campaign = campaignAccess.campaign!;
+    let creatorDisplayName = access.session?.user.name;
+    if (!creatorDisplayName) {
+      try {
+        creatorDisplayName = getMockUser(campaign.creatorId).displayName;
+      } catch {
+        creatorDisplayName = "Chủ dự án";
+      }
+    }
     const submittedTitle = (payload.title as string).trim();
     const submittedCategory = (payload.category as string).trim();
     const readiness = Math.max(
@@ -536,7 +543,7 @@ export async function POST(request: Request) {
       id: reviewId,
       campaignId: campaign.id,
       title: submittedTitle,
-      creator: creator.displayName,
+      creator: creatorDisplayName,
       submittedAt: "Vừa gửi trong bản demo",
       category: submittedCategory,
       completeness: readiness,

@@ -5,6 +5,7 @@ import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cooki
 import { getServerSession } from "@/lib/auth/server-session";
 import { applyAdminPreviewState } from "@/lib/preview-read-models";
 import { fetchRealAdminUsers } from "@/lib/api/real-admin-users";
+import { fetchRealReviewQueue } from "@/lib/api/real-admin-reviews";
 
 export const metadata: Metadata = {
   title: "Quản trị hệ thống",
@@ -19,10 +20,23 @@ export default async function AdminPage() {
     getServerPlatformPreviewState(),
   ]);
 
-  // Lấy dữ liệu người dùng thật trực tiếp từ PostgreSQL thông qua NestJS API
-  const realUsers = await fetchRealAdminUsers(session?.tokens?.accessToken);
+  // Lấy dữ liệu người dùng thật và hàng chờ xét duyệt chiến dịch từ PostgreSQL
+  const [realUsers, realReviews] = await Promise.all([
+    fetchRealAdminUsers(session?.tokens?.accessToken),
+    fetchRealReviewQueue(session?.tokens?.accessToken),
+  ]);
+
   if (realUsers && realUsers.length > 0) {
     baseData.users = realUsers;
+  }
+
+  if (realReviews && realReviews.length > 0) {
+    baseData.reviewQueue = [
+      ...realReviews,
+      ...baseData.reviewQueue.filter(
+        (mock) => !realReviews.some((r) => r.id === mock.id),
+      ),
+    ];
   }
 
   const data = applyAdminPreviewState(baseData, session, platformState);

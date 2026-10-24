@@ -21,10 +21,13 @@ import {
   Target,
   Trash2,
   Truck,
+  Upload,
   UserPlus,
   Users,
+  Video,
   WandSparkles,
 } from "lucide-react";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CampaignVisual } from "@/components/campaign/campaign-visual";
@@ -58,6 +61,7 @@ interface DraftCampaign {
   risks: string;
   shippingFee: string;
   hasVideo: boolean;
+  videoUrl?: string;
 }
 
 interface DraftAddOn {
@@ -91,6 +95,7 @@ const sampleDraft: DraftCampaign = {
     "Tiến độ khuôn vỏ và nguồn cung cảm biến có thể ảnh hưởng lịch giao. Nhóm đã chuẩn bị nhà cung cấp dự phòng và biên độ lịch bốn tuần.",
   shippingFee: "45000",
   hasVideo: true,
+  videoUrl: "https://www.youtube.com/watch?v=sample-orbit-mini",
 };
 
 const blankDraft: DraftCampaign = {
@@ -104,7 +109,9 @@ const blankDraft: DraftCampaign = {
   risks: "",
   shippingFee: "45000",
   hasVideo: false,
+  videoUrl: "",
 };
+
 
 const sampleRewards: DraftReward[] = [
   {
@@ -170,6 +177,12 @@ export function CampaignWizard({
   const [collaborators, setCollaborators] = useState<DraftCollaborator[]>(() =>
     prefillSample ? sampleCollaborators.map((member) => ({ ...member })) : [],
   );
+  const [videoTab, setVideoTab] = useState<"upload" | "link">(() =>
+    draft.videoUrl?.startsWith("http") ? "link" : "upload",
+  );
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadError, setVideoUploadError] = useState<string | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   const readiness = useMemo(() => {
     let score = 35;
@@ -299,6 +312,48 @@ export function CampaignWizard({
         member.id === id ? { ...member, [key]: value } : member,
       ),
     );
+  };
+  const handleVideoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      setVideoUploadError("Dung lượng video tối đa là 50MB.");
+      return;
+    }
+
+    setVideoUploading(true);
+    setVideoUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/v1/upload/video", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Không thể tải lên video.");
+      }
+
+      updateDraft("videoUrl", data.videoUrl);
+      updateDraft("hasVideo", true);
+      setUploadedFileName(file.name);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tải video.";
+      setVideoUploadError(message);
+    } finally {
+      setVideoUploading(false);
+    }
+  };
+  const handleRemoveVideo = () => {
+    updateDraft("videoUrl", "");
+    updateDraft("hasVideo", false);
+    setUploadedFileName(null);
+    setVideoUploadError(null);
   };
   const saveDraft = async () => {
     setSaving(true);
@@ -701,28 +756,177 @@ export function CampaignWizard({
                       }
                     />
                   </label>
-                  <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-line p-4">
-                    <div className="flex items-center gap-3">
-                      <span className="grid size-10 place-items-center rounded-xl bg-forest text-lime">
-                        <ImagePlus className="size-4" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-bold">Video giới thiệu</p>
-                        <p className="mt-1 text-[11px] text-ink-muted">
-                          Đánh dấu khi chiến dịch đã có video giới thiệu.
-                        </p>
+                  <div className="rounded-2xl border border-line bg-[#faf9f5] p-4 sm:p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-forest text-lime">
+                          <Video className="size-5" />
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-ink">Video giới thiệu</p>
+                            <span className="rounded-full bg-forest/8 px-2 py-0.5 text-[10px] font-semibold text-ink-muted">
+                              Không bắt buộc
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-ink-muted">
+                            Có thể tải tệp trực tiếp từ máy tính hoặc dán link YouTube/Vimeo. Nếu chưa có video, bạn hoàn toàn có thể để trống.
+                          </p>
+                        </div>
                       </div>
+                      {draft.videoUrl ? (
+                        <button
+                          type="button"
+                          onClick={handleRemoveVideo}
+                          className="inline-flex items-center gap-1.5 self-start rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="size-3.5" /> Gỡ bỏ video
+                        </button>
+                      ) : null}
                     </div>
-                    <input
-                      name="has-intro-video"
-                      type="checkbox"
-                      checked={draft.hasVideo}
-                      onChange={(event) =>
-                        updateDraft("hasVideo", event.target.checked)
-                      }
-                      className="size-5 accent-[#f36545]"
-                    />
-                  </label>
+
+                    {/* Mode Tabs */}
+                    <div className="mt-4 flex gap-2 border-b border-line pb-3">
+                      <button
+                        type="button"
+                        onClick={() => setVideoTab("upload")}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          videoTab === "upload"
+                            ? "bg-forest text-white shadow-sm"
+                            : "border border-line bg-white text-ink-muted hover:text-ink"
+                        }`}
+                      >
+                        <Upload className="size-3.5" /> Tải tệp từ máy tính
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVideoTab("link")}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          videoTab === "link"
+                            ? "bg-forest text-white shadow-sm"
+                            : "border border-line bg-white text-ink-muted hover:text-ink"
+                        }`}
+                      >
+                        Dán liên kết (YouTube / Vimeo)
+                      </button>
+                    </div>
+
+                    {/* Upload tab */}
+                    {videoTab === "upload" ? (
+                      <div className="mt-4">
+                        {draft.videoUrl && draft.videoUrl.startsWith("/uploads/") ? (
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex items-center gap-2">
+                                <BadgeCheck className="size-5 shrink-0 text-emerald-600" />
+                                <div>
+                                  <p className="text-xs font-bold text-emerald-950">
+                                    Đã tải video từ máy lên hệ thống
+                                  </p>
+                                  <p className="text-[11px] text-emerald-700">
+                                    {uploadedFileName || draft.videoUrl.split("/").pop()}
+                                  </p>
+                                </div>
+                              </div>
+                              <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50">
+                                <span>Chọn tệp khác</span>
+                                <input
+                                  type="file"
+                                  accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+                                  className="hidden"
+                                  onChange={handleVideoUpload}
+                                />
+                              </label>
+                            </div>
+                            <video
+                              controls
+                              className="mt-3 aspect-video max-h-56 w-full rounded-lg bg-black object-contain shadow"
+                              src={draft.videoUrl}
+                            />
+                            <p className="mt-2 text-[10px] text-ink-muted">
+                              Đường dẫn lưu trữ trên server: <code className="rounded bg-black/5 px-1 py-0.5">{draft.videoUrl}</code>
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <label
+                              className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${
+                                videoUploading
+                                  ? "border-amber-300 bg-amber-50/50"
+                                  : "border-forest/20 bg-white hover:border-forest/40 hover:bg-forest/5"
+                              }`}
+                            >
+                              {videoUploading ? (
+                                <div className="flex flex-col items-center gap-2">
+                                  <LoaderCircle className="size-8 animate-spin text-forest" />
+                                  <p className="text-xs font-bold text-forest">Đang tải và lưu video vào thư mục server...</p>
+                                  <p className="text-[10px] text-ink-muted">Vui lòng đợi giây lát</p>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="grid size-12 place-items-center rounded-full bg-forest/8 text-forest">
+                                    <Upload className="size-6" />
+                                  </div>
+                                  <p className="text-xs font-bold text-ink">
+                                    Bấm vào đây để chọn video từ máy tính của bạn
+                                  </p>
+                                  <p className="text-[11px] text-ink-muted">
+                                    Hỗ trợ định dạng MP4, WebM, MOV · Dung lượng tối đa 50MB
+                                  </p>
+                                </div>
+                              )}
+                              <input
+                                type="file"
+                                accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+                                className="hidden"
+                                disabled={videoUploading}
+                                onChange={handleVideoUpload}
+                              />
+                            </label>
+                            {videoUploadError ? (
+                              <p className="mt-2 text-xs font-semibold text-red-600">
+                                {videoUploadError}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Link tab */
+                      <div className="mt-4 space-y-3">
+                        <label className="block">
+                          <span className={inputLabel}>Đường dẫn video ngoài</span>
+                          <input
+                            name="campaign-video-url"
+                            type="url"
+                            className="input-field mt-1.5 bg-white"
+                            placeholder="https://www.youtube.com/watch?v=... hoặc https://vimeo.com/..."
+                            value={
+                              draft.videoUrl && !draft.videoUrl.startsWith("/uploads/")
+                                ? draft.videoUrl
+                                : ""
+                            }
+                            onChange={(event) => {
+                              const val = event.target.value;
+                              updateDraft("videoUrl", val);
+                              updateDraft("hasVideo", Boolean(val.trim()));
+                            }}
+                          />
+                        </label>
+                        {draft.videoUrl && !draft.videoUrl.startsWith("/uploads/") ? (
+                          <div className="rounded-xl border border-line bg-white p-3">
+                            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                              <BadgeCheck className="size-4" /> Đã ghi nhận đường dẫn video
+                            </p>
+                            <p className="mt-1 truncate text-xs text-ink-soft">
+                              {draft.videoUrl}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </div>
             ) : null}
@@ -1146,22 +1350,30 @@ export function CampaignWizard({
                   Kiểm tra trước khi gửi duyệt
                 </h2>
                 <div className="mt-7 overflow-hidden rounded-[18px] border border-line">
-                  <CampaignVisual
-                    motif="coffee"
-                    palette="ember"
-                    label={
-                      draft.title
-                        ? draft.title.split(/[—-]/)[0].trim().slice(0, 24)
-                        : "DỰ ÁN MỚI"
-                    }
-                    imageSrc={
-                      draft.title.toLowerCase().includes("orbit")
-                        ? "/images/campaigns/orbit-one.png"
-                        : undefined
-                    }
-                    imageAlt="Bản xem trước hình ảnh chiến dịch"
-                    className="aspect-[16/8]"
-                  />
+                  {draft.videoUrl && draft.videoUrl.startsWith("/uploads/") ? (
+                    <video
+                      controls
+                      className="aspect-[16/8] w-full bg-black object-contain"
+                      src={draft.videoUrl}
+                    />
+                  ) : (
+                    <CampaignVisual
+                      motif="coffee"
+                      palette="ember"
+                      label={
+                        draft.title
+                          ? draft.title.split(/[—-]/)[0].trim().slice(0, 24)
+                          : "DỰ ÁN MỚI"
+                      }
+                      imageSrc={
+                        draft.title.toLowerCase().includes("orbit")
+                          ? "/images/campaigns/orbit-one.png"
+                          : undefined
+                      }
+                      imageAlt="Bản xem trước hình ảnh chiến dịch"
+                      className="aspect-[16/8]"
+                    />
+                  )}
                   <div className="bg-white p-5 sm:p-6">
                     <span className="rounded-full bg-[#fff0e9] px-2.5 py-1 text-[10px] font-bold text-coral-dark">
                       BẢN XEM TRƯỚC

@@ -577,7 +577,7 @@ export function PledgeFlow({
                         }}
                         className="text-xs font-semibold text-ink-muted hover:text-ink"
                       >
-                        Quay lại chọn từ sổ địa chỉ
+                        Quay lại chọn từ danh sách địa chỉ
                       </button>
                     )}
                   </div>
@@ -694,7 +694,7 @@ export function PledgeFlow({
                       className="rounded border-line text-forest focus:ring-forest"
                     />
                     <span className="text-xs font-medium text-ink">
-                      Lưu địa chỉ này vào Sổ địa chỉ của tôi cho các lần ủng hộ
+                      Lưu địa chỉ này vào danh sách địa chỉ của tôi cho các lần ủng hộ
                       sau
                     </span>
                   </label>

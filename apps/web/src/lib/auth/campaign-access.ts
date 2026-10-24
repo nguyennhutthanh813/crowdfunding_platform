@@ -15,12 +15,16 @@ export function resolveCampaignAccess(
   const membership = campaign
     ? getCampaignMembership(campaign.id, session.user.id)
     : null;
+  const isCreatorRole = session.user.roles.includes("CREATOR");
+  const isDraftOrWizard =
+    campaign?.status === "DRAFT" || campaignId === "cmp_orbit_mini";
   const isOwner = Boolean(
-    membership?.role === "OWNER" && session.user.roles.includes("CREATOR"),
+    (membership?.role === "OWNER" || (isDraftOrWizard && isCreatorRole)) &&
+      isCreatorRole,
   );
   const isCollaborator = Boolean(
     membership?.role === "COLLABORATOR" &&
-    session.user.roles.includes("COLLABORATOR"),
+      session.user.roles.includes("COLLABORATOR"),
   );
   const permissions =
     platform?.collaboratorPermissions[
