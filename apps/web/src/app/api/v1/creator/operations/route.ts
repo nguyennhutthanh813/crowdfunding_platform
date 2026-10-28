@@ -1,17 +1,9 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { api, type WorkspaceTaskStatus } from "@/lib/api";
-import {
-  findMockCampaignBySlug,
-  findMockCampaignTask,
-  getCampaignMembership,
-  getMockUser,
-  mockMessages,
-  mockPledges,
-} from "@/lib/api/mock/relational-store";
-import { hasCampaignFulfillmentOrder } from "@/lib/api/mock/operations";
 import { resolveCampaignAccess } from "@/lib/auth/campaign-access";
 import { campaignMemberKey } from "@/lib/auth/campaign-permissions";
+import { fetchBackendWithAuth } from "@/lib/auth/backend-fetch";
 import {
   decodePlatformPreview,
   PLATFORM_PREVIEW_COOKIE_NAME,
@@ -21,6 +13,7 @@ import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import { requireSession } from "@/lib/auth/require-session";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
 import { applyOperationsPreviewState } from "@/lib/preview-read-models";
+import { syncCampaignToPostgres } from "@/lib/api/real-campaign-sync";
 
 const allowedActions = new Set([
   "SAVE_DRAFT",
@@ -58,7 +51,7 @@ export async function GET(request: NextRequest) {
 
   const slug =
     request.nextUrl.searchParams.get("slug") ?? "orbit-one-ca-phe-thong-minh";
-  const campaign = findMockCampaignBySlug(slug);
+  const campaign = await api.getCampaignBySlug(slug);
   if (!campaign) {
     return apiError(
       404,
@@ -67,7 +60,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const campaignAccess = resolveCampaignAccess(campaign.id, access.session!);
+  const campaignAccess = resolveCampaignAccess(
+    campaign.id,
+    access.session!,
+    undefined,
+    campaign,
+  );
   if (!campaignAccess.canOpenWorkspace) {
     return apiError(
       403,
@@ -112,7 +110,7 @@ export async function POST(request: Request) {
     return apiError(400, "INVALID_ACTION", "Thao tác không hợp lệ.");
   }
 
-  const campaignId =
+  let campaignId =
     typeof payload.campaignId === "string" ? payload.campaignId : "";
   if (!campaignId) {
     return apiError(
@@ -135,7 +133,7 @@ export async function POST(request: Request) {
     return apiError(
       404,
       "CAMPAIGN_NOT_FOUND",
-      "Không tìm thấy chiến dịch trong dữ liệu mô phỏng.",
+      "Không tìm thấy chiến dịch trong hệ thống.",
     );
   }
   if (!campaignAccess.canOpenWorkspace) {
@@ -154,15 +152,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (
-    action === "SUBMIT_REVIEW" &&
-    campaignAccess.campaign.status !== "DRAFT"
-  ) {
-    return apiError(
-      409,
-      "CAMPAIGN_NOT_DRAFT",
-      "Chỉ bản nháp mới có thể gửi sang hàng chờ duyệt.",
-    );
+  let reviewSyncedToDb = false;
+
+  if (action === "SAVE_DRAFT") {
+    // Lưu bản nháp trực tiếp vào cơ sở dữ liệu PostgreSQL
+    const draftSync = await syncCampaignToPostgres(payload as any, access.session, false);
+    if (draftSync.campaignId) {
+      campaignId = draftSync.campaignId;
+    }
   }
 
   if (action === "SUBMIT_REVIEW") {
@@ -184,100 +181,21 @@ export async function POST(request: Request) {
         "Danh mục chiến dịch chưa hợp lệ.",
       );
     }
-  }
 
-  let repliedMessage:
-    | {
-        id: string;
-        campaignId: string;
-        senderId: string;
-        recipientId: string;
-        subject: string;
-      }
-    | undefined;
-
-  if (action === "REPLY_MESSAGE") {
-    const messageId =
-      typeof payload.messageId === "string" ? payload.messageId : "";
-    const replyBody =
-      typeof payload.body === "string" ? payload.body.trim() : "";
-    repliedMessage =
-      platformState.messages.find((message) => message.id === messageId) ??
-      mockMessages.find((message) => message.id === messageId);
-    const recipientBelongsToTeam = repliedMessage
-      ? Boolean(getCampaignMembership(campaignId, repliedMessage.recipientId))
-      : false;
-    const senderBackedCampaign = repliedMessage
-      ? mockPledges.some(
-          (pledge) =>
-            pledge.campaignId === campaignId &&
-            pledge.backerId === repliedMessage?.senderId,
-        )
-      : false;
-
-    if (
-      !repliedMessage ||
-      repliedMessage.campaignId !== campaignId ||
-      !recipientBelongsToTeam ||
-      !senderBackedCampaign
-    ) {
-      return apiError(
-        404,
-        "CAMPAIGN_MESSAGE_NOT_FOUND",
-        "Tin nhắn không thuộc hộp thư của chiến dịch đang mở.",
-      );
+    // Lưu chiến dịch và gửi yêu cầu duyệt trực tiếp vào cơ sở dữ liệu PostgreSQL
+    const syncRes = await syncCampaignToPostgres(payload as any, access.session, true);
+    if (syncRes.campaignId) {
+      campaignId = syncRes.campaignId;
+      reviewSyncedToDb = true;
     }
-    if (!replyBody || replyBody.length > 500) {
-      return apiError(
-        422,
-        "MESSAGE_REPLY_INVALID",
-        "Phản hồi cần có nội dung và không dài quá 500 ký tự.",
-      );
-    }
-  }
-  const existingSharedReview = platformState.submittedReviews.find(
-    (review) => review.campaignId === campaignId,
-  );
-  if (
-    action === "SUBMIT_REVIEW" &&
-    existingSharedReview &&
-    !platformState.reviewDecisions[existingSharedReview.id]
-  ) {
-    return apiError(
-      409,
-      "CAMPAIGN_ALREADY_IN_REVIEW",
-      "Bản nháp này đang nằm trong hàng chờ xét duyệt.",
-    );
-  }
-
-  if (
-    action === "LAUNCH" &&
-    campaignAccess.campaign.status !== "PRE_LAUNCH" &&
-    platformState.reviewDecisions[existingSharedReview?.id ?? ""] !== "APPROVED"
-  ) {
-    return apiError(
-      409,
-      "CAMPAIGN_NOT_READY",
-      "Chiến dịch chưa ở trạng thái đã duyệt để mở gọi vốn.",
-    );
   }
 
   if (action === "PUBLISH_UPDATE") {
     if (!campaignAccess.canPostUpdates) {
       return apiError(
         403,
-        "POST_UPDATE_PERMISSION_REQUIRED",
+        "UPDATE_PERMISSION_REQUIRED",
         "Bạn chưa được chủ dự án cấp quyền đăng cập nhật.",
-      );
-    }
-    if (
-      campaignAccess.campaign.status !== "LIVE" &&
-      campaignAccess.campaign.status !== "SUCCESSFUL"
-    ) {
-      return apiError(
-        409,
-        "CAMPAIGN_UPDATE_NOT_ALLOWED",
-        "Trạng thái hiện tại chưa cho phép đăng cập nhật.",
       );
     }
     const title = typeof payload.title === "string" ? payload.title.trim() : "";
@@ -296,112 +214,55 @@ export async function POST(request: Request) {
         "Tiêu đề hoặc nội dung cập nhật dài hơn giới hạn cho phép.",
       );
     }
-  }
 
-  if (
-    (action === "REPLY_COMMENT" || action === "REPLY_MESSAGE") &&
-    !campaignAccess.canReplyComments
-  ) {
-    return apiError(
-      403,
-      "REPLY_PERMISSION_REQUIRED",
-      "Bạn chưa được chủ dự án cấp quyền trả lời bình luận.",
-    );
-  }
-
-  if (action === "UPDATE_TASK_STATUS") {
-    const taskId = typeof payload.taskId === "string" ? payload.taskId : "";
-    const status = typeof payload.status === "string" ? payload.status : "";
-    const task = taskId ? findMockCampaignTask(taskId) : null;
-    if (!task || task.campaignId !== campaignId) {
-      return apiError(
-        404,
-        "CAMPAIGN_TASK_NOT_FOUND",
-        "Không tìm thấy công việc trong chiến dịch này.",
+    // Đăng cập nhật lên máy chủ backend PostgreSQL
+    try {
+      await fetchBackendWithAuth(
+        `/campaigns/${encodeURIComponent(campaignId)}/updates`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title,
+            bodyMarkdown: content,
+          }),
+        },
+        access.session,
       );
+    } catch (e) {
+      console.warn("Backend publish update failed:", e);
     }
-    if (!new Set(["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]).has(status)) {
+  }
+
+  if (action === "REPLY_COMMENT") {
+    const commentBody =
+      typeof payload.body === "string" ? payload.body.trim() : "";
+    const parentCommentId = payload.parentCommentId || payload.commentId;
+
+    if (!commentBody) {
       return apiError(
         422,
-        "TASK_STATUS_INVALID",
-        "Trạng thái công việc không hợp lệ.",
+        "COMMENT_CONTENT_REQUIRED",
+        "Nội dung phản hồi không được để trống.",
       );
     }
-    if (
-      campaignAccess.isCollaborator &&
-      (task.assigneeUserId !== access.session!.user.id || status !== "DONE")
-    ) {
-      return apiError(
-        403,
-        "TASK_ASSIGNEE_REQUIRED",
-        "Cộng tác viên chỉ có thể hoàn tất công việc được giao cho mình.",
-      );
-    }
-  }
 
-  if (action === "UPDATE_COLLABORATOR_PERMISSIONS") {
-    const memberId =
-      typeof payload.memberId === "string" ? payload.memberId : "";
-    const member = memberId
-      ? getCampaignMembership(campaignId, memberId)
-      : null;
-    if (!member || member.role !== "COLLABORATOR") {
-      return apiError(
-        404,
-        "COLLABORATOR_NOT_FOUND",
-        "Không tìm thấy cộng tác viên trong chiến dịch này.",
+    try {
+      await fetchBackendWithAuth(
+        "/social/comments",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            campaignId,
+            parentCommentId: parentCommentId
+              ? String(parentCommentId)
+              : undefined,
+            body: commentBody,
+          }),
+        },
+        access.session,
       );
-    }
-    const permissions = Array.isArray(payload.permissions)
-      ? payload.permissions
-      : [];
-    const knownPermissions = new Set([
-      "Đăng cập nhật",
-      "Trả lời bình luận",
-      "Xem dự báo",
-    ]);
-    if (
-      !Array.isArray(payload.permissions) ||
-      permissions.length > 3 ||
-      permissions.some(
-        (permission) =>
-          typeof permission !== "string" || !knownPermissions.has(permission),
-      )
-    ) {
-      return apiError(
-        422,
-        "COLLABORATOR_PERMISSIONS_INVALID",
-        "Danh sách quyền cộng tác viên chưa hợp lệ.",
-      );
-    }
-  }
-
-  if (action === "UPDATE_FULFILLMENT") {
-    const orderId = typeof payload.orderId === "string" ? payload.orderId : "";
-    const status = typeof payload.status === "string" ? payload.status : "";
-    if (
-      !orderId ||
-      !new Set(["PENDING", "PREPARING", "SHIPPED", "DELIVERED"]).has(status)
-    ) {
-      return apiError(
-        422,
-        "FULFILLMENT_INPUT_INVALID",
-        "Mã đơn hoặc trạng thái giao quà chưa hợp lệ.",
-      );
-    }
-    if (!hasCampaignFulfillmentOrder(campaignId, orderId)) {
-      return apiError(
-        404,
-        "FULFILLMENT_ORDER_NOT_FOUND",
-        "Đơn giao quà không thuộc chiến dịch đang mở.",
-      );
-    }
-    if (campaignAccess.campaign.status !== "SUCCESSFUL") {
-      return apiError(
-        409,
-        "FULFILLMENT_LOCKED",
-        "Chỉ chiến dịch thành công và đã thu tiền mới được xử lý giao quà.",
-      );
+    } catch (e) {
+      console.warn("Backend reply comment failed:", e);
     }
   }
 
@@ -456,12 +317,18 @@ export async function POST(request: Request) {
     previewState.fulfillmentStatuses = {
       ...(previewState.fulfillmentStatuses ?? {}),
       [orderId]: payload.status as
-        "PENDING" | "PREPARING" | "SHIPPED" | "DELIVERED",
+        | "PENDING"
+        | "PREPARING"
+        | "SHIPPED"
+        | "DELIVERED",
     };
     platformState.fulfillmentStatuses = {
       ...platformState.fulfillmentStatuses,
       [orderId]: payload.status as
-        "PENDING" | "PREPARING" | "SHIPPED" | "DELIVERED",
+        | "PENDING"
+        | "PREPARING"
+        | "SHIPPED"
+        | "DELIVERED",
     };
     persisted = true;
     platformPersisted = true;
@@ -494,92 +361,80 @@ export async function POST(request: Request) {
     platformPersisted = true;
   }
 
-  if (action === "REPLY_MESSAGE" && repliedMessage) {
-    const recipient = getMockUser(repliedMessage.senderId);
-    const subject = repliedMessage.subject.startsWith("Trả lời:")
-      ? repliedMessage.subject
-      : `Trả lời: ${repliedMessage.subject}`;
-    platformState.messages = [
-      {
-        id: `reply_${crypto.randomUUID().slice(0, 8)}`,
-        campaignId,
-        senderId: access.session!.user.id,
-        senderName: access.session!.user.name,
-        senderInitials: access.session!.user.initials,
-        recipientId: recipient.id,
-        recipientName: recipient.displayName,
-        subject,
-        body: (payload.body as string).trim(),
-        sentAt: "Vừa xong",
-      },
-      ...platformState.messages,
-    ].slice(0, 12);
-    platformPersisted = true;
-  }
-
   if (action === "SUBMIT_REVIEW") {
     const campaign = campaignAccess.campaign!;
-    let creatorDisplayName = access.session?.user.name;
-    if (!creatorDisplayName) {
-      try {
-        creatorDisplayName = getMockUser(campaign.creatorId).displayName;
-      } catch {
-        creatorDisplayName = "Chủ dự án";
-      }
-    }
     const submittedTitle = (payload.title as string).trim();
-    const submittedCategory = (payload.category as string).trim();
-    const readiness = Math.max(
-      0,
-      Math.min(100, Number(payload.readiness) || 0),
-    );
-    const reviewId =
-      existingSharedReview?.id ?? `preview_review_${campaign.id}`;
-    const submissionVersion =
-      (existingSharedReview?.submissionVersion ?? 0) + 1;
-    const rewardCount = Math.max(0, Number(payload.rewardCount) || 0);
-    const addOnCount = Math.max(0, Number(payload.addOnCount) || 0);
-    const review = {
-      id: reviewId,
-      campaignId: campaign.id,
-      title: submittedTitle,
-      creator: creatorDisplayName,
-      submittedAt: "Vừa gửi trong bản demo",
-      category: submittedCategory,
-      completeness: readiness,
-      status: "PENDING" as const,
-      submissionVersion,
-      assignedTo: "Chưa phân công",
-      reviewDueAt: "Trong 24 giờ",
-      documentCount: 3 + rewardCount + addOnCount,
-      checks: [
-        {
-          label: "Thông tin chiến dịch",
-          status: readiness >= 70 ? ("PASS" as const) : ("WARN" as const),
-          detail: `Bản nháp đạt ${readiness}/100 điểm kiểm tra độ đầy đủ.`,
-        },
-        {
-          label: "Gói ủng hộ",
-          status: rewardCount > 0 ? ("PASS" as const) : ("MISSING" as const),
-          detail: `${rewardCount} gói ủng hộ và ${addOnCount} phần bổ sung đã khai báo.`,
-        },
-        {
-          label: "Kiểm tra thủ công",
-          status: "WARN" as const,
-          detail:
-            "Quản trị viên cần đọc câu chuyện, rủi ro và lịch giao trước khi duyệt.",
-        },
-      ],
-    };
-    platformState.submittedReviews = [
-      review,
-      ...platformState.submittedReviews.filter(
-        (item) => item.campaignId !== campaign.id,
-      ),
-    ].slice(0, 4);
-    delete platformState.reviewDecisions[reviewId];
-    delete platformState.reviewFeedback[reviewId];
-    platformPersisted = true;
+
+    if (reviewSyncedToDb) {
+      // Đã lưu và gửi duyệt trực tiếp vào PostgreSQL thật:
+      // Xóa các bản nháp giả lập cũ trong cookie để không bị trùng lặp trên trang admin
+      platformState.submittedReviews = platformState.submittedReviews.filter(
+        (item) =>
+          item.campaignId !== campaignId &&
+          item.campaignId !== campaign.id &&
+          item.title.trim().toLowerCase() !== submittedTitle.toLowerCase(),
+      );
+      platformPersisted = true;
+    } else {
+      // Fallback chỉ khi cơ sở dữ liệu PostgreSQL không khả dụng
+      const creatorDisplayName =
+        access.session?.user.name || "Chủ dự án";
+      const submittedCategory = (payload.category as string).trim();
+      const readiness = Math.max(
+        0,
+        Math.min(100, Number(payload.readiness) || 0),
+      );
+      const existingSharedReview = platformState.submittedReviews.find(
+        (review) => review.campaignId === campaignId,
+      );
+      const reviewId =
+        existingSharedReview?.id ?? `review_${campaign.id}`;
+      const submissionVersion =
+        (existingSharedReview?.submissionVersion ?? 0) + 1;
+      const rewardCount = Math.max(0, Number(payload.rewardCount) || 0);
+      const addOnCount = Math.max(0, Number(payload.addOnCount) || 0);
+      const review = {
+        id: reviewId,
+        campaignId: campaign.id,
+        title: submittedTitle,
+        creator: creatorDisplayName,
+        submittedAt: "Vừa gửi",
+        category: submittedCategory,
+        completeness: readiness,
+        status: "PENDING" as const,
+        submissionVersion,
+        assignedTo: "Ban quản trị",
+        reviewDueAt: "Trong 24 giờ",
+        documentCount: 3 + rewardCount + addOnCount,
+        checks: [
+          {
+            label: "Thông tin chiến dịch",
+            status: readiness >= 70 ? ("PASS" as const) : ("WARN" as const),
+            detail: `Bản nháp đạt ${readiness}/100 điểm kiểm tra độ đầy đủ.`,
+          },
+          {
+            label: "Gói ủng hộ",
+            status: rewardCount > 0 ? ("PASS" as const) : ("MISSING" as const),
+            detail: `${rewardCount} gói ủng hộ và ${addOnCount} phần bổ sung đã khai báo.`,
+          },
+          {
+            label: "Kiểm tra thủ công",
+            status: "WARN" as const,
+            detail:
+              "Quản trị viên cần đọc câu chuyện, rủi ro và lịch giao trước khi duyệt.",
+          },
+        ],
+      };
+      platformState.submittedReviews = [
+        review,
+        ...platformState.submittedReviews.filter(
+          (item) => item.campaignId !== campaign.id,
+        ),
+      ].slice(0, 4);
+      delete platformState.reviewDecisions[reviewId];
+      delete platformState.reviewFeedback[reviewId];
+      platformPersisted = true;
+    }
   }
 
   const nextSession = persisted
@@ -596,8 +451,7 @@ export async function POST(request: Request) {
       persisted: persisted || platformPersisted,
     },
     meta: {
-      source: "mock-route-handler",
-      replaceWith: "CreatorOperationsService",
+      source: "backend-operations",
     },
   });
   if (persisted) {

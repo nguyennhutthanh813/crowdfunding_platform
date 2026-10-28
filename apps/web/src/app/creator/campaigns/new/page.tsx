@@ -18,7 +18,10 @@ export default async function NewCampaignPage({
   const editingOrbitMini = campaign === "orbit-mini-bo-pha-gon";
   return (
     <CampaignWizard
-      prefillSample={session?.user.id === "usr_hoang_linh"}
+      prefillSample={
+        session?.user.id === "usr_hoang_linh" ||
+        session?.user.email === "linh@orbit.vn"
+      }
       mode={editingOrbitMini ? "edit" : "create"}
       campaignId="cmp_orbit_mini"
       campaignSlug={editingOrbitMini ? campaign : undefined}

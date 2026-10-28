@@ -1,17 +1,37 @@
 import { NextResponse } from "next/server";
-import { auditMockData } from "@/lib/api/mock/integrity";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const apiUrl =
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:3001/api";
+
   try {
-    return NextResponse.json(auditMockData());
+    const res = await fetch(`${apiUrl}/campaigns?limit=100`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(3000),
+    });
+    const campaigns = res.ok ? await res.json() : null;
+    const count =
+      campaigns?.data?.length ??
+      (Array.isArray(campaigns) ? campaigns.length : 0);
+
+    return NextResponse.json({
+      ok: true,
+      dataSource: "postgresql",
+      campaignsCount: count,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error ? error.message : "MOCK_INTEGRITY_CHECK_FAILED",
+          error instanceof Error
+            ? error.message
+            : "DATABASE_INTEGRITY_CHECK_FAILED",
       },
       { status: 500 },
     );

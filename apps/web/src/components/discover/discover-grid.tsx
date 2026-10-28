@@ -133,10 +133,12 @@ export function DiscoverGrid({
     return () => window.clearTimeout(timer);
   }, [category, query, sort, view]);
 
-  // Reset page when filter inputs change
-  useEffect(() => {
+  const [prevFilterKey, setPrevFilterKey] = useState("");
+  const currentFilterKey = `${query}|${category}|${view}|${sort}|${pageSize}`;
+  if (prevFilterKey !== currentFilterKey) {
+    setPrevFilterKey(currentFilterKey);
     setPage(1);
-  }, [query, category, view, sort, pageSize]);
+  }
 
   const filtered = useMemo(() => {
     const normalizedQuery = normalize(query);

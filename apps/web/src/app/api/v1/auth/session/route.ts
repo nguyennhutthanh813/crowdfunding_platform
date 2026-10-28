@@ -305,7 +305,7 @@ export async function POST(request: Request) {
       }
     }
   } catch {
-    // Nếu backend chưa chạy hoặc lỗi kết nối mạng, tiếp tục luồng mock adapter
+    // Nếu có lỗi kết nối trực tiếp, thử qua HttpPlatformApi
   }
 
   try {

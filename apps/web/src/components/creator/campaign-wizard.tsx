@@ -398,6 +398,9 @@ export function CampaignWizard({
             rewardCount: rewards.length,
             addOnCount: addOns.length,
             readiness,
+            draft,
+            rewards,
+            addOns,
           },
         }),
       });

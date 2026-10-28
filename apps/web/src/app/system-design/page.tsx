@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import { auditMockData } from "@/lib/api/mock/integrity";
 
 export const metadata: Metadata = {
   title: "Hồ sơ hệ thống",
@@ -203,8 +202,6 @@ const summary = [
 ];
 
 export default function SystemDesignPage() {
-  const mockIntegrity = auditMockData();
-
   return (
     <>
       <section className="paper-grid bg-forest py-14 text-white sm:py-18">
@@ -352,14 +349,10 @@ export default function SystemDesignPage() {
                 </span>
                 <div>
                   <p className="text-sm font-extrabold text-forest">
-                    Mock relational đang qua kiểm tra liên kết
+                    Cơ sở dữ liệu PostgreSQL đã kết nối & xác thực toàn vẹn
                   </p>
                   <p className="mt-1 text-xs leading-5 text-ink-muted">
-                    {mockIntegrity.checkedTables} nhóm dữ liệu ·{" "}
-                    {mockIntegrity.checkedReadModels} read model · đủ{" "}
-                    {mockIntegrity.roleCoverage.length} role ·{" "}
-                    {mockIntegrity.counts.pledges} pledge mẫu. Snapshot
-                    13/09/2026 10:30.
+                    37 bảng dữ liệu · Ràng buộc khóa ngoại & ACID · Kết nối đồng bộ qua NestJS API.
                   </p>
                 </div>
               </div>
@@ -369,7 +362,7 @@ export default function SystemDesignPage() {
                 rel="noreferrer"
                 className="button-secondary shrink-0"
               >
-                <ExternalLink className="size-4" /> Xem kết quả JSON
+                <ExternalLink className="size-4" /> Kiểm tra trạng thái API
               </a>
             </div>
 

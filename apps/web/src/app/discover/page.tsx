@@ -3,6 +3,8 @@ import { Compass, SlidersHorizontal } from "lucide-react";
 import { DiscoverGrid } from "@/components/discover/discover-grid";
 import { api } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Khám phá dự án",
   description:

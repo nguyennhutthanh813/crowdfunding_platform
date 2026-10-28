@@ -83,23 +83,65 @@ export function applyCreatorPortfolioPreviewState(
 }
 
 export function applyOperationsPreviewState(
-  data: CampaignOperationsData,
+  data: CampaignOperationsData | null | undefined,
   session: SessionResult | null,
   platform?: PlatformPreviewState,
 ): CampaignOperationsData {
+  if (!data) {
+    return {
+      campaignId: "cmp_orbit_one",
+      slug: "orbit-one-ca-phe-thong-minh",
+      snapshotAt: new Date().toLocaleDateString("vi-VN"),
+      today: {
+        pledgedAmount: 0,
+        backerCount: 0,
+        averagePledgeAmount: 0,
+        unansweredComments: 0,
+      },
+      funding: {
+        remainingAmount: 0,
+        neededPerDay: 0,
+        projectedMinAmount: 0,
+        projectedMaxAmount: 0,
+        deadlineLabel: "Chưa xác định",
+      },
+      tasks: [],
+      team: [],
+      handoffs: [],
+      updateHistory: [],
+      communityMessages: [],
+      reservations: [],
+      fulfillment: {
+        currentCampaign: {
+          authorizedCount: 0,
+          addressReadyCount: 0,
+          surveyPendingCount: 0,
+          unlockLabel: "Sau khi đạt mục tiêu",
+          explanation: "Đang đồng bộ số liệu.",
+        },
+        previousCampaign: {
+          title: "Giai đoạn thử nghiệm",
+          successfulAt: "10/01/2026",
+          capturedAmount: 0,
+          orders: [],
+        },
+      },
+    };
+  }
+
   if (!session && !platform) return data;
   const state = session ? getEffectivePreviewState(session) : null;
-  const tasks = data.tasks.map((task) => ({
+  const tasks = (data.tasks || []).map((task) => ({
     ...task,
     status:
-      platform?.taskStatuses[task.id] ??
+      platform?.taskStatuses?.[task.id] ??
       state?.taskStatuses?.[task.id] ??
       task.status,
   }));
-  const team = data.team.map((member) => ({
+  const team = (data.team || []).map((member) => ({
     ...member,
     permissions:
-      platform?.collaboratorPermissions[
+      platform?.collaboratorPermissions?.[
         campaignMemberKey(data.campaignId, member.id)
       ] ??
       state?.collaboratorPermissions?.[
@@ -117,14 +159,14 @@ export function applyOperationsPreviewState(
     ...(state?.publishedUpdates ?? [])
       .filter((update) => update.campaignId === data.campaignId)
       .map((update) => ({ title: update.title, when: update.when })),
-    ...data.updateHistory,
+    ...(data.updateHistory || []),
   ].filter(
     (update, index, rows) =>
       rows.findIndex(
         (item) => item.title === update.title && item.when === update.when,
       ) === index,
   );
-  const campaignTeamIds = new Set(data.team.map((member) => member.id));
+  const campaignTeamIds = new Set(team.map((member) => member.id));
   const communityMessages = [
     ...(platform?.messages ?? [])
       .filter(
@@ -144,7 +186,7 @@ export function applyOperationsPreviewState(
         sentAt: message.sentAt,
         unread: true,
       })),
-    ...data.communityMessages,
+    ...(data.communityMessages || []),
   ].filter(
     (message, index, rows) =>
       rows.findIndex((item) => item.id === message.id) === index,
@@ -159,11 +201,11 @@ export function applyOperationsPreviewState(
     fulfillment: {
       ...data.fulfillment,
       previousCampaign: {
-        ...data.fulfillment.previousCampaign,
-        orders: data.fulfillment.previousCampaign.orders.map((order) => ({
+        ...data.fulfillment?.previousCampaign,
+        orders: (data.fulfillment?.previousCampaign?.orders || []).map((order) => ({
           ...order,
           status:
-            platform?.fulfillmentStatuses[order.id] ??
+            platform?.fulfillmentStatuses?.[order.id] ??
             state?.fulfillmentStatuses?.[order.id] ??
             order.status,
         })),
@@ -190,21 +232,47 @@ export function applyAdminPreviewState(
     ...(platform?.reviewDecisions ?? {}),
   };
   const fraudStatuses = state?.fraudStatuses ?? {};
-  const sharedReviews = platform?.submittedReviews ?? [];
-  const allReviews = [
-    ...sharedReviews,
-    ...data.reviewQueue.filter(
-      (review) => !sharedReviews.some((shared) => shared.id === review.id),
-    ),
-  ];
+  const realReviews = data.reviewQueue ?? [];
+  const rawSharedReviews = platform?.submittedReviews ?? [];
+
+  // Lọc bỏ các bản ghi xem trước (mock/cookie) nếu chiến dịch đã tồn tại thực tế trong PostgreSQL
+  const sharedReviews = rawSharedReviews.filter((shared) => {
+    const isDuplicate = realReviews.some(
+      (real) =>
+        real.id === shared.id ||
+        real.campaignId === shared.campaignId ||
+        real.id === shared.campaignId ||
+        (real.slug && shared.slug && real.slug === shared.slug) ||
+        real.title.trim().toLowerCase() === shared.title.trim().toLowerCase(),
+    );
+    return !isDuplicate;
+  });
+
+  // Dữ liệu thực tế từ cơ sở dữ liệu luôn đứng đầu
+  const allReviews = [...realReviews, ...sharedReviews];
   const originalReviews = new Map(allReviews.map((item) => [item.id, item]));
+  for (const item of allReviews) {
+    if (item.campaignId && !originalReviews.has(item.campaignId)) {
+      originalReviews.set(item.campaignId, item);
+    }
+  }
+
   const originalAlerts = new Map(data.alerts.map((item) => [item.id, item]));
   const decidedReviewIds = Object.keys(reviewDecisions);
   const decidedBaseReviewIds = decidedReviewIds.filter((reviewId) =>
-    data.reviewQueue.some((review) => review.id === reviewId),
+    realReviews.some(
+      (review) => review.id === reviewId || review.campaignId === reviewId,
+    ),
   );
+
+  const isReviewDecided = (review: (typeof allReviews)[number]) =>
+    Boolean(
+      reviewDecisions[review.id] ||
+        (review.campaignId && reviewDecisions[review.campaignId]),
+    );
+
   const pendingSharedReviews = sharedReviews.filter(
-    (review) => !reviewDecisions[review.id],
+    (review) => !isReviewDecided(review),
   );
   const alerts = data.alerts.map((alert) => ({
     ...alert,
@@ -241,7 +309,7 @@ export function applyAdminPreviewState(
       ...data.metrics,
       openAlerts: Math.max(0, data.metrics.openAlerts - clearedInSession),
     },
-    reviewQueue: allReviews.filter((review) => !reviewDecisions[review.id]),
+    reviewQueue: allReviews.filter((review) => !isReviewDecided(review)),
     alerts,
     users: [
       ...(state?.createdUsers ?? []),

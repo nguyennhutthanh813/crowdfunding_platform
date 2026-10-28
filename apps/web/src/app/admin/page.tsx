@@ -7,6 +7,8 @@ import { applyAdminPreviewState } from "@/lib/preview-read-models";
 import { fetchRealAdminUsers } from "@/lib/api/real-admin-users";
 import { fetchRealReviewQueue } from "@/lib/api/real-admin-reviews";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Quản trị hệ thống",
   description:
@@ -30,13 +32,8 @@ export default async function AdminPage() {
     baseData.users = realUsers;
   }
 
-  if (realReviews && realReviews.length > 0) {
-    baseData.reviewQueue = [
-      ...realReviews,
-      ...baseData.reviewQueue.filter(
-        (mock) => !realReviews.some((r) => r.id === mock.id),
-      ),
-    ];
+  if (realReviews) {
+    baseData.reviewQueue = realReviews;
   }
 
   const data = applyAdminPreviewState(baseData, session, platformState);

@@ -1,8 +1,4 @@
 import type { SessionResult } from "@/lib/api/contracts";
-import {
-  findMockCampaign,
-  getCampaignMembership,
-} from "@/lib/api/mock/relational-store";
 import type { PlatformPreviewState } from "./platform-preview-cookie";
 import { campaignMemberKey } from "./campaign-permissions";
 
@@ -10,35 +6,30 @@ export function resolveCampaignAccess(
   campaignId: string,
   session: SessionResult,
   platform?: PlatformPreviewState,
+  campaignData?: any,
 ) {
-  const campaign = findMockCampaign(campaignId);
-  const membership = campaign
-    ? getCampaignMembership(campaign.id, session.user.id)
-    : null;
   const isCreatorRole = session.user.roles.includes("CREATOR");
-  const isDraftOrWizard =
-    campaign?.status === "DRAFT" || campaignId === "cmp_orbit_mini";
-  const isOwner = Boolean(
-    (membership?.role === "OWNER" || (isDraftOrWizard && isCreatorRole)) &&
-      isCreatorRole,
-  );
-  const isCollaborator = Boolean(
-    membership?.role === "COLLABORATOR" &&
-      session.user.roles.includes("COLLABORATOR"),
-  );
+  const isCollaboratorRole = session.user.roles.includes("COLLABORATOR");
+  const isOwner = isCreatorRole;
+  const isCollaborator = isCollaboratorRole;
   const permissions =
     platform?.collaboratorPermissions[
       campaignMemberKey(campaignId, session.user.id)
     ];
 
   return {
-    campaign: campaign
-      ? {
-          ...campaign,
-          status: platform?.campaignStatuses[campaignId] ?? campaign.status,
-        }
-      : null,
-    membership,
+    campaign: campaignData ?? {
+      id: campaignId,
+      title: "Chiến dịch",
+      status: platform?.campaignStatuses[campaignId] ?? (campaignData?.status || "LIVE"),
+    },
+    membership: {
+      userId: session.user.id,
+      role: isOwner ? "OWNER" : "COLLABORATOR",
+      canPostUpdates: true,
+      canReplyComments: true,
+      canViewAiDashboard: true,
+    },
     isOwner,
     isCollaborator,
     canOpenWorkspace: isOwner || isCollaborator,
@@ -46,25 +37,19 @@ export function resolveCampaignAccess(
       isOwner ||
       Boolean(
         isCollaborator &&
-        (permissions
-          ? permissions.includes("Đăng cập nhật")
-          : membership?.canPostUpdates),
+        (permissions ? permissions.includes("Đăng cập nhật") : true),
       ),
     canReplyComments:
       isOwner ||
       Boolean(
         isCollaborator &&
-        (permissions
-          ? permissions.includes("Trả lời bình luận")
-          : membership?.canReplyComments),
+        (permissions ? permissions.includes("Trả lời bình luận") : true),
       ),
     canViewAi:
       isOwner ||
       Boolean(
         isCollaborator &&
-        (permissions
-          ? permissions.includes("Xem dự báo")
-          : membership?.canViewAiDashboard),
+        (permissions ? permissions.includes("Xem dự báo") : true),
       ),
   };
 }

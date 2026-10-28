@@ -217,7 +217,8 @@ export function buildUserDashboard(
   platform?: PlatformPreviewState,
 ): UserDashboardData {
   const baseData =
-    session.user.id === "usr_minh_anh"
+    session.user.id === "usr_minh_anh" ||
+    session.user.email === "minhanh@example.com"
       ? {
           ...sampleData,
           user: {

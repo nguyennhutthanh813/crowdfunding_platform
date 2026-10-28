@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/require-session";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
 
+import { fetchBackendWithAuth } from "@/lib/auth/backend-fetch";
+
 function isAuthorizeInput(value: unknown): value is AuthorizePledgeInput {
   if (!value || typeof value !== "object") return false;
   const body = value as Partial<AuthorizePledgeInput>;
@@ -39,6 +41,28 @@ export async function POST(request: Request) {
 
   try {
     const result = await api.authorizePledge(body);
+
+    // Lưu cam kết thật vào cơ sở dữ liệu PostgreSQL NestJS nếu có token
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.campaignId);
+      if (isUuid) {
+        await fetchBackendWithAuth(
+          "/pledges",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              campaignId: body.campaignId,
+              rewardTierId: body.rewardId || undefined,
+              bonusAmount: body.bonusAmount || 0,
+              addOns: (body.addOnIds || []).map((id) => ({ addOnId: id, quantity: 1 })),
+            }),
+          },
+          access.session,
+        );
+      }
+    } catch (dbErr) {
+      console.warn("Could not save pledge directly to NestJS DB:", dbErr);
+    }
     const campaignCard = (await api.listCampaigns()).find(
       (campaign) => campaign.id === body.campaignId,
     );

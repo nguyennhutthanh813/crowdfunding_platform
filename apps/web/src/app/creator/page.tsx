@@ -32,6 +32,8 @@ import {
 } from "@/lib/preview-read-models";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Không gian Chủ dự án",
   description:
@@ -62,12 +64,12 @@ export default async function CreatorPage() {
     campaigns: portfolioWithReviewState.campaigns.map((item) =>
       item.id === operations.campaignId
         ? {
-            ...item,
-            openTaskCount: operations.tasks.filter(
-              (task) => task.status !== "DONE",
-            ).length,
-            teamSize: operations.team.length,
-          }
+          ...item,
+          openTaskCount: operations.tasks.filter(
+            (task) => task.status !== "DONE",
+          ).length,
+          teamSize: operations.team.length,
+        }
         : item,
     ),
   };
@@ -91,7 +93,15 @@ export default async function CreatorPage() {
           ? "Đã bị từ chối"
           : "Đang chờ duyệt";
 
-  if (session?.user.id !== "usr_hoang_linh") {
+  const isCreatorUser = Boolean(
+    session?.user.roles?.includes("CREATOR") ||
+    session?.user.roles?.includes("ADMIN") ||
+    session?.user.email === "linh@orbit.vn" ||
+    session?.user.id === "usr_hoang_linh" ||
+    portfolio.campaigns.length > 0,
+  );
+
+  if (!isCreatorUser && portfolio.campaigns.length === 0) {
     return (
       <CreatorOnboarding
         givenName={givenName}
@@ -103,7 +113,11 @@ export default async function CreatorPage() {
 
   const campaign =
     campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
-    campaigns.find((item) => item.id === operations.campaignId);
+    campaigns.find((item) => item.id === operations.campaignId) ??
+    (portfolio.campaigns.length > 0
+      ? campaigns.find((item) => item.id === portfolio.campaigns[0].id)
+      : null) ??
+    campaigns[0];
   if (!campaign) {
     return (
       <CreatorOnboarding
@@ -470,20 +484,22 @@ export default async function CreatorPage() {
               </Link>
             </article>
 
-            <article className="border-l-2 border-[#9bb56c] px-5 py-1">
-              <p className="text-[10px] font-bold text-[#587024]">
-                BÀN GIAO GẦN NHẤT
-              </p>
-              <p className="mt-2 text-sm font-bold">
-                {operations.handoffs[0].title}
-              </p>
-              <p className="mt-1 text-[11px] leading-5 text-ink-muted">
-                {operations.handoffs[0].from} → {operations.handoffs[0].to} · {operations.handoffs[0].at}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-ink-soft">
-                {operations.handoffs[0].note}
-              </p>
-            </article>
+            {operations.handoffs && operations.handoffs.length > 0 ? (
+              <article className="border-l-2 border-[#9bb56c] px-5 py-1">
+                <p className="text-[10px] font-bold text-[#587024]">
+                  BÀN GIAO GẦN NHẤT
+                </p>
+                <p className="mt-2 text-sm font-bold">
+                  {operations.handoffs[0].title}
+                </p>
+                <p className="mt-1 text-[11px] leading-5 text-ink-muted">
+                  {operations.handoffs[0].from} → {operations.handoffs[0].to} · {operations.handoffs[0].at}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-ink-soft">
+                  {operations.handoffs[0].note}
+                </p>
+              </article>
+            ) : null}
           </aside>
         </div>
       </div>

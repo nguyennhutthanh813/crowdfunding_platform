@@ -107,7 +107,12 @@ export function CreatorCampaignOperations({
     operations.fulfillment.previousCampaign.orders,
   );
   const [members, setMembers] = useState(
-    operations.team.filter((member) => member.id !== "usr_hoang_linh"),
+    operations.team.filter(
+      (member) =>
+        member.id !== "usr_hoang_linh" &&
+        member.role !== "Chủ dự án" &&
+        member.id !== "member_owner",
+    ),
   );
   const [editingMember, setEditingMember] = useState<string | null>(null);
   const [updates, setUpdates] = useState(operations.updateHistory);
@@ -127,12 +132,15 @@ export function CreatorCampaignOperations({
   const selectedInboxMessage = operations.communityMessages.find(
     (message) => message.id === selectedInboxMessageId,
   );
-  const collaboratorMember = operations.team.find(
-    (member) => member.id === "usr_gia_huy",
-  );
+  const collaboratorMember =
+    operations.team.find((member) => member.id === "usr_gia_huy") ??
+    operations.team.find((member) => member.id !== "member_owner") ??
+    operations.team[0];
   const collaboratorOpenTasks = operations.tasks.filter(
     (task) =>
-      task.assigneeId === "usr_gia_huy" && task.status !== "DONE",
+      collaboratorMember
+        ? task.assigneeId === collaboratorMember.id && task.status !== "DONE"
+        : task.status !== "DONE",
   );
 
   const focusReplyComposer = () => {

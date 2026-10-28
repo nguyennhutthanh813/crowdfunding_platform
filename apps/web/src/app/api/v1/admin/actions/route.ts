@@ -1,13 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import {
-  findMockCampaign,
-  getMockCampaignReview,
-  getMockFraudAlert,
-  mockCampaignReviews,
-  mockFraudAlerts,
-  mockUsers,
-} from "@/lib/api/mock/relational-store";
+import { fetchBackendWithAuth } from "@/lib/auth/backend-fetch";
 import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import {
   decodePlatformPreview,
@@ -75,9 +68,9 @@ export async function POST(request: Request) {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         reviewId,
       );
-    const review = mockCampaignReviews.some((item) => item.id === reviewId)
-      ? getMockCampaignReview(reviewId)
-      : platformState.submittedReviews.find((item) => item.id === reviewId);
+    const review = platformState.submittedReviews.find(
+      (item) => item.id === reviewId,
+    );
     const decision =
       typeof payload.decision === "string" ? payload.decision : "";
     const feedback =
@@ -107,13 +100,10 @@ export async function POST(request: Request) {
 
   if (action === "RESOLVE_FRAUD") {
     const alertId = typeof payload.alertId === "string" ? payload.alertId : "";
-    const alert = mockFraudAlerts.some((item) => item.id === alertId)
-      ? getMockFraudAlert(alertId)
-      : null;
     const status = typeof payload.status === "string" ? payload.status : "";
     const resolution =
       typeof payload.resolution === "string" ? payload.resolution.trim() : "";
-    if (!alert) {
+    if (!alertId) {
       return apiError(
         404,
         "FRAUD_ALERT_NOT_FOUND",
@@ -126,6 +116,18 @@ export async function POST(request: Request) {
         "FRAUD_RESOLUTION_INVALID",
         "Cần chọn kết luận và ghi rõ căn cứ xử lý.",
       );
+    }
+    try {
+      await fetchBackendWithAuth(
+        `/admin/fraud-alerts/${encodeURIComponent(alertId)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status, resolutionNote: resolution }),
+        },
+        access.session,
+      );
+    } catch (e) {
+      console.warn("Backend fraud alert update failed:", e);
     }
   }
 
@@ -232,7 +234,7 @@ export async function POST(request: Request) {
     const status = typeof payload.status === "string" ? payload.status : "";
     const reason =
       typeof payload.reason === "string" ? payload.reason.trim() : "";
-    if (!findMockCampaign(campaignId)) {
+    if (!campaignId) {
       return apiError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy chiến dịch.");
     }
     if (!new Set(["LIVE", "SUSPENDED"]).has(status) || !reason) {
@@ -263,6 +265,11 @@ export async function POST(request: Request) {
           ? "Hồ sơ đã đạt checklist của vòng duyệt hiện tại."
           : "Quản trị viên chưa để lại phản hồi."),
     };
+
+    const targetReviewId = payload.reviewId as string;
+    platformState.submittedReviews = platformState.submittedReviews.filter(
+      (item) => item.id !== targetReviewId && item.campaignId !== targetReviewId,
+    );
 
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -479,7 +486,7 @@ export async function POST(request: Request) {
       persisted: true,
     },
     meta: {
-      source: "mock-route-handler",
+      source: "admin-handler",
       replaceWith: "AdminApplicationService",
     },
   });

@@ -5,6 +5,8 @@ import { getServerSession } from "@/lib/auth/server-session";
 import { applyAdminPreviewState } from "@/lib/preview-read-models";
 import { buildAdminWorkspaceSnapshot } from "@/lib/workspace-snapshot";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {

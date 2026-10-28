@@ -22,6 +22,8 @@ import { getServerSession } from "@/lib/auth/server-session";
 import { applyOperationsPreviewState } from "@/lib/preview-read-models";
 import { formatVnd } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Không gian cộng tác viên",
   description: "Theo dõi chiến dịch được mời, công việc và quyền cộng tác.",
@@ -43,12 +45,16 @@ export default async function CollaboratorPage() {
   );
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
   const collaboratorId = session?.user.id ?? "usr_gia_huy";
-  const collaboratorProfile = operations.team.find(
-    (member) => member.id === collaboratorId,
+  const collaboratorProfile =
+    operations.team.find((member) => member.id === collaboratorId) ??
+    operations.team.find((member) => member.name === session?.user.name) ??
+    operations.team[0];
+  const myTasks = operations.tasks.filter(
+    (task) =>
+      task.assigneeId === collaboratorId ||
+      task.assigneeName === session?.user.name,
   );
-  const assignedTasks = operations.tasks.filter(
-    (task) => task.assigneeId === collaboratorId,
-  );
+  const assignedTasks = myTasks.length > 0 ? myTasks : operations.tasks;
   const openTasks = assignedTasks.filter((task) => task.status !== "DONE");
   const completedTasks = assignedTasks.length - openTasks.length;
   const urgentTasks = openTasks.filter((task) => task.priority === "HIGH");

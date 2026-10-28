@@ -47,7 +47,7 @@ async function getAdminToken(accessToken?: string): Promise<string | null> {
       return loginData.tokens?.accessToken || null;
     }
   } catch {
-    // Backend may be offline or in mock preview mode
+    // Backend may be offline or network error
   }
   return null;
 }

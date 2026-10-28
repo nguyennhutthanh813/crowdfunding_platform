@@ -1,14 +1,21 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID, IsEnum, IsOptional, IsBoolean } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsUUID, IsEnum, IsOptional, IsBoolean, IsEmail } from 'class-validator';
 
 export class AddCampaignMemberDto {
-  @ApiProperty({ description: 'User UUID to add as member', format: 'uuid' })
+  @ApiPropertyOptional({ description: 'User UUID to add as member', format: 'uuid' })
+  @IsOptional()
   @IsUUID()
-  userId!: string;
+  userId?: string;
 
-  @ApiProperty({ description: 'Member role', enum: ['COLLABORATOR'] })
+  @ApiPropertyOptional({ description: 'User email to invite' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'Member role', enum: ['COLLABORATOR'], default: 'COLLABORATOR' })
+  @IsOptional()
   @IsEnum(['COLLABORATOR'] as const)
-  role!: 'COLLABORATOR';
+  role?: 'COLLABORATOR';
 
   @ApiPropertyOptional({ description: 'Can post updates', default: true })
   @IsOptional()
@@ -25,3 +32,4 @@ export class AddCampaignMemberDto {
   @IsBoolean()
   canViewAiDashboard?: boolean;
 }
+

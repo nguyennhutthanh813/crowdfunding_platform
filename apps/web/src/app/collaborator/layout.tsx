@@ -5,6 +5,8 @@ import { getServerSession } from "@/lib/auth/server-session";
 import { applyOperationsPreviewState } from "@/lib/preview-read-models";
 import { buildCollaboratorWorkspaceSnapshot } from "@/lib/workspace-snapshot";
 
+export const dynamic = "force-dynamic";
+
 export default async function CollaboratorLayout({
   children,
 }: {
@@ -17,7 +19,6 @@ export default async function CollaboratorLayout({
     getServerPlatformPreviewState(),
   ]);
 
-  if (!campaign) return null;
   const operations = applyOperationsPreviewState(
     baseOperations,
     session,

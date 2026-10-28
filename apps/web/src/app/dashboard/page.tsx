@@ -6,6 +6,8 @@ import { getServerSession } from "@/lib/auth/server-session";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { buildUserDashboard } from "@/lib/dashboard-preview";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Không gian của tôi",
   description:

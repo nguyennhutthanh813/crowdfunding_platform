@@ -19,10 +19,7 @@ import { api } from "@/lib/api";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
 
 
-export async function generateStaticParams() {
-  const campaigns = await api.listCampaigns();
-  return campaigns.map((campaign) => ({ slug: campaign.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,

@@ -13,6 +13,8 @@ import { getFriendlyName } from "@/lib/auth/roles";
 import { getServerSession } from "@/lib/auth/server-session";
 import { formatDate } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [campaigns, session] = await Promise.all([
     api.listCampaigns(),
@@ -20,7 +22,7 @@ export default async function HomePage() {
   ]);
   const featured = campaigns[0];
   const activeCampaigns = campaigns
-    .filter((campaign) => campaign.status === "LIVE" && campaign.id !== featured.id)
+    .filter((campaign) => campaign.status === "LIVE" && campaign.id !== featured?.id)
     .slice(0, 3);
   const upcoming =
     campaigns.find((campaign) => campaign.status === "PRE_LAUNCH") ?? campaigns[3];

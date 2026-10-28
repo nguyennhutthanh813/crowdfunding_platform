@@ -118,6 +118,20 @@ export class CampaignsService {
   }
 
   async create(creatorId: string, dto: CreateCampaignDto) {
+    if (dto.goalAmount <= 0) {
+      throw new BadRequestException('Goal amount must be greater than 0');
+    }
+    if (dto.durationDays < 15 || dto.durationDays > 60) {
+      throw new BadRequestException('Duration must be between 15 and 60 days');
+    }
+
+    const category = await this.prisma.category.findUnique({
+      where: { id: dto.categoryId },
+    });
+    if (!category || !category.isActive) {
+      throw new BadRequestException('Invalid or inactive category');
+    }
+
     const slug = this.generateSlug(dto.title);
 
     const campaign = await this.prisma.campaign.create({
@@ -174,6 +188,13 @@ export class CampaignsService {
       throw new BadRequestException('Only draft campaigns can be deleted');
     }
 
+    const pledgeCount = await this.prisma.pledge.count({
+      where: { campaignId },
+    });
+    if (pledgeCount > 0) {
+      throw new BadRequestException('Cannot delete campaign that already has pledges');
+    }
+
     await this.prisma.campaign.delete({ where: { id: campaignId } });
     return { message: 'Campaign deleted successfully' };
   }
@@ -181,8 +202,33 @@ export class CampaignsService {
   async submitForReview(campaignId: string, userId: string) {
     const campaign = await this.ensureOwnership(campaignId, userId);
 
-    if (campaign.status !== 'DRAFT') {
+    if (!['DRAFT', 'CHANGES_REQUESTED'].includes(campaign.status as string)) {
       throw new BadRequestException('Only draft campaigns can be submitted for review');
+    }
+
+    const fullCampaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        media: true,
+        rewardTiers: { where: { isActive: true } },
+      },
+    });
+
+    const missing: string[] = [];
+    if (!fullCampaign?.storyMarkdown || fullCampaign.storyMarkdown.trim().length === 0) {
+      missing.push('story');
+    }
+    if (!fullCampaign?.media || fullCampaign.media.length === 0) {
+      missing.push('at least 1 media item');
+    }
+    if (!fullCampaign?.rewardTiers || fullCampaign.rewardTiers.length === 0) {
+      missing.push('at least 1 reward tier');
+    }
+
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Campaign review checklist incomplete. Missing: ${missing.join(', ')}`,
+      );
     }
 
     return this.prisma.campaign.update({
@@ -191,7 +237,7 @@ export class CampaignsService {
         status: 'IN_REVIEW',
         submittedAt: new Date(),
         statusHistory: {
-          create: { fromStatus: 'DRAFT', toStatus: 'IN_REVIEW', changedBy: userId },
+          create: { fromStatus: campaign.status as any, toStatus: 'IN_REVIEW', changedBy: userId },
         },
       },
     });
@@ -201,6 +247,10 @@ export class CampaignsService {
 
   async createRewardTier(campaignId: string, userId: string, dto: CreateRewardTierDto) {
     await this.ensureOwnership(campaignId, userId);
+
+    if (dto.amount <= 0) {
+      throw new BadRequestException('Reward tier amount must be greater than 0');
+    }
 
     return this.prisma.rewardTier.create({
       data: {
@@ -241,14 +291,26 @@ export class CampaignsService {
       throw new NotFoundException('Reward tier not found');
     }
 
+    const pledgeCount = await this.prisma.pledge.count({
+      where: { rewardTierId: rewardId },
+    });
+    if (pledgeCount > 0) {
+      throw new BadRequestException('Cannot delete reward tier that already has backers');
+    }
+
     await this.prisma.rewardTier.delete({ where: { id: rewardId } });
     return { message: 'Reward tier deleted successfully' };
   }
+
 
   // ─── Add-ons ───────────────────────────────────────────
 
   async createAddOn(campaignId: string, userId: string, dto: CreateAddOnDto) {
     await this.ensureOwnership(campaignId, userId);
+
+    if (dto.amount <= 0) {
+      throw new BadRequestException('Add-on amount must be greater than 0');
+    }
 
     return this.prisma.addOn.create({
       data: {
@@ -280,6 +342,13 @@ export class CampaignsService {
       throw new NotFoundException('Add-on not found');
     }
 
+    const pledgeAddOnCount = await this.prisma.pledgeAddOn.count({
+      where: { addOnId },
+    });
+    if (pledgeAddOnCount > 0) {
+      throw new BadRequestException('Cannot delete add-on that already has backers');
+    }
+
     await this.prisma.addOn.delete({ where: { id: addOnId } });
     return { message: 'Add-on deleted successfully' };
   }
@@ -288,6 +357,14 @@ export class CampaignsService {
 
   async createShippingOption(campaignId: string, userId: string, dto: CreateShippingOptionDto) {
     await this.ensureOwnership(campaignId, userId);
+
+    if (
+      dto.estimatedDaysMin !== undefined &&
+      dto.estimatedDaysMax !== undefined &&
+      dto.estimatedDaysMax < dto.estimatedDaysMin
+    ) {
+      throw new BadRequestException('estimated_days_max must be greater than or equal to estimated_days_min');
+    }
 
     return this.prisma.shippingOption.create({
       data: {
@@ -307,6 +384,13 @@ export class CampaignsService {
     const option = await this.prisma.shippingOption.findUnique({ where: { id: optionId } });
     if (!option || option.campaignId !== campaignId) {
       throw new NotFoundException('Shipping option not found');
+    }
+
+    const min = dto.estimatedDaysMin !== undefined ? dto.estimatedDaysMin : option.estimatedDaysMin;
+    const max = dto.estimatedDaysMax !== undefined ? dto.estimatedDaysMax : option.estimatedDaysMax;
+
+    if (min !== undefined && min !== null && max !== undefined && max !== null && max < min) {
+      throw new BadRequestException('estimated_days_max must be greater than or equal to estimated_days_min');
     }
 
     return this.prisma.shippingOption.update({
@@ -411,6 +495,10 @@ export class CampaignsService {
       throw new ForbiddenException('Only the campaign creator can launch this campaign');
     }
 
+    if ((campaign.status as string) !== 'APPROVED' && campaign.status !== 'PRE_LAUNCH') {
+      throw new BadRequestException('Campaign can only be launched after being approved (status PRE_LAUNCH or APPROVED)');
+    }
+
     const durationDays = campaign.durationDays || 30;
     const now = new Date();
     const endsAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
@@ -482,7 +570,7 @@ export class CampaignsService {
   async createUpdate(campaignId: string, userId: string, dto: CreateCampaignUpdateDto) {
     await this.ensureMembership(campaignId, userId);
 
-    return this.prisma.campaignUpdate.create({
+    const update = await this.prisma.campaignUpdate.create({
       data: {
         campaignId,
         authorId: userId,
@@ -494,6 +582,30 @@ export class CampaignsService {
         author: { select: { id: true, displayName: true, avatarUrl: true } },
       },
     });
+
+    // Kích hoạt thông báo in-app cho toàn bộ backers đã ủng hộ chiến dịch (CREAT-UPD-01)
+    const pledges = await this.prisma.pledge.findMany({
+      where: {
+        campaignId,
+        status: { notIn: ['FAILED', 'CANCELED'] },
+      },
+      select: { backerId: true },
+      distinct: ['backerId'],
+    });
+
+    if (pledges.length > 0) {
+      await this.prisma.notification.createMany({
+        data: pledges.map((p) => ({
+          userId: p.backerId,
+          type: 'CAMPAIGN_UPDATE',
+          title: `Cập nhật mới: ${dto.title}`,
+          body: dto.title,
+          actionUrl: `/campaigns/${campaignId}?tab=updates`,
+        })),
+      });
+    }
+
+    return update;
   }
 
   // ─── Members ───────────────────────────────────────────
@@ -501,18 +613,40 @@ export class CampaignsService {
   async addMember(campaignId: string, userId: string, dto: AddCampaignMemberDto) {
     await this.ensureOwnership(campaignId, userId);
 
+    let targetUserId = dto.userId;
+    if (!targetUserId) {
+      if (!dto.email) {
+        throw new BadRequestException('Either userId or email must be provided');
+      }
+      const user = await this.prisma.user.findUnique({
+        where: { email: dto.email.toLowerCase() },
+      });
+      if (!user) {
+        throw new NotFoundException('User not found with provided email');
+      }
+      targetUserId = user.id;
+    }
+
+    // Check if target is already a member
+    const existing = await this.prisma.campaignMember.findUnique({
+      where: { campaignId_userId: { campaignId, userId: targetUserId } },
+    });
+    if (existing) {
+      throw new BadRequestException('User is already a member of this campaign');
+    }
+
     return this.prisma.campaignMember.create({
       data: {
         campaignId,
-        userId: dto.userId,
-        role: dto.role,
+        userId: targetUserId,
+        role: dto.role ?? 'COLLABORATOR',
         canPostUpdates: dto.canPostUpdates ?? true,
         canReplyComments: dto.canReplyComments ?? true,
         canViewAiDashboard: dto.canViewAiDashboard ?? true,
         invitedBy: userId,
       },
       include: {
-        user: { select: { id: true, displayName: true, avatarUrl: true } },
+        user: { select: { id: true, displayName: true, avatarUrl: true, email: true } },
       },
     });
   }
@@ -538,6 +672,7 @@ export class CampaignsService {
 
     return { message: 'Member removed successfully' };
   }
+
 
   // ─── Helpers ───────────────────────────────────────────
 

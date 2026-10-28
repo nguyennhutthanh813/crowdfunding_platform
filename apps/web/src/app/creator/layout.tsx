@@ -8,18 +8,21 @@ import {
 } from "@/lib/preview-read-models";
 import { buildCreatorWorkspaceSnapshot } from "@/lib/workspace-snapshot";
 
+export const dynamic = "force-dynamic";
+
 export default async function CreatorLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [campaigns, basePortfolio, baseOperations, session, platformState] = await Promise.all([
-    api.listCampaigns(),
-    api.getCreatorPortfolio(),
-    api.getCampaignOperations("orbit-one-ca-phe-thong-minh"),
-    getServerSession(),
-    getServerPlatformPreviewState(),
-  ]);
+  const [campaigns, basePortfolio, baseOperations, session, platformState] =
+    await Promise.all([
+      api.listCampaigns(),
+      api.getCreatorPortfolio(),
+      api.getCampaignOperations("orbit-one-ca-phe-thong-minh"),
+      getServerSession(),
+      getServerPlatformPreviewState(),
+    ]);
   const operations = applyOperationsPreviewState(
     baseOperations,
     session,
@@ -31,8 +34,11 @@ export default async function CreatorLayout({
   );
   const campaign =
     campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
-    campaigns.find((item) => item.id === operations.campaignId);
-  if (!campaign) return null;
+    campaigns.find((item) => item.id === operations.campaignId) ??
+    (portfolio.campaigns.length > 0
+      ? campaigns.find((item) => item.id === portfolio.campaigns[0].id)
+      : null) ??
+    campaigns[0];
 
   return (
     <RoleWorkspaceShell

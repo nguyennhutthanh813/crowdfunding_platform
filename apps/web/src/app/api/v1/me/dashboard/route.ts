@@ -1,14 +1,6 @@
 import { NextResponse } from "next/server";
 import { api } from "@/lib/api";
 import {
-  findMockCampaign,
-  findMockCampaignBySlug,
-  getMockUser,
-  mockCampaignMembers,
-  mockPledges,
-  mockMessages,
-} from "@/lib/api/mock/relational-store";
-import {
   isRecord,
   readJsonObject,
   requestError,
@@ -192,23 +184,20 @@ export async function POST(request: Request) {
         "INVALID_SAVE_INPUT",
         "Dự án hoặc trạng thái lưu chưa hợp lệ.",
       );
-    const campaign = findMockCampaign(campaignId) ?? findMockCampaignBySlug(campaignId);
-    
     // Persist to real NestJS PostgreSQL backend if session has token
     try {
-      const backendId = campaign?.slug ?? campaignId;
       if (saved) {
         await fetchBackendWithAuth(
           "/social/saved-campaigns",
           {
             method: "POST",
-            body: JSON.stringify({ campaignId: backendId }),
+            body: JSON.stringify({ campaignId }),
           },
           access.session,
         );
       } else {
         await fetchBackendWithAuth(
-          `/social/saved-campaigns/${encodeURIComponent(backendId)}`,
+          `/social/saved-campaigns/${encodeURIComponent(campaignId)}`,
           { method: "DELETE" },
           access.session,
         );
@@ -217,10 +206,9 @@ export async function POST(request: Request) {
       console.warn("Backend save-campaign call failed, falling back to local state:", e);
     }
 
-    const targetId = campaign?.id ?? campaignId;
     const ids = new Set(previewState.savedCampaignIds ?? []);
-    if (saved) ids.add(targetId);
-    else ids.delete(targetId);
+    if (saved) ids.add(campaignId);
+    else ids.delete(campaignId);
     previewState.savedCampaignIds = [...ids];
   }
 
@@ -271,23 +259,20 @@ export async function POST(request: Request) {
         "INVALID_NOTIFICATION_INPUT",
         "Dự án hoặc lựa chọn nhắc chưa hợp lệ.",
       );
-    const campaign = findMockCampaign(campaignId) ?? findMockCampaignBySlug(campaignId);
-
     // Persist to real NestJS PostgreSQL backend if session has token
     try {
-      const backendId = campaign?.slug ?? campaignId;
       if (enabled) {
         await fetchBackendWithAuth(
           "/social/prelaunch-subscriptions",
           {
             method: "POST",
-            body: JSON.stringify({ campaignId: backendId, notifyEmail: true }),
+            body: JSON.stringify({ campaignId, notifyEmail: true }),
           },
           access.session,
         );
       } else {
         await fetchBackendWithAuth(
-          `/social/prelaunch-subscriptions/${encodeURIComponent(backendId)}`,
+          `/social/prelaunch-subscriptions/${encodeURIComponent(campaignId)}`,
           { method: "DELETE" },
           access.session,
         );
@@ -296,10 +281,9 @@ export async function POST(request: Request) {
       console.warn("Backend prelaunch-subscription call failed, falling back to local state:", e);
     }
 
-    const targetId = campaign?.id ?? campaignId;
     const ids = new Set(previewState.notifiedCampaignIds ?? []);
-    if (enabled) ids.add(targetId);
-    else ids.delete(targetId);
+    if (enabled) ids.add(campaignId);
+    else ids.delete(campaignId);
     previewState.notifiedCampaignIds = [...ids];
   }
 
@@ -317,18 +301,14 @@ export async function POST(request: Request) {
         { status: 422 },
       );
     }
-    if (
-      ![...mockMessages, ...platformState.messages].some(
-        (message) =>
-          message.id === messageId &&
-          message.recipientId === access.session.user.id,
-      )
-    ) {
-      return requestError(
-        404,
-        "MESSAGE_NOT_FOUND",
-        "Không tìm thấy tin nhắn trong hộp thư của bạn.",
+    try {
+      await fetchBackendWithAuth(
+        `/messages/${encodeURIComponent(messageId.trim())}/read`,
+        { method: "PATCH" },
+        access.session,
       );
+    } catch (e) {
+      console.warn("Backend mark message read failed:", e);
     }
     previewState.readMessageIds = [
       ...new Set([...(previewState.readMessageIds ?? []), messageId.trim()]),
@@ -395,15 +375,14 @@ export async function POST(request: Request) {
       console.warn("Backend send message call failed, falling back to local state:", e);
     }
 
-    const recipient = getMockUser(recipientUserId);
     const sharedMessage = {
       id: `sent_${crypto.randomUUID().slice(0, 8)}`,
       campaignId,
       senderId: access.session.user.id,
       senderName: access.session.user.name,
       senderInitials: access.session.user.initials,
-      recipientId: recipient.id,
-      recipientName: recipient.displayName,
+      recipientId: recipientUserId,
+      recipientName: "Chủ dự án",
       subject: subject.trim(),
       body: messageBody.trim(),
       sentAt: "Vừa xong",

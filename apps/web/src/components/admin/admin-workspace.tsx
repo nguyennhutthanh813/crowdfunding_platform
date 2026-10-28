@@ -44,7 +44,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { RoleConnectionPanel } from "@/components/workspace/role-connection-panel";
 import { useQueryTab } from "@/hooks/use-query-tab";
@@ -218,16 +218,24 @@ function AdminNotice({
 }
 
 function RevenueChart({ data }: { data: AdminDashboardData["fundingSeries"] }) {
-  const max = Math.max(...data.map((item) => item.amount));
+  const series = data && data.length > 0 ? data : [];
+  const max = series.length > 0 ? Math.max(...series.map((item) => item.amount)) : 1;
+  if (series.length === 0) {
+    return (
+      <div className="mt-7 flex h-44 items-center justify-center text-xs text-ink-muted">
+        Chưa có số liệu dòng vốn
+      </div>
+    );
+  }
   return (
     <div className="mt-7 flex h-44 items-end gap-3 sm:gap-5">
-      {data.map((item, index) => (
+      {series.map((item, index) => (
         <div
           key={item.month}
           className="flex h-full flex-1 flex-col justify-end"
         >
           <div
-            className={`group relative w-full rounded-t-[8px] transition-[filter,transform] duration-200 hover:-translate-y-0.5 hover:brightness-95 ${index === data.length - 1 ? "bg-coral" : "bg-[#477060]"}`}
+            className={`group relative w-full rounded-t-[8px] transition-[filter,transform] duration-200 hover:-translate-y-0.5 hover:brightness-95 ${index === series.length - 1 ? "bg-coral" : "bg-[#477060]"}`}
             style={{ height: `${Math.max(18, (item.amount / max) * 100)}%` }}
           >
             <span className="pointer-events-none absolute -top-8 left-1/2 hidden -translate-x-1/2 rounded-lg bg-forest px-2 py-1 text-[9px] font-bold text-white group-hover:block">
@@ -235,7 +243,7 @@ function RevenueChart({ data }: { data: AdminDashboardData["fundingSeries"] }) {
             </span>
           </div>
           <p
-            className={`mt-3 text-center text-[10px] font-bold ${index === data.length - 1 ? "text-coral-dark" : "text-ink-muted"}`}
+            className={`mt-3 text-center text-[10px] font-bold ${index === series.length - 1 ? "text-coral-dark" : "text-ink-muted"}`}
           >
             {item.month}
           </p>
@@ -335,29 +343,41 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
               <AlertTriangle className="size-5" />
             </span>
           </div>
-          <div className="mt-6 rounded-[12px] border border-white/8 bg-white/6 p-4">
-            <div className="flex justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold">
-                  {data.alerts[0].campaignTitle}
-                </p>
-                <p className="mt-1 text-[10px] text-white/68">
-                  {data.alerts[0].userLabel} · {data.alerts[0].createdAt}
+          {data.alerts && data.alerts.length > 0 ? (
+            <div className="mt-6 rounded-[12px] border border-white/8 bg-white/6 p-4">
+              <div className="flex justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold">
+                    {data.alerts[0].campaignTitle}
+                  </p>
+                  <p className="mt-1 text-[10px] text-white/68">
+                    {data.alerts[0].userLabel} · {data.alerts[0].createdAt}
+                  </p>
+                </div>
+                <p className="font-display text-3xl font-extrabold text-red-300">
+                  {data.alerts[0].riskScore}
                 </p>
               </div>
-              <p className="font-display text-3xl font-extrabold text-red-300">
-                {data.alerts[0].riskScore}
+              <ul className="mt-4 space-y-2 text-[11px] text-white/55">
+                {(data.alerts[0].signals || []).map((signal) => (
+                  <li key={signal} className="flex gap-2">
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-red-300" />
+                    {signal}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="mt-6 rounded-[12px] border border-white/8 bg-white/6 p-6 text-center">
+              <ShieldCheck className="mx-auto size-7 text-emerald-400" />
+              <p className="mt-3 text-sm font-bold text-white">
+                Chưa có cảnh báo gian lận nào
+              </p>
+              <p className="mt-1 text-xs text-white/60">
+                Toàn bộ giao dịch và chiến dịch đang vận hành an toàn trong ngưỡng SLA.
               </p>
             </div>
-            <ul className="mt-4 space-y-2 text-[11px] text-white/55">
-              {data.alerts[0].signals.map((signal) => (
-                <li key={signal} className="flex gap-2">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-red-300" />
-                  {signal}
-                </li>
-              ))}
-            </ul>
-          </div>
+          )}
           <p className="mt-5 text-xs leading-5 text-white/68">
             Điểm số chỉ giúp quản trị viên sắp xếp thứ tự kiểm tra, không tự động
             khóa tài khoản.
@@ -408,6 +428,11 @@ const presetReviewFeedbacks = [
 
 function ReviewPanel({ data }: { data: AdminDashboardData }) {
   const [reviews, setReviews] = useState(data.reviewQueue);
+
+  useEffect(() => {
+    setReviews(data.reviewQueue);
+  }, [data.reviewQueue]);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<
     "ALL" | "PENDING" | "NEEDS_CHANGES"
@@ -473,7 +498,22 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
   };
 
   const filteredReviews = useMemo(() => {
-    return reviews.filter((item) => {
+    // Đảm bảo không bao giờ bị trùng lặp hiển thị chiến dịch trên giao diện
+    const seen = new Set<string>();
+    const deduplicated = reviews.filter((item) => {
+      const titleKey = item.title.trim().toLowerCase();
+      const idKey = item.id.trim();
+      const campaignKey = (item.campaignId || "").trim();
+      if (seen.has(idKey) || (campaignKey && seen.has(campaignKey)) || seen.has(titleKey)) {
+        return false;
+      }
+      seen.add(idKey);
+      if (campaignKey) seen.add(campaignKey);
+      seen.add(titleKey);
+      return true;
+    });
+
+    return deduplicated.filter((item) => {
       if (filterStatus === "PENDING" && item.status !== "PENDING") return false;
       if (filterStatus === "NEEDS_CHANGES" && item.status !== "NEEDS_CHANGES")
         return false;
@@ -3283,10 +3323,16 @@ export function AdminWorkspace({ data }: { data: AdminDashboardData }) {
   const [tab, setTab] = useQueryTab<AdminTab>(adminTabIds, "overview");
   const currentTab = adminTabCopy[tab];
   const CurrentTabIcon = currentTab.icon;
+  const reviewQueue = data?.reviewQueue || [];
+  const alerts = data?.alerts || [];
+  const users = data?.users || [];
+  const dataMetrics = data?.metrics || ({} as any);
+  const dataOps = data?.operations || ({} as any);
+
   const metrics = [
     {
       label: "Tổng cam kết",
-      value: formatVnd(data.metrics.grossPledged, true),
+      value: formatVnd(dataMetrics.grossPledged ?? 0, true),
       detail: "Từ tháng 4 đến nay",
       icon: CircleDollarSign,
       tone: "bg-[#eef4df] text-[#566c27]",
@@ -3294,7 +3340,7 @@ export function AdminWorkspace({ data }: { data: AdminDashboardData }) {
     },
     {
       label: "Doanh thu phí",
-      value: formatVnd(data.metrics.platformRevenue, true),
+      value: formatVnd(dataMetrics.platformRevenue ?? 0, true),
       detail: "Phần phí đã ghi nhận",
       icon: BadgeDollarSign,
       tone: "bg-[#fff0e9] text-coral-dark",
@@ -3302,23 +3348,23 @@ export function AdminWorkspace({ data }: { data: AdminDashboardData }) {
     },
     {
       label: "Hồ sơ chờ duyệt",
-      value: String(data.reviewQueue.length),
-      detail: `${data.operations.reviewsDueToday} hồ sơ đến hạn hôm nay`,
+      value: String(reviewQueue.length),
+      detail: `${dataOps.reviewsDueToday ?? reviewQueue.length} hồ sơ đến hạn hôm nay`,
       icon: FileCheck2,
       tone: "bg-blue-50 text-blue-700",
       tab: "reviews" as const,
     },
     {
       label: "Cảnh báo đang mở",
-      value: String(data.metrics.openAlerts),
-      detail: `${data.alerts.length} cảnh báo ưu tiên`,
+      value: String(dataMetrics.openAlerts ?? 0),
+      detail: `${alerts.length} cảnh báo ưu tiên`,
       icon: ShieldAlert,
       tone: "bg-red-50 text-red-700",
       tab: "fraud" as const,
     },
     {
-      label: "Người dùng demo",
-      value: String(data.users.length),
+      label: "Người dùng",
+      value: String(users.length),
       detail: "Có role và trạng thái đối chiếu",
       icon: UserRoundCog,
       tone: "bg-[#eeeef3] text-[#4c4f60]",
