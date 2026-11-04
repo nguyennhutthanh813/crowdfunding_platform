@@ -22,6 +22,8 @@ Mở `http://localhost:3000`. Trên Windows cũng có thể nhấp đúp `apps/w
 
 `apps/api` vẫn nằm trong repo để nhóm tiếp tục phát triển API thật. Cần PostgreSQL/Redis và biến môi trường theo [.env.example](.env.example); quy trình Prisma và Docker vẫn dùng các script `db:*` trong [package.json](package.json). Chạy backend riêng bằng `corepack pnpm --filter @crowdfunding/api dev`. Việc chạy backend không tự đổi frontend từ SQLite/cookie demo sang PostgreSQL.
 
+API mặc định dùng tiền tố `/api/v1`. Backend đã có thêm kiểm quyền thành viên, chiến dịch riêng và cách tính cam kết theo form web; phạm vi đã khớp và phần còn thiếu ghi tại [tài liệu đối chiếu](docs/frontend-backend-handoff.md). PostgreSQL chưa có migration trong repo, nên chỉ dùng `db:push` với DB phát triển sau khi đã xem ảnh hưởng của thay đổi schema.
+
 ## Kiểm tra
 
 ```powershell

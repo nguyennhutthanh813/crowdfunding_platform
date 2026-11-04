@@ -1,42 +1,9 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsUUID,
-  IsOptional,
-  IsInt,
-  IsArray,
-  ValidateNested,
-  Min,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { PledgeAddOnItemDto } from './create-pledge.dto';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsUUID } from 'class-validator';
 
+// Sau khi tạo cam kết chỉ cho đổi địa chỉ đã lưu; số tiền phải được tính lại bằng luồng mới.
 export class UpdatePledgeDto {
-  @ApiPropertyOptional({ description: 'Reward tier UUID', format: 'uuid' })
-  @IsOptional()
+  @ApiProperty({ description: 'Địa chỉ của chính người ủng hộ', format: 'uuid' })
   @IsUUID()
-  rewardTierId?: string;
-
-  @ApiPropertyOptional({ description: 'Shipping option UUID', format: 'uuid' })
-  @IsOptional()
-  @IsUUID()
-  shippingOptionId?: string;
-
-  @ApiPropertyOptional({ description: 'Shipping address UUID', format: 'uuid' })
-  @IsOptional()
-  @IsUUID()
-  shippingAddressId?: string;
-
-  @ApiPropertyOptional({ description: 'Bonus amount on top of reward (VND)' })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  bonusAmount?: number;
-
-  @ApiPropertyOptional({ description: 'Updated list of add-on items', type: [PledgeAddOnItemDto] })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => PledgeAddOnItemDto)
-  addOns?: PledgeAddOnItemDto[];
+  shippingAddressId!: string;
 }

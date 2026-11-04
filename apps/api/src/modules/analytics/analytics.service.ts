@@ -96,22 +96,12 @@ export class AnalyticsService {
     },
   ) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dto.campaignId);
-    let campaignId = dto.campaignId;
-    if (!isUuid) {
-      const campaign = await this.prisma.campaign.findFirst({
-        where: {
-          OR: [
-            { slug: dto.campaignId },
-            { slug: { contains: dto.campaignId.replace(/^cmp_/, '') } },
-          ],
-        },
-        select: { id: true },
-      });
-      if (!campaign) {
-        throw new NotFoundException('Campaign not found');
-      }
-      campaignId = campaign.id;
-    }
+    const campaign = await this.prisma.campaign.findUnique({
+      where: isUuid ? { id: dto.campaignId } : { slug: dto.campaignId },
+      select: { id: true },
+    });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+    const campaignId = campaign.id;
 
     const event = await this.prisma.interactionEvent.create({
       data: {

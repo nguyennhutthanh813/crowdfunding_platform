@@ -4,6 +4,8 @@ import {
   IsOptional,
   IsInt,
   IsArray,
+  IsString,
+  MaxLength,
   ValidateNested,
   Min,
 } from 'class-validator';
@@ -21,6 +23,28 @@ export class PledgeAddOnItemDto {
   quantity!: number;
 }
 
+export class PledgeAddressDto {
+  @ApiProperty({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  fullName!: string;
+
+  @ApiProperty({ maxLength: 24 })
+  @IsString()
+  @MaxLength(24)
+  phone!: string;
+
+  @ApiProperty({ maxLength: 220 })
+  @IsString()
+  @MaxLength(220)
+  line1!: string;
+
+  @ApiProperty({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  city!: string;
+}
+
 export class CreatePledgeDto {
   @ApiProperty({ description: 'Campaign UUID', format: 'uuid' })
   @IsUUID()
@@ -31,6 +55,11 @@ export class CreatePledgeDto {
   @IsUUID()
   rewardTierId?: string;
 
+  @ApiPropertyOptional({ description: 'Tên trường của form web cho reward tier', format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  rewardId?: string | null;
+
   @ApiPropertyOptional({ description: 'Shipping option UUID', format: 'uuid' })
   @IsOptional()
   @IsUUID()
@@ -40,6 +69,12 @@ export class CreatePledgeDto {
   @IsOptional()
   @IsUUID()
   shippingAddressId?: string;
+
+  @ApiPropertyOptional({ description: 'Địa chỉ giao quà gửi trực tiếp từ form web', type: PledgeAddressDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PledgeAddressDto)
+  address?: PledgeAddressDto | null;
 
   @ApiPropertyOptional({ description: 'Bonus amount on top of reward (VND)', default: 0 })
   @IsOptional()
@@ -54,4 +89,10 @@ export class CreatePledgeDto {
   @ValidateNested({ each: true })
   @Type(() => PledgeAddOnItemDto)
   addOns?: PledgeAddOnItemDto[];
+
+  @ApiPropertyOptional({ description: 'Các add-on ID của form web, số lượng mỗi loại là 1', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  addOnIds?: string[];
 }

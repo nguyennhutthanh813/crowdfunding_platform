@@ -12,3 +12,4 @@ export { CreateCampaignFaqDto } from './create-campaign-faq.dto';
 export { UpdateCampaignFaqDto } from './update-campaign-faq.dto';
 export { CreateCampaignUpdateDto } from './create-campaign-update.dto';
 export { AddCampaignMemberDto } from './campaign-member.dto';
+export { UpdateCampaignMemberPermissionsDto } from './update-campaign-member-permissions.dto';

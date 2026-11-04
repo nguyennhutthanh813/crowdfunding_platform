@@ -310,6 +310,7 @@ model RewardTier {
   amount            BigInt
   items             Json     @default("[]")
   quantityLimit     Int?     @map("quantity_limit")
+  requiresShipping  Boolean  @default(false) @map("requires_shipping")
   estimatedDelivery DateTime @map("estimated_delivery") @db.Date
   isFeatured        Boolean  @default(false) @map("is_featured")
   isActive          Boolean  @default(true) @map("is_active")
@@ -331,6 +332,7 @@ model AddOn {
   description   String
   amount        BigInt
   quantityLimit Int?     @map("quantity_limit")
+  requiresShipping Boolean @default(false) @map("requires_shipping")
   isActive      Boolean  @default(true) @map("is_active")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz

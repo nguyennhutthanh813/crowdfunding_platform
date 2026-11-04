@@ -37,8 +37,10 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
       },
       campaignMember: {
         create: jest.fn(),
+        update: jest.fn(),
         delete: jest.fn(),
         findUnique: jest.fn(),
+        findMany: jest.fn(),
       },
       campaignMedia: {
         create: jest.fn(),
@@ -87,10 +89,12 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
       user: {
         findUnique: jest.fn(),
       },
+      userRole: { upsert: jest.fn() },
       notification: {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
+    prisma.$transaction = jest.fn((run: (client: typeof prisma) => Promise<unknown>) => run(prisma));
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -100,6 +104,48 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
     }).compile();
 
     service = module.get<CampaignsService>(CampaignsService);
+  });
+
+  describe('Danh sách và chi tiết theo vai trò', () => {
+    it('danh sách công khai bỏ qua bản nháp và hồ sơ đang duyệt', async () => {
+      prisma.campaign.findMany.mockResolvedValue([]);
+      prisma.campaign.count.mockResolvedValue(0);
+      await service.findAll({} as any);
+      expect(prisma.campaign.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['PRE_LAUNCH', 'LIVE', 'SUCCESSFUL', 'FAILED'] },
+        }),
+      }));
+    });
+
+    it('danh mục Chủ dự án chỉ lấy chiến dịch mình sở hữu', async () => {
+      prisma.campaign.findMany.mockResolvedValue([]);
+      await service.getCreatorCampaigns(mockCreatorId);
+      expect(prisma.campaign.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { creatorId: mockCreatorId },
+      }));
+    });
+
+    it('danh mục Cộng tác viên lọc theo quyền của từng chiến dịch', async () => {
+      prisma.campaign.findMany.mockResolvedValue([]);
+      await service.getCollaboratorCampaigns(mockOtherUserId);
+      expect(prisma.campaign.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { members: { some: { userId: mockOtherUserId, role: 'COLLABORATOR' } } },
+      }));
+    });
+
+    it('khách không xem được bản nháp nhưng thành viên xem được trang quản lý', async () => {
+      prisma.campaign.findUnique.mockResolvedValue({
+        id: mockCampaignId, slug: 'ban-nhap', creatorId: mockCreatorId, status: 'DRAFT',
+      });
+      await expect(service.findPublicById('ban-nhap')).rejects.toThrow(NotFoundException);
+      prisma.campaignMember.findUnique.mockResolvedValue({ userId: mockOtherUserId });
+      await expect(service.findManagedById('ban-nhap', mockOtherUserId))
+        .resolves.toMatchObject({ status: 'DRAFT' });
+      prisma.campaignMember.findUnique.mockResolvedValue(null);
+      await expect(service.findManagedById('ban-nhap', 'stranger'))
+        .rejects.toThrow(ForbiddenException);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -157,6 +203,11 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
       );
       expect(result.id).toBe(mockCampaignId);
       expect(result.status).toBe('DRAFT');
+      expect(prisma.userRole.upsert).toHaveBeenCalledWith({
+        where: { userId_role: { userId: mockCreatorId, role: 'CREATOR' } },
+        create: { userId: mockCreatorId, role: 'CREATOR' },
+        update: {},
+      });
     });
 
     it('CREAT-WIZ-02: should reject when goalAmount is <= 0', async () => {
@@ -579,7 +630,9 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
       prisma.campaignMember.findUnique.mockResolvedValue({
         campaignId: mockCampaignId,
         userId: mockCreatorId,
+        role: 'OWNER',
       });
+      prisma.campaign.findUnique.mockResolvedValue({ status: 'LIVE', slug: 'ban-phim-co' });
 
       const mockUpdate = {
         id: 'update-111',
@@ -616,12 +669,42 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
         ]),
       });
     });
+
+    it('không cho cộng tác viên đăng khi chủ dự án đã thu hồi quyền', async () => {
+      prisma.campaignMember.findUnique.mockResolvedValue({
+        campaignId: mockCampaignId,
+        userId: mockOtherUserId,
+        role: 'COLLABORATOR',
+        canPostUpdates: false,
+      });
+      await expect(service.createUpdate(mockCampaignId, mockOtherUserId, {
+        title: 'Tiến độ tuần này', body: 'Nội dung của nhóm',
+      })).rejects.toThrow(ForbiddenException);
+      expect(prisma.campaignUpdate.create).not.toHaveBeenCalled();
+    });
   });
 
   // ═══════════════════════════════════════════════════════════
   // CREAT-MEM-01 & CREAT-MEM-02: Collaborators
   // ═══════════════════════════════════════════════════════════
   describe('CREAT-MEM-01 & CREAT-MEM-02: Collaborators Management', () => {
+    it('chủ dự án cập nhật ba quyền riêng của cộng tác viên', async () => {
+      prisma.campaign.findUnique.mockResolvedValue({ id: mockCampaignId, creatorId: mockCreatorId });
+      prisma.campaignMember.findUnique.mockResolvedValue({ role: 'COLLABORATOR' });
+      prisma.campaignMember.update.mockResolvedValue({
+        campaignId: mockCampaignId, userId: mockOtherUserId,
+        canPostUpdates: true, canReplyComments: false, canViewAiDashboard: true,
+      });
+
+      await service.updateMemberPermissions(mockCampaignId, mockOtherUserId, mockCreatorId, {
+        permissions: ['Đăng cập nhật', 'Xem dự báo'],
+      });
+      expect(prisma.campaignMember.update).toHaveBeenCalledWith({
+        where: { campaignId_userId: { campaignId: mockCampaignId, userId: mockOtherUserId } },
+        data: { canPostUpdates: true, canReplyComments: false, canViewAiDashboard: true },
+      });
+    });
+
     it('CREAT-MEM-01: should add collaborator by email with granular permissions', async () => {
       prisma.campaign.findUnique.mockResolvedValue({
         id: mockCampaignId,

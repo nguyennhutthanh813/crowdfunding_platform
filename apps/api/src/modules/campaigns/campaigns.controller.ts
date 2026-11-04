@@ -35,6 +35,7 @@ import {
   UpdateCampaignFaqDto,
   CreateCampaignUpdateDto,
   AddCampaignMemberDto,
+  UpdateCampaignMemberPermissionsDto,
 } from './dto';
 
 @ApiTags('campaigns')
@@ -53,9 +54,17 @@ export class CampaignsController {
   @Get('creator/my')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List campaigns owned or collaborated by current user' })
+  @ApiOperation({ summary: 'List campaigns owned by current user' })
   async getMyCampaigns(@CurrentUser('id') userId: string) {
     return this.campaignsService.getCreatorCampaigns(userId);
+  }
+
+  @Get('collaborator/my')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List campaigns where current user is a collaborator' })
+  async getMyCollaborations(@CurrentUser('id') userId: string) {
+    return this.campaignsService.getCollaboratorCampaigns(userId);
   }
 
   // ─── Campaign CRUD ─────────────────────────────────────
@@ -70,7 +79,18 @@ export class CampaignsController {
   @ApiOperation({ summary: 'Get campaign details by UUID or slug' })
   @ApiParam({ name: 'id', description: 'Campaign UUID or slug' })
   async findOne(@Param('id') id: string) {
-    return this.campaignsService.findById(id);
+    return this.campaignsService.findPublicById(id);
+  }
+
+  @Get(':id/manage')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Chi tiết chiến dịch riêng của chủ dự án hoặc cộng tác viên' })
+  async findManaged(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.campaignsService.findManagedById(id, userId);
   }
 
   @Post()
@@ -387,6 +407,27 @@ export class CampaignsController {
   }
 
   // ─── Members ───────────────────────────────────────────
+
+  @Get(':id/members')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xem thành viên và quyền trong chiến dịch mình tham gia' })
+  async getMembers(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.campaignsService.getMembers(id, userId);
+  }
+
+  @Patch(':id/members/:memberId/permissions')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Chủ dự án điều chỉnh quyền cộng tác viên' })
+  async updateMemberPermissions(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateCampaignMemberPermissionsDto,
+  ) {
+    return this.campaignsService.updateMemberPermissions(id, memberId, userId, dto);
+  }
 
   @Post(':id/members')
   @UseGuards(AuthGuard('jwt'))

@@ -14,20 +14,8 @@ export class CommunicationService {
   private async resolveCampaign(idOrSlug?: string) {
     if (!idOrSlug) return null;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-    if (isUuid) {
-      const camp = await this.prisma.campaign.findUnique({
-        where: { id: idOrSlug },
-        select: { id: true, creatorId: true, title: true, slug: true },
-      });
-      if (camp) return camp;
-    }
-    return this.prisma.campaign.findFirst({
-      where: {
-        OR: [
-          { slug: idOrSlug },
-          { slug: { contains: idOrSlug.replace(/^cmp_/, '') } },
-        ],
-      },
+    return this.prisma.campaign.findUnique({
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
       select: { id: true, creatorId: true, title: true, slug: true },
     });
   }
@@ -38,11 +26,10 @@ export class CommunicationService {
 
     if (dto.campaignId) {
       const campaign = await this.resolveCampaign(dto.campaignId);
-      if (campaign) {
-        campaignId = campaign.id;
-        if (!recipientId) {
-          recipientId = campaign.creatorId;
-        }
+      if (!campaign) throw new NotFoundException('Không tìm thấy chiến dịch được chọn');
+      campaignId = campaign.id;
+      if (!recipientId) {
+        recipientId = campaign.creatorId;
       }
     }
 

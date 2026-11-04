@@ -42,6 +42,11 @@ export class CreateRewardTierDto {
   @Min(1)
   quantityLimit?: number;
 
+  @ApiPropertyOptional({ description: 'Cần địa chỉ giao quà', default: false })
+  @IsOptional()
+  @IsBoolean()
+  requiresShipping?: boolean;
+
   @ApiProperty({ description: 'Estimated delivery date (YYYY-MM-DD)', example: '2026-12-31' })
   @IsDateString()
   estimatedDelivery!: string;

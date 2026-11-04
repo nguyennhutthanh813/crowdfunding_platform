@@ -120,6 +120,15 @@ describe('CommunicationService - Section 7: Messaging & Chat (MSG-01 to MSG-03)'
       );
     });
 
+    it('không gắn tin nhắn vào chiến dịch gần giống tên nhưng không đúng slug', async () => {
+      prisma.campaign.findUnique.mockResolvedValue(null);
+      await expect(service.sendMessage(mockSenderId, {
+        campaignId: 'cmp_orbit', recipientId: mockRecipientId,
+        subject: 'Hỏi dự án', body: 'Nội dung',
+      })).rejects.toThrow(NotFoundException);
+      expect(prisma.message.create).not.toHaveBeenCalled();
+    });
+
     it('should throw BadRequestException when sender attempts to message oneself (CHECK sender_id <> recipient_id)', async () => {
       await expect(
         service.sendMessage(mockSenderId, {

@@ -11,10 +11,11 @@ async function main() {
   // 1. Seed Categories
   const categories = [
     { name: 'Công nghệ & Sáng tạo', slug: 'cong-nghe-sang-tao', sortOrder: 1 },
-    { name: 'Nghệ thuật & Xuất bản', slug: 'nghe-thuat-xuat-ban', sortOrder: 2 },
-    { name: 'Thủ công mỹ nghệ', slug: 'thu-cong-my-nghe', sortOrder: 3 },
-    { name: 'Cộng đồng & Xã hội', slug: 'cong-dong-xa-hoi', sortOrder: 4 },
-    { name: 'Ẩm thực & Nông sản', slug: 'am-thuc-nong-san', sortOrder: 5 },
+    { name: 'Trò chơi', slug: 'tro-choi', sortOrder: 2 },
+    { name: 'Nghệ thuật & Xuất bản', slug: 'nghe-thuat-xuat-ban', sortOrder: 3 },
+    { name: 'Thủ công mỹ nghệ', slug: 'thu-cong-my-nghe', sortOrder: 4 },
+    { name: 'Cộng đồng & Xã hội', slug: 'cong-dong-xa-hoi', sortOrder: 5 },
+    { name: 'Ẩm thực & Nông sản', slug: 'am-thuc-nong-san', sortOrder: 6 },
   ];
 
   for (const cat of categories) {
@@ -31,7 +32,7 @@ async function main() {
   }
   console.log('✅ Categories seeded');
 
-  // 2. Seed Users & Roles matching preview accounts
+  // Tài khoản và chiến dịch bên dưới là dữ liệu mẫu để thử luồng, không phải hồ sơ đã xác minh.
   const usersToSeed: Array<{
     email: string;
     displayName: string;
@@ -54,7 +55,13 @@ async function main() {
       email: 'giahuy@orbit.vn',
       displayName: 'Lê Gia Huy',
       bio: 'Cộng tác viên phần cứng · ORBIT One',
-      roles: ['BACKER', 'COLLABORATOR' as unknown as GlobalRole], // GlobalRole enum has BACKER, CREATOR, ADMIN
+      roles: ['BACKER'], // Cộng tác viên là quyền theo chiến dịch, không phải vai trò toàn hệ thống.
+    },
+    {
+      email: 'lacstudio@example.com',
+      displayName: 'Lạc Studio',
+      bio: 'Nhóm làm trò chơi Lạc Việt tại Hà Nội',
+      roles: ['BACKER', 'CREATOR'],
     },
     {
       email: 'quantri@gop.vn',
@@ -71,7 +78,6 @@ async function main() {
     });
 
     if (!existing) {
-      const validRoles = item.roles.filter((r) => ['BACKER', 'CREATOR', 'ADMIN'].includes(r));
       await prisma.user.create({
         data: {
           email: item.email,
@@ -80,7 +86,7 @@ async function main() {
           bio: item.bio,
           status: AccountStatus.ACTIVE,
           roles: {
-            create: validRoles.map((role) => ({ role })),
+            create: item.roles.map((role) => ({ role })),
           },
         },
       });
@@ -90,11 +96,11 @@ async function main() {
     }
   }
 
-  // 3. Seed Campaigns
+  // Dữ liệu chiến dịch mẫu
   const techCategory = await prisma.category.findUnique({ where: { slug: 'cong-nghe-sang-tao' } });
-  const artCategory = await prisma.category.findUnique({ where: { slug: 'nghe-thuat-xuat-ban' } });
+  const gameCategory = await prisma.category.findUnique({ where: { slug: 'tro-choi' } });
   const linhUser = await prisma.user.findUnique({ where: { email: 'linh@orbit.vn' } });
-  const minhAnhUser = await prisma.user.findUnique({ where: { email: 'minhanh@example.com' } });
+  const lacStudioUser = await prisma.user.findUnique({ where: { email: 'lacstudio@example.com' } });
   const giaHuyUser = await prisma.user.findUnique({ where: { email: 'giahuy@orbit.vn' } });
 
   if (techCategory && linhUser) {
@@ -110,14 +116,14 @@ async function main() {
         data: {
           creatorId: linhUser.id,
           categoryId: techCategory.id,
-          title: 'ORBIT One — Máy pha cà phê thông minh cho gia đình',
+          title: 'ORBIT One — máy pha cà phê thông minh cho căn bếp Việt',
           slug: 'orbit-one-ca-phe-thong-minh',
-          blurb: 'Kiểm soát nhiệt độ, áp suất và tỷ lệ chiết xuất chính xác qua vi điều khiển kép. Thiết kế tối giản, dễ bảo trì và sản xuất tại Việt Nam.',
-          storyMarkdown: `## Câu chuyện dự án\n\nORBIT One bắt đầu từ trăn trở: làm sao để người yêu cà phê tại gia có được ly pour-over hoàn hảo mỗi sáng mà không cần đầu tư những cỗ máy công nghiệp đắt đỏ.\n\n### Điểm nổi bật\n- Cảm biến nhiệt độ PID kép với độ lệch dưới 0.5°C.\n- Bơm áp lực biến thiên mô phỏng tay nghề barista chuyên nghiệp.\n- Mọi linh kiện cơ khí đều có thể mở nắp vệ sinh và thay thế sau 5-10 năm sử dụng.\n- Kết nối ứng dụng di động để chia sẻ công thức chiết xuất.`,
-          risksMarkdown: `Chúng tôi đã hoàn thành 4 phiên bản mẫu thử nghiệm (working prototype) và chốt nhà cung ứng linh kiện tại Bình Dương. Rủi ro chính là thời gian kiểm định an toàn điện gia dụng có thể kéo dài thêm 2-3 tuần. Chúng tôi cam kết cập nhật tiến độ minh bạch mỗi 2 tuần cho người ủng hộ.`,
+          blurb: 'Pha đúng gu trong 90 giây, ghi nhớ khẩu vị và giảm một nửa lượng cà phê bỏ đi.',
+          storyMarkdown: '## Câu chuyện dự án\n\nORBIT One là ý tưởng máy pha cà phê gọn cho căn bếp Việt. Nhóm muốn người dùng chọn công thức phù hợp khẩu vị và vệ sinh máy dễ hơn sau mỗi lần pha.\n\n### Hướng làm\n- Thử bộ điều khiển nhiệt và thời gian pha.\n- Thiết kế các bộ phận dễ tháo để vệ sinh.\n- Lấy phản hồi từ người dùng thử trước khi chốt sản phẩm.',
+          risksMarkdown: 'Lịch sản xuất có thể đổi khi thử độ bền và an toàn điện. Giá linh kiện và thời gian giao hàng cũng có thể tăng; nhóm sẽ cập nhật khi có kết quả thử cụ thể.',
           location: 'TP. Hồ Chí Minh',
           status: 'LIVE',
-          goalAmount: BigInt(200_000_000),
+          goalAmount: BigInt(800_000_000),
           durationDays: 30,
           startsAt: now,
           publishedAt: now,
@@ -141,19 +147,21 @@ async function main() {
           rewardTiers: {
             create: [
               {
-                title: 'Gói Tiên phong (Early Bird)',
-                description: 'Dành cho 50 người ủng hộ đầu tiên với mức giá ưu đãi nhất.',
-                amount: BigInt(1_290_000),
-                items: ['1x Máy pha cà phê ORBIT One', '1x Cốc đong định lượng 60ml', '1x Gói cà phê Cầu Đất Arabica 250g'],
-                quantityLimit: 50,
+                title: 'Gửi một ly động viên',
+                description: 'Ủng hộ nhóm phát triển, không nhận quà giao tận nơi.',
+                amount: BigInt(150_000),
+                items: [],
+                requiresShipping: false,
+                quantityLimit: null,
                 estimatedDelivery: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
                 isFeatured: true,
                 sortOrder: 1,
               },
               {
-                title: 'Gói Tiêu chuẩn ORBIT One',
+                title: 'ORBIT One — Early Bird',
                 description: 'Bộ sản phẩm đầy đủ cho gia đình hoặc văn phòng nhỏ.',
-                amount: BigInt(1_690_000),
+                amount: BigInt(3_890_000),
+                requiresShipping: true,
                 items: ['1x Máy pha cà phê ORBIT One', '1x Cốc đong', '2x Gói cà phê đặc sản 250g'],
                 quantityLimit: 200,
                 estimatedDelivery: new Date(Date.now() + 75 * 24 * 60 * 60 * 1000),
@@ -161,9 +169,10 @@ async function main() {
                 sortOrder: 2,
               },
               {
-                title: 'Bộ Đôi Sáng tạo (Duo Pack)',
+                title: 'ORBIT Duo',
                 description: '2 máy ORBIT One cho bạn và người thân cùng màu sắc tùy chọn.',
-                amount: BigInt(3_190_000),
+                amount: BigInt(7_290_000),
+                requiresShipping: true,
                 items: ['2x Máy ORBIT One', '2x Bộ phụ kiện đầy đủ', '4x Gói cà phê đặc sản'],
                 quantityLimit: 30,
                 estimatedDelivery: new Date(Date.now() + 75 * 24 * 60 * 60 * 1000),
@@ -175,15 +184,24 @@ async function main() {
           addOns: {
             create: [
               {
-                title: 'Phễu lọc gốm sứ Bát Tràng tráng men thủ công',
-                description: 'Phễu lọc thiết kế độc quyền tối ưu dòng chảy cà phê.',
-                amount: BigInt(250_000),
+                title: 'Ca đánh sữa 450 ml',
+                description: 'Phần bổ sung đi cùng máy ORBIT One.',
+                amount: BigInt(320_000),
+                requiresShipping: true,
                 quantityLimit: 150,
               },
               {
-                title: 'Bình giữ nhiệt cách nhiệt chân không 500ml',
-                description: 'Bình inox 316 giữ nóng 8 tiếng, lạnh 14 tiếng khắc logo dự án.',
-                amount: BigInt(180_000),
+                title: 'Bộ lọc dự phòng',
+                description: 'Thay thế khi cần bảo trì máy tại nhà.',
+                amount: BigInt(240_000),
+                requiresShipping: true,
+                quantityLimit: 200,
+              },
+              {
+                title: 'Hộp hạt trải nghiệm',
+                description: 'Hộp cà phê để thử các công thức pha đầu tiên.',
+                amount: BigInt(390_000),
+                requiresShipping: true,
                 quantityLimit: 200,
               },
             ],
@@ -239,9 +257,32 @@ async function main() {
     }
   }
 
-  if (artCategory && minhAnhUser) {
+  // Cùng một chủ dự án có thể có nhiều chiến dịch; Mini là bản nháp để thử luồng xét duyệt.
+  if (techCategory && linhUser) {
+    const existingMini = await prisma.campaign.findUnique({
+      where: { slug: 'orbit-mini-bo-pha-gon' },
+    });
+    if (!existingMini) {
+      await prisma.campaign.create({
+        data: {
+          creatorId: linhUser.id,
+          categoryId: techCategory.id,
+          title: 'ORBIT Mini — bộ pha gọn cho góc làm việc',
+          slug: 'orbit-mini-bo-pha-gon',
+          blurb: 'Bản nháp đang hoàn thiện cho mẫu máy nhỏ hơn, ưu tiên dễ vệ sinh và vừa bàn làm việc.',
+          location: 'TP. Hồ Chí Minh',
+          status: 'DRAFT',
+          goalAmount: BigInt(360_000_000),
+          durationDays: 30,
+          members: { create: { userId: linhUser.id, role: 'OWNER' } },
+        },
+      });
+    }
+  }
+
+  if (gameCategory && lacStudioUser) {
     const existingLacViet = await prisma.campaign.findUnique({
-      where: { slug: 'lac-viet-su-thi-the-bai' },
+      where: { slug: 'lac-viet-boardgame' },
     });
 
     if (!existingLacViet) {
@@ -250,22 +291,30 @@ async function main() {
 
       const lacVietCampaign = await prisma.campaign.create({
         data: {
-          creatorId: minhAnhUser.id,
-          categoryId: artCategory.id,
-          title: 'Lạc Việt: Bản Hùng Ca — Board Game Dã Sử Việt Nam',
-          slug: 'lac-viet-su-thi-the-bai',
-          blurb: 'Trò chơi thẻ bài chiến thuật tái hiện các triều đại lịch sử Việt Nam với hơn 120 thẻ vẽ tay minh họa kỳ công.',
-          storyMarkdown: `## Giới thiệu dự án\n\nLạc Việt là dự án boardgame dã sử được nghiên cứu tư liệu qua hơn 2 năm, kết hợp giữa yếu tố giải trí trí tuệ và tình yêu lịch sử dân tộc.`,
-          risksMarkdown: `Chúng tôi đã liên kết cùng xưởng in chuyên nghiệp đạt chuẩn bài quốc tế tại Hà Nội. Khả năng chậm trễ rất thấp.`,
+          creatorId: lacStudioUser.id,
+          categoryId: gameCategory.id,
+          title: 'Lạc Việt — board game phiêu lưu qua 12 vùng văn hóa',
+          slug: 'lac-viet-boardgame',
+          blurb: 'Một chuyến đi kể bằng chiến thuật, dân gian và minh họa thủ công của họa sĩ trẻ Việt Nam.',
+          storyMarkdown: '## Giới thiệu dự án\n\nLạc Việt là ý tưởng trò chơi bàn lấy cảm hứng từ văn hóa Việt. Nhóm đang chỉnh luật chơi và minh họa để mỗi lượt có quyết định rõ ràng, dễ học với người chơi mới.',
+          risksMarkdown: 'Màu bản in và chất lượng vật liệu cần được kiểm qua bản mẫu. Nếu luật chơi phải sửa sau khi thử với nhóm nhỏ, lịch in và giao quà có thể lùi.',
           location: 'Hà Nội',
           status: 'LIVE',
-          goalAmount: BigInt(80_000_000),
+          goalAmount: BigInt(280_000_000),
           durationDays: 45,
           startsAt: now,
           publishedAt: now,
           endsAt,
           members: {
-            create: [{ userId: minhAnhUser.id, role: 'OWNER' }],
+            create: [{ userId: lacStudioUser.id, role: 'OWNER' }],
+          },
+          media: {
+            create: {
+              mediaType: 'IMAGE',
+              url: '/images/campaigns/lac-viet.png',
+              altText: 'Minh họa trò chơi Lạc Việt',
+              sortOrder: 1,
+            },
           },
           rewardTiers: {
             create: [
@@ -273,6 +322,7 @@ async function main() {
                 title: 'Hộp Trò chơi Cơ bản',
                 description: 'Bao gồm 120 thẻ bài, 1 bàn cờ vải lụa, xúc xắc gỗ và sách hướng dẫn.',
                 amount: BigInt(350_000),
+                requiresShipping: true,
                 items: ['1x Hộp game Lạc Việt', '1x Thẻ bài độc quyền cho Backer'],
                 quantityLimit: 500,
                 estimatedDelivery: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
@@ -283,6 +333,7 @@ async function main() {
                 title: 'Bản Sưu tầm Kỷ niệm',
                 description: 'Hộp gỗ sơn mài thủ công, thẻ bài phủ mạ vàng cạnh và artbook lịch sử.',
                 amount: BigInt(790_000),
+                requiresShipping: true,
                 items: ['1x Hộp gỗ sơn mài', '1x Bộ thẻ mạ cạnh', '1x Cuốn Artbook 80 trang'],
                 quantityLimit: 100,
                 estimatedDelivery: new Date(Date.now() + 50 * 24 * 60 * 60 * 1000),

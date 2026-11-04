@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, Min, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, Min, MinLength, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateAddOnDto {
@@ -26,4 +26,9 @@ export class CreateAddOnDto {
   @IsInt()
   @Min(1)
   quantityLimit?: number;
+
+  @ApiPropertyOptional({ description: 'Cần giao cùng gói quà', default: false })
+  @IsOptional()
+  @IsBoolean()
+  requiresShipping?: boolean;
 }

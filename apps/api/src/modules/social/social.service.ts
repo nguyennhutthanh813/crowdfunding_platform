@@ -89,6 +89,13 @@ export class SocialService {
       if (parentComment.campaignId !== campaignId) {
         throw new BadRequestException('Parent comment belongs to a different campaign');
       }
+      const member = await this.prisma.campaignMember.findUnique({
+        where: { campaignId_userId: { campaignId, userId } },
+        select: { role: true, canReplyComments: true },
+      });
+      if (member?.role === 'COLLABORATOR' && !member.canReplyComments) {
+        throw new ForbiddenException('Bạn chưa được cấp quyền trả lời bình luận trong chiến dịch này');
+      }
       parentAuthorId = parentComment.authorId;
     }
 
@@ -278,40 +285,22 @@ export class SocialService {
 
   private async resolveCampaignId(idOrSlug: string): Promise<string> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-    if (isUuid) {
-      const exists = await this.prisma.campaign.findUnique({ where: { id: idOrSlug }, select: { id: true } });
-      if (exists) return exists.id;
-    }
-    const bySlug = await this.prisma.campaign.findFirst({
-      where: {
-        OR: [
-          { slug: idOrSlug },
-          { slug: { contains: idOrSlug.replace(/^cmp_/, '') } },
-        ],
-      },
+    const campaign = await this.prisma.campaign.findUnique({
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
       select: { id: true },
     });
-    if (!bySlug) throw new NotFoundException('Campaign not found');
-    return bySlug.id;
+    if (!campaign) throw new NotFoundException('Campaign not found');
+    return campaign.id;
   }
 
   private async resolveCreatorId(idOrSlug: string): Promise<string> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-    if (isUuid) {
-      const exists = await this.prisma.user.findUnique({ where: { id: idOrSlug }, select: { id: true } });
-      if (exists) return exists.id;
-    }
-    const byUser = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: { contains: idOrSlug.replace(/^usr_/, '') } },
-          { displayName: { contains: idOrSlug } },
-        ],
-      },
+    const user = await this.prisma.user.findUnique({
+      where: isUuid ? { id: idOrSlug } : { email: idOrSlug.toLowerCase() },
       select: { id: true },
     });
-    if (!byUser) throw new NotFoundException('Creator not found');
-    return byUser.id;
+    if (!user) throw new NotFoundException('Creator not found');
+    return user.id;
   }
 
   // ─── Saved Campaigns ───────────────────────────────────

@@ -88,6 +88,7 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokens(user.id, user.email, user.roles.map((r) => r.role));
+    const visibleRoles = await this.getVisibleRoles(user.id, user.roles.map((r) => r.role));
 
     return {
       user: {
@@ -98,7 +99,7 @@ export class AuthService {
         phone: user.phone,
         bio: user.bio,
         location: user.location,
-        roles: user.roles.map((r) => r.role),
+        roles: visibleRoles,
       },
       tokens,
     };
@@ -113,6 +114,7 @@ export class AuthService {
     if (!user || user.status !== 'ACTIVE') {
       throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị khóa');
     }
+    const visibleRoles = await this.getVisibleRoles(user.id, user.roles.map((r) => r.role));
 
     return {
       id: user.id,
@@ -123,7 +125,7 @@ export class AuthService {
       bio: user.bio,
       location: user.location,
       status: user.status,
-      roles: user.roles.map((r) => r.role),
+      roles: visibleRoles,
     };
   }
 
@@ -146,6 +148,14 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  private async getVisibleRoles(userId: string, globalRoles: string[]) {
+    const collaborator = await this.prisma.campaignMember.findFirst({
+      where: { userId, role: 'COLLABORATOR' },
+      select: { userId: true },
+    });
+    return collaborator ? [...new Set([...globalRoles, 'COLLABORATOR'])] : globalRoles;
   }
 
   private async generateTokens(userId: string, email: string, roles: string[]) {

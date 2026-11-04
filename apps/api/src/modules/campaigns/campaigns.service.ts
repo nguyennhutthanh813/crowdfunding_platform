@@ -20,6 +20,7 @@ import { CreateCampaignFaqDto } from './dto/create-campaign-faq.dto';
 import { UpdateCampaignFaqDto } from './dto/update-campaign-faq.dto';
 import { CreateCampaignUpdateDto } from './dto/create-campaign-update.dto';
 import { AddCampaignMemberDto } from './dto/campaign-member.dto';
+import { UpdateCampaignMemberPermissionsDto } from './dto/update-campaign-member-permissions.dto';
 
 @Injectable()
 export class CampaignsService {
@@ -40,12 +41,18 @@ export class CampaignsService {
 
   async getCreatorCampaigns(userId: string) {
     return this.prisma.campaign.findMany({
-      where: {
-        OR: [
-          { creatorId: userId },
-          { members: { some: { userId } } },
-        ],
+      where: { creatorId: userId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { pledges: true, comments: true } },
       },
+    });
+  }
+
+  async getCollaboratorCampaigns(userId: string) {
+    return this.prisma.campaign.findMany({
+      where: { members: { some: { userId, role: 'COLLABORATOR' } } },
       orderBy: { updatedAt: 'desc' },
       include: {
         category: { select: { id: true, name: true, slug: true } },
@@ -60,7 +67,11 @@ export class CampaignsService {
     const { skip, take, orderBy } = buildPaginationArgs(query);
 
     const where: any = {};
-    if (query.status) where.status = query.status;
+    const publicStatuses = ['PRE_LAUNCH', 'LIVE', 'SUCCESSFUL', 'FAILED'];
+    if (query.status && !publicStatuses.includes(query.status)) {
+      throw new ForbiddenException('Trạng thái chiến dịch này không công khai');
+    }
+    where.status = query.status ?? { in: publicStatuses };
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.creatorId) where.creatorId = query.creatorId;
     if (query.search) {
@@ -117,6 +128,26 @@ export class CampaignsService {
     return campaign;
   }
 
+  async findPublicById(idOrSlug: string) {
+    const campaign = await this.findById(idOrSlug);
+    if (!['PRE_LAUNCH', 'LIVE', 'SUCCESSFUL', 'FAILED'].includes(campaign.status)) {
+      throw new NotFoundException('Không tìm thấy chiến dịch công khai');
+    }
+    return campaign;
+  }
+
+  async findManagedById(idOrSlug: string, userId: string) {
+    const campaign = await this.findById(idOrSlug);
+    const member = await this.prisma.campaignMember.findUnique({
+      where: { campaignId_userId: { campaignId: campaign.id, userId } },
+      select: { userId: true },
+    });
+    if (!member && campaign.creatorId !== userId) {
+      throw new ForbiddenException('Bạn không thuộc nhóm chiến dịch này');
+    }
+    return campaign;
+  }
+
   async create(creatorId: string, dto: CreateCampaignDto) {
     if (dto.goalAmount <= 0) {
       throw new BadRequestException('Goal amount must be greater than 0');
@@ -134,35 +165,41 @@ export class CampaignsService {
 
     const slug = this.generateSlug(dto.title);
 
-    const campaign = await this.prisma.campaign.create({
-      data: {
-        creatorId,
-        categoryId: dto.categoryId,
-        title: dto.title,
-        slug,
-        blurb: dto.blurb,
-        storyMarkdown: dto.storyMarkdown ?? '',
-        risksMarkdown: dto.risksMarkdown ?? '',
-        location: dto.location ?? 'Việt Nam',
-        goalAmount: dto.goalAmount,
-        durationDays: dto.durationDays,
-        members: {
-          create: { userId: creatorId, role: 'OWNER' },
+    return this.prisma.$transaction(async (tx) => {
+      const campaign = await tx.campaign.create({
+        data: {
+          creatorId,
+          categoryId: dto.categoryId,
+          title: dto.title,
+          slug,
+          blurb: dto.blurb,
+          storyMarkdown: dto.storyMarkdown ?? '',
+          risksMarkdown: dto.risksMarkdown ?? '',
+          location: dto.location ?? 'Việt Nam',
+          goalAmount: dto.goalAmount,
+          durationDays: dto.durationDays,
+          members: {
+            create: { userId: creatorId, role: 'OWNER' },
+          },
         },
-      },
-      include: {
-        creator: { select: { id: true, displayName: true, avatarUrl: true } },
-        category: { select: { id: true, name: true, slug: true } },
-      },
+        include: {
+          creator: { select: { id: true, displayName: true, avatarUrl: true } },
+          category: { select: { id: true, name: true, slug: true } },
+        },
+      });
+      await tx.userRole.upsert({
+        where: { userId_role: { userId: creatorId, role: 'CREATOR' } },
+        create: { userId: creatorId, role: 'CREATOR' },
+        update: {},
+      });
+      return campaign;
     });
-
-    return campaign;
   }
 
   async update(campaignId: string, userId: string, dto: UpdateCampaignDto) {
     const campaign = await this.ensureOwnership(campaignId, userId);
 
-    if (!['DRAFT', 'CHANGES_REQUESTED'].includes(campaign.status as string)) {
+    if (campaign.status !== 'DRAFT') {
       throw new BadRequestException('Campaign can only be edited in DRAFT status');
     }
 
@@ -202,7 +239,7 @@ export class CampaignsService {
   async submitForReview(campaignId: string, userId: string) {
     const campaign = await this.ensureOwnership(campaignId, userId);
 
-    if (!['DRAFT', 'CHANGES_REQUESTED'].includes(campaign.status as string)) {
+    if (campaign.status !== 'DRAFT') {
       throw new BadRequestException('Only draft campaigns can be submitted for review');
     }
 
@@ -260,6 +297,7 @@ export class CampaignsService {
         amount: dto.amount,
         items: dto.items ?? [],
         quantityLimit: dto.quantityLimit,
+        requiresShipping: dto.requiresShipping ?? false,
         estimatedDelivery: new Date(dto.estimatedDelivery),
         isFeatured: dto.isFeatured ?? false,
         sortOrder: dto.sortOrder ?? 0,
@@ -319,6 +357,7 @@ export class CampaignsService {
         description: dto.description,
         amount: dto.amount,
         quantityLimit: dto.quantityLimit,
+        requiresShipping: dto.requiresShipping ?? false,
       },
     });
   }
@@ -529,7 +568,7 @@ export class CampaignsService {
   // ─── Public Sub-resources ──────────────────────────────
 
   async getUpdates(idOrSlug: string) {
-    const campaign = await this.findById(idOrSlug);
+    const campaign = await this.findPublicById(idOrSlug);
     return this.prisma.campaignUpdate.findMany({
       where: { campaignId: campaign.id },
       orderBy: { publishedAt: 'desc' },
@@ -541,7 +580,7 @@ export class CampaignsService {
   }
 
   async getFaqs(idOrSlug: string) {
-    const campaign = await this.findById(idOrSlug);
+    const campaign = await this.findPublicById(idOrSlug);
     return this.prisma.campaignFaq.findMany({
       where: { campaignId: campaign.id },
       orderBy: { sortOrder: 'asc' },
@@ -549,7 +588,7 @@ export class CampaignsService {
   }
 
   async getRewards(idOrSlug: string) {
-    const campaign = await this.findById(idOrSlug);
+    const campaign = await this.findPublicById(idOrSlug);
     const [rewardTiers, addOns, shippingOptions] = await Promise.all([
       this.prisma.rewardTier.findMany({
         where: { campaignId: campaign.id, isActive: true },
@@ -568,14 +607,28 @@ export class CampaignsService {
   // ─── Campaign Updates (posts for backers) ──────────────
 
   async createUpdate(campaignId: string, userId: string, dto: CreateCampaignUpdateDto) {
-    await this.ensureMembership(campaignId, userId);
+    const member = await this.ensureMembership(campaignId, userId);
+    if (member.role !== 'OWNER' && !member.canPostUpdates) {
+      throw new ForbiddenException('Bạn chưa được cấp quyền đăng cập nhật chiến dịch');
+    }
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { status: true, slug: true },
+    });
+    if (!campaign || !['LIVE', 'SUCCESSFUL'].includes(campaign.status)) {
+      throw new BadRequestException('Trạng thái chiến dịch chưa cho phép đăng cập nhật');
+    }
+    const body = (dto.bodyMarkdown ?? dto.body ?? '').trim();
+    if (!dto.title.trim() || !body) {
+      throw new BadRequestException('Bản cập nhật cần tiêu đề và nội dung');
+    }
 
     const update = await this.prisma.campaignUpdate.create({
       data: {
         campaignId,
         authorId: userId,
         title: dto.title,
-        bodyMarkdown: dto.bodyMarkdown,
+        bodyMarkdown: body,
         publishedAt: new Date(),
       },
       include: {
@@ -600,7 +653,7 @@ export class CampaignsService {
           type: 'CAMPAIGN_UPDATE',
           title: `Cập nhật mới: ${dto.title}`,
           body: dto.title,
-          actionUrl: `/campaigns/${campaignId}?tab=updates`,
+          actionUrl: `/projects/${campaign.slug}?tab=updates`,
         })),
       });
     }
@@ -609,6 +662,40 @@ export class CampaignsService {
   }
 
   // ─── Members ───────────────────────────────────────────
+
+  async getMembers(campaignId: string, userId: string) {
+    await this.ensureMembership(campaignId, userId);
+    return this.prisma.campaignMember.findMany({
+      where: { campaignId },
+      include: { user: { select: { id: true, displayName: true, avatarUrl: true, email: true } } },
+      orderBy: { joinedAt: 'asc' },
+    });
+  }
+
+  async updateMemberPermissions(
+    campaignId: string,
+    memberUserId: string,
+    userId: string,
+    dto: UpdateCampaignMemberPermissionsDto,
+  ) {
+    await this.ensureOwnership(campaignId, userId);
+    const member = await this.prisma.campaignMember.findUnique({
+      where: { campaignId_userId: { campaignId, userId: memberUserId } },
+    });
+    if (!member || member.role !== 'COLLABORATOR') {
+      throw new NotFoundException('Không tìm thấy cộng tác viên trong chiến dịch này');
+    }
+
+    const permissions = new Set(dto.permissions);
+    return this.prisma.campaignMember.update({
+      where: { campaignId_userId: { campaignId, userId: memberUserId } },
+      data: {
+        canPostUpdates: permissions.has('Đăng cập nhật'),
+        canReplyComments: permissions.has('Trả lời bình luận'),
+        canViewAiDashboard: permissions.has('Xem dự báo'),
+      },
+    });
+  }
 
   async addMember(campaignId: string, userId: string, dto: AddCampaignMemberDto) {
     await this.ensureOwnership(campaignId, userId);

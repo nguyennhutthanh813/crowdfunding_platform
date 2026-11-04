@@ -17,7 +17,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Global prefix
-  const apiPrefix = configService.get<string>('API_PREFIX', 'api');
+  const apiPrefix = configService.get<string>('API_PREFIX', 'api/v1');
   app.setGlobalPrefix(apiPrefix);
 
   // Security
@@ -25,7 +25,7 @@ async function bootstrap() {
   app.use(compression());
 
   // CORS
-  const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:3000');
+  const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3100');
   app.enableCors({
     origin: corsOrigins.split(','),
     credentials: true,
