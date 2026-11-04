@@ -17,7 +17,7 @@ const variants = {
     title: "Chưa tổng hợp được dữ liệu chiến dịch.",
     copy: "Bản nháp và số liệu hiện có vẫn được giữ nguyên. Hãy thử lại trước khi thực hiện thao tác tiếp theo.",
     home: "/creator",
-    homeLabel: "Về tổng quan Creator",
+    homeLabel: "Về trang chủ dự án",
     shell: "bg-[#edf1e4]",
   },
   collaborator: {
@@ -33,7 +33,7 @@ const variants = {
     title: "Ca vận hành chưa lấy đủ dữ liệu.",
     copy: "Không có quyết định duyệt hay xử lý cảnh báo nào được gửi trong lần tải lỗi này.",
     home: "/admin",
-    homeLabel: "Về tổng quan Admin",
+    homeLabel: "Về bàn kiểm soát",
     shell: "bg-[#20232c] text-white",
   },
 } as const;
@@ -65,7 +65,7 @@ export function WorkspaceError({
           <AlertTriangle className="size-5" />
         </span>
         <p
-          className={`mt-6 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-lime" : "text-coral-dark"}`}
+          className={`mt-6 text-[11px] font-bold uppercase tracking-[0.14em] ${dark ? "text-lime" : "text-coral-dark"}`}
         >
           Không gian {config.label}
         </p>

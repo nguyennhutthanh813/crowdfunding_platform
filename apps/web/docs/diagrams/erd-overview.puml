@@ -1,0 +1,106 @@
+@startuml
+title ERD TỔNG QUAN THEO BOUNDED CONTEXT
+left to right direction
+skinparam backgroundColor #FBFAF6
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam ArrowColor #64756C
+skinparam packageStyle rectangle
+skinparam packageBorderColor #B9C3BD
+
+package "IDENTITY & RBAC" as Identity #EAF1DF {
+  entity users
+  entity user_roles
+  entity addresses
+}
+
+package "CAMPAIGN" as Campaign #FFF0E8 {
+  entity categories
+  entity campaigns
+  entity campaign_members
+  entity campaign_media
+  entity reward_tiers
+  entity add_ons
+  entity shipping_options
+  entity campaign_status_history
+  entity campaign_reviews
+}
+
+package "PLEDGE & PAYMENT" as Payment #E8F2F7 {
+  entity pledges
+  entity pledge_add_ons
+  entity payment_authorizations
+  entity payment_events
+  entity fulfillments
+}
+
+package "COMMUNITY & TEAM OPS" as Community #F3ECF7 {
+  entity saved_campaigns
+  entity creator_follows
+  entity prelaunch_subscriptions
+  entity interaction_events
+  entity campaign_updates
+  entity campaign_faqs
+  entity comments
+  entity question_assignments
+  entity comment_likes
+  entity messages
+  entity notifications
+  entity campaign_tasks
+  entity campaign_task_handoffs
+}
+
+package "AI & ANALYTICS" as Analytics #F4F3D9 {
+  entity daily_campaign_metrics
+  entity ai_model_versions
+  entity recommendation_results
+  entity campaign_predictions
+  entity prediction_factors
+  entity fraud_alerts
+  entity fraud_signals
+}
+
+package "ADMIN" as Governance #ECEFEF {
+  entity moderation_actions
+  entity platform_settings
+}
+
+users ||--o{ user_roles
+users ||--o{ addresses
+users ||--o{ campaigns : owns (1:N)
+users ||--o{ campaign_members
+categories ||--o{ campaigns
+campaigns ||--o{ campaign_members
+campaigns ||--o{ campaign_media
+campaigns ||--o{ reward_tiers
+campaigns ||--o{ add_ons
+campaigns ||--o{ shipping_options
+campaigns ||--o{ pledges
+users ||--o{ pledges : backs
+pledges ||--o{ pledge_add_ons
+add_ons ||--o{ pledge_add_ons
+pledges ||--o{ payment_authorizations
+payment_authorizations ||--o{ payment_events
+pledges ||--o| fulfillments
+campaigns ||--o{ campaign_updates
+campaigns ||--o{ comments
+comments ||--o| question_assignments : assigned
+campaign_members ||--o{ question_assignments
+comments ||--o{ comment_likes
+users ||--o{ comment_likes
+campaigns ||--o{ campaign_tasks
+users ||--o{ campaign_tasks : assignee
+campaign_tasks ||--o{ campaign_task_handoffs
+comments ||--o{ comments : replies
+campaigns ||--o{ interaction_events
+campaigns ||--o{ daily_campaign_metrics
+ai_model_versions ||--o{ campaign_predictions
+campaigns ||--o{ campaign_predictions
+campaign_predictions ||--o{ prediction_factors
+users ||--o{ recommendation_results
+campaigns ||--o{ recommendation_results
+campaigns ||--o{ fraud_alerts
+pledges |o--o{ fraud_alerts
+fraud_alerts ||--o{ fraud_signals
+users ||--o{ moderation_actions : admin
+@enduml

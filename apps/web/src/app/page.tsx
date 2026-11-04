@@ -9,20 +9,24 @@ import { FundingGuide } from "@/components/home/funding-guide";
 import { NotifyButton } from "@/components/notify-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { api } from "@/lib/api";
+import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getFriendlyName } from "@/lib/auth/roles";
 import { getServerSession } from "@/lib/auth/server-session";
 import { formatDate } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
+import { applyCampaignCardPreviewState } from "@/lib/preview-read-models";
 
 export default async function HomePage() {
-  const [campaigns, session] = await Promise.all([
+  const [baseCampaigns, session, platformState] = await Promise.all([
     api.listCampaigns(),
     getServerSession(),
+    getServerPlatformPreviewState(),
   ]);
+  const campaigns = baseCampaigns.map((campaign) =>
+    applyCampaignCardPreviewState(campaign, platformState),
+  );
   const featured = campaigns[0];
   const activeCampaigns = campaigns
-    .filter((campaign) => campaign.status === "LIVE" && campaign.id !== featured?.id)
+    .filter((campaign) => campaign.status === "LIVE" && campaign.id !== featured.id)
     .slice(0, 3);
   const upcoming =
     campaigns.find((campaign) => campaign.status === "PRE_LAUNCH") ?? campaigns[3];
@@ -33,10 +37,6 @@ export default async function HomePage() {
 
   return (
     <>
-      <div className="border-b border-forest/10 bg-forest py-2.5 text-center text-[11px] font-semibold text-white/78 sm:text-xs">
-        Góp theo cơ chế tất cả hoặc không — chưa đạt mục tiêu thì không thu tiền.
-      </div>
-
       <FeaturedCampaign campaign={featured} />
       <CategoryLinks />
 
@@ -86,7 +86,7 @@ export default async function HomePage() {
             </p>
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-muted">
               <span className="font-bold text-ink-soft">
-                Mở lúc {formatDate(upcoming.launchDate, {
+                Dự kiến mở theo mốc mẫu: {formatDate(upcoming.launchDate, {
                   hour: "2-digit",
                   minute: "2-digit",
                   day: "2-digit",

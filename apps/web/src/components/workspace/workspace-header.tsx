@@ -23,6 +23,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import type { UserRole } from "@/lib/api/contracts";
 import { roleLabels } from "@/lib/auth/roles";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
+import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import type { WorkspaceSnapshot } from "@/lib/workspace-snapshot";
 
 const headerTheme: Record<
@@ -125,7 +127,7 @@ function ContextBlock({
       <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`rounded-md border px-2 py-1 text-[9px] font-bold ${theme.chip}`}>
+            <span className={`rounded-md border px-2 py-1 text-[11px] font-bold ${theme.chip}`}>
               {snapshot.statusLabel}
             </span>
             <span className="truncate text-sm font-bold">{snapshot.contextTitle}</span>
@@ -138,22 +140,20 @@ function ContextBlock({
                   style={{ width: `${Math.min(100, snapshot.progress.value)}%` }}
                 />
               </span>
-              <span className="text-[10px] font-semibold text-white/68">
+              <span className="text-[11px] font-semibold text-white/68">
                 {snapshot.progress.label}
               </span>
             </div>
           ) : (
-            <p className="mt-1 max-w-lg truncate text-[10px] text-white/68">
+            <p className="mt-1 max-w-lg truncate text-[11px] text-white/68">
               {snapshot.contextDetail}
             </p>
           )}
         </div>
         <span className="h-9 border-l border-white/12" />
         <div className="hidden xl:block">
-          <p className="text-[9px] text-white/68">Việc đang mở</p>
-          <p className="mt-0.5 text-xs font-bold">
-            {snapshot.secondaryMetric.value} đầu việc
-          </p>
+          <p className="text-[11px] text-white/68">{snapshot.secondaryMetric.label}</p>
+          <p className="mt-0.5 text-xs font-bold">{snapshot.secondaryMetric.value}</p>
         </div>
       </div>
     );
@@ -167,12 +167,12 @@ function ContextBlock({
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-bold">{snapshot.contextTitle}</p>
-          <p className="mt-1 truncate text-[10px] text-[#bdd6ef]">
+          <p className="mt-1 truncate text-[11px] text-[#bdd6ef]">
             {snapshot.contextDetail}
           </p>
         </div>
-        <span className="ml-auto hidden rounded-[9px] border border-white/12 bg-white/6 px-3 py-2 text-[10px] font-semibold text-[#d8efff] xl:inline-flex">
-          {snapshot.primaryMetric.value} việc đang mở
+        <span className="ml-auto hidden rounded-[9px] border border-white/12 bg-white/6 px-3 py-2 text-[11px] font-semibold text-[#d8efff] xl:inline-flex">
+          {snapshot.primaryMetric.value} {snapshot.primaryMetric.label}
         </span>
       </div>
     );
@@ -181,13 +181,13 @@ function ContextBlock({
   return (
     <div className="hidden min-w-0 flex-1 items-center gap-5 md:flex">
       <div>
-        <p className="text-[9px] font-bold tracking-[0.12em] text-white/68">
+        <p className="text-[11px] font-bold tracking-[0.1em] text-white/68">
           PHIÊN VẬN HÀNH THỬ NGHIỆM
         </p>
         <p className="mt-1 text-xs font-bold">{snapshot.updatedLabel}</p>
       </div>
       <span className="h-9 border-l border-white/10" />
-      <div className="flex items-center gap-2 text-[10px]">
+      <div className="flex items-center gap-2 text-[11px]">
         <span className="rounded-[7px] border border-amber-300/18 bg-amber-300/8 px-2.5 py-1.5 text-amber-200">
           {snapshot.primaryMetric.value} hồ sơ đến hạn
         </span>
@@ -209,12 +209,23 @@ export function WorkspaceHeader({
   const pathname = usePathname();
   const { session, status, busy, switchRole, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const unreadCount = useUnreadNotifications(session?.user.id, role === "COLLABORATOR");
   const theme = headerTheme[role];
   const creatorSlug = snapshot.selectedCampaignSlug;
   const creatorShortName = snapshot.contextTitle.split("—")[0]?.trim();
   const copy =
-    role === "CREATOR" && creatorSlug
-      ? snapshot.selectedCampaignStatus === "SUCCESSFUL"
+    role === "CREATOR" && snapshot.isCreatingCampaign
+      ? { workspace: "Hồ sơ mới", action: "Xem chiến dịch của tôi", actionHref: "/creator" }
+    : role === "CREATOR" && creatorSlug
+      ? isPreviewCampaignId(creatorSlug)
+        ? {
+            workspace: "Hồ sơ chiến dịch",
+            action: snapshot.selectedCampaignStatus === "DRAFT" ? "Tiếp tục bản nháp" : "Xem tiến độ",
+            actionHref: snapshot.selectedCampaignStatus === "DRAFT"
+              ? `/creator/campaigns/new?draft=${creatorSlug}`
+              : `/creator/campaigns/${creatorSlug}/manage`,
+          }
+        : snapshot.selectedCampaignStatus === "SUCCESSFUL"
         ? {
             workspace: "Xưởng chiến dịch",
             action: "Theo dõi giao quà",
@@ -225,7 +236,7 @@ export function WorkspaceHeader({
             )
           ? {
               workspace: "Xưởng chiến dịch",
-              action: `Sửa ${creatorShortName}`,
+              action: snapshot.selectedCampaignStatus === "DRAFT" ? `Sửa ${creatorShortName}` : `Xem ${creatorShortName}`,
               actionHref: `/creator/campaigns/new?campaign=${creatorSlug}`,
             }
           : {
@@ -233,7 +244,11 @@ export function WorkspaceHeader({
               action: `Cập nhật ${creatorShortName}`,
               actionHref: `/creator/campaigns/${creatorSlug}/manage?tab=community`,
             }
-      : headerCopy[role];
+      : role === "COLLABORATOR" && snapshot.selectedCampaignSlug && isPreviewCampaignId(snapshot.selectedCampaignSlug)
+        ? { workspace: "Phần việc chiến dịch", action: "Mở phần việc", actionHref: `/collaborator/campaigns/${snapshot.selectedCampaignSlug}/manage` }
+        : role === "COLLABORATOR" && !snapshot.hasSeedCollaboratorCampaign
+          ? { workspace: "Bảng việc nhóm", action: "Xem lời mời", actionHref: "/collaborator#loi-moi" }
+          : headerCopy[role];
   const selectedRole =
     session?.user.roles.includes(role) ? role : session?.user.activeRole;
   const ActionIcon =
@@ -250,7 +265,7 @@ export function WorkspaceHeader({
       <div className="flex min-h-[72px] items-center gap-3 px-3 sm:px-5 lg:px-6">
         <Link
           href="/"
-          className="group shrink-0"
+          className="group inline-flex min-h-11 min-w-11 shrink-0 items-center"
           aria-label="Góp · Góp một phần · Làm nên chuyện · Trang chủ"
         >
           <BrandLogo
@@ -261,7 +276,7 @@ export function WorkspaceHeader({
         </Link>
         <span className={`hidden h-9 border-l sm:block ${theme.divider}`} />
         <div className="min-w-0 shrink-0">
-          <p className={`text-[9px] font-bold tracking-[0.12em] ${theme.muted}`}>
+          <p className={`text-[11px] font-bold tracking-[0.1em] ${theme.muted}`}>
             {roleLabels[role].toLocaleUpperCase("vi")}
           </p>
           <p className="mt-0.5 truncate font-display text-sm font-extrabold sm:text-base">
@@ -289,10 +304,10 @@ export function WorkspaceHeader({
           <Link
             href="/account?tab=notifications"
             className={`relative hidden size-11 place-items-center rounded-[10px] border sm:grid ${theme.iconButton}`}
-            aria-label="Mở thông báo"
+            aria-label={unreadCount ? `${unreadCount} câu hỏi mới được giao` : "Mở thông báo"}
           >
             <Bell className="size-4" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-current bg-coral" />
+            {unreadCount > 0 ? <span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-current bg-coral" /> : null}
           </Link>
 
           {status === "loading" ? (
@@ -302,10 +317,10 @@ export function WorkspaceHeader({
               <summary
                 className={`flex h-11 cursor-pointer list-none items-center gap-2 rounded-[10px] border p-1 pr-2.5 [&::-webkit-details-marker]:hidden ${theme.iconButton}`}
               >
-                <span className={`grid size-8 place-items-center rounded-[8px] font-display text-[10px] font-extrabold ${theme.avatar}`}>
+                <span className={`grid size-8 place-items-center rounded-[8px] font-display text-[11px] font-extrabold ${theme.avatar}`}>
                   {session.user.initials}
                 </span>
-                <span className="hidden max-w-28 truncate text-[11px] font-bold 2xl:block">
+                <span className="hidden max-w-28 truncate text-xs font-bold 2xl:block">
                   {session.user.name}
                 </span>
                 <ChevronDown className="size-3.5 opacity-55 transition-transform group-open/account:rotate-180" />
@@ -313,10 +328,10 @@ export function WorkspaceHeader({
               <div className="absolute right-0 top-[calc(100%+10px)] w-72 overflow-hidden rounded-[16px] border border-[#dedfdc] bg-white p-2 text-[#17251f] shadow-[0_24px_70px_rgba(9,20,16,0.22)]">
                 <div className="rounded-[12px] bg-[#f3f2ed] p-3">
                   <p className="truncate text-sm font-bold">{session.user.name}</p>
-                  <p className="mt-1 truncate text-[10px] text-[#77827d]">{session.user.email}</p>
+                  <p className="mt-1 truncate text-[11px] text-[#77827d]">{session.user.email}</p>
                 </div>
-                <label className="mt-2 block px-3 pb-2 pt-1 text-[10px] font-semibold text-[#77827d]">
-                  Chuyển không gian
+                <label className="mt-2 block px-3 pb-2 pt-1 text-[11px] font-semibold text-[#77827d]">
+                  Chuyển vai trò
                   <span className="relative mt-1.5 block">
                     <select
                       name="workspaceRole"
@@ -334,7 +349,7 @@ export function WorkspaceHeader({
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#77827d]" />
                   </span>
                 </label>
-                <Link href="/account" className="flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-xs font-semibold hover:bg-[#f3f2ed]">
+                <Link href="/account" className="flex min-h-11 items-center gap-2 rounded-[10px] px-3 py-2.5 text-xs font-semibold hover:bg-[#f3f2ed]">
                   <Settings className="size-4" /> Hồ sơ và cài đặt
                 </Link>
                 <button
@@ -380,11 +395,11 @@ export function WorkspaceHeader({
         <div className={`border-t px-3 pb-4 pt-3 sm:hidden ${theme.divider}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className={`text-[9px] font-bold ${theme.muted}`}>{snapshot.entityCode}</p>
+              <p className={`text-[11px] font-bold ${theme.muted}`}>{snapshot.entityCode}</p>
               <p className="mt-1 text-sm font-bold">{snapshot.contextTitle}</p>
-              <p className={`mt-1 text-[10px] ${theme.muted}`}>{snapshot.contextDetail}</p>
+              <p className={`mt-1 text-[11px] leading-5 ${theme.muted}`}>{snapshot.contextDetail}</p>
             </div>
-            <span className={`shrink-0 rounded-[7px] border px-2 py-1 text-[9px] font-bold ${theme.chip}`}>
+            <span className={`shrink-0 rounded-[7px] border px-2 py-1 text-[11px] font-bold ${theme.chip}`}>
               {snapshot.statusLabel}
             </span>
           </div>
@@ -393,13 +408,13 @@ export function WorkspaceHeader({
               <ActionIcon className="size-4" /> {copy.action}
             </Link>
             <Link href="/account?tab=notifications" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${theme.iconButton}`}>
-              <Bell className="size-4" /> Thông báo
+              <Bell className="size-4" /> Thông báo{unreadCount ? ` (${unreadCount})` : ""}
             </Link>
           </div>
           {session && selectedRole ? (
             <div className={`mt-3 border-t pt-3 ${theme.divider}`}>
-              <label className={`text-[10px] font-semibold ${theme.muted}`}>
-                Không gian làm việc
+              <label className={`text-[11px] font-semibold ${theme.muted}`}>
+                Vai trò đang dùng
                 <select
                   name="mobileWorkspaceRole"
                   value={selectedRole}
@@ -432,7 +447,7 @@ export function WorkspaceHeader({
             </Link>
           )}
           {role === "ADMIN" ? (
-            <p className="mt-3 flex items-start gap-2 text-[10px] leading-5 text-amber-200/75">
+            <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-amber-200/75">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Quyết định khóa vẫn cần quản trị viên xác nhận và ghi lý do.
             </p>
           ) : null}

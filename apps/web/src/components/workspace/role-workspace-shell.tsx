@@ -5,7 +5,6 @@ import {
   BarChart3,
   Bell,
   Bookmark,
-  Bot,
   Boxes,
   ClipboardCheck,
   FileCheck2,
@@ -15,6 +14,9 @@ import {
   Gift,
   HeartHandshake,
   History,
+  CircleHelp,
+  ChevronLeft,
+  ChevronRight,
   LayoutDashboard,
   MessageSquareText,
   PackageCheck,
@@ -29,11 +31,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { RoleGate } from "@/components/auth/role-gate";
 import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import type { UserRole } from "@/lib/api/contracts";
 import { roleLabels } from "@/lib/auth/roles";
 import { formatVnd, fundingPercent } from "@/lib/format";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 import type { WorkspaceSnapshot } from "@/lib/workspace-snapshot";
 
 interface WorkspaceNavItem {
@@ -59,11 +63,12 @@ const navigation: Record<UserRole, WorkspaceNavItem[]> = {
     { href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=content", label: "Nội dung & nhóm", note: "Thành viên", icon: Users },
     { href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community", label: "Cộng đồng", note: "Cập nhật & phản hồi", icon: MessageSquareText },
     { href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=fulfillment", label: "Giao quà", note: "Đơn & đối soát", icon: Gift },
-    { href: "/creator/ai", label: "Dự báo chiến dịch", note: "AI có giải thích", icon: Bot },
-    { href: "/creator/campaigns/new", label: "Chiến dịch mới", note: "Tạo bản nháp", icon: Plus },
+    { href: "/creator/ai", label: "Dự báo chiến dịch", note: "Có lý do và giới hạn", icon: BarChart3 },
+    { href: "/creator/campaigns/new", label: "Tạo chiến dịch mới", note: "Hồ sơ riêng của bạn", icon: Plus },
   ],
   COLLABORATOR: [
-    { href: "/collaborator", label: "Việc hôm nay", note: "Được giao cho bạn", icon: ClipboardCheck },
+    { href: "/collaborator", label: "Việc của tôi", note: "Được giao cho bạn", icon: ClipboardCheck },
+    { href: "/account?tab=notifications", label: "Thông báo việc", note: "Câu hỏi mới giao", icon: Bell },
     { href: "/collaborator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community", label: "Cộng đồng", note: "Bài đăng & bình luận", icon: MessageSquareText },
     { href: "/collaborator/forecast", label: "Dự báo được chia sẻ", note: "Chỉ xem", icon: BarChart3 },
     { href: "/projects/orbit-one-ca-phe-thong-minh", label: "Trang công khai", note: "Đối chiếu nội dung", icon: Boxes },
@@ -74,12 +79,16 @@ const navigation: Record<UserRole, WorkspaceNavItem[]> = {
     { href: "/admin?tab=reviews", label: "Duyệt chiến dịch", note: "Hồ sơ & bằng chứng", icon: FileCheck2 },
     { href: "/admin?tab=fraud", label: "Rủi ro giao dịch", note: "Tín hiệu cần xem", icon: ShieldAlert },
     { href: "/admin?tab=users", label: "Người dùng", note: "Trạng thái tài khoản", icon: UserRoundCog },
-    { href: "/admin?tab=settings", label: "Phí & nhật ký", note: "Cấu hình có audit", icon: Settings2 },
+    { href: "/admin?tab=settings", label: "Phí & nhật ký", note: "Cấu hình & lịch sử", icon: Settings2 },
     { href: "/system-design", label: "Hồ sơ hệ thống", note: "Use Case & ERD", icon: Boxes },
   ],
 };
 
 function creatorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
+  if (snapshot.isCreatingCampaign) return [
+    { href: "/creator", label: "Chiến dịch của tôi", note: "Danh sách hồ sơ", icon: LayoutDashboard },
+    { href: "/creator/campaigns/new", label: "Tạo chiến dịch mới", note: "Đang soạn hồ sơ", icon: Plus },
+  ];
   const slug = snapshot.selectedCampaignSlug ?? "orbit-one-ca-phe-thong-minh";
   const status = snapshot.selectedCampaignStatus ?? "LIVE";
   const shortName = snapshot.contextTitle.split("—")[0]?.trim() || "chiến dịch";
@@ -92,6 +101,27 @@ function creatorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
       icon: LayoutDashboard,
     },
   ];
+
+  if (!snapshot.creatorCampaigns?.length || isPreviewCampaignId(slug)) {
+    if (isPreviewCampaignId(slug)) {
+      items.push({
+        href: `/creator/campaigns/${slug}/manage`,
+        label: status === "LIVE" ? "Theo dõi gọi vốn" : "Tiến độ hồ sơ",
+        note: status === "LIVE" ? "Cam kết & trao đổi" : status === "IN_REVIEW" ? "Đang chờ duyệt" : status === "PRE_LAUNCH" ? "Đã duyệt · chờ mở" : "Bản nháp của bạn",
+        icon: FolderKanban,
+      });
+      if (status === "DRAFT" || status === "IN_REVIEW") items.push({
+        href: `/creator/campaigns/new?draft=${slug}`,
+        label: status === "DRAFT" ? "Chỉnh nội dung" : "Xem bản đã gửi",
+        note: "Câu chuyện & gói quà", icon: FilePenLine,
+      });
+      if (status === "PRE_LAUNCH" || status === "LIVE") items.push({
+        href: `/projects/${slug}`, label: "Trang cộng đồng", note: "Người ủng hộ nhìn thấy", icon: HeartHandshake,
+      });
+    }
+    items.push({ href: "/creator/campaigns/new", label: "Tạo chiến dịch mới", note: "Hồ sơ riêng của bạn", icon: Plus });
+    return items;
+  }
 
   if (status === "LIVE") {
     items.push(
@@ -124,8 +154,8 @@ function creatorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
       items.push({
         href: "/creator/ai",
         label: "Dự báo chiến dịch",
-        note: "AI có giải thích",
-        icon: Bot,
+        note: "Có lý do và giới hạn",
+        icon: BarChart3,
       });
     }
   } else if (status === "SUCCESSFUL") {
@@ -139,7 +169,7 @@ function creatorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
       {
         href: `${manageHref}?tab=fulfillment`,
         label: "Giao quà & đối soát",
-        note: "342 cam kết đã thu",
+        note: "Theo dõi cam kết & quà",
         icon: Gift,
       },
     );
@@ -156,26 +186,95 @@ function creatorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
               : "Bản nháp đang làm",
         icon: FolderKanban,
       },
-      {
+    );
+    if (slug === "orbit-mini-bo-pha-gon") {
+      items.push({
         href: `/creator/campaigns/new?campaign=${slug}`,
-        label: "Chỉnh sửa bản nháp",
+        label: "Chỉnh sửa ORBIT Mini",
         note: "Nội dung, quà & nhóm",
         icon: FilePenLine,
-      },
-    );
+      });
+    }
   }
 
   items.push({
     href: "/creator/campaigns/new",
-    label: "Chiến dịch mới",
-    note: "Tạo bản nháp trống",
+    label: "Tạo chiến dịch mới",
+    note: "Hồ sơ riêng của bạn",
     icon: Plus,
   });
   return items;
 }
 
 function workspaceNavigation(role: UserRole, snapshot: WorkspaceSnapshot) {
-  return role === "CREATOR" ? creatorNavigation(snapshot) : navigation[role];
+  const items = role === "CREATOR" ? creatorNavigation(snapshot)
+    : role === "COLLABORATOR" ? collaboratorNavigation(snapshot)
+    : navigation[role];
+  const guideAnchor: Record<UserRole, string> = {
+    BACKER: "nguoi-ung-ho", CREATOR: "chu-du-an",
+    COLLABORATOR: "cong-tac-vien", ADMIN: "quan-tri",
+  };
+  return [...items, {
+    href: `/huong-dan#${guideAnchor[role]}`,
+    label: "Hướng dẫn dùng Góp",
+    note: "Các bước cho vai trò này",
+    icon: CircleHelp,
+  }];
+}
+
+function collaboratorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
+  const items: WorkspaceNavItem[] = [
+    { href: "/collaborator", label: "Việc của tôi", note: "Lời mời & chiến dịch", icon: ClipboardCheck },
+    { href: "/account?tab=notifications", label: "Thông báo việc", note: "Câu hỏi mới giao", icon: Bell },
+  ];
+  const invitations = snapshot.collaboratorInvitations ?? [];
+  const current = invitations.find((item) => item.accepted && item.campaignId === snapshot.selectedCampaignSlug);
+  if (current) items.push({
+    href: `/collaborator/campaigns/${current.campaignId}/manage`,
+    label: current.title.split("—")[0]?.trim() || "Chiến dịch đang mở",
+    note: "Phần việc trong chiến dịch này",
+    icon: FolderKanban,
+  });
+  if (snapshot.hasSeedCollaboratorCampaign) {
+    items.push(
+      { href: "/collaborator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community", label: "ORBIT One", note: "Bài đăng & bình luận", icon: MessageSquareText },
+      { href: "/collaborator/forecast", label: "Dự báo được chia sẻ", note: "Theo quyền được cấp", icon: BarChart3 },
+    );
+  }
+  for (const item of invitations) {
+    if (item.accepted && item.campaignId !== current?.campaignId) items.push({
+      href: `/collaborator/campaigns/${item.campaignId}/manage`,
+      label: item.title.length > 28 ? `${item.title.slice(0, 27)}…` : item.title,
+      note: "Phần việc đã nhận", icon: FolderKanban,
+    });
+  }
+  if (invitations.some((item) => !item.accepted)) items.push({
+    href: "/collaborator#loi-moi", label: "Lời mời chưa nhận", note: "Xác nhận trước khi làm", icon: Bell,
+  });
+  if (snapshot.selectedCampaignSlug) items.push({
+    href: `/projects/${snapshot.selectedCampaignSlug}`, label: "Trang công khai", note: "Đối chiếu nội dung", icon: Boxes,
+  });
+  items.push({ href: "/account?tab=roles", label: "Quyền của tôi", note: "Tài khoản & phiên", icon: UserRoundCog });
+  return items;
+}
+
+function collaboratorSnapshotForLocation(snapshot: WorkspaceSnapshot, pathname: string): WorkspaceSnapshot {
+  const slug = pathname.match(/^\/collaborator\/campaigns\/([^/]+)\/manage/)?.[1];
+  const invitation = snapshot.collaboratorInvitations?.find((item) => item.campaignId === slug && item.accepted);
+  if (!invitation) return snapshot;
+  const permissionCount = Object.values(invitation.permissions).filter(Boolean).length;
+  return {
+    ...snapshot,
+    entityCode: `NHÓM · ${invitation.campaignId.slice(-6).toUpperCase()}`,
+    contextTitle: invitation.title,
+    contextDetail: "Phần việc bạn đã nhận trong chiến dịch",
+    statusLabel: invitation.status === "LIVE" ? "ĐANG GỌI VỐN" : invitation.status === "SUSPENDED" ? "TẠM DỪNG" : "SẮP MỞ",
+    primaryMetric: { label: "quyền được cấp", value: String(permissionCount) },
+    secondaryMetric: { label: "chiến dịch đã nhận", value: String(snapshot.collaboratorInvitations?.filter((item) => item.accepted).length ?? 0) },
+    updatedLabel: "Quyền được kiểm tra theo tài khoản đăng nhập",
+    selectedCampaignSlug: invitation.campaignId,
+    selectedCampaignStatus: invitation.status,
+  };
 }
 
 function creatorSnapshotForLocation(
@@ -183,13 +282,29 @@ function creatorSnapshotForLocation(
   pathname: string,
   campaignQuery: string | null,
 ): WorkspaceSnapshot {
+  if (pathname === "/creator/campaigns/new" && !campaignQuery) {
+    return {
+      ...snapshot,
+      entityCode: "HỒ SƠ MỚI",
+      contextTitle: "Chiến dịch mới",
+      contextDetail: "Điền năm bước, lưu bản nháp rồi gửi xét duyệt",
+      statusLabel: "ĐANG SOẠN",
+      primaryMetric: { label: "chiến dịch đã có", value: String(snapshot.scopeCount ?? snapshot.creatorCampaigns?.length ?? 0) },
+      secondaryMetric: { label: "bước trong form", value: "5" },
+      progress: undefined,
+      updatedLabel: "Hồ sơ này chưa gửi cho quản trị viên",
+      selectedCampaignSlug: undefined,
+      selectedCampaignStatus: undefined,
+      isCreatingCampaign: true,
+    };
+  }
   const slugFromPath = pathname.match(
     /^\/creator\/campaigns\/([^/]+)\/manage/,
   )?.[1];
   const slug =
     pathname === "/creator/campaigns/new" ? campaignQuery : slugFromPath;
   const campaign = snapshot.creatorCampaigns?.find(
-    (item) => item.slug === slug,
+    (item) => item.slug === slug || item.id === slug,
   );
   if (!campaign) return snapshot;
 
@@ -206,7 +321,9 @@ function creatorSnapshotForLocation(
 
   return {
     ...snapshot,
-    entityCode: `CMP · ${campaign.id.replace("cmp_", "").toUpperCase()}`,
+    entityCode: isPreviewCampaignId(campaign.id)
+      ? `HỒ SƠ · ${campaign.id.slice(-6).toUpperCase()}`
+      : `CMP · ${campaign.id.replace("cmp_", "").toUpperCase()}`,
     contextTitle: campaign.title,
     contextDetail: `${snapshot.scopeCount ?? snapshot.creatorCampaigns?.length ?? 1} chiến dịch · ${campaign.nextActionDetail}`,
     statusLabel: statusLabels[campaign.status],
@@ -225,8 +342,8 @@ function creatorSnapshotForLocation(
       ),
     },
     secondaryMetric: {
-      label: "việc đang mở",
-      value: String(campaign.openTaskCount),
+      label: isPreviewCampaignId(campaign.id) ? "người ủng hộ" : "việc đang mở",
+      value: String(isPreviewCampaignId(campaign.id) ? campaign.backerCount : campaign.openTaskCount),
     },
     progress: ["LIVE", "SUCCESSFUL"].includes(campaign.status)
       ? {
@@ -239,6 +356,9 @@ function creatorSnapshotForLocation(
       : undefined,
     selectedCampaignSlug: campaign.slug,
     selectedCampaignStatus: campaign.status,
+    updatedLabel: isPreviewCampaignId(campaign.id)
+      ? "Hồ sơ tạo trong bản thử · không giao dịch thật"
+      : snapshot.updatedLabel,
   };
 }
 
@@ -310,14 +430,23 @@ const shellTheme: Record<
 function navIsActive(
   item: WorkspaceNavItem,
   pathname: string,
-  currentTab: string | null,
+  currentSearch: Pick<URLSearchParams, "get">,
 ) {
   const url = new URL(item.href, "http://gop.local");
   if (url.pathname !== pathname) return false;
+  if (pathname === "/creator/campaigns/new") {
+    const campaign = currentSearch.get("campaign");
+    const draft = currentSearch.get("draft");
+    const itemCampaign = url.searchParams.get("campaign");
+    const itemDraft = url.searchParams.get("draft");
+    if (campaign) return itemCampaign === campaign;
+    if (draft) return itemDraft === draft;
+    return !itemCampaign && !itemDraft;
+  }
   const itemTab = url.searchParams.get("tab");
   if (!itemTab) return true;
   const defaultTab = pathname === "/dashboard" ? "backed" : pathname === "/admin" ? "overview" : pathname.includes("/manage") ? "overview" : null;
-  return itemTab === (currentTab ?? defaultTab);
+  return itemTab === (currentSearch.get("tab") ?? defaultTab);
 }
 
 function Sidebar({
@@ -335,11 +464,11 @@ function Sidebar({
   return (
     <aside className={`hidden min-h-[calc(100dvh-72px)] border-r lg:sticky lg:top-[72px] lg:flex lg:max-h-[calc(100dvh-72px)] lg:flex-col lg:overflow-y-auto ${theme.aside}`}>
       <div className={`border-b p-5 ${theme.divider}`}>
-        <p className={`text-[9px] font-bold tracking-[0.13em] ${theme.muted}`}>{snapshot.entityCode}</p>
+        <p className={`text-[11px] font-bold tracking-[0.1em] ${theme.muted}`}>{snapshot.entityCode}</p>
         <div className="mt-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="truncate font-display text-base font-extrabold">{snapshot.contextTitle}</h2>
-            <p className={`mt-1 text-[10px] leading-5 ${theme.muted}`}>{snapshot.contextDetail}</p>
+            <p className={`mt-1 text-xs leading-5 ${theme.muted}`}>{snapshot.contextDetail}</p>
           </div>
           <span className={`mt-1 size-2 shrink-0 rounded-full ${role === "ADMIN" ? "bg-[#e5484d]" : role === "BACKER" ? "bg-[#dc8a4b]" : role === "CREATOR" ? "bg-lime" : "bg-[#8fd2fb]"}`} />
         </div>
@@ -348,7 +477,7 @@ function Sidebar({
       <nav className="space-y-1 p-3" aria-label={`Điều hướng ${roleLabels[role]}`}>
         {items.map((item) => {
           const Icon = item.icon;
-          const active = navIsActive(item, pathname, searchParams.get("tab"));
+          const active = navIsActive(item, pathname, searchParams);
           const badge =
             role === "ADMIN" && item.href.includes("tab=fraud")
               ? snapshot.secondaryMetric.value
@@ -366,11 +495,11 @@ function Sidebar({
                 <Icon className="size-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[11px] font-bold">{item.label}</span>
-                <span className={`mt-0.5 block truncate text-[9px] ${active ? theme.activeMuted : theme.muted}`}>{item.note}</span>
+                <span className="block truncate text-xs font-bold">{item.label}</span>
+                <span className={`mt-0.5 block truncate text-[11px] ${active ? theme.activeMuted : theme.muted}`}>{item.note}</span>
               </span>
               {badge ? (
-                <span className={`grid min-w-5 place-items-center rounded-md px-1.5 py-1 text-[9px] font-extrabold ${active ? "bg-white/15" : role === "ADMIN" ? "bg-[#e5484d] text-white" : "bg-current/8"}`}>
+                <span className={`grid min-w-5 place-items-center rounded-md px-1.5 py-1 text-[11px] font-extrabold ${active ? "bg-white/15" : role === "ADMIN" ? "bg-[#e5484d] text-white" : "bg-current/8"}`}>
                   {badge}
                 </span>
               ) : null}
@@ -381,11 +510,11 @@ function Sidebar({
 
       <div className={`mx-4 mt-auto border-t py-4 ${theme.divider}`}>
         <div className={`rounded-[13px] border p-4 ${theme.panel}`}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
             {[snapshot.primaryMetric, snapshot.secondaryMetric].map((metric) => (
-              <div key={metric.label}>
-                <p className="font-display text-lg font-extrabold tabular-nums">{metric.value}</p>
-                <p className={`mt-1 text-[9px] leading-4 ${theme.muted}`}>{metric.label}</p>
+              <div key={metric.label} className={`flex items-center justify-between gap-2 border-b pb-2 last:border-b-0 last:pb-0 ${theme.divider}`}>
+                <p className={`min-w-0 text-[11px] leading-4 ${theme.muted}`}>{metric.label}</p>
+                <p className="shrink-0 text-right font-display text-base font-extrabold tabular-nums">{metric.value}</p>
               </div>
             ))}
           </div>
@@ -394,20 +523,20 @@ function Sidebar({
               <div className={`h-1.5 overflow-hidden rounded-full ${role === "BACKER" ? "bg-[#d7b999]/35" : "bg-white/10"}`}>
                 <span className={`block h-full rounded-full ${theme.progress}`} style={{ width: `${Math.min(100, snapshot.progress.value)}%` }} />
               </div>
-              <p className={`mt-2 text-[9px] font-semibold ${theme.muted}`}>{snapshot.progress.label}</p>
+              <p className={`mt-2 text-[11px] font-semibold ${theme.muted}`}>{snapshot.progress.label}</p>
             </div>
           ) : null}
-          <p className={`mt-3 border-t pt-3 text-[8px] leading-4 ${theme.divider} ${theme.muted}`}>{snapshot.updatedLabel}</p>
+          <p className={`mt-3 border-t pt-3 text-[11px] leading-4 ${theme.divider} ${theme.muted}`}>{snapshot.updatedLabel}</p>
         </div>
-        <p className={`mt-3 flex items-start gap-2 px-1 text-[9px] leading-4 ${theme.muted}`}>
+        <p className={`mt-3 flex items-start gap-2 px-1 text-[11px] leading-5 ${theme.muted}`}>
           {role === "BACKER" ? <HeartHandshake className="mt-0.5 size-3.5 shrink-0" /> : role === "ADMIN" ? <ShieldAlert className="mt-0.5 size-3.5 shrink-0" /> : role === "CREATOR" ? <PackageCheck className="mt-0.5 size-3.5 shrink-0" /> : <ReceiptText className="mt-0.5 size-3.5 shrink-0" />}
           {role === "BACKER"
-            ? "Cam kết thử nghiệm chỉ giữ hạn mức; đạt mục tiêu mới thu tiền."
+            ? "Cam kết mẫu không giữ hoặc thu tiền; tiến độ đang mô phỏng."
             : role === "CREATOR"
               ? "Số tiền chỉ được thu khi chiến dịch đạt mục tiêu."
               : role === "COLLABORATOR"
-                ? "Quyền cộng tác chỉ áp dụng trong chiến dịch ORBIT One."
-                : "AI chỉ xếp hạng ưu tiên; quản trị viên quyết định cuối."}
+                ? "Mỗi chiến dịch cấp quyền riêng; lời mời chưa nhận không cho phép thao tác."
+                : "Điểm cảnh báo chỉ xếp thứ tự kiểm tra; quản trị viên quyết định cuối."}
         </p>
       </div>
     </aside>
@@ -424,25 +553,57 @@ function MobileRoleNav({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const theme = shellTheme[role];
+  const navRef = useRef<HTMLElement>(null);
+  const [atEnd, setAtEnd] = useState(false);
+  const currentTab = searchParams.get("tab");
+  const currentCampaign = searchParams.get("campaign");
+  const currentDraft = searchParams.get("draft");
+
+  useEffect(() => {
+    navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [pathname, currentTab, currentCampaign, currentDraft]);
 
   return (
     <div className={`sticky top-[72px] z-40 border-b px-3 py-2 lg:hidden ${theme.mobile}`}>
-      <nav className="scrollbar-none flex gap-2 overflow-x-auto pb-0.5" aria-label={`Điều hướng nhanh ${roleLabels[role]}`}>
-        {workspaceNavigation(role, snapshot).map((item) => {
-          const Icon = item.icon;
-          const active = navIsActive(item, pathname, searchParams.get("tab"));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? "page" : undefined}
-              className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[9px] px-3 text-[11px] font-bold ${active ? role === "ADMIN" ? "bg-[#22252e] text-white" : role === "COLLABORATOR" ? "bg-[#173d65] text-white" : role === "CREATOR" ? "bg-[#102a22] text-white" : "bg-[#56352b] text-white" : "border border-black/8 bg-white/70 text-ink-soft"}`}
-            >
-              <Icon className="size-3.5" /> {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="flex items-center gap-2">
+        <nav
+          ref={navRef}
+          onScroll={(event) => {
+            const element = event.currentTarget;
+            setAtEnd(element.scrollLeft + element.clientWidth >= element.scrollWidth - 8);
+          }}
+          className="scrollbar-none flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5"
+          aria-label={`Điều hướng nhanh ${roleLabels[role]}`}
+        >
+          {workspaceNavigation(role, snapshot).map((item) => {
+            const Icon = item.icon;
+            const active = navIsActive(item, pathname, searchParams);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[9px] px-3 text-[11px] font-bold ${active ? role === "ADMIN" ? "bg-[#22252e] text-white" : role === "COLLABORATOR" ? "bg-[#173d65] text-white" : role === "CREATOR" ? "bg-[#102a22] text-white" : "bg-[#56352b] text-white" : "border border-black/8 bg-white/70 text-ink-soft"}`}
+              >
+                <Icon className="size-3.5" /> {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <button
+          type="button"
+          aria-label={atEnd ? "Về đầu danh sách mục" : "Xem thêm mục"}
+          onClick={() => {
+            const nav = navRef.current;
+            if (!nav) return;
+            nav.scrollTo({ left: atEnd ? 0 : nav.scrollLeft + nav.clientWidth * 0.8, behavior: "smooth" });
+          }}
+          className="grid size-11 shrink-0 place-items-center rounded-lg border border-line bg-white text-ink"
+        >
+          {atEnd ? <ChevronLeft className="size-5" /> : <ChevronRight className="size-5" />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -464,9 +625,11 @@ export function RoleWorkspaceShell({
       ? creatorSnapshotForLocation(
           snapshot,
           pathname,
-          searchParams.get("campaign"),
+          searchParams.get("draft") ?? searchParams.get("campaign"),
         )
-      : snapshot;
+      : role === "COLLABORATOR"
+        ? collaboratorSnapshotForLocation(snapshot, pathname)
+        : snapshot;
 
   return (
     <div className={`${workspaceClass} min-h-screen bg-[var(--canvas)]`}>

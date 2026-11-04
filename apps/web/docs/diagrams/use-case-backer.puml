@@ -1,0 +1,91 @@
+@startuml
+title USE CASE CHI TIẾT — GUEST & BACKER (21 USE CASE)
+left to right direction
+skinparam dpi 180
+skinparam backgroundColor #FBFAF6
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam linetype ortho
+skinparam ArrowColor #53665D
+skinparam ActorBorderColor #102A22
+skinparam ActorFontColor #102A22
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseBorderColor #93A199
+skinparam UsecaseFontColor #10251E
+skinparam PackageBorderColor #CBD3CE
+
+actor Guest
+actor Backer
+actor "Recommendation Service" as Reco
+actor "Stripe Sandbox" as Stripe
+
+rectangle "GÓP PLATFORM" {
+  package "Public & Identity" {
+    usecase "UC-G01\nXem danh sách campaign công khai" as G01
+    usecase "UC-G02\nTìm kiếm và lọc" as G02
+    usecase "UC-G03\nXem Project Detail 7 tab" as G03
+    usecase "UC-G04\nĐăng ký" as G04
+    usecase "UC-G05\nĐăng nhập / đăng xuất" as G05
+  }
+
+  package "Discovery & Engagement" {
+    usecase "UC-B01\nChọn sở thích ban đầu" as B01
+    usecase "UC-B02\nNhận Top-N Recommendation" as B02
+    usecase "UC-B03\nSave / Unsave campaign" as B03
+    usecase "UC-B04\nFollow / Unfollow Creator" as B04
+    usecase "UC-B05\nNotify me ở Pre-launch" as B05
+  }
+
+  package "Pledge — All-or-Nothing" {
+    usecase "UC-B06\nTạo pledge 4 bước" as B06
+    usecase "UC-B07\nChọn Reward hoặc không nhận quà" as B07
+    usecase "UC-B08\nChọn Add-on" as B08
+    usecase "UC-B09\nNhập địa chỉ Việt Nam" as B09
+    usecase "UC-B10\nAuthorize thanh toán" as B10
+  }
+
+  package "Community & Account" {
+    usecase "UC-B11\nViết / reply bình luận" as B11
+    usecase "UC-B12\nGửi câu hỏi" as B12
+    usecase "UC-B13\nXem Backed Projects" as B13
+    usecase "UC-B14\nTheo dõi fulfillment" as B14
+    usecase "UC-B15\nNhắn Creator" as B15
+    usecase "UC-B16\nXem Saved / Following /\nActivity / Settings" as B16
+  }
+}
+
+Guest --> G01
+Guest --> G02
+Guest --> G03
+Guest --> G04
+Guest --> G05
+Backer --|> Guest
+
+Backer --> B01
+Backer --> B02
+Backer --> B03
+Backer --> B04
+Backer --> B05
+Backer --> B06
+Backer --> B11
+Backer --> B12
+Backer --> B13
+Backer --> B14
+Backer --> B15
+Backer --> B16
+
+B01 .> B02 : <<extend>>\n[cold-start]
+B02 --> Reco
+B06 .> B07 : <<include>>
+B08 .> B06 : <<extend>>\n[tùy chọn]
+B06 .> B09 : <<include>>
+B06 .> B10 : <<include>>
+B10 --> Stripe
+B13 .> B14 : <<include>>
+
+note bottom of B10
+  AUTHORIZED = chưa thu tiền.
+  Campaign đạt Goal mới capture;
+  không đạt thì cancel.
+end note
+@enduml

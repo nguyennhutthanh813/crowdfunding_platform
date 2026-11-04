@@ -24,8 +24,12 @@ import { roleDestinations, roleLabels } from "@/lib/auth/roles";
 type Mode = "SIGN_IN" | "REGISTER";
 
 function safeDestination(nextPath: string | undefined, fallback: string) {
-  if (nextPath?.startsWith("/") && !nextPath.startsWith("//")) return nextPath;
+  if (nextPath?.startsWith("/") && !nextPath.startsWith("//") && !nextPath.includes("\\")) return nextPath;
   return fallback;
+}
+
+function isCreatorDestination(path: string) {
+  return /^\/creator(?:\/|\?|$)/.test(path);
 }
 
 function destinationAfterQuickSignIn(
@@ -47,7 +51,9 @@ function destinationAfterQuickSignIn(
     destination.startsWith(item.prefix),
   );
 
-  return !area || session.user.roles.includes(area.role)
+  return !area ||
+    session.user.roles.includes(area.role) ||
+    (area.role === "CREATOR" && session.user.roles.includes("BACKER"))
     ? destination
     : fallback;
 }
@@ -69,6 +75,7 @@ export function AuthPanel({
   const [quickAccountId, setQuickAccountId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const creatorIntent = nextPath ? isCreatorDestination(nextPath) : false;
 
   const changeMode = (nextMode: Mode) => {
     setMode(nextMode);
@@ -86,9 +93,8 @@ export function AuthPanel({
       destinationOverride ??
       safeDestination(nextPath, roleDestinations[nextSession.user.activeRole]);
 
-    // Tài khoản demo cần đi thẳng sang workspace và đọc lại cookie từ server.
-    // Full navigation ở nhánh này ổn định hơn khi bấm đổi role liên tục lúc demo.
-    if (destinationOverride) {
+    // Điều hướng lại toàn trang để server đọc cookie mới trước khi dựng khu làm việc.
+    if (destinationOverride || (registered && isCreatorDestination(destination))) {
       window.location.replace(destination);
       return;
     }
@@ -161,6 +167,7 @@ export function AuthPanel({
   };
 
   if (status === "authenticated" && session) {
+    const destination = destinationAfterQuickSignIn(nextPath, session);
     return (
       <div className="mx-auto max-w-xl rounded-[20px] border border-emerald-200 bg-white p-7 text-center shadow-[var(--shadow-card)] sm:p-10">
         <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-lime font-display text-lg font-extrabold text-forest">
@@ -171,8 +178,9 @@ export function AuthPanel({
           Chào {session.user.name}
         </h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-ink-soft">
-          {session.user.headline}. Bạn có thể mở khu vực đang dùng hoặc chỉnh
-          lại thông tin tài khoản.
+          {isCreatorDestination(destination) && !session.user.roles.includes("CREATOR")
+            ? "Tài khoản này đang là Người ủng hộ. Chọn tiếp tục để xác nhận thêm vai trò Chủ dự án trước khi tạo chiến dịch."
+            : `${session.user.headline}. Bạn có thể mở khu vực đang dùng hoặc chỉnh lại thông tin tài khoản.`}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           {session.user.roles.map((role) => (
@@ -186,10 +194,13 @@ export function AuthPanel({
         </div>
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
-            href={roleDestinations[session.user.activeRole]}
+            href={destination}
             className="button-dark"
           >
-            Mở không gian làm việc <ArrowRight className="size-4" />
+            {destination.startsWith("/creator/campaigns/new")
+              ? "Tiếp tục tạo chiến dịch"
+              : "Mở không gian làm việc"}{" "}
+            <ArrowRight className="size-4" />
           </Link>
           <Link href="/account" className="button-secondary">
             Cài đặt tài khoản
@@ -244,9 +255,22 @@ export function AuthPanel({
           </h1>
           <p className="mt-3 max-w-lg text-sm leading-6 text-ink-muted">
             {mode === "SIGN_IN"
-              ? "Tiếp tục theo dõi dự án bạn quan tâm hoặc quản lý công việc đang làm."
-              : "Bạn sẽ bắt đầu với vai trò Người ủng hộ và có thể mở thêm quyền Chủ dự án khi cần."}
+              ? creatorIntent
+                ? "Đăng nhập để tạo chiến dịch. Nếu tài khoản chưa có vai trò Chủ dự án, bạn sẽ được hỏi trước khi mở thêm quyền."
+                : "Tiếp tục theo dõi dự án bạn quan tâm hoặc quản lý công việc đang làm."
+              : creatorIntent
+                ? "Tạo tài khoản trước, sau đó xác nhận vai trò Chủ dự án để vào hồ sơ chiến dịch mới."
+                : "Bạn sẽ bắt đầu với vai trò Người ủng hộ và có thể mở thêm quyền Chủ dự án khi cần."}
           </p>
+          {mode === "SIGN_IN" ? (
+            <a
+              href="#tai-khoan-mau"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-coral/25 bg-[#fff5eb] px-4 text-sm font-bold text-coral-dark hover:bg-[#ffebdc] lg:hidden"
+            >
+              Muốn xem thử? Chọn tài khoản mẫu
+              <ArrowRight className="size-4 shrink-0" />
+            </a>
+          ) : null}
         </div>
 
         <form onSubmit={submit} className="mt-8 space-y-4" noValidate>
@@ -393,14 +417,15 @@ export function AuthPanel({
           <div className="flex items-start gap-2 rounded-xl bg-[#f5f6f0] p-3 text-[11px] leading-5 text-ink-muted">
             <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-700" />
             {mode === "SIGN_IN"
-              ? "Sau khi đăng nhập, bạn sẽ quay lại đúng trang vừa mở."
-              : "Thông tin ở bản trải nghiệm chỉ dùng để mô phỏng luồng tạo tài khoản."}
+              ? "Nếu tài khoản có quyền, bạn sẽ quay lại trang vừa mở."
+              : "Đây là bản dùng thử. Hãy dùng email giả để kiểm tra; bạn có thể đăng xuất rồi đăng nhập lại."}
           </div>
         </form>
       </div>
 
       <DemoAccountPicker
         busyAccountId={quickAccountId}
+        creatorIntent={creatorIntent}
         disabled={submitting || quickAccountId !== null}
         onSelect={(account) => void quickSignIn(account)}
       />

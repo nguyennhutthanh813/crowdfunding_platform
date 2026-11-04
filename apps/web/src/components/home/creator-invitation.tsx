@@ -18,8 +18,9 @@ export function CreatorInvitation() {
             Bắt đầu bằng một kế hoạch đủ rõ để mọi người cùng tin
           </h2>
           <p className="mt-5 text-sm leading-7 text-ink-soft">
-            Tạo bản nháp, hoàn thiện từng phần rồi gửi duyệt. Bạn vẫn có thể
-            xem trước trang chiến dịch trước khi công khai.
+            Tạo hồ sơ riêng, lưu nháp rồi quay lại bổ sung mục tiêu, câu chuyện,
+            gói quà và kế hoạch giao hàng. Khi sẵn sàng, gửi cho quản trị viên
+            xem xét trước khi mở gọi vốn.
           </p>
           <ul className="mt-6 space-y-3 text-sm text-ink-soft">
             {checkpoints.map((item) => (
@@ -32,22 +33,22 @@ export function CreatorInvitation() {
             ))}
           </ul>
           <Link href="/creator/campaigns/new" className="button-dark mt-8 w-fit">
-            Tạo bản nháp chiến dịch <ArrowRight className="size-4" />
+            Bắt đầu hồ sơ của bạn <ArrowRight className="size-4" />
           </Link>
         </div>
         <div className="relative min-h-[330px] lg:min-h-[470px]">
           <Image
-            src="/images/editorial/cong-dong-xuong-san-pham-v3.webp"
-            alt="Nhóm phát triển sản phẩm cùng kiểm tra bản mẫu và kế hoạch tại xưởng"
+            src="/images/editorial/buoi-gioi-thieu-san-pham-v1.webp"
+            alt="Ảnh minh họa nhóm làm sản phẩm giới thiệu bản mẫu trò chơi cho người quan tâm tại một quán nhỏ"
             fill
             sizes="(max-width: 1024px) 100vw, 54vw"
-            className="object-cover object-[64%_center]"
+            className="object-cover object-center"
           />
           <div className="absolute inset-x-5 bottom-5 rounded-xl bg-white/92 p-4 shadow-sm backdrop-blur-sm sm:inset-x-auto sm:bottom-7 sm:left-7 sm:max-w-sm">
-            <p className="text-xs font-bold text-forest">Từ bản mẫu đến lô sản xuất đầu tiên</p>
-            <p className="mt-1 text-[11px] leading-5 text-ink-soft">
-              Cộng đồng không chỉ góp tiền, họ còn góp phản hồi để sản phẩm tốt
-              hơn trước ngày giao.
+            <p className="text-xs font-bold text-forest">Buổi giới thiệu bản mẫu · Ảnh minh họa</p>
+            <p className="mt-1 text-sm leading-5 text-ink-soft">
+              Người quan tâm có thể xem thử, hỏi về kế hoạch và góp ý trước khi
+              quyết định đồng hành.
             </p>
           </div>
         </div>

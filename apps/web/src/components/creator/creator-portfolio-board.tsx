@@ -6,7 +6,6 @@ import {
   Files,
   FolderKanban,
   MapPin,
-  Plus,
   TrendingUp,
   UsersRound,
   WalletCards,
@@ -19,8 +18,12 @@ import type {
   CreatorPortfolioData,
 } from "@/lib/api/contracts";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 
 function getCampaignHref(campaign: CreatorPortfolioCampaign) {
+  if (isPreviewCampaignId(campaign.id)) {
+    return `/creator/campaigns/${campaign.id}/manage`;
+  }
   if (campaign.nextAction === "OPERATE" && campaign.status === "LIVE") {
     return `/creator/campaigns/${campaign.slug}/manage?tab=overview`;
   }
@@ -42,7 +45,7 @@ function CampaignFacts({
       className={`grid grid-cols-3 gap-3 border-y py-4 ${dark ? "border-white/12" : "border-line"}`}
     >
       <div>
-        <p className={`text-[9px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
+        <p className={`text-[11px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
           Người ủng hộ
         </p>
         <p className="mt-1 text-sm font-extrabold tabular-nums">
@@ -50,7 +53,7 @@ function CampaignFacts({
         </p>
       </div>
       <div>
-        <p className={`text-[9px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
+        <p className={`text-[11px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
           Thành viên
         </p>
         <p className="mt-1 text-sm font-extrabold tabular-nums">
@@ -58,7 +61,7 @@ function CampaignFacts({
         </p>
       </div>
       <div>
-        <p className={`text-[9px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
+        <p className={`text-[11px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
           Việc đang mở
         </p>
         <p className="mt-1 text-sm font-extrabold tabular-nums">
@@ -69,7 +72,7 @@ function CampaignFacts({
   );
 }
 
-function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }) {
+function ActiveCampaignCard({ campaign, showTimeline }: { campaign: CreatorPortfolioCampaign; showTimeline: boolean }) {
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
   const remainingAmount = Math.max(0, campaign.goalAmount - campaign.pledgedAmount);
   const neededPerDay = campaign.daysLeft > 0 ? remainingAmount / campaign.daysLeft : 0;
@@ -94,12 +97,12 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={campaign.status} />
-            <span className="rounded-full border border-lime/25 bg-lime/10 px-2.5 py-1 text-[10px] font-bold text-lime">
+            <span className="rounded-full border border-lime/25 bg-lime/10 px-2.5 py-1 text-[11px] font-bold text-lime">
               ĐANG CHỌN
             </span>
           </div>
-          <span className="text-[10px] font-semibold text-white/68">
-            OWNER · {campaign.category}
+          <span className="text-[11px] font-semibold text-white/68">
+            CHỦ DỰ ÁN · {campaign.category}
           </span>
         </div>
 
@@ -113,7 +116,7 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
         <div className="mt-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-[10px] text-white/68">Tổng cam kết</p>
+              <p className="text-[11px] text-white/68">Tổng cam kết</p>
               <p className="mt-1 font-display text-2xl font-extrabold text-lime">
                 {formatVnd(campaign.pledgedAmount)}
               </p>
@@ -133,7 +136,7 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
         <CampaignFacts campaign={campaign} dark />
 
         <div className="mt-5 rounded-[14px] border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-[9px] font-bold tracking-[0.1em] text-white/68">
+          <p className="text-[11px] font-bold tracking-[0.1em] text-white/68">
             TIẾN TRÌNH RIÊNG CỦA CHIẾN DỊCH
           </p>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -144,8 +147,8 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
               ["Giao quà", "Sau thành công", "text-white/68"],
             ].map(([label, value, tone]) => (
               <div key={label} className="border-l border-white/12 pl-2.5">
-                <p className="text-[8px] text-white/68">{label}</p>
-                <p className={`mt-1 text-[10px] font-bold ${tone}`}>{value}</p>
+                <p className="text-[11px] text-white/68">{label}</p>
+                <p className={`mt-1 text-[11px] font-bold ${tone}`}>{value}</p>
               </div>
             ))}
           </div>
@@ -155,15 +158,15 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
           <div className="rounded-[14px] border border-white/10 bg-black/10 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="flex items-center gap-1.5 text-[9px] font-bold tracking-[0.08em] text-white/68">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-white/68">
                   <TrendingUp className="size-3.5 text-lime" /> NHỊP GỌI VỐN GẦN ĐÂY
                 </p>
-                <p className="mt-1.5 text-[10px] text-white/68">
+                <p className="mt-1.5 text-[11px] text-white/68">
                   Số cộng dồn theo lần chốt dữ liệu
                 </p>
               </div>
               {latestChange > 0 ? (
-                <span className="rounded-full bg-lime/10 px-2.5 py-1 text-[9px] font-bold text-lime">
+                <span className="rounded-full bg-lime/10 px-2.5 py-1 text-[11px] font-bold text-lime">
                   +{formatVnd(latestChange, true)}
                 </span>
               ) : null}
@@ -191,13 +194,13 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
                     </span>
                   ))}
                 </div>
-                <div className="mt-2 flex justify-between text-[8px] text-white/68">
+                <div className="mt-2 flex justify-between text-[11px] text-white/68">
                   <span>{campaign.fundingTrend[0]?.date}</span>
                   <span>{campaign.fundingTrend.at(-1)?.date} · {formatVnd(campaign.pledgedAmount, true)}</span>
                 </div>
               </>
             ) : (
-              <p className="mt-5 text-[10px] leading-5 text-white/68">
+              <p className="mt-5 text-[11px] leading-5 text-white/68">
                 Biểu đồ sẽ xuất hiện khi chiến dịch bắt đầu nhận cam kết.
               </p>
             )}
@@ -210,11 +213,11 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
               ["Bình quân", `${formatVnd(averagePledge, true)}/cam kết`],
             ].map(([label, value], index) => (
               <div key={label} className="bg-[#102a22] px-3 py-3.5">
-                <p className="flex items-center gap-1.5 text-[8px] text-white/68">
+                <p className="flex items-center gap-1.5 text-[11px] text-white/68">
                   {index === 0 ? <WalletCards className="size-3 text-lime" /> : null}
                   {label}
                 </p>
-                <p className="mt-1 text-[10px] font-extrabold text-white/78">{value}</p>
+                <p className="mt-1 text-[11px] font-extrabold text-white/78">{value}</p>
               </div>
             ))}
           </div>
@@ -225,7 +228,7 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
             <Clock3 className="mt-0.5 size-4 shrink-0 text-lime" />
             <div>
               <p className="text-xs font-bold">{campaign.nextActionLabel}</p>
-              <p className="mt-1 max-w-md text-[10px] leading-5 text-white/68">
+              <p className="mt-1 max-w-md text-[11px] leading-5 text-white/68">
                 {campaign.nextActionDetail}
               </p>
             </div>
@@ -237,6 +240,7 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
             Mở chiến dịch <ArrowRight className="size-4" />
           </Link>
         </div>
+        {showTimeline ? <Link href={`/campaigns/${campaign.id}/timeline`} className="mt-3 inline-flex min-h-11 w-fit items-center text-xs font-bold text-lime hover:underline">Xem tiến độ và lịch sử thao tác →</Link> : null}
       </div>
     </article>
   );
@@ -244,8 +248,10 @@ function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }
 
 function SecondaryCampaignCard({
   campaign,
+  showTimeline,
 }: {
   campaign: CreatorPortfolioCampaign;
+  showTimeline: boolean;
 }) {
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
   const isDraftLike = ["DRAFT", "IN_REVIEW", "PRE_LAUNCH"].includes(
@@ -256,8 +262,8 @@ function SecondaryCampaignCard({
     <article className="rounded-[20px] border border-line bg-white p-5 transition-[border-color,box-shadow] hover:border-forest/20 hover:shadow-[0_16px_42px_rgba(23,47,37,0.07)] sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <StatusBadge status={campaign.status} />
-        <span className="text-[9px] font-bold tracking-[0.08em] text-ink-muted">
-          OWNER · {campaign.category.toLocaleUpperCase("vi")}
+        <span className="text-[11px] font-bold tracking-[0.08em] text-ink-muted">
+          CHỦ DỰ ÁN · {campaign.category.toLocaleUpperCase("vi")}
         </span>
       </div>
       <h3 className="mt-4 font-display text-xl font-extrabold leading-tight tracking-[-0.035em]">
@@ -267,12 +273,12 @@ function SecondaryCampaignCard({
         {campaign.blurb}
       </p>
 
-      <div className="mt-5 flex items-center gap-2 text-[10px] text-ink-muted">
+      <div className="mt-5 flex items-center gap-2 text-[11px] text-ink-muted">
         <MapPin className="size-3.5" /> {campaign.location}
       </div>
 
       <div className="mt-4">
-        <div className="flex items-center justify-between gap-3 text-[10px]">
+        <div className="flex items-center justify-between gap-3 text-[11px]">
           <span className="font-bold text-ink">
             {isDraftLike ? "Chưa mở nhận cam kết" : formatVnd(campaign.pledgedAmount)}
           </span>
@@ -293,7 +299,7 @@ function SecondaryCampaignCard({
         )}
         <div>
           <p className="text-[11px] font-bold">{campaign.nextActionLabel}</p>
-          <p className="mt-1 text-[10px] leading-4 text-ink-muted">
+          <p className="mt-1 text-[11px] leading-4 text-ink-muted">
             {campaign.nextActionDetail}
           </p>
         </div>
@@ -305,14 +311,17 @@ function SecondaryCampaignCard({
       >
         {campaign.nextActionLabel} <ArrowRight className="size-4" />
       </Link>
+      {showTimeline ? <Link href={`/campaigns/${campaign.id}/timeline`} className="mt-2 inline-flex min-h-11 w-full items-center justify-center text-xs font-bold text-[#426450] hover:underline">Xem tiến độ và lịch sử</Link> : null}
     </article>
   );
 }
 
 export function CreatorPortfolioBoard({
   portfolio,
+  showTimeline = false,
 }: {
   portfolio: CreatorPortfolioData;
+  showTimeline?: boolean;
 }) {
   const activeCampaign =
     portfolio.campaigns.find(
@@ -328,26 +337,22 @@ export function CreatorPortfolioBoard({
   if (!activeCampaign) return null;
 
   return (
-    <section id="danh-muc-chien-dich" className="scroll-mt-28" aria-labelledby="portfolio-title">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+    <section id="danh-muc-chien-dich" className="flex scroll-mt-28 flex-col" aria-labelledby="portfolio-title">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <span className="eyebrow text-[#587024]">
             <FolderKanban className="size-4" /> Danh mục của chủ dự án
           </span>
-          <h2 id="portfolio-title" className="mt-3 font-display text-2xl font-extrabold tracking-[-0.04em] sm:text-3xl">
-            {portfolio.summary.total} chiến dịch, mỗi chiến dịch một nhịp riêng.
+          <h2 id="portfolio-title" className="mt-2 font-display text-2xl font-extrabold tracking-[-0.04em] sm:mt-3 sm:text-3xl">
+            Chiến dịch của bạn
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-            Một tài khoản chủ dự án có thể tạo và quản lý nhiều chiến dịch. Nhóm,
-            cam kết, quà tặng và trạng thái được tách riêng để không lẫn dữ liệu.
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-soft sm:mt-3">
+            {portfolio.summary.total} chiến dịch ở các giai đoạn khác nhau. Mỗi chiến dịch có tiến độ và nhóm riêng.
           </p>
         </div>
-        <Link href="/creator/campaigns/new" className="button-secondary min-h-11 shrink-0 px-4 text-xs">
-          <Plus className="size-4" /> Thêm chiến dịch
-        </Link>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="order-2 mt-4 grid gap-3 sm:order-1 sm:mt-5 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
             label: "Tổng chiến dịch",
@@ -370,7 +375,7 @@ export function CreatorPortfolioBoard({
           {
             label: "Đã thành công",
             value: portfolio.summary.successful,
-            note: formatVnd(successfulPledgedAmount, true) + " đã đối soát",
+            note: formatVnd(successfulPledgedAmount, true) + " cam kết mẫu",
             icon: CheckCircle2,
           },
         ].map((item) => {
@@ -381,10 +386,10 @@ export function CreatorPortfolioBoard({
                 <Icon className="size-4" />
               </span>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-ink-muted">{item.label}</p>
+                <p className="text-[11px] font-semibold text-ink-muted">{item.label}</p>
                 <p className="mt-0.5 flex items-baseline gap-2">
                   <span className="font-display text-xl font-extrabold tabular-nums">{item.value}</span>
-                  <span className="truncate text-[9px] text-ink-muted">{item.note}</span>
+                  <span className="truncate text-[11px] text-ink-muted">{item.note}</span>
                 </p>
               </div>
             </div>
@@ -392,18 +397,17 @@ export function CreatorPortfolioBoard({
         })}
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <ActiveCampaignCard campaign={activeCampaign} />
+      <div className="order-1 mt-5 grid gap-4 sm:order-2 sm:mt-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <ActiveCampaignCard campaign={activeCampaign} showTimeline={showTimeline} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
           {otherCampaigns.map((campaign) => (
-            <SecondaryCampaignCard key={campaign.id} campaign={campaign} />
+            <SecondaryCampaignCard key={campaign.id} campaign={campaign} showTimeline={showTimeline} />
           ))}
         </div>
       </div>
-
-      <p className="mt-3 flex items-center gap-2 text-[10px] leading-5 text-ink-muted">
+      <p className="order-3 mt-3 flex items-center gap-2 text-[11px] leading-5 text-ink-muted">
         <UsersRound className="size-3.5 shrink-0" />
-        Quyền OWNER áp dụng theo từng chiến dịch; cộng tác viên của ORBIT One không tự động xem được ORBIT Mini.
+        Quyền chủ dự án áp dụng riêng cho từng chiến dịch; cộng tác viên của ORBIT One không tự động xem được ORBIT Mini.
       </p>
     </section>
   );

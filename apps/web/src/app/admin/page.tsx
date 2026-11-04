@@ -4,10 +4,7 @@ import { api } from "@/lib/api";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getServerSession } from "@/lib/auth/server-session";
 import { applyAdminPreviewState } from "@/lib/preview-read-models";
-import { fetchRealAdminUsers } from "@/lib/api/real-admin-users";
-import { fetchRealReviewQueue } from "@/lib/api/real-admin-reviews";
-
-export const dynamic = "force-dynamic";
+import { localDbEnabled } from "@/lib/local-db/database";
 
 export const metadata: Metadata = {
   title: "Quản trị hệ thống",
@@ -21,21 +18,6 @@ export default async function AdminPage() {
     getServerSession(),
     getServerPlatformPreviewState(),
   ]);
-
-  // Lấy dữ liệu người dùng thật và hàng chờ xét duyệt chiến dịch từ PostgreSQL
-  const [realUsers, realReviews] = await Promise.all([
-    fetchRealAdminUsers(session?.tokens?.accessToken),
-    fetchRealReviewQueue(session?.tokens?.accessToken),
-  ]);
-
-  if (realUsers && realUsers.length > 0) {
-    baseData.users = realUsers;
-  }
-
-  if (realReviews) {
-    baseData.reviewQueue = realReviews;
-  }
-
   const data = applyAdminPreviewState(baseData, session, platformState);
-  return <AdminWorkspace data={data} />;
+  return <AdminWorkspace data={data} localDbAvailable={localDbEnabled()} />;
 }

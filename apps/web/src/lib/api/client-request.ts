@@ -103,7 +103,8 @@ export async function clientRequest<T>(
         message: detail?.message ?? fallbackForStatus(response.status),
         code: detail?.code ?? `HTTP_${response.status}`,
         status: response.status,
-        retryable: response.status === 408 || response.status === 429 || response.status >= 500,
+        retryable: (response.status === 409 && detail?.code === "LOCAL_DB_STALE") ||
+          response.status === 408 || response.status === 429 || response.status >= 500,
         fieldErrors: detail?.fieldErrors,
       });
     }

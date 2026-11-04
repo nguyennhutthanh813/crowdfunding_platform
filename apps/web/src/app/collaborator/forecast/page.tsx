@@ -75,7 +75,7 @@ export default async function CollaboratorForecastPage() {
           </div>
           <div className="mt-7 flex max-w-xl items-center justify-between rounded-[12px] border border-[#c8d9ec] bg-white px-4 py-3">
             <div>
-              <p className="text-[10px] font-bold text-ink-muted">
+              <p className="text-[11px] font-bold text-ink-muted">
                 Đang phân tích
               </p>
               <p className="mt-1 text-sm font-bold">{data.campaign.title}</p>

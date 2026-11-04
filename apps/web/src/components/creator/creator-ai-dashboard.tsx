@@ -8,7 +8,6 @@ import {
   Info,
   Lightbulb,
   ShieldCheck,
-  Sparkles,
   Target,
   TrendingUp,
   Users,
@@ -125,9 +124,9 @@ export function CreatorAiDashboard({
         <article className="min-w-0 rounded-[20px] border border-line bg-white p-6 sm:p-7">
           <div className="flex items-center justify-between">
             <span className="eyebrow text-coral">
-              <Sparkles className="size-4" /> Dự báo hôm nay
+              <BarChart3 className="size-4" /> Dự báo hôm nay
             </span>
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
               RỦI RO THẤP
             </span>
           </div>
@@ -151,8 +150,9 @@ export function CreatorAiDashboard({
             </div>
           </div>
           <p className="mt-7 text-center text-xs leading-5 text-ink-muted">
-            Cao hơn <strong className="text-ink">14 điểm</strong> so với lần
-            đánh giá trước khi mở gọi vốn.
+            Mốc minh họa hiện cao hơn{" "}
+            <strong className="text-ink">14 điểm</strong> so với dữ liệu mẫu
+            trước khi mở gọi vốn.
           </p>
           <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#f2f6e8] p-4 text-xs leading-5 text-[#53622f]">
             <Info className="mt-0.5 size-4 shrink-0" /> Dự báo không phải lời
@@ -170,10 +170,10 @@ export function CreatorAiDashboard({
                 <TrendingUp className="size-4" /> Nhịp gọi vốn
               </p>
               <h2 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
-                Thực tế đang đi trước đường kỳ vọng
+                Tiến độ vốn so với đường kỳ vọng
               </h2>
             </div>
-            <div className="flex gap-4 text-[10px] text-ink-muted">
+            <div className="flex gap-4 text-[11px] text-ink-muted">
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-2 rounded-full bg-coral" /> Thực tế
               </span>
@@ -198,7 +198,7 @@ export function CreatorAiDashboard({
                 Yếu tố đang tác động đến dự báo
               </h2>
             </div>
-            <span className="hidden rounded-full border border-line px-3 py-1.5 text-[10px] font-bold text-ink-muted sm:block">
+            <span className="hidden rounded-full border border-line px-3 py-1.5 text-[11px] font-bold text-ink-muted sm:block">
               SHAP · giải thích từng yếu tố
             </span>
           </div>
@@ -213,7 +213,7 @@ export function CreatorAiDashboard({
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${factor.direction === "positive" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${factor.direction === "positive" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
                   >
                     {factor.direction === "positive" ? "+" : "−"}
                     {factor.impact} điểm
@@ -268,7 +268,7 @@ export function CreatorAiDashboard({
                     <p className="mt-3 font-display text-xl font-extrabold">
                       {formatNumber(item.value)}
                     </p>
-                    <p className="mt-1 text-[10px] text-white/42">
+                    <p className="mt-1 text-[11px] text-white/42">
                       {item.label}
                     </p>
                   </div>
@@ -330,7 +330,7 @@ export function CreatorAiDashboard({
             >
               <div className="flex items-center justify-between">
                 <span
-                  className={`rounded-full px-2 py-1 text-[9px] font-bold ${suggestion.priority === "HIGH" ? "bg-red-50 text-red-700" : suggestion.priority === "MEDIUM" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}
+                  className={`rounded-full px-2 py-1 text-[11px] font-bold ${suggestion.priority === "HIGH" ? "bg-red-50 text-red-700" : suggestion.priority === "MEDIUM" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}
                 >
                   {priorityLabels[suggestion.priority]}
                 </span>

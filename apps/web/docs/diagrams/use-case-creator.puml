@@ -1,0 +1,85 @@
+@startuml
+title USE CASE CHI TIẾT — CREATOR & COLLABORATOR (15 USE CASE)
+left to right direction
+skinparam dpi 180
+skinparam backgroundColor #FBFAF6
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam linetype ortho
+skinparam ArrowColor #53665D
+skinparam ActorBorderColor #102A22
+skinparam ActorFontColor #102A22
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseBorderColor #93A199
+skinparam UsecaseFontColor #10251E
+skinparam PackageBorderColor #CBD3CE
+
+actor Creator
+actor "Collaborator\n(theo campaign)" as Collaborator
+actor Admin
+actor "Success Prediction Service" as Predictor
+
+rectangle "GÓP PLATFORM" {
+  package "Campaign Setup" {
+    usecase "UC-C01\nTạo campaign draft" as C01
+    usecase "UC-C02\nSửa thông tin và nội dung" as C02
+    usecase "UC-C03\nĐặt Goal và Duration" as C03
+    usecase "UC-C04\nQuản lý Reward Tiers" as C04
+    usecase "UC-C05\nQuản lý Add-on và Shipping" as C05
+    usecase "UC-C06\nGán / gỡ Collaborator" as C06
+  }
+
+  package "Prediction & Approval" {
+    usecase "UC-C07\nChạy Success Prediction cho Draft" as C07
+    usecase "UC-C08\nGửi campaign để duyệt" as C08
+    usecase "UC-C09\nXem phản hồi Admin" as C09
+    usecase "UC-C10\nCông khai Pre-launch" as C10
+    usecase "UC-C11\nLaunch campaign" as C11
+    usecase "UC-C12\nXem funding metric và\nlive prediction" as C12
+  }
+
+  package "Campaign Operations" {
+    usecase "UC-C13\nĐăng Updates" as C13
+    usecase "UC-C14\nTrả lời bình luận có badge" as C14
+    usecase "UC-C15\nQuản lý fulfillment" as C15
+  }
+}
+
+Creator --> C01
+Creator --> C02
+Creator --> C03
+Creator --> C04
+Creator --> C05
+Creator --> C06
+Creator --> C07
+Creator --> C08
+Creator --> C09
+Creator --> C10
+Creator --> C11
+Creator --> C12
+Creator --> C13
+Creator --> C14
+Creator --> C15
+
+Collaborator --> C12
+Collaborator --> C13
+Collaborator --> C14
+Admin --> C08 : nhận hồ sơ
+Admin --> C09 : gửi feedback
+
+C01 .> C02 : <<include>>
+C01 .> C03 : <<include>>
+C01 .> C04 : <<include>>
+C01 .> C05 : <<include>>
+C07 --> Predictor
+C07 .> C08 : <<extend>>\n[Creator chạy AI]
+C09 .> C08 : <<extend>>\n[cần bổ sung]
+C10 .> C08 : <<include>>\n[đã duyệt]
+C11 .> C10 : <<include>>
+C12 --> Predictor
+
+note bottom of Collaborator
+  Chỉ được xem AI, đăng Update và Reply
+  trên campaign đã được Creator gán quyền.
+end note
+@enduml

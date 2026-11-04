@@ -1,10 +1,11 @@
-import type { Metadata } from 'next';
-import { RecoveryForm } from '@/components/auth/recovery-form';
-import { BrandLogo } from '@/components/brand-logo';
+import type { Metadata } from "next";
+import { RecoveryForm } from "@/components/auth/recovery-form";
+import { BrandLogo } from "@/components/brand-logo";
 
 export const metadata: Metadata = {
-  title: 'Khôi phục tài khoản',
-  description: 'Đặt lại mật khẩu tài khoản Góp Ý.',
+  title: "Khôi phục tài khoản",
+  description:
+    "Thử biểu mẫu khôi phục tài khoản của Góp; thao tác này chưa đổi mật khẩu thật.",
 };
 
 export default function ForgotPasswordPage() {
@@ -18,10 +19,12 @@ export default function ForgotPasswordPage() {
           <BrandLogo />
           <p className="eyebrow mt-16 text-lime">An toàn tài khoản</p>
           <h2 className="mt-4 font-display text-3xl font-extrabold tracking-[-0.05em]">
-            Khôi phục quyền truy cập tài khoản.
+            Thử các bước khôi phục tài khoản.
           </h2>
-          <p className="mt-5 text-sm leading-7 text-white/70">
-            Nhập email của bạn để nhận mã xác nhận OTP 6 chữ số và tạo mật khẩu mới an toàn. Hệ thống sẽ cập nhật mật khẩu trực tiếp cho tài khoản của bạn.
+          <p className="mt-5 text-sm leading-7 text-white/55">
+            Nhập email, kiểm tra mã mẫu và thử biểu mẫu mật khẩu mới. Bản dùng thử
+            chưa gửi email hoặc cập nhật mật khẩu; tài khoản mẫu vẫn dùng thông
+            tin đăng nhập ban đầu.
           </p>
         </aside>
         <div className="p-7 sm:p-10 md:p-12">

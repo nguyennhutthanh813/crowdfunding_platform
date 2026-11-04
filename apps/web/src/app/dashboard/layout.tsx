@@ -1,23 +1,23 @@
 import { RoleWorkspaceShell } from "@/components/workspace/role-workspace-shell";
 import { api } from "@/lib/api";
 import { getServerSession } from "@/lib/auth/server-session";
+import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { buildUserDashboard } from "@/lib/dashboard-preview";
 import { buildBackerWorkspaceSnapshot } from "@/lib/workspace-snapshot";
-
-export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sampleData, campaigns, session] = await Promise.all([
+  const [sampleData, campaigns, session, platformState] = await Promise.all([
     api.getUserDashboard(),
     api.listCampaigns(),
     getServerSession(),
+    getServerPlatformPreviewState(),
   ]);
   const data = session
-    ? buildUserDashboard(sampleData, campaigns, session)
+    ? buildUserDashboard(sampleData, campaigns, session, platformState)
     : sampleData;
 
   return (

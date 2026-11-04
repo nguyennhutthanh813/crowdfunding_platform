@@ -25,17 +25,6 @@ export function ProjectActions({ campaignId }: { campaignId: string }) {
 
   const share = async () => {
     try {
-      fetch("/api/v1/analytics/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          campaignId,
-          eventType: "VIEW",
-          source: "share_action",
-          metadata: { shared: true },
-        }),
-      }).catch(() => null);
-
       if (navigator.share) {
         await navigator.share({
           title: document.title,
@@ -50,7 +39,6 @@ export function ProjectActions({ campaignId }: { campaignId: string }) {
       setNotice("Chưa thể chia sẻ liên kết trên thiết bị này.");
     }
   };
-
 
   const toggleSaved = async () => {
     if (!session) {
@@ -100,7 +88,7 @@ export function ProjectActions({ campaignId }: { campaignId: string }) {
           <Share2 className="size-4" /> {copied ? "Đã chép link" : "Chia sẻ"}
         </button>
       </div>
-      <p className="mt-2 text-right text-[10px] text-red-600" role="status">
+      <p className="mt-2 text-right text-[11px] text-red-600" role="status">
         {notice}
       </p>
     </div>

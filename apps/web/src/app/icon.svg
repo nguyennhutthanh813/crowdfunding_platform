@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="1" y="1" width="62" height="62" rx="11" fill="#f2eadb" stroke="#17392f" stroke-width="2"/>
+  <text x="32" y="28" text-anchor="middle" fill="#17392f" font-family="Arial,sans-serif" font-size="22" font-weight="800" letter-spacing="-1">PT</text>
+  <path d="M12 33h40" stroke="#c95339" stroke-width="3" stroke-linecap="round"/>
+  <text x="32" y="55" text-anchor="middle" fill="#17392f" font-family="Arial,sans-serif" font-size="22" font-weight="800" letter-spacing="-1">NT</text>
+</svg>

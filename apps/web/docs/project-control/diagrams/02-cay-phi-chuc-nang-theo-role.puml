@@ -1,0 +1,33 @@
+@startmindmap
+skinparam backgroundColor #FBFAF6
+skinparam defaultFontName Arial
+skinparam defaultFontSize 15
+skinparam shadowing false
+skinparam ArrowColor #5A6C64
+skinparam LineThickness 1
+skinparam nodesep 24
+skinparam ranksep 28
+scale max 2200 width
+*[#15352B] <color:#FFFFFF><b>GÓP</b></color>\n<color:#FFFFFF>CÂY YÊU CẦU PHI CHỨC NĂNG THEO VAI TRÒ</color>
+**[#E7F0F6] <b>GUEST</b>
+***[#FFFFFF] <b>TÌM THẤY & ĐỌC ĐƯỢC - NFR-G01</b>\n• Metadata rõ cho trang public\n• Nội dung chính dùng semantic heading\n• Ảnh có alt; bàn phím đi được luồng chính
+***[#FFFFFF] <b>NHANH & AN TOÀN - NFR-G02</b>\n• LCP public target <= 2,5 giây\n• Chỉ lộ dữ liệu campaign công khai\n• 390/768/1440 px không tràn ngang
+**[#E8F1D8] <b>BACKER</b>
+***[#FFFFFF] <b>TIN CẬY THANH TOÁN - NFR-B01</b>\n• AUTHORIZED = giữ hạn mức, chưa thu\n• Tổng tiền tính lại ở server\n• Một pledge/campaign/backer và snapshot giá
+***[#FFFFFF] <b>DỄ DÙNG & RIÊNG TƯ - NFR-B02</b>\n• Validation theo từng bước, giữ bản nhập\n• Địa chỉ chỉ Việt Nam, che thông tin thẻ\n• Draft tin nhắn và tab không mất khi chuyển qua lại
+**[#FBE7DF] <b>CREATOR</b>
+***[#FFFFFF] <b>SOẠN DỮ LIỆU AN TOÀN - NFR-C01</b>\n• Có lưu nháp và phản hồi thành công/lỗi\n• Giới hạn độ dài, tiền VND, duration\n• Ảnh tối ưu và có mô tả thay thế
+***[#FFFFFF] <b>AI GIẢI THÍCH ĐƯỢC - NFR-C02</b>\n• Có model version và input snapshot\n• Probability đi cùng factors, không nói chắc chắn\n• Không biến dự báo thành lời cam kết kết quả
+***[#FFFFFF] <b>TRỢ LÝ CÓ KIỂM SOÁT - NFR-C03</b>\n• Prompt version + input snapshot\n• Nội dung người dùng luôn được coi là dữ liệu\n• Gợi ý chỉ điền nháp, cần người duyệt
+left side
+**[#EEE9F8] <b>COLLABORATOR</b>
+***[#FFFFFF] <b>QUYỀN TỐI THIỂU - NFR-CO01</b>\n• Kiểm tra quyền tại API, không chỉ ẩn nút\n• Giao câu hỏi theo campaign_id + user_id\n• Badge phản ánh đúng vai trò trong campaign
+***[#FFFFFF] <b>PHỐI HỢP RÕ - NFR-CO02</b>\n• Task/câu hỏi có người nhận và trạng thái\n• Câu hỏi giao lại tạo lượt đọc mới đúng người\n• Bàn giao để lại mốc thời gian\n• Thao tác lỗi vẫn giữ nội dung đang làm
+**[#F4E8E6] <b>ADMIN</b>
+***[#FFFFFF] <b>AUDIT & HUMAN-IN-THE-LOOP - NFR-A01</b>\n• Quyết định luôn có admin, lý do, timestamp\n• Fraud score chỉ xếp thứ tự xem xét\n• Không công khai IP/device thô
+***[#FFFFFF] <b>VẬN HÀNH ỔN ĐỊNH - NFR-A02</b>\n• Review có SLA và trạng thái quá hạn\n• Đối soát payment có mốc chốt dữ liệu\n• Bộ lọc, form và quyết định giữ khi đổi tab
+**[#EEF1EF] <b>SHARED / WORKER</b>
+***[#FFFFFF] <b>NỀN TẢNG - NFR-S01</b>\n• Next.js deploy Vercel, không phụ thuộc disk runtime\n• UI chỉ phụ thuộc PlatformApi contract\n• VND, vi-VN và múi giờ Asia/Ho_Chi_Minh
+***[#FFFFFF] <b>RELIABILITY & SECURITY - NFR-S02</b>\n• RBAC, validate input, secret chỉ ở server\n• Webhook/job idempotent, retry có giới hạn\n• Loading/empty/error/fallback cho API, AI, payment
+***[#FFFFFF] <b>QUALITY GATE - NFR-S03</b>\n• TypeScript + ESLint + production build\n• E2E hai nhánh Successful/Failed\n• Test desktop, tablet, mobile và keyboard
+@endmindmap

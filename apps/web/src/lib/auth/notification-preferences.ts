@@ -17,7 +17,7 @@ export function isNotificationPreferences(
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   const keys = Object.keys(defaultNotificationPreferences);
-  // Bốn trường cũ vẫn được nhận để các client demo trước đây không bị lỗi.
+  // Giữ tương thích với bốn lựa chọn đã lưu từ các phiên dùng thử trước.
   return (
     Object.keys(record).every((key) => keys.includes(key)) &&
     keys.every((key) =>

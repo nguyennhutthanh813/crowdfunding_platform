@@ -1,41 +1,38 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+/node_modules/
 
-# testing
-/coverage
+# file sinh khi test hoặc tạo sơ đồ
+/coverage/
+/output/
+/.local-data/
+/.diagram-tools/
+/.playwright-cli/
+/agent-skills/vendor/
 
-# next.js
+# Next.js
 /.next/
 /out/
+/build/
 
-# production
-/build
-
-# misc
+# file local
 .DS_Store
 *.pem
 
-# debug
+# log của package manager
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# biến môi trường; chỉ giữ file mẫu
 .env*
+!.env.example
 
-# vercel
-.vercel
-
-# typescript
+# Vercel và TypeScript
+/.vercel/
 *.tsbuildinfo
 next-env.d.ts
+
+# Next 16 tự tạo lại hai file này khi chạy dev.
+/AGENTS.md
+/CLAUDE.md

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sparkles } from "lucide-react";
+import { Compass } from "lucide-react";
 import { InterestPreferences } from "@/components/account/interest-preferences";
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ export default async function OnboardingPage({
       <div className="container-shell grid gap-6 lg:grid-cols-[330px_minmax(0,1fr)] lg:items-start">
         <aside className="rounded-[20px] border border-forest/10 bg-[#e7eee4] p-7 text-ink sm:p-9 lg:sticky lg:top-24">
           <span className="grid size-12 place-items-center rounded-[12px] bg-forest text-lime">
-            <Sparkles className="size-5" />
+            <Compass className="size-5" />
           </span>
           <p className="eyebrow mt-6 text-forest">Bước đầu tiên</p>
           <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">

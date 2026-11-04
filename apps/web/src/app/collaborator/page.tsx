@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import {
   ArrowRight,
+  BarChart3,
   Check,
   CheckCircle2,
   Clock3,
   ListChecks,
   ShieldCheck,
-  Sparkles,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -16,18 +16,67 @@ import { CollaboratorTaskList } from "@/components/collaborator/task-list";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RoleConnectionPanel } from "@/components/workspace/role-connection-panel";
 import { api } from "@/lib/api";
-import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
+import { getServerPlatformPreviewState, type PlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getFriendlyName } from "@/lib/auth/roles";
 import { getServerSession } from "@/lib/auth/server-session";
-import { applyOperationsPreviewState } from "@/lib/preview-read-models";
+import { applyCampaignCardPreviewState, applyOperationsPreviewState } from "@/lib/preview-read-models";
 import { formatVnd } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
+import { localDbEnabled } from "@/lib/local-db/database";
+import { previewInvitationsForUser } from "@/lib/auth/preview-collaborators";
+import { resolveCampaignAccess } from "@/lib/auth/campaign-access";
+import { AcceptPreviewInvitation } from "@/components/collaborator/preview-campaign-actions";
 
 export const metadata: Metadata = {
   title: "Không gian cộng tác viên",
   description: "Theo dõi chiến dịch được mời, công việc và quyền cộng tác.",
 };
+
+function InvitationBoard({ invitations, givenName, platform, viewerId, empty = false }: {
+  invitations: ReturnType<typeof previewInvitationsForUser>;
+  givenName: string;
+  platform: PlatformPreviewState;
+  viewerId?: string;
+  empty?: boolean;
+}) {
+  if (!invitations.length && !empty) return null;
+  const pendingCount = invitations.filter((item) => !item.accepted).length;
+  return <section id="loi-moi" className="border-b border-[#c8d9ec] bg-[#f0f5f9] py-8">
+    <div className="container-shell">
+      <p className="eyebrow text-[#2869ac]">Chiến dịch gắn với email tài khoản</p>
+      <h2 className="mt-2 font-display text-2xl font-extrabold">{!invitations.length
+        ? `Chào ${givenName}, bạn chưa có việc nhóm.`
+        : pendingCount ? `Bạn có ${pendingCount} lời mời cần xác nhận` : "Chiến dịch bạn đang cộng tác"}</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-soft">{empty && !invitations.length
+        ? "Khi Chủ dự án ghi email của bạn trong hồ sơ được duyệt, lời mời sẽ xuất hiện tại đây. Bạn tự xác nhận trước khi có quyền thao tác."
+        : pendingCount ? "Email có trong hồ sơ chỉ là lời mời; quyền làm việc bắt đầu sau khi bạn chấp nhận." : "Mỗi chiến dịch có quyền riêng. Mở phần việc để xem chính xác bạn được làm gì."}</p>
+      {invitations.length ? <div className="mt-5 grid gap-3 md:grid-cols-2">{invitations.map((item) => {
+        const myQuestions = (platform.questionAssignments ?? []).filter((assignment) =>
+          item.accepted && item.permissions.canReply &&
+          assignment.campaignId === item.campaignId && assignment.assigneeUserId === viewerId &&
+          platform.campaignComments.some((comment) =>
+            comment.campaignId === item.campaignId && comment.id === assignment.commentId &&
+            comment.kind === "QUESTION" && !comment.parentId) &&
+          !platform.campaignComments.some((comment) =>
+            comment.campaignId === item.campaignId && comment.parentId === assignment.commentId &&
+            (comment.badge === "CREATOR" || comment.badge === "COLLABORATOR")));
+        return <article key={item.campaignId} className="rounded-2xl border border-[#bfd4e7] bg-white p-5">
+        <p className="text-xs font-bold text-[#2869ac]">{item.category} · {item.status === "LIVE" ? "Đang gọi vốn" : "Đã duyệt"}</p>
+        <h3 className="mt-2 font-display text-lg font-extrabold">{item.title}</h3>
+        {item.accepted && myQuestions.length > 0 ? <p className="mt-3 rounded-lg bg-[#e7f2fb] px-3 py-2 text-sm font-bold text-[#225b86]">
+          {myQuestions.length} câu hỏi đang chờ bạn trả lời
+        </p> : null}
+        <p className="mt-2 text-xs leading-6 text-ink-soft">Quyền được đề nghị: {[
+          item.permissions.canUpdate && "đăng cập nhật",
+          item.permissions.canReply && "trả lời cộng đồng",
+          item.permissions.canViewAi && "xem dự báo (chưa nối cho hồ sơ mới)",
+        ].filter(Boolean).join(", ") || "chỉ xem"}.</p>
+        <div className="mt-4">{item.accepted
+          ? <Link className="button-primary" href={`/collaborator/campaigns/${item.campaignId}/manage${myQuestions.length ? "#cau-hoi-cong-dong" : ""}`}>Mở phần việc của tôi <ArrowRight className="size-4" /></Link>
+          : <AcceptPreviewInvitation campaignId={item.campaignId} />}</div>
+      </article>; })}</div> : null}
+    </div>
+  </section>;
+}
 
 export default async function CollaboratorPage() {
   const [campaign, baseOperations, session, platformState] = await Promise.all([
@@ -38,6 +87,7 @@ export default async function CollaboratorPage() {
   ]);
 
   if (!campaign) notFound();
+  const visibleCampaign = applyCampaignCardPreviewState(campaign, platformState);
   const operations = applyOperationsPreviewState(
     baseOperations,
     session,
@@ -45,16 +95,12 @@ export default async function CollaboratorPage() {
   );
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
   const collaboratorId = session?.user.id ?? "usr_gia_huy";
-  const collaboratorProfile =
-    operations.team.find((member) => member.id === collaboratorId) ??
-    operations.team.find((member) => member.name === session?.user.name) ??
-    operations.team[0];
-  const myTasks = operations.tasks.filter(
-    (task) =>
-      task.assigneeId === collaboratorId ||
-      task.assigneeName === session?.user.name,
+  const collaboratorProfile = operations.team.find(
+    (member) => member.id === collaboratorId,
   );
-  const assignedTasks = myTasks.length > 0 ? myTasks : operations.tasks;
+  const assignedTasks = operations.tasks.filter(
+    (task) => task.assigneeId === collaboratorId,
+  );
   const openTasks = assignedTasks.filter((task) => task.status !== "DONE");
   const completedTasks = assignedTasks.length - openTasks.length;
   const urgentTasks = openTasks.filter((task) => task.priority === "HIGH");
@@ -64,8 +110,15 @@ export default async function CollaboratorPage() {
   const permissions = collaboratorProfile?.permissions ?? [];
   const specialistRole =
     collaboratorProfile?.role.replace("Cộng tác viên · ", "") ?? "Thành viên";
+  const invitations = session ? previewInvitationsForUser(session, platformState) : [];
+  const canOpenOrbit = session
+    ? resolveCampaignAccess("cmp_orbit", session, platformState).isCollaborator
+    : false;
+  if (!collaboratorProfile || !canOpenOrbit) return <InvitationBoard invitations={invitations} givenName={givenName} platform={platformState} viewerId={collaboratorId} empty />;
 
   return (
+    <>
+    <InvitationBoard invitations={invitations} givenName={givenName} platform={platformState} viewerId={collaboratorId} />
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
       <div className="border-b border-[#c8d9ec] bg-[#e8f0f8] py-9 sm:py-11">
         <div className="container-shell flex flex-col justify-between gap-6 md:flex-row md:items-end">
@@ -74,7 +127,7 @@ export default async function CollaboratorPage() {
               <Users className="size-4" /> Không gian cộng tác
             </span>
             <h1 className="mt-3 max-w-3xl font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
-              Chào {givenName}, hôm nay nhóm đang cần bạn ở đây.
+              Chào {givenName}, đây là các việc nhóm giao cho bạn.
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-soft">
               Đây là ca làm việc của bạn trong ORBIT One: đầu việc, hạn bàn
@@ -89,13 +142,13 @@ export default async function CollaboratorPage() {
 
       <div className="container-shell pt-8">
         <section
-          aria-label="Nhịp làm việc hôm nay"
+          aria-label="Nhịp làm việc tại mốc dữ liệu mẫu"
           className="overflow-hidden rounded-[20px] border border-[#bcd4ea] bg-[#173d65] text-white shadow-[0_16px_42px_rgba(23,61,101,0.12)]"
         >
           <div className="grid lg:grid-cols-[1.1fr_1.4fr]">
             <div className="border-b border-white/10 p-6 sm:p-7 lg:border-b-0 lg:border-r">
               <p className="eyebrow text-[#b8e3fb]">
-                <ListChecks className="size-4" /> Nhịp làm việc hôm nay
+                <ListChecks className="size-4" /> Nhịp làm việc của nhóm
               </p>
               <div className="mt-4 flex items-end justify-between gap-4">
                 <div>
@@ -124,25 +177,25 @@ export default async function CollaboratorPage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3">
               <div className="border-b border-r border-white/10 p-5 sm:p-6">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/68">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-white/68">
                   Đang mở
                 </p>
                 <p className="mt-2 font-display text-2xl font-extrabold">
                   {openTasks.length}
                 </p>
-                <p className="mt-1 text-[10px] text-white/68">việc cần xử lý</p>
+                <p className="mt-1 text-[11px] text-white/68">việc cần xử lý</p>
               </div>
               <div className="border-b border-white/10 p-5 sm:border-r sm:p-6">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/68">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-white/68">
                   Ưu tiên cao
                 </p>
                 <p className="mt-2 font-display text-2xl font-extrabold text-[#ffd1bf]">
                   {urgentTasks.length}
                 </p>
-                <p className="mt-1 text-[10px] text-white/68">việc cần để ý</p>
+                <p className="mt-1 text-[11px] text-white/68">việc cần để ý</p>
               </div>
               <div className="col-span-2 p-5 sm:col-span-1 sm:p-6">
-                <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/68">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/68">
                   <Clock3 className="size-3" /> Mốc gần nhất
                 </p>
                 {openTasks[0] ? (
@@ -150,7 +203,7 @@ export default async function CollaboratorPage() {
                     <p className="mt-2 line-clamp-2 text-xs font-bold leading-5">
                       {openTasks[0].title}
                     </p>
-                    <p className="mt-1 text-[10px] text-[#b8e3fb]">
+                    <p className="mt-1 text-[11px] text-[#b8e3fb]">
                       {openTasks[0].dueLabel}
                     </p>
                   </>
@@ -170,7 +223,7 @@ export default async function CollaboratorPage() {
             recordCode={`TASK · ${(openTasks[0]?.id ?? assignedTasks[0]?.id ?? "ORBIT").toLocaleUpperCase("vi")}`}
             steps={[
               {
-                actor: "Nguyễn Hoàng Linh · Creator",
+                actor: "Nguyễn Hoàng Linh · Chủ dự án",
                 title: "Giao việc kèm phạm vi quyền",
                 detail: `${operations.handoffs[0].title} · ${operations.handoffs[0].at}.`,
                 kind: "person",
@@ -188,7 +241,7 @@ export default async function CollaboratorPage() {
               {
                 actor: "Xưởng chiến dịch ORBIT",
                 title: "Nhận lại trạng thái và nội dung",
-                detail: "Creator thấy cùng task ID, người nhận, hạn bàn giao và kết quả vừa cập nhật.",
+              detail: "Chủ dự án thấy cùng mã công việc, người nhận, hạn bàn giao và kết quả vừa cập nhật.",
                 kind: "campaign",
                 state: "current",
               },
@@ -213,40 +266,40 @@ export default async function CollaboratorPage() {
           <article className="surface-card overflow-hidden rounded-[20px]">
             <div className="grid sm:grid-cols-[260px_1fr]">
               <CampaignVisual
-                {...campaign.visual}
+                {...visibleCampaign.visual}
                 compact
                 priority
                 className="min-h-56 sm:min-h-full"
               />
               <div className="p-6 sm:p-7">
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge status={campaign.status} />
-                  <span className="rounded-[8px] bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700">
+                  <StatusBadge status={visibleCampaign.status} />
+                  <span className="rounded-[8px] bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
                     Vai trò: {specialistRole}
                   </span>
                 </div>
                 <h2 className="mt-4 font-display text-2xl font-extrabold leading-tight tracking-[-0.035em]">
-                  {campaign.title}
+                  {visibleCampaign.title}
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-ink-soft">
-                  Chủ dự án: {campaign.creator.name} · Nhóm hiện có{" "}
+                  Chủ dự án: {visibleCampaign.creator.name} · Nhóm hiện có{" "}
                   {operations.team.length} thành viên
                 </p>
                 <div className="mt-5 grid grid-cols-2 gap-4 border-y border-line py-4 text-xs sm:grid-cols-3">
                   <div>
-                    <p className="text-[10px] text-ink-muted">Cam kết hôm nay</p>
+                    <p className="text-xs text-ink-muted">Cam kết tại mốc mẫu</p>
                     <p className="mt-1 font-bold">
                       {formatVnd(operations.today.pledgedAmount, true)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-ink-muted">Chờ phản hồi</p>
+                    <p className="text-xs text-ink-muted">Chờ phản hồi</p>
                     <p className="mt-1 font-bold">
                       {operations.today.unansweredComments} bình luận
                     </p>
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <p className="text-[10px] text-ink-muted">Chốt số liệu</p>
+                    <p className="text-xs text-ink-muted">Chốt số liệu</p>
                     <p className="mt-1 font-bold">{operations.snapshotAt}</p>
                   </div>
                 </div>
@@ -261,8 +314,9 @@ export default async function CollaboratorPage() {
                     href="/collaborator/forecast"
                     className="button-secondary"
                   >
-                    <Sparkles className="size-4" /> Xem dự báo
+                    <BarChart3 className="size-4" /> Xem dự báo
                   </Link>
+                  {localDbEnabled() ? <Link href="/campaigns/cmp_orbit/timeline" className="button-secondary">Xem tiến độ chung</Link> : null}
                 </div>
               </div>
             </div>
@@ -298,7 +352,7 @@ export default async function CollaboratorPage() {
             cần chủ dự án thực hiện.
           </div>
           <div className="mt-7 border-t border-line pt-6">
-            <p className="text-[10px] font-bold tracking-wide text-blue-700">
+            <p className="text-[11px] font-bold tracking-wide text-blue-700">
               BÀN GIAO GẦN NHẤT
             </p>
             <p className="mt-2 text-sm font-bold">
@@ -307,12 +361,13 @@ export default async function CollaboratorPage() {
             <p className="mt-2 text-xs leading-5 text-ink-soft">
               {operations.handoffs[0].note}
             </p>
-            <p className="mt-2 text-[10px] text-ink-muted">
+            <p className="mt-2 text-[11px] text-ink-muted">
               {operations.handoffs[0].from} → {operations.handoffs[0].to} · {operations.handoffs[0].at}
             </p>
           </div>
         </aside>
       </div>
     </section>
+    </>
   );
 }

@@ -1,0 +1,92 @@
+{
+  "campaignId": "cmp_preview_278bebc1cd32",
+  "campaign": {
+    "id": "cmp_preview_278bebc1cd32",
+    "creator_id": "usr_hoang_linh",
+    "status": "LIVE",
+    "goal_amount": 120000000,
+    "pledged_amount": 950000
+  },
+  "review": {
+    "reviewer_id": "usr_khanh_an",
+    "decision": "APPROVED",
+    "submission_version": 1
+  },
+  "members": [
+    {
+      "user_id": "usr_gia_huy",
+      "role": "COLLABORATOR"
+    },
+    {
+      "user_id": "usr_hoang_linh",
+      "role": "OWNER"
+    }
+  ],
+  "rewards": [
+    {
+      "id": "reward_cmp_preview_278bebc1cd32_1",
+      "title": "Bộ lọc lô đầu",
+      "amount": 750000
+    }
+  ],
+  "addOns": [
+    {
+      "id": "addon_cmp_preview_278bebc1cd32_1793548427779",
+      "title": "Lõi lọc dự phòng",
+      "amount": 120000
+    }
+  ],
+  "shipping": [
+    {
+      "id": "shipping_cmp_preview_278bebc1cd32",
+      "name": "Giao tại Việt Nam",
+      "fee_amount": 30000
+    }
+  ],
+  "pledges": [
+    {
+      "id": "authz_8adb1913",
+      "backer_id": "usr_minh_anh",
+      "reward_tier_id": "reward_cmp_preview_278bebc1cd32_1",
+      "shipping_option_id": "shipping_cmp_preview_278bebc1cd32",
+      "shipping_address_id": "addr_authz_8adb1913",
+      "status": "AUTHORIZED",
+      "total_amount": 950000
+    }
+  ],
+  "authorizations": [
+    {
+      "id": "authz_8adb1913",
+      "pledge_id": "authz_8adb1913",
+      "status": "AUTHORIZED",
+      "amount": 950000
+    }
+  ],
+  "comments": [
+    {
+      "id": "comment_dbae06c1-125",
+      "author_id": "usr_minh_anh",
+      "kind": "QUESTION"
+    }
+  ],
+  "updates": [
+    {
+      "id": "update_f49cd8ae-965",
+      "author_id": "usr_gia_huy",
+      "title": "Đã chốt mẫu vỏ bộ lọc lô đầu"
+    }
+  ],
+  "eventCount": 9,
+  "events": [
+    "CREATOR:CREATE_CAMPAIGN",
+    "CREATOR:SAVE_DRAFT",
+    "CREATOR:SUBMIT_REVIEW",
+    "ADMIN:REVIEW_CAMPAIGN",
+    "CREATOR:LAUNCH",
+    "BACKER:AUTHORIZE_PLEDGE",
+    "BACKER:ASK_QUESTION",
+    "COLLABORATOR:ACCEPT_INVITATION",
+    "COLLABORATOR:PUBLISH_UPDATE"
+  ],
+  "foreignKeyErrors": 0
+}

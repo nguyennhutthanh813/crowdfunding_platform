@@ -5,23 +5,16 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
-  CreditCard,
   Gift,
   LoaderCircle,
   LockKeyhole,
   MapPin,
   PackagePlus,
-  Plus,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import type {
-  AuthorizePledgeResult,
-  CampaignDetail,
-  UserAddress,
-} from "@/lib/api";
+import { useMemo, useState } from "react";
+import type { AuthorizePledgeResult, CampaignDetail } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatVnd } from "@/lib/format";
 
@@ -29,7 +22,7 @@ const steps = [
   { label: "Gói ủng hộ", icon: Gift },
   { label: "Phần bổ sung", icon: PackagePlus },
   { label: "Giao hàng", icon: MapPin },
-  { label: "Ủy quyền", icon: CreditCard },
+  { label: "Xác nhận", icon: CheckCircle2 },
 ];
 
 const NO_REWARD_ID = "no_reward";
@@ -43,13 +36,29 @@ export function PledgeFlow({
 }) {
   const defaultReward =
     initialRewardId === NO_REWARD_ID ||
-    campaign.rewards.some((reward) => reward.id === initialRewardId)
+    campaign.rewards.some(
+      (reward) =>
+        reward.id === initialRewardId &&
+        (reward.limit === undefined || reward.claimed < reward.limit),
+    )
       ? initialRewardId!
-      : (campaign.rewards.find((reward) => reward.featured)?.id ??
-        campaign.rewards[0]?.id ??
+      : (campaign.rewards.find(
+          (reward) =>
+            reward.featured &&
+            (reward.limit === undefined || reward.claimed < reward.limit),
+        )?.id ??
+        campaign.rewards.find(
+          (reward) => reward.limit === undefined || reward.claimed < reward.limit,
+        )?.id ??
         NO_REWARD_ID);
+  const defaultRewardItem =
+    campaign.rewards.find((reward) => reward.id === defaultReward) ?? null;
+  const shippingOptions = campaign.shippingOptions ?? [];
   const [step, setStep] = useState(0);
   const [rewardId, setRewardId] = useState<string>(defaultReward);
+  const [shippingOptionId, setShippingOptionId] = useState<string | null>(
+    defaultRewardItem?.requiresShipping ? (shippingOptions[0]?.id ?? null) : null,
+  );
   const [addOnIds, setAddOnIds] = useState<string[]>([]);
   const [bonus, setBonus] = useState(
     defaultReward === NO_REWARD_ID ? "100000" : "0",
@@ -58,85 +67,35 @@ export function PledgeFlow({
     fullName: "",
     phone: "",
     line1: "",
-    city: "TP. Hồ Chí Minh",
+    city: "",
   });
-  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-  const [isUsingCustomAddress, setIsUsingCustomAddress] = useState(false);
-  const [saveToAddressBook, setSaveToAddressBook] = useState(false);
-
-  const [card, setCard] = useState({ number: "", expiry: "", cvc: "" });
+  const [understandsDemo, setUnderstandsDemo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AuthorizePledgeResult | null>(null);
   const [attemptedStep, setAttemptedStep] = useState<number | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    fetch("/api/v1/me/addresses")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!isMounted || !data?.addresses?.length) return;
-        const list = data.addresses as UserAddress[];
-        setSavedAddresses(list);
-        const defaultAddr = list.find((a) => a.isDefault) || list[0];
-        if (defaultAddr) {
-          setSelectedAddressId(defaultAddr.id);
-          const fullLine = [defaultAddr.line1, defaultAddr.ward, defaultAddr.district]
-            .filter(Boolean)
-            .join(", ");
-          setAddress({
-            fullName: defaultAddr.recipientName,
-            phone: defaultAddr.phone,
-            line1: fullLine,
-            city: defaultAddr.province,
-          });
-        }
-      })
-      .catch((err) => {
-        console.warn("Không thể tải sổ địa chỉ nhận hàng:", err);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleSelectSavedAddress = (addr: UserAddress) => {
-    setSelectedAddressId(addr.id);
-    setIsUsingCustomAddress(false);
-    const fullLine = [addr.line1, addr.ward, addr.district]
-      .filter(Boolean)
-      .join(", ");
-    setAddress({
-      fullName: addr.recipientName,
-      phone: addr.phone,
-      line1: fullLine,
-      city: addr.province,
-    });
-  };
-
-  const handleUseNewAddress = () => {
-    setSelectedAddressId(null);
-    setIsUsingCustomAddress(true);
-    setAddress({
-      fullName: "",
-      phone: "",
-      line1: "",
-      city: "TP. Hồ Chí Minh",
-    });
-  };
-
   const reward = campaign.rewards.find((item) => item.id === rewardId) ?? null;
   const selectedAddOns = reward
     ? campaign.addOns.filter((item) => addOnIds.includes(item.id))
     : [];
+  const needsShipping = Boolean(
+    reward?.requiresShipping ||
+      selectedAddOns.some((addOn) => addOn.requiresShipping),
+  );
+  const visibleSteps = steps
+    .map((item, index) => ({ ...item, index }))
+    .filter((item) => needsShipping || item.index !== 2);
+  const shippingOption = shippingOptions.find(
+    (option) => option.id === shippingOptionId,
+  );
   const addOnAmount = selectedAddOns.reduce(
     (sum, item) => sum + item.amount,
     0,
   );
   const bonusAmount = Math.max(0, Number(bonus) || 0);
   const rewardAmount = reward?.amount ?? 0;
-  const shippingAmount = reward && reward.amount >= 500_000 ? 35_000 : 0;
+  const shippingAmount = needsShipping ? (shippingOption?.feeAmount ?? 0) : 0;
   const total = rewardAmount + addOnAmount + bonusAmount + shippingAmount;
 
   const stepIssues = useMemo(() => {
@@ -145,7 +104,8 @@ export function PledgeFlow({
     if (step === 1 && rewardId === NO_REWARD_ID && bonusAmount < 50_000) {
       issues.push("Khoản ủng hộ không nhận quà tối thiểu là 50.000 đ.");
     }
-    if (step === 2) {
+    if (step === 2 && needsShipping) {
+      if (!shippingOptionId) issues.push("Chọn cách giao quà để tiếp tục.");
       if (address.fullName.trim().length < 2) issues.push("Nhập họ và tên người nhận.");
       if (!/^0\d{9}$/.test(address.phone.replace(/\D/g, ""))) {
         issues.push("Số điện thoại cần đủ 10 số và bắt đầu bằng 0.");
@@ -153,21 +113,20 @@ export function PledgeFlow({
       if (address.line1.trim().length < 5) {
         issues.push("Nhập địa chỉ giao hàng cụ thể hơn.");
       }
-      if (!address.city) issues.push("Chọn tỉnh hoặc thành phố giao hàng.");
+      if (address.city.trim().length < 2) issues.push("Nhập tỉnh hoặc thành phố giao hàng.");
     }
-    if (step === 3) {
-      if (!/^\d{16}$/.test(card.number.replace(/\D/g, ""))) {
-        issues.push("Số thẻ thử nghiệm cần đủ 16 số.");
-      }
-      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(card.expiry.trim())) {
-        issues.push("Hạn thẻ cần theo dạng MM/YY, ví dụ 12/30.");
-      }
-      if (!/^\d{3,4}$/.test(card.cvc.trim())) {
-        issues.push("CVC cần có 3 hoặc 4 số.");
-      }
-    }
+    if (step === 3 && !understandsDemo)
+      issues.push("Xác nhận bạn đã hiểu đây chỉ là cam kết mẫu.");
     return issues;
-  }, [address, bonusAmount, card, rewardId, step]);
+  }, [
+    address,
+    bonusAmount,
+    needsShipping,
+    rewardId,
+    shippingOptionId,
+    step,
+    understandsDemo,
+  ]);
   const canContinue = stepIssues.length === 0;
   const showStepErrors = attemptedStep === step && !canContinue;
 
@@ -177,70 +136,63 @@ export function PledgeFlow({
       return;
     }
     setAttemptedStep(null);
-    setStep((value) => Math.min(3, value + 1));
+    setStep((value) => value === 1 && !needsShipping ? 3 : Math.min(3, value + 1));
   };
 
-  const toggleAddOn = (id: string) =>
-    setAddOnIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
+  const toggleAddOn = (id: string) => {
+    const nextIds = addOnIds.includes(id)
+      ? addOnIds.filter((item) => item !== id)
+      : [...addOnIds, id];
+    const nextNeedsShipping = Boolean(
+      reward?.requiresShipping ||
+        campaign.addOns.some(
+          (addOn) =>
+            nextIds.includes(addOn.id) && addOn.requiresShipping,
+        ),
     );
+    setAddOnIds(nextIds);
+    setShippingOptionId(
+      nextNeedsShipping ? (shippingOptionId ?? shippingOptions[0]?.id ?? null) : null,
+    );
+  };
   const selectNoReward = () => {
     setRewardId(NO_REWARD_ID);
+    setShippingOptionId(null);
     setAddOnIds([]);
     if (bonusAmount < 50_000) setBonus("100000");
+  };
+  const selectReward = (id: string) => {
+    const nextReward = campaign.rewards.find((item) => item.id === id);
+    if (!nextReward || (nextReward.limit !== undefined && nextReward.claimed >= nextReward.limit))
+      return;
+    if (rewardId === NO_REWARD_ID) setBonus("0");
+    setRewardId(id);
+    setShippingOptionId(
+      nextReward?.requiresShipping ? (shippingOptions[0]?.id ?? null) : null,
+    );
   };
 
   const authorize = async () => {
     setSubmitting(true);
     setError("");
     try {
-      // Nếu người dùng nhập địa chỉ mới và chọn lưu vào sổ địa chỉ
-      if (
-        isUsingCustomAddress &&
-        saveToAddressBook &&
-        address.fullName.trim() &&
-        address.line1.trim()
-      ) {
-        try {
-          await fetch("/api/v1/me/addresses", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              recipientName: address.fullName.trim(),
-              phone: address.phone.trim(),
-              line1: address.line1.trim(),
-              province: address.city,
-              isDefault: false,
-            }),
-          });
-        } catch {
-          // Bỏ qua lỗi phụ lưu sổ địa chỉ
-        }
-      }
-
       const data = await clientRequest<AuthorizePledgeResult>(
         "/api/v1/pledges/authorize",
         {
-          method: "POST",
-          body: JSON.stringify({
-            campaignId: campaign.id,
-            rewardId: reward?.id ?? null,
-            addOnIds: reward ? addOnIds : [],
-            bonusAmount,
-            address,
-          }),
+        method: "POST",
+        body: JSON.stringify({
+          campaignId: campaign.id,
+          rewardId: reward?.id ?? null,
+          addOnIds: reward ? addOnIds : [],
+          shippingOptionId: needsShipping ? shippingOptionId : null,
+          bonusAmount,
+          address: needsShipping ? address : null,
+        }),
         },
       );
       setResult(data);
     } catch (error) {
-      setError(
-        clientRequestMessage(
-          error,
-          "Chưa thể ghi nhận cam kết. Bạn kiểm tra lại thông tin rồi thử thêm một lần nhé.",
-        ),
-      );
+      setError(clientRequestMessage(error, "Chưa thể ghi nhận cam kết. Bạn kiểm tra lại thông tin rồi thử thêm một lần nhé."));
     } finally {
       setSubmitting(false);
     }
@@ -257,13 +209,13 @@ export function PledgeFlow({
           Cảm ơn bạn đã góp sức.
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-ink-soft">
-          Cam kết <strong>{formatVnd(result.totalAmount)}</strong> đã được ghi
-          nhận nhưng chưa bị trừ khỏi thẻ. Hệ thống chỉ thu khoản này nếu chiến
-          dịch đạt mục tiêu khi hết hạn.
+          Cam kết mẫu <strong>{formatVnd(result.totalAmount)}</strong> đã được lưu
+          trong bản demo đang dùng. Chưa có thẻ, ngân hàng hay
+          cổng thanh toán nào tham gia.
         </p>
         <dl className="mx-auto mt-7 grid max-w-md gap-3 rounded-2xl bg-[#f5f6ef] p-5 text-left text-xs sm:grid-cols-2">
           <div>
-            <dt className="text-ink-muted">Mã ủy quyền</dt>
+            <dt className="text-ink-muted">Mã cam kết mẫu</dt>
             <dd className="mt-1 font-mono font-bold text-ink">
               {result.authorizationId}
             </dd>
@@ -271,7 +223,7 @@ export function PledgeFlow({
           <div>
             <dt className="text-ink-muted">Trạng thái</dt>
             <dd className="mt-1 font-bold text-emerald-700">
-              ĐÃ ỦY QUYỀN · CHƯA THU
+              ĐÃ GHI NHẬN MẪU · CHƯA THU
             </dd>
           </div>
         </dl>
@@ -291,24 +243,24 @@ export function PledgeFlow({
   }
 
   return (
-    <div className="mt-9">
-      <ol className="grid grid-cols-4 gap-2" aria-label="Các bước ủng hộ">
-        {steps.map((item, index) => {
+    <div className="mt-6 sm:mt-9">
+      <ol className={`grid gap-2 ${needsShipping ? "grid-cols-4" : "grid-cols-3"}`} aria-label="Các bước ủng hộ">
+        {visibleSteps.map((item, displayIndex) => {
           const Icon = item.icon;
-          const active = index === step;
-          const done = index < step;
+          const active = item.index === step;
+          const done = item.index < step;
           return (
             <li key={item.label} aria-current={active ? "step" : undefined}>
               <button
                 type="button"
                 onClick={() => {
-                  if (index < step) setStep(index);
+                  if (item.index < step) setStep(item.index);
                 }}
-                disabled={index > step}
-                className={`flex w-full items-center gap-2 rounded-xl border px-2.5 py-2.5 text-left transition-[background-color,border-color,color] duration-200 sm:px-4 ${active ? "border-coral bg-[#fff4ef] text-coral-dark" : done ? "cursor-pointer border-forest bg-forest text-white" : "border-line bg-white/55 text-ink-muted"}`}
+                disabled={item.index > step}
+                className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 text-center transition-[background-color,border-color,color] duration-200 sm:flex-row sm:justify-start sm:gap-2 sm:px-4 sm:py-2.5 sm:text-left ${active ? "border-coral bg-[#fff4ef] text-coral-dark" : done ? "cursor-pointer border-forest bg-forest text-white" : "border-line bg-white/55 text-ink-muted"}`}
               >
                 <span
-                  className={`grid size-7 shrink-0 place-items-center rounded-lg ${active ? "bg-coral text-white" : done ? "bg-lime text-forest" : "bg-forest/6"}`}
+                  className={`hidden size-7 shrink-0 place-items-center rounded-lg sm:grid ${active ? "bg-coral text-white" : done ? "bg-lime text-forest" : "bg-forest/6"}`}
                 >
                   {done ? (
                     <Check className="size-3.5" />
@@ -316,8 +268,8 @@ export function PledgeFlow({
                     <Icon className="size-3.5" />
                   )}
                 </span>
-                <span className="hidden text-xs font-bold sm:inline">
-                  {index + 1}. {item.label}
+                <span className="text-xs font-bold leading-tight sm:text-sm">
+                  {displayIndex + 1}. {item.label}
                 </span>
               </button>
             </li>
@@ -349,7 +301,8 @@ export function PledgeFlow({
                         name="reward"
                         value={item.id}
                         checked={rewardId === item.id}
-                        onChange={() => setRewardId(item.id)}
+                        disabled={item.limit !== undefined && item.claimed >= item.limit}
+                        onChange={() => selectReward(item.id)}
                         className="mt-1 size-4 accent-[#f36545]"
                       />
                       <div className="flex-1">
@@ -361,11 +314,18 @@ export function PledgeFlow({
                             {formatVnd(item.amount)}
                           </p>
                         </div>
-                        <p className="mt-2 text-xs leading-5 text-ink-soft">
+                        <p className="mt-2 text-sm leading-6 text-ink-soft">
                           {item.description}
                         </p>
-                        <p className="mt-2 text-[10px] text-ink-muted">
+                        <p className="mt-2 text-xs text-ink-muted">
                           Dự kiến giao: {item.estimatedDelivery}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-forest">
+                          {item.limit !== undefined && item.claimed >= item.limit
+                            ? "Gói đã hết lượt chọn"
+                            : item.requiresShipping
+                            ? "Quà vật lý · cần địa chỉ nhận hàng"
+                            : "Quà số · không phát sinh phí giao"}
                         </p>
                       </div>
                     </div>
@@ -392,11 +352,11 @@ export function PledgeFlow({
                           Từ 50.000 ₫
                         </p>
                       </div>
-                      <p className="mt-2 text-xs leading-5 text-ink-soft">
+                      <p className="mt-2 text-sm leading-6 text-ink-soft">
                         Toàn bộ khoản đóng góp được tính vào mục tiêu; bạn chọn
                         số tiền ở bước kế tiếp.
                       </p>
-                      <p className="mt-2 text-[10px] text-ink-muted">
+                      <p className="mt-2 text-xs text-ink-muted">
                         Không phát sinh phần bổ sung hoặc phí giao hàng.
                       </p>
                     </div>
@@ -444,6 +404,11 @@ export function PledgeFlow({
                             <p className="mt-3 text-sm font-bold text-coral-dark">
                               + {formatVnd(item.amount)}
                             </p>
+                            {item.requiresShipping ? (
+                              <p className="mt-1 text-[11px] font-semibold text-forest">
+                                Phụ kiện vật lý · tính giao cùng gói chính
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </label>
@@ -457,7 +422,7 @@ export function PledgeFlow({
                 </div>
               )}
               <label className="mt-6 block">
-                <span className="text-xs font-bold text-ink-soft">
+                <span className="text-sm font-bold text-ink-soft">
                   {reward
                     ? "Góp thêm tự nguyện (đ)"
                     : "Số tiền muốn ủng hộ (đ)"}
@@ -474,7 +439,7 @@ export function PledgeFlow({
                 />
                 <span
                   id="bonus-note"
-                  className="mt-2 block text-[11px] text-ink-muted"
+                  className="mt-2 block text-xs text-ink-muted"
                 >
                   {reward
                     ? "Khoản này không thay đổi gói quà bạn đã chọn."
@@ -488,104 +453,54 @@ export function PledgeFlow({
             <div>
               <p className="eyebrow text-coral">Bước 3</p>
               <h2 className="mt-2 font-display text-2xl font-extrabold">
-                Địa chỉ giao nhận phần thưởng
+                {needsShipping ? "Cách giao và địa chỉ nhận" : "Không cần giao hàng"}
               </h2>
               <p className="mt-2 text-sm text-ink-muted">
-                Hiện Góp hỗ trợ giao quà đến các địa chỉ tại Việt Nam.
+                {needsShipping
+                  ? "Chọn đúng phương thức giao trước khi nhập địa chỉ tại Việt Nam."
+                  : "Gói này không có quà vật lý nên hệ thống không hỏi địa chỉ và không cộng phí giao."}
               </p>
-
-              {/* Lựa chọn Sổ địa chỉ đã lưu */}
-              {savedAddresses.length > 0 && !isUsingCustomAddress && (
-                <div className="mt-6 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-ink-soft">
-                      Chọn địa chỉ nhận hàng đã lưu
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleUseNewAddress}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-coral-dark hover:underline"
-                    >
-                      <Plus className="size-3.5" /> Giao đến địa chỉ mới khác
-                    </button>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {savedAddresses.map((addr) => {
-                      const fullLine = [
-                        addr.line1,
-                        addr.ward,
-                        addr.district,
-                        addr.province,
-                      ]
-                        .filter(Boolean)
-                        .join(", ");
-                      const selected = selectedAddressId === addr.id;
-                      return (
-                        <div
-                          key={addr.id}
-                          onClick={() => handleSelectSavedAddress(addr)}
-                          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
-                            selected
-                              ? "border-forest bg-[#f6f8f1] ring-2 ring-forest/20 shadow-sm"
-                              : "border-line bg-white hover:border-forest/30"
-                          }`}
+              {needsShipping ? (
+                <>
+                  <fieldset className="mt-6">
+                    <legend className="text-sm font-bold text-ink-soft">
+                      Phương thức giao
+                    </legend>
+                    <div className="mt-2 grid gap-2">
+                      {shippingOptions.map((option) => (
+                        <label
+                          key={option.id}
+                          className={`flex cursor-pointer items-start justify-between gap-4 rounded-xl border p-4 ${shippingOptionId === option.id ? "border-coral bg-[#fff8f4]" : "border-line"}`}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-ink">
-                                  {addr.recipientName}
-                                </span>
-                                <span className="text-xs text-ink-muted">|</span>
-                                <span className="text-xs font-medium text-ink-soft">
-                                  {addr.phone}
-                                </span>
-                              </div>
-                              <p className="mt-1.5 text-xs leading-relaxed text-ink-muted line-clamp-2">
-                                {fullLine}
-                              </p>
-                            </div>
-                            {addr.isDefault && (
-                              <span className="shrink-0 rounded-full bg-forest px-2 py-0.5 text-[9px] font-bold text-lime">
-                                Mặc định
+                          <span className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              name="shipping-option"
+                              value={option.id}
+                              checked={shippingOptionId === option.id}
+                              onChange={() => setShippingOptionId(option.id)}
+                              className="mt-0.5 size-4 accent-[#f36545]"
+                            />
+                            <span>
+                              <span className="block text-xs font-bold">
+                                {option.name}
                               </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Form nhập địa chỉ mới (hiển thị khi chưa có địa chỉ lưu hoặc bấm thêm mới) */}
-              {(isUsingCustomAddress || savedAddresses.length === 0) && (
-                <div className="mt-6 space-y-4 rounded-2xl border border-line bg-[#f8f9f4] p-5 sm:p-6">
-                  <div className="flex items-center justify-between border-b border-line/60 pb-2">
-                    <span className="text-sm font-bold text-ink">
-                      Thông tin địa chỉ giao nhận mới
-                    </span>
-                    {savedAddresses.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const defaultAddr =
-                            savedAddresses.find((a) => a.isDefault) ||
-                            savedAddresses[0];
-                          if (defaultAddr) handleSelectSavedAddress(defaultAddr);
-                        }}
-                        className="text-xs font-semibold text-ink-muted hover:text-ink"
-                      >
-                        Quay lại chọn từ danh sách địa chỉ
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
+                              <span className="mt-1 block text-[11px] text-ink-muted">
+                                Dự kiến {option.estimatedDaysMin}–{option.estimatedDaysMax} ngày
+                              </span>
+                            </span>
+                          </span>
+                          <span className="text-xs font-bold text-coral-dark">
+                            {formatVnd(option.feeAmount)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
                     <label className="sm:col-span-1">
-                      <span className="text-xs font-bold text-ink-soft">
-                        Họ và tên người nhận <span className="text-red-500">*</span>
+                      <span className="text-sm font-bold text-ink-soft">
+                        Họ và tên
                       </span>
                       <input
                         name="shipping-full-name"
@@ -593,21 +508,19 @@ export function PledgeFlow({
                         onChange={(event) =>
                           setAddress({ ...address, fullName: event.target.value })
                         }
-                        className="input-field mt-1.5"
-                        placeholder="Nguyễn Văn A"
+                        className="input-field mt-2"
+                        placeholder="Nguyễn Minh Anh"
                         autoComplete="name"
                         required
                         aria-invalid={
                           showStepErrors && address.fullName.trim().length < 2
                         }
-                        aria-describedby={
-                          showStepErrors ? "pledge-step-errors" : undefined
-                        }
+                        aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
                       />
                     </label>
                     <label>
-                      <span className="text-xs font-bold text-ink-soft">
-                        Số điện thoại <span className="text-red-500">*</span>
+                      <span className="text-sm font-bold text-ink-soft">
+                        Số điện thoại
                       </span>
                       <input
                         name="shipping-phone"
@@ -616,23 +529,20 @@ export function PledgeFlow({
                         onChange={(event) =>
                           setAddress({ ...address, phone: event.target.value })
                         }
-                        className="input-field mt-1.5"
-                        placeholder="0912 345 678"
+                        className="input-field mt-2"
+                        placeholder="09xx xxx xxx"
                         autoComplete="tel"
                         required
                         aria-invalid={
                           showStepErrors &&
                           !/^0\d{9}$/.test(address.phone.replace(/\D/g, ""))
                         }
-                        aria-describedby={
-                          showStepErrors ? "pledge-step-errors" : undefined
-                        }
+                        aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
                       />
                     </label>
                     <label className="sm:col-span-2">
-                      <span className="text-xs font-bold text-ink-soft">
-                        Địa chỉ chi tiết (Số nhà, tên đường, phường/xã){" "}
-                        <span className="text-red-500">*</span>
+                      <span className="text-sm font-bold text-ink-soft">
+                        Địa chỉ
                       </span>
                       <input
                         name="shipping-address-line1"
@@ -640,179 +550,116 @@ export function PledgeFlow({
                         onChange={(event) =>
                           setAddress({ ...address, line1: event.target.value })
                         }
-                        className="input-field mt-1.5"
-                        placeholder="Số 123 Đường Lê Lợi, Phường Bến Nghé"
+                        className="input-field mt-2"
+                        placeholder="Số nhà, tên đường, phường/xã"
                         autoComplete="street-address"
                         required
                         aria-invalid={
                           showStepErrors && address.line1.trim().length < 5
                         }
-                        aria-describedby={
-                          showStepErrors ? "pledge-step-errors" : undefined
-                        }
+                        aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
                       />
                     </label>
                     <label className="sm:col-span-2">
-                      <span className="text-xs font-bold text-ink-soft">
-                        Tỉnh / Thành phố <span className="text-red-500">*</span>
+                      <span className="text-sm font-bold text-ink-soft">
+                        Tỉnh / Thành phố
                       </span>
-                      <select
+                      <input
                         name="shipping-city"
                         value={address.city}
                         onChange={(event) =>
                           setAddress({ ...address, city: event.target.value })
                         }
-                        className="input-field mt-1.5 cursor-pointer"
+                        className="input-field mt-2"
                         autoComplete="address-level1"
+                        list="goi-y-tinh-thanh"
+                        aria-label="Tỉnh hoặc thành phố nhận hàng"
+                        placeholder="Ví dụ: Huế, Hà Nội, Cần Thơ…"
+                        maxLength={80}
                         required
-                        aria-invalid={showStepErrors && !address.city}
-                        aria-describedby={
-                          showStepErrors ? "pledge-step-errors" : undefined
-                        }
-                      >
-                        <option>TP. Hồ Chí Minh</option>
-                        <option>Hà Nội</option>
-                        <option>Đà Nẵng</option>
-                        <option>Hải Phòng</option>
-                        <option>Cần Thơ</option>
-                        <option>Bình Dương</option>
-                        <option>Đồng Nai</option>
-                        <option>Bà Rịa - Vũng Tàu</option>
-                        <option>Quảng Ninh</option>
-                        <option>Khánh Hòa</option>
-                        <option>Lâm Đồng</option>
-                        <option>Thừa Thiên Huế</option>
-                      </select>
+                        aria-invalid={showStepErrors && address.city.trim().length < 2}
+                        aria-describedby={showStepErrors ? "shipping-city-hint pledge-step-errors" : "shipping-city-hint"}
+                      />
+                      <datalist id="goi-y-tinh-thanh">
+                        <option value="TP. Hồ Chí Minh" />
+                        <option value="Hà Nội" />
+                        <option value="Đà Nẵng" />
+                        <option value="Cần Thơ" />
+                        <option value="Huế" />
+                      </datalist>
+                      <span id="shipping-city-hint" className="mt-2 block text-xs leading-5 text-ink-muted">Có thể tự nhập tỉnh/thành khác nếu không thấy trong gợi ý.</span>
                     </label>
                   </div>
-
-                  <label className="flex cursor-pointer items-center gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      checked={saveToAddressBook}
-                      onChange={(e) => setSaveToAddressBook(e.target.checked)}
-                      className="rounded border-line text-forest focus:ring-forest"
-                    />
-                    <span className="text-xs font-medium text-ink">
-                      Lưu địa chỉ này vào danh sách địa chỉ của tôi cho các lần ủng hộ
-                      sau
+                  <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4f6e8] p-4 text-xs leading-5 text-[#4c612d]">
+                    <MapPin className="mt-0.5 size-4 shrink-0" />
+                    <span>
+                      Phí giao theo cách bạn chọn là {formatVnd(shippingAmount)}.
+                      Hãy kiểm tra lại địa chỉ trước khi tiếp tục.
                     </span>
-                  </label>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-6 flex items-start gap-3 rounded-2xl border border-lime/50 bg-[#f5f8e8] p-4 text-xs leading-5 text-[#53622f]">
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    {reward
+                      ? `${reward.title} là gói quà số. Bạn có thể chuyển thẳng sang bước xác nhận.`
+                      : "Khoản ủng hộ này không kèm quà. Bạn có thể chuyển thẳng sang bước xác nhận."}
+                  </span>
                 </div>
               )}
-
-              <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4f6e8] p-4 text-xs leading-5 text-[#4c612d]">
-                <MapPin className="mt-0.5 size-4 shrink-0" /> Phí giao hàng tạm
-                tính: {formatVnd(shippingAmount)}.
-              </div>
             </div>
           ) : null}
 
           {step === 3 ? (
             <div>
-              <p className="eyebrow text-coral">Bước 4</p>
+              <p className="eyebrow text-coral">Bước {needsShipping ? 4 : 3}</p>
               <h2 className="mt-2 font-display text-2xl font-extrabold">
-                Xác nhận ủy quyền
+                Kiểm tra và xác nhận
               </h2>
               <p className="mt-2 text-sm text-ink-muted">
-                Đây là môi trường thanh toán thử nghiệm. Hệ thống không lưu số
-                thẻ bạn nhập.
+                Đối chiếu gói quà, phí giao và tổng cam kết trong phần tóm tắt trước khi
+                lưu. Bước này không yêu cầu thông tin thẻ.
               </p>
-              <div className="mt-6 rounded-[18px] bg-forest p-5 text-white sm:p-6">
-                <div className="flex items-center justify-between">
-                  <span className="font-display text-sm font-extrabold">
-                    Stripe Sandbox
-                  </span>
-                  <CreditCard className="size-5 text-lime" />
+              <dl className="mt-6 rounded-2xl border border-line bg-canvas-soft p-4 text-sm lg:hidden">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Gói đã chọn</dt>
+                  <dd className="text-right font-semibold">{reward?.title ?? "Không nhận quà"}</dd>
                 </div>
-                <label className="mt-6 block">
-                  <span className="text-[11px] font-bold text-white/58">
-                    Số thẻ thử nghiệm
-                  </span>
-                  <input
-                    name="card-number"
-                    inputMode="numeric"
-                    value={card.number}
-                    onChange={(event) =>
-                      setCard({ ...card, number: event.target.value })
-                    }
-                    className="mt-2 w-full rounded-xl border border-white/12 bg-white/7 px-4 py-3 text-sm outline-none placeholder:text-white/28 focus:border-lime/60"
-                    placeholder="4242 4242 4242 4242"
-                    autoComplete="cc-number"
-                    required
-                    aria-invalid={
-                      showStepErrors &&
-                      !/^\d{16}$/.test(card.number.replace(/\D/g, ""))
-                    }
-                    aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
-                  />
-                </label>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <label>
-                    <span className="text-[11px] font-bold text-white/58">
-                      Hết hạn
-                    </span>
-                    <input
-                      name="card-expiry"
-                      value={card.expiry}
-                      onChange={(event) =>
-                        setCard({ ...card, expiry: event.target.value })
-                      }
-                      className="mt-2 w-full rounded-xl border border-white/12 bg-white/7 px-4 py-3 text-sm outline-none placeholder:text-white/28 focus:border-lime/60"
-                      placeholder="12/30"
-                      inputMode="numeric"
-                      autoComplete="cc-exp"
-                      required
-                      aria-invalid={
-                        showStepErrors &&
-                        !/^(0[1-9]|1[0-2])\/\d{2}$/.test(card.expiry.trim())
-                      }
-                      aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
-                    />
-                  </label>
-                  <label>
-                    <span className="text-[11px] font-bold text-white/58">
-                      CVC
-                    </span>
-                    <input
-                      name="card-cvc"
-                      inputMode="numeric"
-                      value={card.cvc}
-                      onChange={(event) =>
-                        setCard({ ...card, cvc: event.target.value })
-                      }
-                      className="mt-2 w-full rounded-xl border border-white/12 bg-white/7 px-4 py-3 text-sm outline-none placeholder:text-white/28 focus:border-lime/60"
-                      placeholder="123"
-                      autoComplete="cc-csc"
-                      required
-                      aria-invalid={
-                        showStepErrors && !/^\d{3,4}$/.test(card.cvc.trim())
-                      }
-                      aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
-                    />
-                  </label>
+                <div className="mt-3 flex justify-between gap-4">
+                  <dt className="text-ink-muted">Phần bổ sung và giao hàng</dt>
+                  <dd className="text-right font-semibold">
+                    {formatVnd(addOnAmount + shippingAmount)}
+                  </dd>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCard({
-                      number: "4242 4242 4242 4242",
-                      expiry: "12/30",
-                      cvc: "123",
-                    })
-                  }
-                  className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[11px] font-bold text-lime hover:bg-white/8"
-                >
-                  <Sparkles className="size-3.5" /> Điền thẻ thử nghiệm
-                </button>
-              </div>
-              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+                <div className="mt-4 flex justify-between gap-4 border-t border-line pt-4">
+                  <dt className="font-bold">Tổng cam kết mẫu</dt>
+                  <dd className="font-display text-lg font-extrabold text-coral-dark">
+                    {formatVnd(total)}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0" />
                 <span>
-                  <strong>Chưa thu tiền:</strong> khi xác nhận, hệ thống chỉ giữ
-                  hạn mức. Đạt mục tiêu mới thu; không đạt sẽ tự hủy.
+                  <strong>Đây là bản dùng thử:</strong> số tiền được tính vào tiến độ
+                  mẫu của dự án. Bạn không cần nhập thẻ; hệ thống không giữ hay
+                  trừ tiền. Khi có thanh toán thật, chỉ chiến dịch đạt mục tiêu
+                  mới được thu tiền.
                 </span>
               </div>
+              <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 text-sm leading-6 text-ink-soft">
+                <input
+                  type="checkbox"
+                  name="understands-demo"
+                  checked={understandsDemo}
+                  onChange={(event) => setUnderstandsDemo(event.target.checked)}
+                  className="mt-1 size-4 shrink-0 accent-[#f36545]"
+                  aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
+                />
+                Tôi hiểu đây là cam kết mẫu và không có khoản tiền nào được giữ
+                hoặc thu.
+              </label>
               {error ? (
                 <p
                   role="alert"
@@ -845,7 +692,7 @@ export function PledgeFlow({
               disabled={step === 0 || submitting}
               onClick={() => {
                 setAttemptedStep(null);
-                setStep((value) => Math.max(0, value - 1));
+                setStep((value) => value === 3 && !needsShipping ? 1 : Math.max(0, value - 1));
               }}
               className="button-ghost disabled:cursor-not-allowed disabled:opacity-35"
             >
@@ -880,7 +727,7 @@ export function PledgeFlow({
                   </>
                 ) : (
                   <>
-                    <LockKeyhole className="size-4" /> Xác nhận ủy quyền
+                    <Check className="size-4" /> Ghi nhận cam kết mẫu
                   </>
                 )}
               </button>
@@ -911,7 +758,11 @@ export function PledgeFlow({
             <div className="flex justify-between gap-4">
               <dt className="text-ink-muted">Giao hàng</dt>
               <dd className="font-bold">
-                {shippingAmount ? formatVnd(shippingAmount) : "Miễn phí"}
+                {needsShipping
+                  ? shippingOption
+                    ? formatVnd(shippingAmount)
+                    : "Chưa chọn"
+                  : "Không cần giao"}
               </dd>
             </div>
             {bonusAmount ? (
@@ -930,7 +781,7 @@ export function PledgeFlow({
                 {formatVnd(total)}
               </span>
             </div>
-            <p className="mt-3 flex items-start gap-2 text-[10px] leading-4 text-ink-muted">
+            <p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-ink-muted">
               <LockKeyhole className="mt-0.5 size-3 shrink-0" /> Giá và phí được
               hệ thống kiểm tra lại trước khi ghi nhận.
             </p>

@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { auditMockData } from "@/lib/api/mock/integrity";
 
 export const metadata: Metadata = {
   title: "Hồ sơ hệ thống",
@@ -23,9 +24,9 @@ export const metadata: Metadata = {
 const roleBlueprints = [
   {
     title: "Cây chức năng theo vai trò",
-    label: "Role → Use Case",
+    label: "Vai trò → Use Case",
     description:
-      "Chia 54 Use Case cho Guest, Backer, Creator, Collaborator, Admin và System/Worker; EXT được tách khỏi phần lõi.",
+      "Chia 54 Use Case cho khách, người ủng hộ, chủ dự án, cộng tác viên, quản trị viên và tác vụ hệ thống; phần mở rộng được tách khỏi phần lõi.",
     src: "/diagrams/blueprints/01-cay-chuc-nang-theo-role.png",
     svg: "/diagrams/blueprints/01-cay-chuc-nang-theo-role.svg",
     drawio: "/diagrams/blueprints/01-cay-chuc-nang-theo-role.drawio",
@@ -34,9 +35,9 @@ const roleBlueprints = [
   },
   {
     title: "Cây yêu cầu phi chức năng",
-    label: "Role → Tiêu chí kiểm tra",
+    label: "Vai trò → Tiêu chí kiểm tra",
     description:
-      "Gắn yêu cầu dễ dùng, thanh toán rõ ràng, phân quyền, AI giải thích được, audit và quality gate vào từng role.",
+      "Gắn yêu cầu dễ dùng, thanh toán rõ ràng, phân quyền, AI giải thích được, nhật ký và bước kiểm tra chất lượng vào từng vai trò.",
     src: "/diagrams/blueprints/02-cay-phi-chuc-nang-theo-role.png",
     svg: "/diagrams/blueprints/02-cay-phi-chuc-nang-theo-role.svg",
     drawio: "/diagrams/blueprints/02-cay-phi-chuc-nang-theo-role.drawio",
@@ -45,7 +46,7 @@ const roleBlueprints = [
   },
   {
     title: "Cây UI/UX và màn hình",
-    label: "Role → Workspace → Route",
+    label: "Vai trò → Khu làm việc → Đường dẫn",
     description:
       "Chuyển chức năng thành cấu trúc màn hình riêng cho từng vai trò và dùng chung một câu chuyện dữ liệu ORBIT để đối chiếu.",
     src: "/diagrams/blueprints/03-cay-ui-ux-theo-role.png",
@@ -58,33 +59,51 @@ const roleBlueprints = [
 
 const controlDocuments = [
   {
-    title: "Kiểm định dự án ngày 17/09",
+    title: "Hỏi đáp theo vai trò 27/10",
     detail:
-      "Lỗi đã tái hiện, thay đổi, kết quả kiểm thử và yêu cầu còn thiếu; không xem demo là backend hoàn chỉnh.",
+      "Câu hỏi từ Backer đến bàn Chủ dự án và Cộng tác viên của đúng chiến dịch; cách thử, ảnh mobile và giới hạn.",
+    href: "/diagrams/blueprints/15-phan-hoi-cong-dong-theo-vai-tro-2026-10-27.md",
+  },
+  {
+    title: "Kiểm tra thảo luận và lượt thích 25/10",
+    detail:
+      "Bình luận, trả lời và thích trên chiến dịch mẫu/mới: dữ liệu lưu lại, khóa ngoại, kết quả trên web và giới hạn bản demo.",
+    href: "/diagrams/blueprints/14-thao-luan-va-luot-thich-2026-10-25.md",
+  },
+  {
+    title: "Kiểm định vòng đời chiến dịch 23/10",
+    detail:
+      "Creator tạo và mở chiến dịch, Collaborator nhận lời mời, Backer cam kết; kết quả test và giới hạn SQLite/cookie được ghi riêng.",
+    href: "/diagrams/blueprints/13-kiem-dinh-vong-doi-chien-dich-2026-10-23.md",
+  },
+  {
+    title: "Kiểm định dự án ngày 18/09",
+    detail:
+      "Lỗi đã tái hiện, thay đổi, kết quả kiểm thử và yêu cầu còn thiếu; không xem bản dùng thử là backend hoàn chỉnh.",
     href: "/diagrams/blueprints/10-kiem-dinh-du-an-va-nguon-goc.md",
   },
   {
     title: "Kế hoạch hoàn thiện",
     detail:
-      "Ba chặng còn lại, chia việc hai thành viên, Definition of Done và rủi ro.",
+      "Ba chặng còn lại, phần việc của hai thành viên, tiêu chí hoàn thành và rủi ro.",
     href: "/diagrams/blueprints/05-ke-hoach-hoan-thien-ui-ux.md",
   },
   {
     title: "Ma trận truy vết thực thi",
     detail:
-      "Nối Role → UC/NFR → record → route → bằng chứng và phần còn thiếu.",
+      "Nối vai trò → UC/NFR → dữ liệu → đường dẫn → bằng chứng và phần còn thiếu.",
     href: "/diagrams/blueprints/06-ma-tran-truy-vet-thuc-thi.md",
   },
   {
-    title: "Tiến độ đang làm thật",
+    title: "Tiến độ hiện tại",
     detail:
-      "Checkpoint, quality gate đã chạy và hàng việc kế tiếp theo thứ tự.",
+      "Các mốc đã làm, kết quả kiểm tra gần nhất và phần việc tiếp theo.",
     href: "/diagrams/blueprints/PROGRESS.md",
   },
   {
-    title: "Chuẩn prompt và bước người duyệt",
+    title: "Cách dùng AI và bước người duyệt",
     detail:
-      "Tách ba AI lõi khỏi trợ lý ngôn ngữ; chốt version, input snapshot và human review.",
+      "Tách ba mô hình chính khỏi phần gợi ý nội dung, đồng thời ghi rõ dữ liệu đầu vào và người chịu trách nhiệm duyệt kết quả.",
     href: "/diagrams/blueprints/08-chuan-prompt-va-human-review.md",
   },
 ];
@@ -94,7 +113,7 @@ const useCaseDiagrams = [
     title: "Tổng quan hệ thống",
     count: "54 Use Case",
     description:
-      "Toàn bộ actor, biên hệ thống, ba module AI và hai hệ thống ngoài.",
+      "Toàn bộ tác nhân, biên hệ thống, ba module AI và hai hệ thống ngoài.",
     src: "/diagrams/roles/UC-00-Tong-quan.png",
     drawio: "/diagrams/roles/UC-00-Tong-quan.drawio",
     width: 1182,
@@ -134,7 +153,7 @@ const useCaseDiagrams = [
     title: "Cộng tác viên",
     count: "03 Use Case dùng chung",
     description:
-      "C12–C14: xem dự báo, đăng cập nhật và trả lời bình luận trong đúng campaign.",
+      "C12–C14: xem dự báo, đăng cập nhật và trả lời bình luận trong đúng chiến dịch.",
     src: "/diagrams/roles/UC-04-Collaborator.png",
     drawio: "/diagrams/roles/UC-04-Collaborator.drawio",
     width: 1452,
@@ -151,10 +170,10 @@ const useCaseDiagrams = [
     height: 1800,
   },
   {
-    title: "Hệ thống & Worker",
+    title: "Hệ thống & tác vụ nền",
     count: "08 Use Case",
     description:
-      "S01–S08: metric, AI scoring, chốt campaign, capture/cancel và notification.",
+      "S01–S08: tính chỉ số, chấm điểm AI, chốt chiến dịch, thu hoặc hủy tiền và gửi thông báo.",
     src: "/diagrams/roles/UC-06-System-Worker.png",
     drawio: "/diagrams/roles/UC-06-System-Worker.drawio",
     width: 1238,
@@ -182,7 +201,7 @@ const erdDiagrams = [
 
 const summary = [
   {
-    title: "Cây tham chiếu theo role",
+    title: "Cây tham chiếu theo vai trò",
     count: "03",
     detail: "Chức năng, phi chức năng và UI/UX đi cùng một cấu trúc vai trò",
     tone: "bg-[#fff4d8] text-[#7a6520]",
@@ -190,18 +209,20 @@ const summary = [
   {
     title: "Danh mục Use Case",
     count: "54",
-    detail: "5 actor nghiệp vụ + Worker, Stripe Sandbox và AI Service",
+    detail: "5 tác nhân nghiệp vụ + tác vụ nền; Stripe Sandbox và AI là phần cần tích hợp",
     tone: "bg-[#fff0e9] text-coral-dark",
   },
   {
     title: "Bảng dữ liệu",
-    count: "37",
+    count: "38",
     detail: "PostgreSQL DDL, constraint, index, trigger và funding view",
     tone: "bg-[#eef4df] text-[#566c27]",
   },
 ];
 
 export default function SystemDesignPage() {
+  const mockIntegrity = auditMockData();
+
   return (
     <>
       <section className="paper-grid bg-forest py-14 text-white sm:py-18">
@@ -210,7 +231,7 @@ export default function SystemDesignPage() {
             <GitBranch className="size-4" /> Hồ sơ phân tích thiết kế
           </span>
           <h1 className="mt-4 max-w-4xl font-display text-4xl font-extrabold tracking-[-0.055em] sm:text-6xl">
-            Từ yêu cầu, vai trò đến từng màn hình demo.
+            Từ yêu cầu, vai trò đến từng màn hình dùng thử.
           </h1>
           <p className="mt-5 max-w-3xl text-sm leading-7 text-white/62 sm:text-base">
             Ba cây tham chiếu giúp nhóm không làm giao diện theo cảm tính. Bên
@@ -243,8 +264,8 @@ export default function SystemDesignPage() {
           <p className="mt-4 text-xs text-white/45">
             Mở file{" "}
             <strong className="text-white/70">gop-use-cases.drawio</strong> tại
-            draw.io / diagrams.net; mọi actor, ellipse và đường nối đều là đối
-            tượng có thể sửa.
+            draw.io / diagrams.net; các tác nhân, hình elip và đường nối đều là
+            đối tượng có thể sửa.
           </p>
         </div>
       </section>
@@ -293,7 +314,7 @@ export default function SystemDesignPage() {
                 >
                   <div className="flex flex-col justify-between gap-4 border-b border-line p-5 sm:flex-row sm:items-start sm:p-6">
                     <div>
-                      <span className="rounded-full bg-[#fff4d8] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#7a6520]">
+                      <span className="rounded-full bg-[#fff4d8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#7a6520]">
                         {diagram.label}
                       </span>
                       <h3 className="mt-3 font-display text-xl font-extrabold">
@@ -349,10 +370,14 @@ export default function SystemDesignPage() {
                 </span>
                 <div>
                   <p className="text-sm font-extrabold text-forest">
-                    Cơ sở dữ liệu PostgreSQL đã kết nối & xác thực toàn vẹn
+                    Dữ liệu mẫu đang qua kiểm tra liên kết
                   </p>
                   <p className="mt-1 text-xs leading-5 text-ink-muted">
-                    37 bảng dữ liệu · Ràng buộc khóa ngoại & ACID · Kết nối đồng bộ qua NestJS API.
+                    {mockIntegrity.checkedTables} nhóm dữ liệu ·{" "}
+                    {mockIntegrity.checkedReadModels} bộ dữ liệu tổng hợp · đủ{" "}
+                    {mockIntegrity.roleCoverage.length} vai trò ·{" "}
+                    {mockIntegrity.counts.pledges} cam kết mẫu. Số liệu chốt lúc
+                    13/09/2026 10:30.
                   </p>
                 </div>
               </div>
@@ -362,7 +387,7 @@ export default function SystemDesignPage() {
                 rel="noreferrer"
                 className="button-secondary shrink-0"
               >
-                <ExternalLink className="size-4" /> Kiểm tra trạng thái API
+                <ExternalLink className="size-4" /> Xem kết quả JSON
               </a>
             </div>
 
@@ -419,7 +444,7 @@ export default function SystemDesignPage() {
               >
                 <div className="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6">
                   <div>
-                    <span className="rounded-full bg-[#f2f6e8] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#566c27]">
+                    <span className="rounded-full bg-[#f2f6e8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#566c27]">
                       {diagram.count}
                     </span>
                     <h3 className="mt-3 font-display text-xl font-extrabold">
@@ -448,7 +473,7 @@ export default function SystemDesignPage() {
                       unoptimized
                       className="h-full w-full object-contain object-top transition-transform duration-500 group-hover:scale-[1.015]"
                     />
-                    <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-forest/92 px-3 py-2 text-[10px] font-bold text-white shadow-lg backdrop-blur">
+                    <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-forest/92 px-3 py-2 text-[11px] font-bold text-white shadow-lg backdrop-blur">
                       <ExternalLink className="size-3.5" /> Mở PNG đầy đủ
                     </span>
                   </div>

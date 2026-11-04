@@ -3,12 +3,11 @@
 import {
   ArrowDown,
   ArrowUp,
-  Bot,
   CircleAlert,
   Clock3,
+  Lightbulb,
   MessageSquareQuote,
   RefreshCw,
-  Sparkles,
   Tag,
 } from "lucide-react";
 import { useState } from "react";
@@ -122,7 +121,7 @@ export function CommentInsights({
         >
           <div>
             <span className="eyebrow text-coral">
-              <Sparkles className="size-4" /> Phân loại phản hồi cộng đồng
+              <MessageSquareQuote className="size-4" /> Phân loại phản hồi cộng đồng
             </span>
             <h2 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
               {isCollaborator
@@ -151,14 +150,14 @@ export function CommentInsights({
           <div className="border-b border-line p-5 sm:p-6 xl:border-r xl:border-b-0">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-muted">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">
                   Đã phân tích
                 </p>
                 <p className="mt-2 font-display text-4xl font-extrabold tracking-[-0.06em]">
                   {data.analyzedCount}
                 </p>
               </div>
-              <span className="inline-flex items-center gap-1.5 text-[10px] text-ink-muted">
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
                 <Clock3 className="size-3.5" /> {formattedAnalyzedAt}
               </span>
             </div>
@@ -196,7 +195,7 @@ export function CommentInsights({
                         {topic.label}
                       </span>
                       <span
-                        className={`inline-flex items-center gap-1 text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold ${
                           topic.change > 0
                             ? "text-coral-dark"
                             : "text-emerald-700"
@@ -210,7 +209,7 @@ export function CommentInsights({
                         {Math.abs(topic.change)}
                       </span>
                     </div>
-                    <p className="mt-1.5 text-[10px] leading-4 text-ink-muted">
+                    <p className="mt-1.5 text-[11px] leading-4 text-ink-muted">
                       {topic.count} bình luận · {topic.summary}
                     </p>
                   </div>
@@ -225,11 +224,11 @@ export function CommentInsights({
                 <p className="flex items-center gap-2 text-xs font-bold">
                   <CircleAlert className="size-4 text-coral" /> Cần xem trước
                 </p>
-                <p className="mt-1 text-[10px] text-ink-muted">
+                <p className="mt-1 text-[11px] text-ink-muted">
                   Xếp theo mức cần phản hồi, không ẩn bình luận tiêu cực.
                 </p>
               </div>
-              <span className="rounded-full bg-forest px-2.5 py-1 text-[9px] font-bold text-white">
+              <span className="rounded-full bg-forest px-2.5 py-1 text-[11px] font-bold text-white">
                 {data.priorities.length} BÌNH LUẬN
               </span>
             </div>
@@ -247,24 +246,24 @@ export function CommentInsights({
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-forest text-[10px] font-bold text-white">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-forest text-[11px] font-bold text-white">
                         {comment.initials}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-xs font-bold">{comment.author}</p>
                           <span
-                            className={`rounded-full px-2 py-1 text-[9px] font-bold ${intentStyles[comment.intent]}`}
+                            className={`rounded-full px-2 py-1 text-[11px] font-bold ${intentStyles[comment.intent]}`}
                           >
                             {intentLabels[comment.intent]}
                           </span>
                           {comment.urgency === "HIGH" ? (
-                            <span className="rounded-full bg-red-50 px-2 py-1 text-[9px] font-bold text-red-700">
+                            <span className="rounded-full bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700">
                               Ưu tiên cao
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-1 text-[10px] text-ink-muted">
+                        <p className="mt-1 text-[11px] text-ink-muted">
                           {comment.createdAt}
                         </p>
                         <p className="mt-3 text-xs leading-6 text-ink-soft">
@@ -274,7 +273,7 @@ export function CommentInsights({
                           <button
                             type="button"
                             onClick={() => onSelectComment(comment)}
-                            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-3 text-[10px] font-bold hover:bg-forest/4"
+                            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-3 text-[11px] font-bold hover:bg-forest/4"
                           >
                             <MessageSquareQuote className="size-3.5" /> Soạn thủ
                             công
@@ -283,9 +282,9 @@ export function CommentInsights({
                             type="button"
                             disabled={busy !== null}
                             onClick={() => void suggestReply(comment)}
-                            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-forest px-3 text-[10px] font-bold text-white hover:bg-forest-raised disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-forest px-3 text-[11px] font-bold text-white hover:bg-forest-raised disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            <Bot className="size-3.5 text-lime" />
+                            <Lightbulb className="size-3.5 text-lime" />
                             {busy === `reply-${comment.id}`
                               ? "Đang gợi ý…"
                               : "Gợi ý phản hồi"}
@@ -300,13 +299,13 @@ export function CommentInsights({
           </div>
         </div>
 
-        <div className="flex flex-col justify-between gap-2 border-t border-line bg-[#fbfbf8] px-5 py-3 text-[10px] text-ink-muted sm:flex-row sm:items-center sm:px-6">
+        <div className="flex flex-col justify-between gap-2 border-t border-line bg-[#fbfbf8] px-5 py-3 text-[11px] text-ink-muted sm:flex-row sm:items-center sm:px-6">
           <p role={notice.startsWith("Chưa") ? "alert" : "status"}>
             {notice ||
               "Kết quả hiện tại là dữ liệu mô phỏng để kiểm tra luồng sử dụng."}
           </p>
           <p className="inline-flex shrink-0 items-center gap-1.5 font-semibold">
-            <Bot className="size-3.5" /> {data.runMeta.promptVersion} · không tự động đăng
+            <Tag className="size-3.5" /> Bản thử {data.runMeta.promptVersion} · người dùng duyệt trước khi đăng
           </p>
         </div>
       </div>

@@ -2,38 +2,24 @@ interface BrandMarkProps {
   className?: string;
 }
 
-export function BrandMark({ className = 'size-10' }: BrandMarkProps) {
+export function BrandMark({ className = "size-10" }: BrandMarkProps) {
   return (
     <svg
-      viewBox="0 0 48 48"
+      viewBox="0 0 64 64"
       className={className}
       aria-hidden="true"
       focusable="false"
     >
-      <rect width="48" height="48" rx="15" className="fill-lime" />
-      <circle
-        cx="22.5"
-        cy="21.5"
-        r="8.5"
-        fill="none"
-        className="stroke-forest"
-        strokeWidth="4.5"
-      />
-      <path
-        d="M31 13v20.1c0 6-3.7 9.4-9.2 9.4-3.5 0-6.5-1.4-8.3-4"
-        fill="none"
-        className="stroke-forest"
-        strokeWidth="4.5"
-        strokeLinecap="round"
-      />
-      <circle cx="13.5" cy="38.5" r="3.5" className="fill-forest" />
-      <circle cx="37" cy="10.5" r="3.5" className="fill-coral" />
+      <rect x="1" y="1" width="62" height="62" rx="11" fill="#f2eadb" stroke="#17392f" strokeWidth="2" />
+      <text x="32" y="28" textAnchor="middle" fill="#17392f" fontFamily="Arial, sans-serif" fontSize="22" fontWeight="800" letterSpacing="-1">PT</text>
+      <path d="M12 33h40" stroke="#c95339" strokeWidth="3" strokeLinecap="round" />
+      <text x="32" y="55" textAnchor="middle" fill="#17392f" fontFamily="Arial, sans-serif" fontSize="22" fontWeight="800" letterSpacing="-1">NT</text>
     </svg>
   );
 }
 
 export function BrandLogo({
-  className = '',
+  className = "",
   compact = false,
   light = true,
 }: {
@@ -43,18 +29,19 @@ export function BrandLogo({
 }) {
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <BrandMark className="size-10 shrink-0 transition-transform duration-200 group-hover:-rotate-3 group-hover:scale-[1.03]" />
+      <BrandMark className="size-10 shrink-0 sm:size-11" />
       {!compact ? (
         <span className="leading-none">
           <span
-            className={`block font-display text-[1.35rem] font-extrabold tracking-[-0.055em] ${light ? 'text-white' : 'text-forest'}`}
+            className={`block font-display text-[1.45rem] font-extrabold tracking-[-0.075em] ${light ? "text-white" : "text-forest"}`}
           >
-            Góp Ý
+            Góp
           </span>
           <span
-            className={`mt-1 hidden text-[9px] font-semibold tracking-[0.06em] sm:block ${light ? 'text-white/62' : 'text-ink-muted'}`}
+            className={`mt-1 block whitespace-nowrap text-[11px] font-bold ${light ? "text-[#efb29d]" : "text-[#9c3d2b]"}`}
           >
-            Góp một phần · Làm nên chuyện
+            <span className="xl:hidden">Phước Thịnh × Nhật Thanh</span>
+            <span className="hidden xl:inline">Võ Phước Thịnh × Nhật Thanh Nguyễn</span>
           </span>
         </span>
       ) : null}

@@ -1,71 +1,34 @@
-# Crowdfunding Platform
+# Góp — nền tảng gọi vốn cộng đồng
 
-Nền tảng gọi vốn cộng đồng (Crowdfunding) — Đồ án cuối kỳ
+Repo này có hai phần đang phát triển song song:
 
-## Tech Stack
+- `apps/web`: giao diện Next.js 16 và luồng demo cho năm vai trò. Bản chạy local dùng SQLite; khi đưa lên Vercel, dữ liệu demo nằm trong cookie của từng trình duyệt.
+- `apps/api`: backend NestJS/Prisma do nhóm xây dựng cho PostgreSQL. Frontend demo hiện **chưa** chuyển toàn bộ route sang backend này. Xem [bảng đối chiếu](docs/frontend-backend-handoff.md) trước khi nối API thật.
 
-- **Frontend**: Next.js 15 (App Router) + Tailwind CSS + shadcn/ui
-- **Backend**: NestJS + Prisma ORM
-- **Database**: PostgreSQL 16 + Redis
-- **Monorepo**: Turborepo + pnpm
+Source frontend được đồng bộ từ bản đang phát triển trên máy của nhóm. Git giữ lịch sử bản `apps/web` trước đó; không dùng các file API cũ còn trong lịch sử làm bằng chứng một luồng đã nối backend.
 
-## Getting Started
+## Chạy frontend demo
 
-### Prerequisites
+Cần Node.js **24 trở lên** và pnpm theo `packageManager` ở file này (có thể dùng Corepack). Từ thư mục repo:
 
-- Node.js >= 20
-- pnpm >= 9
-- Docker & Docker Compose
-
-### Setup
-
-```bash
-# 1. Install dependencies
-pnpm install
-
-# 2. Start database & Redis
-docker compose -f infra/docker/docker-compose.yml up -d
-
-# 3. Generate Prisma Client
-pnpm db:generate
-
-# 4. Push schema to database
-pnpm db:push
-
-# 5. Start development
-pnpm dev
+```powershell
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev:web
 ```
 
-### Available Scripts
+Mở `http://localhost:3000`. Trên Windows cũng có thể nhấp đúp `apps/web/CHAY-WEB.bat` để chạy ở cổng **3100**. Frontend tự tạo `.local-data/gop-mock.sqlite` từ seed khi cần; file DB riêng của máy không được đẩy lên GitHub. Tài khoản thử và hướng dẫn vai trò ở [apps/web/README.md](apps/web/README.md), giải thích SQLite ở [apps/web/docs/local-mock-database.md](apps/web/docs/local-mock-database.md).
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start all apps in development mode |
-| `pnpm build` | Build all apps for production |
-| `pnpm lint` | Lint all apps |
-| `pnpm type-check` | Run TypeScript type checking |
-| `pnpm format` | Format all files with Prettier |
-| `pnpm db:generate` | Generate Prisma Client |
-| `pnpm db:push` | Push Prisma schema to database |
-| `pnpm db:studio` | Open Prisma Studio |
-| `pnpm db:seed` | Seed the database |
+## Backend PostgreSQL
 
-## Project Structure
+`apps/api` vẫn nằm trong repo để nhóm tiếp tục phát triển API thật. Cần PostgreSQL/Redis và biến môi trường theo [.env.example](.env.example); quy trình Prisma và Docker vẫn dùng các script `db:*` trong [package.json](package.json). Chạy backend riêng bằng `corepack pnpm --filter @crowdfunding/api dev`. Việc chạy backend không tự đổi frontend từ SQLite/cookie demo sang PostgreSQL.
 
-```
-crowdfunding_platform/
-├── apps/
-│   ├── web/          # Next.js frontend (port 3000)
-│   └── api/          # NestJS backend  (port 3001)
-├── packages/
-│   ├── shared-types/ # Shared TypeScript types
-│   ├── ts-config/    # Shared TS configs
-│   └── eslint-config/# Shared ESLint configs
-└── infra/
-    └── docker/       # Docker Compose for dev
+## Kiểm tra
+
+```powershell
+corepack pnpm --filter @crowdfunding/web lint
+corepack pnpm --filter @crowdfunding/web type-check
+corepack pnpm build:web
+corepack pnpm --filter @crowdfunding/web test:schema-relations
 ```
 
-## Team
-
-- **Dev 1**: Backend (API, Database, Business Logic)
-- **Dev 2**: Frontend (UI, UX, State Management)
+CI dùng Node.js 24 để kiểm cả hai ứng dụng. Tài liệu, sơ đồ và video demo nằm dưới `apps/web/docs` và `apps/web/public/diagrams`; các ảnh gốc và file Draw.io có thể chỉnh sửa tiếp.

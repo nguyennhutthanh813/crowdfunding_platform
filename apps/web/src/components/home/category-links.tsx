@@ -35,7 +35,7 @@ export function CategoryLinks() {
                 <span className="block text-sm font-bold text-ink group-hover:text-coral-dark">
                   {category.name}
                 </span>
-                <span className="mt-0.5 hidden text-[10px] leading-4 text-ink-muted xl:block">
+                <span className="mt-0.5 hidden text-[11px] leading-4 text-ink-muted xl:block">
                   {category.note}
                 </span>
               </span>

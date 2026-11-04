@@ -5,14 +5,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
 import type { SessionResult, UserRole } from "@/lib/api";
 import { clientRequest } from "@/lib/api/client-request";
 import { roleDestinations } from "@/lib/auth/roles";
-import { useAuthStore } from "@/store/auth-store";
 
 type AuthStatus = "loading" | "guest" | "authenticated";
 
@@ -22,14 +20,10 @@ interface AuthContextValue {
   busy: boolean;
   establishSession: (session: SessionResult) => void;
   switchRole: (role: UserRole) => Promise<boolean>;
-  activateCreatorRole: () => Promise<boolean>;
+  activateCreatorRole: (destination?: string) => Promise<boolean>;
   updateProfile: (profile: {
     name: string;
     headline: string;
-    phone?: string;
-    location?: string;
-    bio?: string;
-    avatarUrl?: string;
   }) => Promise<boolean>;
   signOut: (destination?: string) => Promise<void>;
 }
@@ -57,26 +51,6 @@ export function AuthProvider({
   );
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (session) {
-      useAuthStore.getState().setAuth(
-        {
-          id: session.user.id,
-          email: session.user.email,
-          displayName: session.user.name,
-          avatarUrl: null,
-          roles: session.user.roles,
-        },
-        {
-          accessToken: session.tokens?.accessToken ?? session.sessionId,
-          refreshToken: session.tokens?.refreshToken ?? session.sessionId,
-        },
-      );
-    } else {
-      useAuthStore.getState().logout();
-    }
-  }, [session]);
-
   const establishSession = useCallback((nextSession: SessionResult) => {
     setSession(nextSession);
     setStatus("authenticated");
@@ -101,13 +75,19 @@ export function AuthProvider({
     [router],
   );
 
-  const activateCreatorRole = useCallback(async () => {
+  const activateCreatorRole = useCallback(async (destination?: string) => {
     setBusy(true);
     try {
       const nextSession = await updateSession({ grantRole: "CREATOR" });
       setSession(nextSession);
       setStatus("authenticated");
-      router.push(roleDestinations.CREATOR);
+      const target =
+        destination &&
+        /^\/creator(?:\/|\?|$)/.test(destination) &&
+        !destination.includes("\\")
+          ? destination
+          : roleDestinations.CREATOR;
+      router.push(target);
       router.refresh();
       return true;
     } catch {
@@ -118,14 +98,7 @@ export function AuthProvider({
   }, [router]);
 
   const updateProfile = useCallback(
-    async (profile: {
-      name: string;
-      headline: string;
-      phone?: string;
-      location?: string;
-      bio?: string;
-      avatarUrl?: string;
-    }) => {
+    async (profile: { name: string; headline: string }) => {
       setBusy(true);
       try {
         const nextSession = await updateSession({ profile });

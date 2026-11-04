@@ -8,36 +8,57 @@ export async function GET(request: NextRequest) {
   const access = await requireSession(["CREATOR", "COLLABORATOR"]);
   if (access.response) return access.response;
 
-  const campaignId = request.nextUrl.searchParams.get("campaignId");
-  if (campaignId) {
-    const campaignAccess = resolveCampaignAccess(
-      campaignId,
-      access.session!,
-      await getServerPlatformPreviewState(),
+  const campaignId =
+    request.nextUrl.searchParams.get("campaignId") ?? "cmp_orbit";
+  const campaignAccess = resolveCampaignAccess(
+    campaignId,
+    access.session!,
+    await getServerPlatformPreviewState(),
+  );
+  if (!campaignAccess.campaign) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "CAMPAIGN_NOT_FOUND",
+          message: "Không tìm thấy chiến dịch.",
+        },
+      },
+      { status: 404 },
     );
-    if (!campaignAccess.campaign) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "CAMPAIGN_NOT_FOUND",
-            message: "Không tìm thấy chiến dịch.",
-          },
+  }
+  if (!campaignAccess.canViewAi) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "AI_DASHBOARD_PERMISSION_REQUIRED",
+          message: "Bạn chưa được cấp quyền xem dự báo của chiến dịch này.",
         },
-        { status: 404 },
-      );
-    }
-    if (!campaignAccess.canViewAi) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "AI_DASHBOARD_PERMISSION_REQUIRED",
-            message: "Bạn chưa được cấp quyền xem dự báo của chiến dịch này.",
-          },
+      },
+      { status: 403 },
+    );
+  }
+  if (campaignAccess.isSuspended) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "CAMPAIGN_SUSPENDED",
+          message: "Chiến dịch đang tạm dừng nên phần dự báo đã được khóa.",
         },
-        { status: 403 },
-      );
-    }
+      },
+      { status: 423 },
+    );
   }
 
+  if (campaignId !== "cmp_orbit")
+    return NextResponse.json(
+      {
+        error: {
+          code: "FORECAST_NOT_AVAILABLE",
+          message:
+            "Dự án này chưa có bộ dự báo mẫu. Không dùng số liệu của dự án khác để thay thế.",
+        },
+      },
+      { status: 404 },
+    );
   return Response.json(await api.getCreatorAiDashboard());
 }

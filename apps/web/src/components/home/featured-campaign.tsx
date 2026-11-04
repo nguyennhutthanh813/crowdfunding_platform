@@ -21,7 +21,7 @@ export function FeaturedCampaign({ campaign }: { campaign: CampaignCardData }) {
           <div>
             <p className="text-xs font-bold text-coral-dark">Dự án nổi bật</p>
             <p className="mt-1 text-sm text-ink-muted">
-              Một lựa chọn đang nhận được nhiều sự quan tâm trong tuần.
+              Một dự án tiêu biểu trong dữ liệu mẫu của Góp.
             </p>
           </div>
           <Link
@@ -110,7 +110,7 @@ export function FeaturedCampaign({ campaign }: { campaign: CampaignCardData }) {
               </Link>
             </div>
             <p className="mt-4 text-[11px] leading-5 text-ink-muted">
-              Bạn chỉ bị thu tiền khi chiến dịch đạt đủ mục tiêu.
+              Bản demo chỉ ghi cam kết mẫu; không giữ thẻ hoặc thu tiền.
             </p>
           </div>
         </article>

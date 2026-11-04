@@ -8,13 +8,17 @@ const localRuntime = globalThis as typeof globalThis & {
 function signingKey() {
   const configured = process.env.GOP_SESSION_SECRET?.trim();
   if (configured && configured.length >= 32) return configured;
-  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+  if (
+    configured ||
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL
+  ) {
     throw new Error(
       "GOP_SESSION_SECRET phải có ít nhất 32 ký tự khi chạy production.",
     );
   }
-  // Khóa bí mật ổn định trong môi trường phát triển để không bị mất phiên khi khởi động lại dev server
-  return "gop_platform_development_session_secret_2026_super_secure_key_123456";
+  // Chỉ dùng lúc chạy local; khởi động lại server thì phiên cũ hết hiệu lực.
+  return (localRuntime.gopLocalSigningKey ??= randomBytes(32).toString("hex"));
 }
 
 function sign(payload: string, purpose: "session" | "platform") {

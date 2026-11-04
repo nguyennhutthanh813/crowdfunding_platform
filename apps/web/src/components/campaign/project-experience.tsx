@@ -7,11 +7,7 @@ import {
   ChevronDown,
   CircleDashed,
   Clock3,
-  Edit2,
-  Eye,
-  EyeOff,
   Heart,
-  Mail,
   MessageCircle,
   PackageCheck,
   Quote,
@@ -20,12 +16,11 @@ import {
   Send,
   ShieldCheck,
   ThumbsUp,
-  Trash2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { NotifyButton } from "@/components/notify-button";
 import { Modal } from "@/components/ui/modal";
@@ -40,6 +35,7 @@ import type {
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import { formatNumber, formatVnd } from "@/lib/format";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 
 const tabs = [
   { id: "Story", label: "Câu chuyện" },
@@ -64,33 +60,33 @@ const badgeLabels: Record<CommentBadge, string> = {
   COLLABORATOR: "Cộng tác viên",
   SUPERBACKER: "Ủng hộ tích cực",
   BACKER: "Người ủng hộ",
-  ADMIN: "Quản trị viên",
 };
 const badgeTones: Record<CommentBadge, string> = {
   CREATOR: "bg-forest text-white",
   COLLABORATOR: "bg-[#e8edce] text-[#536227]",
   SUPERBACKER: "bg-[#fff0e9] text-coral-dark",
   BACKER: "bg-stone-100 text-stone-600",
-  ADMIN: "bg-purple-100 text-purple-700",
 };
 
 async function saveMemberAction(
   action: string,
   payload: Record<string, unknown>,
 ) {
-  return clientRequest<{ session?: SessionResult }>("/api/v1/me/dashboard", {
+  return clientRequest<{ session?: SessionResult; data?: {
+    persisted?: boolean; recordId?: string; badge?: CommentBadge; liked?: boolean; likes?: number;
+  } }>("/api/v1/me/dashboard", {
     method: "POST",
     body: JSON.stringify({ action, payload }),
   });
 }
 
 function getCommentBadge(role: UserRole): CommentBadge {
-  if (role === "ADMIN") return "ADMIN";
   if (role === "CREATOR" || role === "COLLABORATOR") return role;
   return "BACKER";
 }
 
 function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
+  const isNewCampaign = isPreviewCampaignId(campaign.id);
   return (
     <div>
       <h2 className="sr-only">Câu chuyện và kế hoạch dự án</h2>
@@ -102,7 +98,7 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
           <p key={paragraph}>{paragraph}</p>
         ))}
       </div>
-      <div className="mt-10 grid gap-3 sm:grid-cols-3">
+      {campaign.story.highlights.length > 0 ? <div className="mt-10 grid gap-3 sm:grid-cols-3">
         {campaign.story.highlights.map((item) => (
           <div
             key={item.title}
@@ -116,9 +112,15 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
             </p>
           </div>
         ))}
-      </div>
+      </div> : null}
 
-      <div className="mt-12">
+      {isNewCampaign ? <p className="mt-8 rounded-2xl border border-[#d9e4d2] bg-[#f5f8f0] p-5 text-sm leading-7 text-[#355343]">
+        Nội dung này lấy từ hồ sơ Chủ dự án đã gửi duyệt. {campaign.visual.imageSrc
+          ? "Ảnh đầu trang chỉ minh họa ý tưởng, chưa phải ảnh sản phẩm thật. "
+          : "Chủ dự án chưa thêm ảnh cho hồ sơ. "}
+        Bằng chứng kiểm chứng và bảng chia vốn chi tiết vẫn cần bổ sung trước khi dùng ngoài bản demo.
+      </p> : null}
+      {campaign.story.fundingPlan.length > 0 ? <div className="mt-12">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
           <div>
             <p className="eyebrow text-coral">Kế hoạch sử dụng vốn</p>
@@ -157,16 +159,16 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
                 <p className="font-display text-2xl font-extrabold text-coral-dark">
                   {item.percent}%
                 </p>
-                <p className="mt-1 text-[10px] text-ink-muted">
+                <p className="mt-1 text-[11px] text-ink-muted">
                   {formatVnd(item.amount)}
                 </p>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </div> : null}
 
-      <div className="mt-12">
+      {campaign.story.evidence.length > 0 ? <div className="mt-12">
         <p className="eyebrow text-coral">Căn cứ để cộng đồng kiểm tra</p>
         <h3 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
           Nhóm đã có gì, còn thiếu gì?
@@ -201,7 +203,7 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
                     }`}
                   />
                   <span
-                    className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
                       verified
                         ? "bg-emerald-50 text-emerald-700"
                         : inProgress
@@ -220,9 +222,9 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
             );
           })}
         </div>
-      </div>
+      </div> : null}
 
-      <div className="mt-12">
+      {campaign.story.roadmap.length > 0 ? <div className="mt-12">
         <p className="eyebrow text-coral">Lộ trình thực hiện</p>
         <div className="mt-5 space-y-0">
           {campaign.story.roadmap.map((item, index) => (
@@ -250,7 +252,7 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
             </div>
           ))}
         </div>
-      </div>
+      </div> : null}
       <div className="mt-10 rounded-[18px] bg-forest p-6 text-white sm:p-8">
         <ShieldCheck className="size-6 text-lime" />
         <h3 className="mt-4 font-display text-xl font-extrabold">
@@ -280,8 +282,8 @@ function RewardCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           {reward.featured ? (
-            <span className="rounded-full bg-coral px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
-              Phổ biến
+            <span className="rounded-full bg-coral px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
+              Gói nổi bật
             </span>
           ) : null}
           <p className="mt-3 font-display text-2xl font-extrabold">
@@ -370,15 +372,6 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
-  // Contact modal state (MSG-01)
-  const [contactOpen, setContactOpen] = useState(false);
-  const [contactSubject, setContactSubject] = useState("");
-  const [contactBody, setContactBody] = useState("");
-  const [contactBusy, setContactBusy] = useState(false);
-  const [contactNotice, setContactNotice] = useState("");
-
-  const isOwner = Boolean(session && session.user.id === campaign.creator.id);
-
   const toggleFollowing = async () => {
     if (!session) {
       router.push(`/auth?next=${encodeURIComponent(pathname)}`);
@@ -406,41 +399,6 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
       setNotice(clientRequestMessage(error, "Chưa thể lưu theo dõi. Bạn thử lại sau nhé."));
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contactSubject.trim() || !contactBody.trim()) return;
-    if (!session) {
-      router.push(`/auth?next=${encodeURIComponent(pathname)}`);
-      return;
-    }
-    if (isOwner) {
-      setContactNotice("Bạn không thể gửi tin nhắn cho chính mình.");
-      return;
-    }
-
-    setContactBusy(true);
-    setContactNotice("");
-    try {
-      await saveMemberAction("SEND_MESSAGE", {
-        campaignId: campaign.id,
-        recipientUserId: campaign.creator.id,
-        subject: contactSubject.trim(),
-        body: contactBody.trim(),
-      });
-      setContactSubject("");
-      setContactBody("");
-      setContactNotice("Tin nhắn đã được gửi thành công đến chủ dự án!");
-      setTimeout(() => {
-        setContactOpen(false);
-        setContactNotice("");
-      }, 1500);
-    } catch (error) {
-      setContactNotice(clientRequestMessage(error, "Chưa thể gửi tin nhắn. Bạn thử lại sau nhé."));
-    } finally {
-      setContactBusy(false);
     }
   };
 
@@ -485,37 +443,20 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
               </span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              disabled={isOwner}
-              title={isOwner ? "Bạn là chủ dự án này" : undefined}
-              onClick={() => {
-                if (!session) {
-                  router.push(`/auth?next=${encodeURIComponent(pathname)}`);
-                  return;
-                }
-                setContactOpen(true);
-              }}
-              className="button-dark"
-            >
-              <Mail className="size-4" /> Liên hệ Chủ dự án
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              aria-pressed={following}
-              onClick={() => void toggleFollowing()}
-              className={following ? "button-secondary" : "button-primary"}
-            >
-              {following ? (
-                <Check className="size-4" />
-              ) : (
-                <Heart className="size-4" />
-              )}{" "}
-              {busy ? "Đang lưu…" : following ? "Đang theo dõi" : "Theo dõi"}
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={busy}
+            aria-pressed={following}
+            onClick={() => void toggleFollowing()}
+            className={following ? "button-secondary" : "button-primary"}
+          >
+            {following ? (
+              <Check className="size-4" />
+            ) : (
+              <Heart className="size-4" />
+            )}{" "}
+            {busy ? "Đang lưu…" : following ? "Đang theo dõi" : "Theo dõi"}
+          </button>
         </div>
         {notice ? (
           <p
@@ -526,74 +467,6 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
           </p>
         ) : null}
       </div>
-
-      <Modal
-        open={contactOpen}
-        title={`Liên hệ ${campaign.creator.name}`}
-        description="Gửi tin nhắn trực tiếp đến đội ngũ sáng tạo của chiến dịch này."
-        onClose={() => {
-          setContactOpen(false);
-          setContactNotice("");
-        }}
-        locked={contactBusy}
-      >
-        <form onSubmit={handleSendMessage} className="rounded-[18px] border border-coral/25 bg-[#fffaf6] p-4 sm:p-5">
-          <div>
-            <label htmlFor="contact-subj" className="text-xs font-bold text-ink-soft">
-              Chủ đề tin nhắn <span className="text-coral">*</span>
-            </label>
-            <input
-              id="contact-subj"
-              type="text"
-              value={contactSubject}
-              onChange={(e) => setContactSubject(e.target.value)}
-              placeholder="Ví dụ: Hỏi về kế hoạch giao quà, chính sách bảo hành..."
-              maxLength={180}
-              className="input-field mt-1.5"
-              required
-            />
-          </div>
-          <div className="mt-4">
-            <label htmlFor="contact-body" className="text-xs font-bold text-ink-soft">
-              Nội dung trao đổi <span className="text-coral">*</span>
-            </label>
-            <textarea
-              id="contact-body"
-              value={contactBody}
-              onChange={(e) => setContactBody(e.target.value)}
-              placeholder="Nhập nội dung tin nhắn của bạn (tối đa 4000 ký tự)..."
-              rows={4}
-              maxLength={4000}
-              className="input-field mt-1.5 min-h-24 resize-y"
-              required
-            />
-          </div>
-          {contactNotice ? (
-            <p className={`mt-3 text-xs ${contactNotice.startsWith("Chưa") || contactNotice.startsWith("Bạn") ? "text-red-600" : "text-emerald-700"}`}>
-              {contactNotice}
-            </p>
-          ) : null}
-          <div className="mt-5 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setContactOpen(false);
-                setContactNotice("");
-              }}
-              className="button-ghost"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={!contactSubject.trim() || !contactBody.trim() || contactBusy}
-              className="button-dark"
-            >
-              <Send className="size-4" /> {contactBusy ? "Đang gửi…" : "Gửi tin nhắn"}
-            </button>
-          </div>
-        </form>
-      </Modal>
       <div className="mt-8">
         <p className="eyebrow text-coral">Nhóm dự án</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -625,6 +498,7 @@ function FaqPanel({
   return (
     <div>
       <h2 className="font-display text-2xl font-extrabold">Câu hỏi thường gặp</h2>
+      {!campaign.faqs.length ? <p className="mt-5 rounded-2xl border border-dashed border-line bg-[#faf9f3] p-5 text-sm text-ink-soft">Chưa có câu hỏi thường gặp. Bạn cứ hỏi nhóm; câu hỏi và lời đáp sẽ hiện trong mục Bình luận.</p> : null}
       <div className="mt-6 divide-y divide-line rounded-[18px] border border-line bg-white">
         {campaign.faqs.map((faq, index) => (
           <details key={faq.question} className="group p-5" open={index === 0}>
@@ -649,6 +523,7 @@ function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
   return (
     <div>
       <h2 className="font-display text-2xl font-extrabold">Nhật ký dự án</h2>
+      {!campaign.updates.length ? <p className="mt-5 rounded-2xl border border-dashed border-line bg-[#faf9f3] p-5 text-sm text-ink-soft">Chưa có bài cập nhật mới từ nhóm dự án.</p> : null}
       <div className="mt-6 space-y-4">
         {campaign.updates.map((update, index) => (
           <article
@@ -685,120 +560,24 @@ function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
 function CommentItem({
   comment,
   campaignId,
-  isCampaignCreator = false,
+  paused = false,
   nested = false,
-  onDeleteComment,
 }: {
   comment: CampaignComment;
   campaignId: string;
-  isCampaignCreator?: boolean;
+  paused?: boolean;
   nested?: boolean;
-  onDeleteComment?: (id: string) => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const { session } = useAuth();
-  const [likes, setLikes] = useState(comment.likes);
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(Boolean(comment.viewerLiked));
+  const [likeCount, setLikeCount] = useState(comment.likes);
   const [replying, setReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [replies, setReplies] = useState(comment.replies ?? []);
-  const [editing, setEditing] = useState(false);
-  const [editBody, setEditBody] = useState(comment.body);
-  const [currentBody, setCurrentBody] = useState(comment.body);
-  const [isHidden, setIsHidden] = useState(Boolean(comment.isHidden));
-  const [actionBusy, setActionBusy] = useState<"like" | "reply" | "edit" | "delete" | "hide" | null>(null);
+  const [actionBusy, setActionBusy] = useState<"like" | "reply" | null>(null);
   const [notice, setNotice] = useState("");
-
-  const isAuthor = Boolean(
-    session && (comment.authorId ? comment.authorId === session.user.id : comment.author === session.user.name),
-  );
-  const isAdmin = Boolean(session && session.user.roles.includes("ADMIN"));
-  const canModerate = isCampaignCreator || isAdmin;
-  const canDelete = isAuthor || canModerate;
-
-  const requireMember = () => {
-    if (!session) {
-      router.push(`/auth?next=${encodeURIComponent(pathname)}`);
-      return false;
-    }
-    return true;
-  };
-
-  const toggleLike = async () => {
-    if (!requireMember()) return;
-    setActionBusy("like");
-    setNotice("");
-    try {
-      await saveMemberAction("LIKE_COMMENT", {
-        campaignId,
-        commentId: comment.id,
-      });
-      setLiked(true);
-      setLikes((val) => val + 1);
-    } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể lưu lượt thích."));
-    } finally {
-      setActionBusy(null);
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    const val = editBody.trim();
-    if (!val || val === currentBody) {
-      setEditing(false);
-      return;
-    }
-    setActionBusy("edit");
-    setNotice("");
-    try {
-      await saveMemberAction("UPDATE_COMMENT", {
-        commentId: comment.id,
-        body: val,
-      });
-      setCurrentBody(val);
-      setEditing(false);
-      setNotice("Đã cập nhật bình luận.");
-    } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể lưu chỉnh sửa."));
-    } finally {
-      setActionBusy(null);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa bình luận này?")) return;
-    setActionBusy("delete");
-    setNotice("");
-    try {
-      await saveMemberAction("DELETE_COMMENT", {
-        commentId: comment.id,
-      });
-      onDeleteComment?.(comment.id);
-    } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể xóa bình luận."));
-    } finally {
-      setActionBusy(null);
-    }
-  };
-
-  const handleToggleHide = async () => {
-    setActionBusy("hide");
-    setNotice("");
-    try {
-      await saveMemberAction("HIDE_COMMENT", {
-        commentId: comment.id,
-        isHidden: !isHidden,
-        reason: isHidden ? "Bỏ ẩn bình luận" : "Ẩn bình luận vi phạm tiêu chuẩn",
-      });
-      setIsHidden(!isHidden);
-      setNotice(!isHidden ? "Đã ẩn bình luận." : "Đã bỏ ẩn bình luận.");
-    } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể thay đổi trạng thái ẩn."));
-    } finally {
-      setActionBusy(null);
-    }
-  };
 
   const addReply = async () => {
     const value = replyBody.trim();
@@ -806,19 +585,20 @@ function CommentItem({
     setActionBusy("reply");
     setNotice("");
     try {
-      await saveMemberAction("CREATE_COMMENT", {
+      const result = await saveMemberAction("CREATE_COMMENT", {
         campaignId,
         parentId: comment.id,
-        parentCommentId: comment.id,
         body: value,
       });
+      if (!result.data?.persisted || !result.data.recordId) throw new Error("Chưa lưu được trả lời.");
+      const saved = result.data;
       setReplies((current) => [
         ...current,
         {
-          id: `reply-${Date.now()}`,
+          id: saved.recordId!,
           author: session.user.name,
           initials: session.user.initials,
-          badge: getCommentBadge(session.user.activeRole),
+          badge: result.data?.badge ?? getCommentBadge(session.user.activeRole),
           body: value,
           createdAt: "Vừa xong",
           likes: 0,
@@ -827,15 +607,48 @@ function CommentItem({
       setReplyBody("");
       setReplying(false);
     } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể gửi trả lời."));
+      setNotice(clientRequestMessage(error, "Chưa thể gửi trả lời. Nội dung của bạn vẫn được giữ lại."));
     } finally {
       setActionBusy(null);
     }
   };
 
-  if (isHidden && !canModerate) {
-    return null;
-  }
+  const requireMember = () => {
+    if (!session) {
+      router.push(`/auth?next=${encodeURIComponent(pathname)}`);
+      return false;
+    }
+    if (
+      !session.user.roles.some((role) =>
+        ["BACKER", "CREATOR", "COLLABORATOR"].includes(role),
+      )
+    ) {
+      router.push("/account?tab=roles");
+      return false;
+    }
+    return true;
+  };
+
+  const toggleLike = async () => {
+    if (paused || !requireMember()) return;
+    setActionBusy("like");
+    setNotice("");
+    try {
+      const result = await saveMemberAction("LIKE_COMMENT", {
+        campaignId,
+        commentId: comment.id,
+        liked: !liked,
+      });
+      if (!result.data?.persisted || typeof result.data.likes !== "number" ||
+          typeof result.data.liked !== "boolean") throw new Error("Chưa lưu được lượt thích.");
+      setLiked(result.data.liked);
+      setLikeCount(result.data.likes);
+    } catch (error) {
+      setNotice(clientRequestMessage(error, "Chưa thể lưu lượt thích. Bạn thử lại sau nhé."));
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   return (
     <article
@@ -851,114 +664,40 @@ function CommentItem({
               {comment.author}
             </p>
             <span
-              className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badgeTones[comment.badge]}`}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${badgeTones[comment.badge]}`}
             >
               {badgeLabels[comment.badge]}
             </span>
-            {isHidden ? (
-              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold text-rose-700">
-                Đã bị ẩn
-              </span>
-            ) : null}
-            <span className="text-[10px] text-ink-muted">
+            <span className="text-[11px] text-ink-muted">
               {comment.createdAt}
             </span>
           </div>
-
-          {editing ? (
-            <div className="mt-2 rounded-2xl bg-[#f6f5f0] p-3">
-              <label>
-                <span className="sr-only">Nội dung chỉnh sửa</span>
-                <textarea
-                  value={editBody}
-                  onChange={(e) => setEditBody(e.target.value)}
-                  maxLength={4000}
-                  className="input-field min-h-20 resize-y text-xs"
-                />
-              </label>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  disabled={!editBody.trim() || actionBusy === "edit"}
-                  onClick={() => void handleSaveEdit()}
-                  className="button-dark min-h-9 px-3 text-xs"
-                >
-                  {actionBusy === "edit" ? "Đang lưu…" : "Lưu thay đổi"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(false);
-                    setEditBody(currentBody);
-                  }}
-                  className="button-ghost min-h-9 px-3 text-xs"
-                >
-                  Hủy
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="mt-2 text-sm leading-6 text-ink-soft">{currentBody}</p>
-          )}
-
-          <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] font-bold text-ink-muted">
+          <p className="mt-2 text-sm leading-6 text-ink-soft">{comment.body}</p>
+          <div className="mt-3 flex gap-4 text-[11px] font-bold text-ink-muted">
             <button
               type="button"
-              disabled={actionBusy === "like"}
+              disabled={paused || actionBusy === "like"}
               aria-pressed={liked}
-              aria-label={`${liked ? "Đã thích" : "Thích"} bình luận của ${comment.author}. Hiện có ${likes + (liked ? 1 : 0)} lượt thích`}
+              aria-label={`${liked ? "Bỏ thích" : "Thích"} bình luận của ${comment.author}. Hiện có ${likeCount} lượt thích`}
               onClick={() => void toggleLike()}
-              className={`inline-flex min-h-9 cursor-pointer items-center gap-1.5 hover:text-coral ${liked ? "text-coral-dark" : ""}`}
+              className={`inline-flex min-h-11 items-center gap-1.5 hover:text-coral disabled:cursor-not-allowed disabled:opacity-50 ${liked ? "text-coral-dark" : "cursor-pointer"}`}
             >
               <ThumbsUp className="size-3.5" />
-              {likes + (liked ? 1 : 0)}
+              {likeCount}
             </button>
-            <button
+            {!nested ? <button
               type="button"
+              disabled={paused}
               aria-expanded={replying}
               aria-label={`Trả lời bình luận của ${comment.author}`}
               onClick={() => {
                 if (requireMember()) setReplying((value) => !value);
               }}
-              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 hover:text-coral"
+              className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Reply className="size-3.5" /> Trả lời
-            </button>
-
-            {isAuthor && !editing ? (
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="inline-flex min-h-9 cursor-pointer items-center gap-1 text-ink-muted hover:text-coral"
-              >
-                <Edit2 className="size-3.5" /> Sửa
-              </button>
-            ) : null}
-
-            {canDelete ? (
-              <button
-                type="button"
-                disabled={actionBusy === "delete"}
-                onClick={() => void handleDelete()}
-                className="inline-flex min-h-9 cursor-pointer items-center gap-1 text-red-500 hover:text-red-700"
-              >
-                <Trash2 className="size-3.5" /> Xóa
-              </button>
-            ) : null}
-
-            {canModerate ? (
-              <button
-                type="button"
-                disabled={actionBusy === "hide"}
-                onClick={() => void handleToggleHide()}
-                className="inline-flex min-h-9 cursor-pointer items-center gap-1 text-amber-600 hover:text-amber-800"
-              >
-                {isHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-                {isHidden ? "Bỏ ẩn" : "Ẩn"}
-              </button>
-            ) : null}
+            </button> : null}
           </div>
-
           {replying ? (
             <div className="mt-4 rounded-2xl bg-[#f6f5f0] p-3">
               <label>
@@ -967,7 +706,7 @@ function CommentItem({
                   name={`reply-${comment.id}`}
                   value={replyBody}
                   onChange={(event) => setReplyBody(event.target.value)}
-                  maxLength={4000}
+                  maxLength={1000}
                   className="input-field min-h-20 resize-y text-xs"
                   placeholder={`Trả lời ${comment.author}…`}
                 />
@@ -975,9 +714,9 @@ function CommentItem({
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
-                  disabled={!replyBody.trim() || actionBusy === "reply"}
+                  disabled={replyBody.trim().length < 3 || actionBusy === "reply"}
                   onClick={() => void addReply()}
-                  className="button-dark min-h-9 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  className="button-dark min-h-11 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Send className="size-3.5" />
                   {actionBusy === "reply" ? "Đang gửi…" : "Gửi trả lời"}
@@ -988,7 +727,7 @@ function CommentItem({
                     setReplying(false);
                     setReplyBody("");
                   }}
-                  className="button-ghost min-h-9 px-3 text-xs"
+                  className="button-ghost min-h-11 px-3 text-xs"
                 >
                   Hủy
                 </button>
@@ -1009,8 +748,7 @@ function CommentItem({
               key={reply.id}
               comment={reply}
               campaignId={campaignId}
-              isCampaignCreator={isCampaignCreator}
-              onDeleteComment={(id) => setReplies((r) => r.filter((item) => item.id !== id))}
+              paused={paused}
               nested
             />
           ))}
@@ -1031,15 +769,17 @@ function CommentsPanel({
   const router = useRouter();
   const { session } = useAuth();
   const [composerOpen, setComposerOpen] = useState(
-    initialIntent === "question",
+    initialIntent === "question" && campaign.status !== "SUSPENDED",
   );
   const [composerMode, setComposerMode] = useState<"comment" | "question">(
     initialIntent,
   );
   const [body, setBody] = useState("");
   const [comments, setComments] = useState(campaign.comments);
+  const [visibleCount, setVisibleCount] = useState(8);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const paused = campaign.status === "SUSPENDED";
 
   const addComment = async () => {
     const value = body.trim();
@@ -1047,16 +787,18 @@ function CommentsPanel({
     setBusy(true);
     setNotice("");
     try {
-      await saveMemberAction(
+      const result = await saveMemberAction(
         composerMode === "question" ? "ASK_QUESTION" : "CREATE_COMMENT",
         { campaignId: campaign.id, body: value },
       );
+      if (!result.data?.persisted || !result.data.recordId) throw new Error("Chưa lưu được bình luận.");
+      const saved = result.data;
       setComments((current) => [
         {
-          id: `local-${Date.now()}`,
+          id: saved.recordId!,
           author: session.user.name,
           initials: session.user.initials,
-          badge: getCommentBadge(session.user.activeRole),
+          badge: result.data?.badge ?? getCommentBadge(session.user.activeRole),
           body: value,
           createdAt: "Vừa xong",
           likes: 0,
@@ -1078,6 +820,7 @@ function CommentsPanel({
   };
 
   const openComposer = () => {
+    if (paused) return;
     if (!session) {
       router.push(`/auth?next=${encodeURIComponent(pathname)}`);
       return;
@@ -1097,7 +840,7 @@ function CommentsPanel({
 
   return (
     <div>
-      <div className="flex items-end justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl font-extrabold">
             Cộng đồng thảo luận
@@ -1106,10 +849,14 @@ function CommentsPanel({
             Nhãn vai trò giúp nhận ra phản hồi chính thức từ nhóm dự án.
           </p>
         </div>
-        <button type="button" onClick={openComposer} className="button-dark">
+        <button type="button" onClick={openComposer} disabled={paused}
+          className="button-dark disabled:cursor-not-allowed disabled:opacity-50">
           Viết bình luận
         </button>
       </div>
+      {paused ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        Chiến dịch đang tạm dừng. Bạn vẫn có thể đọc thảo luận cũ; phần viết và thích sẽ mở lại khi chiến dịch hoạt động.
+      </p> : null}
       <Modal
         open={composerOpen}
         title={composerMode === "question" ? "Hỏi nhóm dự án" : "Viết bình luận"}
@@ -1133,6 +880,7 @@ function CommentsPanel({
             id="new-comment"
             value={body}
             onChange={(event) => setBody(event.target.value)}
+            maxLength={1000}
             className="input-field mt-2 min-h-28 resize-y"
             placeholder={
               composerMode === "question"
@@ -1153,7 +901,7 @@ function CommentsPanel({
             </button>
             <button
               type="button"
-              disabled={!body.trim() || busy}
+              disabled={body.trim().length < 3 || busy}
               onClick={() => void addComment()}
               className="button-dark min-h-11 px-4 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -1175,20 +923,34 @@ function CommentsPanel({
           {notice}
         </p>
       ) : null}
-      <div className="mt-6 divide-y divide-line rounded-[18px] border border-line bg-white px-5">
-        {comments.map((comment) => (
-          <div key={comment.id} className="py-6">
-            <CommentItem
-              comment={comment}
-              campaignId={campaign.id}
-              isCampaignCreator={session?.user.id === campaign.creator.id}
-              onDeleteComment={(id) =>
-                setComments((current) => current.filter((c) => c.id !== id))
-              }
-            />
+      {comments.length ? (
+        <>
+          <div className="mt-6 divide-y divide-line rounded-[18px] border border-line bg-white px-5">
+            {comments.slice(0, visibleCount).map((comment) => (
+              <div key={comment.id} className="py-6">
+                <CommentItem comment={comment} campaignId={campaign.id} paused={paused} />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+          {comments.length > visibleCount ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-ink-muted">
+                Đang xem {visibleCount} / {comments.length} bình luận
+              </p>
+              <button type="button" className="button-secondary min-h-11 px-4"
+                onClick={() => setVisibleCount((count) => count + 8)}>
+                Xem thêm {Math.min(8, comments.length - visibleCount)} bình luận
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className="mt-6 rounded-[18px] border border-line bg-white p-6 text-sm text-ink-muted">
+          {paused
+            ? "Chưa có bình luận nào. Chiến dịch đang tạm dừng nên chưa thể đăng mới."
+            : "Chưa có bình luận nào. Bạn có thể bắt đầu cuộc trao đổi với nhóm dự án."}
+        </div>
+      )}
     </div>
   );
 }
@@ -1214,7 +976,7 @@ function CommunityPanel({ campaign }: { campaign: CampaignDetail }) {
           </p>
           <p className="mt-1 text-xs text-white/48">
             {campaign.status === "PRE_LAUNCH"
-              ? "người đã cam kết (chưa mở)"
+              ? "chưa mở nhận cam kết"
               : "người đang cùng đồng hành"}
           </p>
           <div className="mt-6 grid grid-cols-2 gap-3">
@@ -1224,7 +986,7 @@ function CommunityPanel({ campaign }: { campaign: CampaignDetail }) {
                   ? `${campaign.community.newBackerPercent}%`
                   : "—"}
               </p>
-              <p className="text-[10px] text-white/45">Người mới</p>
+              <p className="text-[11px] text-white/45">Người mới</p>
             </div>
             <div className="rounded-xl bg-white/7 p-3">
               <p className="font-display text-xl font-extrabold text-lime">
@@ -1232,7 +994,7 @@ function CommunityPanel({ campaign }: { campaign: CampaignDetail }) {
                   ? `${campaign.community.returningBackerPercent}%`
                   : "—"}
               </p>
-              <p className="text-[10px] text-white/45">Quay lại</p>
+              <p className="text-[11px] text-white/45">Quay lại</p>
             </div>
           </div>
         </div>
@@ -1314,6 +1076,15 @@ export function ProjectExperience({
   const [commentIntent, setCommentIntent] = useState<"comment" | "question">(
     "comment",
   );
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = tabScrollRef.current;
+    const selected = container?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!container || !selected || container.scrollWidth <= container.clientWidth) return;
+    const left = selected.getBoundingClientRect().left -
+      container.getBoundingClientRect().left + container.scrollLeft;
+    container.scrollTo({ left: left - (container.clientWidth - selected.clientWidth) / 2, behavior: "auto" });
+  }, [tab]);
   const isPreLaunch = campaign.status === "PRE_LAUNCH";
   const canPledge = campaign.status === "LIVE";
 
@@ -1359,7 +1130,7 @@ export function ProjectExperience({
       className="scroll-mt-32 border-t border-line bg-canvas pb-20"
     >
       <div className="sticky top-17 z-30 border-b border-line bg-canvas">
-        <div className="container-shell overflow-x-auto">
+        <div ref={tabScrollRef} className="container-shell overflow-x-auto">
           <div
             className="flex min-w-max gap-7"
             role="tablist"
@@ -1436,7 +1207,7 @@ export function ProjectExperience({
                 </p>
               )}
             </div>
-            <p className="mt-3 text-center text-[10px] leading-4 text-ink-muted">
+            <p className="mt-3 text-center text-[11px] leading-4 text-ink-muted">
               {isPreLaunch
                 ? "Đăng ký nhắc có thể tắt bất cứ lúc nào."
                 : canPledge
@@ -1454,7 +1225,7 @@ export function ProjectExperience({
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white p-3 lg:hidden">
           <div className="container-shell flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] text-ink-muted">
+              <p className="text-[11px] text-ink-muted">
                 {isPreLaunch ? "Gói dự kiến từ" : "Gói ủng hộ từ"}
               </p>
               <p className="font-display text-sm font-extrabold">

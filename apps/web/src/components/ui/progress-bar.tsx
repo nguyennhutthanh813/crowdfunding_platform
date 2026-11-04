@@ -1,6 +1,6 @@
 export function ProgressBar({
   value,
-  className = '',
+  className = "",
   label,
 }: {
   value: number;

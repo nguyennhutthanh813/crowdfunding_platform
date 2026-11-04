@@ -54,6 +54,7 @@ export interface CampaignCardData {
     label: string;
     imageSrc?: string;
     imageAlt?: string;
+    imageNote?: string;
   };
 }
 
@@ -109,6 +110,16 @@ export interface RewardTier {
   limit?: number;
   claimed: number;
   featured?: boolean;
+  requiresShipping?: boolean;
+}
+
+export interface ShippingOption {
+  id: string;
+  name: string;
+  feeAmount: number;
+  countryCode: "VN";
+  estimatedDaysMin: number;
+  estimatedDaysMax: number;
 }
 
 export interface AddOn {
@@ -116,6 +127,7 @@ export interface AddOn {
   title: string;
   description: string;
   amount: number;
+  requiresShipping?: boolean;
 }
 
 export interface CampaignUpdate {
@@ -127,23 +139,18 @@ export interface CampaignUpdate {
 }
 
 export type CommentBadge =
-  | "CREATOR"
-  | "COLLABORATOR"
-  | "SUPERBACKER"
-  | "BACKER"
-  | "ADMIN";
+  "CREATOR" | "COLLABORATOR" | "SUPERBACKER" | "BACKER";
 
 export interface CampaignComment {
   id: string;
-  authorId?: string;
   author: string;
   initials: string;
   badge: CommentBadge;
+  kind?: "COMMENT" | "QUESTION";
   body: string;
   createdAt: string;
   likes: number;
-  isHidden?: boolean;
-  parentCommentId?: string;
+  viewerLiked?: boolean;
   replies?: CampaignComment[];
 }
 
@@ -172,6 +179,7 @@ export interface CampaignDetail extends CampaignCardData {
   };
   rewards: RewardTier[];
   addOns: AddOn[];
+  shippingOptions?: ShippingOption[];
   faqs: Array<{ question: string; answer: string }>;
   updates: CampaignUpdate[];
   comments: CampaignComment[];
@@ -353,6 +361,64 @@ export interface CampaignCommentInsightsData {
   priorities: AssistantPriorityComment[];
 }
 
+export interface CampaignDraftFields {
+  title: string;
+  blurb: string;
+  category: string;
+  goal: string;
+  duration: string;
+  location: string;
+  story: string;
+  risks: string;
+  shippingFee: string;
+  hasVideo: boolean;
+  coverAssetId: string;
+}
+
+export interface CampaignDraftReward {
+  id: number;
+  title: string;
+  amount: string;
+  delivery: string;
+  limit: string;
+}
+
+export interface CampaignDraftAddOn {
+  id: number;
+  title: string;
+  amount: string;
+}
+
+export interface CampaignDraftCollaborator {
+  id: number;
+  email: string;
+  name: string;
+  canUpdate: boolean;
+  canReply: boolean;
+  canViewAi: boolean;
+}
+
+export interface CampaignDraftSnapshot {
+  campaignId: string;
+  ownerId: string;
+  savedAt: string;
+  draft: Partial<CampaignDraftFields>;
+  rewards?: CampaignDraftReward[];
+  addOns?: CampaignDraftAddOn[];
+  collaborators?: CampaignDraftCollaborator[];
+}
+
+export interface CampaignCommentReply {
+  id: string;
+  campaignId: string;
+  commentId: string;
+  body: string;
+  authorId: string;
+  authorName: string;
+  authorRole: "CREATOR" | "COLLABORATOR";
+  createdAt: string;
+}
+
 export interface CreatorAssistantData {
   content: CampaignContentAssistantData;
   comments: CampaignCommentInsightsData;
@@ -412,7 +478,14 @@ export interface CampaignOperationsData {
     at: string;
     note: string;
   }>;
-  updateHistory: Array<{ title: string; when: string }>;
+  updateHistory: Array<{
+    id?: string;
+    title: string;
+    body?: string;
+    author?: string;
+    when: string;
+  }>;
+  commentReplies?: CampaignCommentReply[];
   communityMessages: Array<{
     id: string;
     campaignId: string;
@@ -480,20 +553,8 @@ export interface FraudAlert {
 
 export interface ReviewQueueItem {
   id: string;
-  campaignId?: string;
   title: string;
-  slug?: string;
-  blurb?: string;
-  story?: string;
-  risks?: string;
-  location?: string;
-  goalAmount?: number;
-  durationDays?: number;
-  videoUrl?: string;
-  imageUrl?: string;
   creator: string;
-  creatorEmail?: string;
-  creatorAvatar?: string | null;
   submittedAt: string;
   category: string;
   completeness: number;
@@ -507,19 +568,17 @@ export interface ReviewQueueItem {
     status: "PASS" | "WARN" | "MISSING";
     detail: string;
   }>;
-  rewardTiers?: Array<{
-    id: string;
-    title: string;
-    amount: number;
-    estimatedDelivery?: string;
-    quantityLimit?: number | null;
-    items?: string[];
-  }>;
-  addOns?: Array<{
-    id: string;
-    title: string;
-    amount: number;
-  }>;
+  evidence?: {
+    blurb: string;
+    goalAmount: number;
+    durationDays: number;
+    location: string;
+    story: string;
+    risks: string;
+    shippingFee: number;
+    rewards: Array<{ title: string; amount: number; delivery: string; limit: number }>;
+    addOns: Array<{ title: string; amount: number }>;
+  };
 }
 
 export interface AdminDashboardData {
@@ -540,37 +599,6 @@ export interface AdminDashboardData {
     roles: string[];
     status: "ACTIVE" | "SUSPENDED" | "REVIEWING";
     lastSeen: string;
-    phone?: string;
-    bio?: string;
-    createdAt?: string;
-    emailVerified?: boolean;
-    campaignCount?: number;
-    pledgeCount?: number;
-    totalPledgedAmount?: number;
-    fraudAlertCount?: number;
-    campaigns?: Array<{
-      id: string;
-      title: string;
-      status: string;
-      goalAmount: number;
-      pledgedAmount: number;
-      backerCount: number;
-      createdAt: string;
-    }>;
-    pledges?: Array<{
-      id: string;
-      campaignTitle: string;
-      amount: number;
-      status: string;
-      pledgedAt: string;
-    }>;
-    moderationActions?: Array<{
-      id: string;
-      action: string;
-      reason: string;
-      createdAt: string;
-      adminName: string;
-    }>;
   }>;
   fundingSeries: Array<{ month: string; amount: number }>;
   operations: {
@@ -589,6 +617,13 @@ export interface AdminDashboardData {
       riskScore: number;
       relatedAlerts: number;
     };
+    controllableCampaigns?: Array<{
+      id: string;
+      title: string;
+      status: "LIVE" | "SUSPENDED";
+      riskScore: number | null;
+      relatedAlerts: number | null;
+    }>;
   };
   recentDecisions: Array<{
     id: string;
@@ -604,13 +639,14 @@ export interface AuthorizePledgeInput {
   campaignId: string;
   rewardId: string | null;
   addOnIds: string[];
+  shippingOptionId: string | null;
   bonusAmount: number;
   address: {
     fullName: string;
     phone: string;
     line1: string;
     city: string;
-  };
+  } | null;
 }
 
 export interface AuthorizePledgeResult {
@@ -646,20 +682,6 @@ export interface PreviewAuthorizedPledge {
   authorizedAt: string;
 }
 
-export interface UserAddress {
-  id: string;
-  recipientName: string;
-  phone: string;
-  line1: string;
-  ward?: string | null;
-  district?: string | null;
-  province: string;
-  countryCode?: string;
-  isDefault: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface SessionResult {
   sessionId: string;
   user: {
@@ -668,17 +690,8 @@ export interface SessionResult {
     email: string;
     initials: string;
     headline: string;
-    phone?: string | null;
-    location?: string | null;
-    bio?: string | null;
-    avatarUrl?: string | null;
     roles: UserRole[];
     activeRole: UserRole;
-  };
-  tokens?: {
-    accessToken: string;
-    refreshToken: string;
-    expiresIn?: number;
   };
   previewState?: {
     notificationPreferences?: {
@@ -702,18 +715,6 @@ export interface SessionResult {
     reviewDecisions?: Record<string, "APPROVED" | "CHANGES" | "REJECTED">;
     fraudStatuses?: Record<string, "CLEARED" | "ESCALATED">;
     userStatuses?: Record<string, "ACTIVE" | "SUSPENDED">;
-    userRoles?: Record<string, string[]>;
-    createdUsers?: AdminDashboardData["users"];
-    userModerations?: Record<
-      string,
-      Array<{
-        id: string;
-        action: string;
-        reason: string;
-        createdAt: string;
-        adminName: string;
-      }>
-    >;
     campaignStatuses?: Record<string, "LIVE" | "SUSPENDED">;
     platformFeePercent?: number;
     readMessageIds?: string[];
@@ -731,6 +732,9 @@ export interface SessionResult {
       id: string;
       campaignId: string;
       title: string;
+      body?: string;
+      author?: string;
+      publishedAt?: string;
       when: string;
     }>;
   };

@@ -18,11 +18,10 @@ export default function AccountPage() {
               <Settings2 className="size-4" /> Tài khoản
             </span>
             <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
-              Thông tin của bạn, ở một chỗ.
+              Tài khoản của bạn
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-              Cập nhật hồ sơ, kiểm tra quyền truy cập và chọn những thông báo
-              thực sự cần thiết.
+              Cập nhật hồ sơ, kiểm tra quyền truy cập và xem thông báo liên quan đến tài khoản.
             </p>
           </div>
         </div>

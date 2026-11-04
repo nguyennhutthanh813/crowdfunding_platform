@@ -1,0 +1,35 @@
+@startmindmap
+skinparam backgroundColor #FBFAF6
+skinparam defaultFontName Arial
+skinparam defaultFontSize 15
+skinparam shadowing false
+skinparam ArrowColor #5A6C64
+skinparam LineThickness 1
+skinparam nodesep 24
+skinparam ranksep 28
+scale max 2200 width
+*[#15352B] <color:#FFFFFF><b>GÓP</b></color>\n<color:#FFFFFF>CÂY UI/UX VÀ MÀN HÌNH THEO VAI TRÒ</color>
+**[#E7F0F6] <b>GUEST - KHÔNG GIAN KHÁM PHÁ</b>
+***[#FFFFFF] <b>KHÁM PHÁ</b>\n• / - featured, category, dự án thật Việt Nam\n• /discover - search, status, category, sort\n• Project cards: trạng thái, tiến độ, lý do nổi bật
+***[#FFFFFF] <b>TIN CẬY TRƯỚC KHI THAM GIA</b>\n• /projects/[slug] - 7 tab\n• /auth - login/register + 4 tài khoản nhanh\n• Empty/error/loading và CTA đúng trạng thái
+**[#E8F1D8] <b>BACKER - SỔ ỦNG HỘ</b>
+***[#FFFFFF] <b>VÀO HỆ THỐNG</b>\n• /onboarding - chọn sở thích cold-start\n• Home recommendation có lý do\n• Header tìm dự án; sidebar có Saved/Following
+***[#FFFFFF] <b>ỦNG HỘ</b>\n• /pledge/[slug] - Reward → Add-on → Địa chỉ → Thẻ\n• Sticky summary và breakdown VND\n• Kết quả AUTHORIZED - CHƯA THU
+***[#FFFFFF] <b>THEO DÕI SAU ĐÓ</b>\n• /dashboard - Backed/Saved/Following\n• Messages/Activity/Settings + việc cần xác nhận\n• Hiện Minh Anh → hạn mức → ORBIT → ngày chốt
+**[#FBE7DF] <b>CREATOR - XƯỞNG CHIẾN DỊCH</b>
+***[#FFFFFF] <b>TỔNG QUAN</b>\n• /creator - funding hôm nay, pace, forecast\n• Header có tiến độ; sidebar theo vận hành\n• CTA đi thẳng tới đúng vùng cần xử lý
+***[#FFFFFF] <b>SOẠN & DỰ BÁO</b>\n• /creator/campaigns/new - wizard 5 bước\n• Ảnh demo có nhãn, chưa nhận tệp upload\n• /creator/ai - score, factors, model card\n• Content helper là nhánh mở rộng có nhãn rõ
+***[#FFFFFF] <b>VẬN HÀNH CAMPAIGN</b>\n• /creator/.../manage - Overview/Team/Community/Fulfillment\n• Hiện hồ sơ → cam kết → task nhóm → ngày chốt\n• Giao câu hỏi cho người có quyền; quà theo trạng thái
+left side
+**[#EEE9F8] <b>COLLABORATOR - BẢNG VIỆC NHÓM</b>
+***[#FFFFFF] <b>VIỆC CỦA TÔI</b>\n• /collaborator - task và câu hỏi của mình\n• /account?tab=notifications - việc mới giao\n• Bộ lọc open/done và nút hoàn tất\n• Hiện Creator giao → Huy làm → nhóm nhận → Backer
+***[#FFFFFF] <b>LÀM TRONG CAMPAIGN</b>\n• /collaborator/.../manage - chỉ tab được phép\n• /collaborator/forecast - đọc dự báo\n• Lọc câu của tôi, reply có badge và quyền
+**[#F4E8E6] <b>ADMIN - BÀN KIỂM SOÁT</b>
+***[#FFFFFF] <b>CA TRỰC</b>\n• /admin - due/overdue, authorization, support\n• Header có ca trực, SLA và hàng chờ\n• Hiện Creator gửi → AI xếp → Admin quyết định
+***[#FFFFFF] <b>HÀNG CHỜ & XỬ LÝ</b>\n• Reviews - version, documents, SLA, checklist\n• Fraud - signals, note, Clear/Escalate\n• Users - search, lock/unlock có lý do
+***[#FFFFFF] <b>CẤU HÌNH CÓ KIỂM SOÁT</b>\n• Phí chỉ áp dụng campaign mới\n• Suspend/restore campaign cần lý do\n• Audit log giữ actor và thời gian
+**[#EEF1EF] <b>NHẬN DIỆN GÓP - DÙNG CHUNG</b>
+***[#FFFFFF] <b>NHẬN DIỆN & ĐIỀU HƯỚNG</b>\n• Logo Góp, tên tài khoản, role switcher\n• Mỗi role có cấu trúc header/sidebar riêng\n• Desktop nav + mobile menu, focus rõ
+***[#FFFFFF] <b>TRẠNG THÁI CHUNG</b>\n• Skeleton/loading, empty có hướng đi tiếp\n• Inline validation, status/alert có aria-live\n• Không dùng số liệu trang trí không có nguồn
+***[#FFFFFF] <b>CÂU CHUYỆN DỮ LIỆU</b>\n• Panel liên vai trò hiện ngay trên 4 workspace\n• Minh Anh ↔ pledge ORBIT ↔ Creator reservation\n• Huy ↔ task ↔ Creator; Admin ↔ review/audit
+@endmindmap

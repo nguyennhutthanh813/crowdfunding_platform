@@ -1,0 +1,92 @@
+@startuml
+title USE CASE TỔNG QUAN — GÓP CROWDFUNDING PLATFORM
+left to right direction
+skinparam dpi 180
+skinparam backgroundColor #FBFAF6
+skinparam shadowing false
+skinparam roundcorner 18
+skinparam linetype ortho
+skinparam ArrowColor #53665D
+skinparam ActorBorderColor #102A22
+skinparam ActorFontColor #102A22
+skinparam UsecaseBorderColor #8FA097
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseFontColor #10251E
+skinparam PackageBorderColor #C9D0CB
+skinparam PackageFontColor #10251E
+
+actor Guest
+actor Backer
+actor Creator
+actor "Collaborator\n(theo campaign)" as Collaborator
+actor Admin
+actor "Scheduler / Worker" as Worker
+actor "Stripe Sandbox" as Stripe
+actor "AI Service" as AI
+
+rectangle "GÓP CROWDFUNDING PLATFORM — 54 USE CASE" {
+  package "Public · 5 use case" {
+    usecase "UC-G01…G05\nKhám phá · Project Detail 7 tab\nĐăng ký · Đăng nhập" as Public
+  }
+
+  package "Backer · 16 use case" {
+    usecase "UC-B01…B05\nSở thích · Recommendation\nSave · Follow · Notify" as BackerDiscovery
+    usecase "UC-B06…B10\nPledge 4 bước · Reward · Add-on\nĐịa chỉ VN · Authorize" as BackerPledge
+    usecase "UC-B11…B16\nComment · FAQ · Backed Projects\nFulfillment · Message · Settings" as BackerAccount
+  }
+
+  package "Creator & Collaborator · 15 use case" {
+    usecase "UC-C01…C06\nDraft · Content · Goal · Reward\nAdd-on/Shipping · Collaborator" as CreatorSetup
+    usecase "UC-C07…C12\nSuccess Prediction · Submit review\nPre-launch · Launch · Live metrics" as CreatorLaunch
+    usecase "UC-C13…C15\nUpdates · Reply comment\nFulfillment" as CreatorOperate
+  }
+
+  package "Admin · 10 use case" {
+    usecase "UC-A01…A07\nReview · Moderation\nRevenue · Platform fee" as AdminOps
+    usecase "UC-A08…A10\nFraud queue · Evidence\nClear / Escalate" as AdminFraud
+  }
+
+  package "System Automation · 8 use case" {
+    usecase "UC-S01…S03\nDaily metrics · Prediction\nFraud scoring" as SystemAI
+    usecase "UC-S04…S08\nClose campaign · Capture / Cancel\nWebhook · Notification" as SystemPayment
+  }
+}
+
+Guest --> Public
+Backer --|> Guest
+Backer --> BackerDiscovery
+Backer --> BackerPledge
+Backer --> BackerAccount
+Creator --> CreatorSetup
+Creator --> CreatorLaunch
+Creator --> CreatorOperate
+Collaborator --> CreatorLaunch
+Collaborator --> CreatorOperate
+Admin --> AdminOps
+Admin --> AdminFraud
+Worker --> SystemAI
+Worker --> SystemPayment
+
+BackerDiscovery --> AI : Recommendation
+CreatorLaunch --> AI : Success Prediction
+AdminFraud --> AI : Fraud Detection
+SystemAI --> AI
+BackerPledge --> Stripe : authorize
+SystemPayment --> Stripe : capture / cancel / webhook
+
+note bottom of Collaborator
+  Collaborator không phải global role.
+  Quyền được gán riêng theo campaign.
+end note
+
+note bottom of AdminFraud
+  AI chỉ xếp hạng rủi ro và giải thích tín hiệu.
+  Admin luôn là người quyết định cuối cùng.
+end note
+
+legend bottom
+  Tổng quan này trình bày phạm vi và tác nhân.
+  Ba sơ đồ chi tiết liệt kê đủ UC-G01…G05,
+  UC-B01…B16, UC-C01…C15, UC-A01…A10 và UC-S01…S08.
+endlegend
+@enduml

@@ -5,8 +5,7 @@ import { getFriendlyName } from "@/lib/auth/roles";
 import { getServerSession } from "@/lib/auth/server-session";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { buildUserDashboard } from "@/lib/dashboard-preview";
-
-export const dynamic = "force-dynamic";
+import { publicPreviewCampaigns } from "@/lib/creator/public-preview-campaigns";
 
 export const metadata: Metadata = {
   title: "Không gian của tôi",
@@ -22,7 +21,7 @@ export default async function DashboardPage() {
     getServerPlatformPreviewState(),
   ]);
   const personalizedData = session
-    ? buildUserDashboard(data, campaigns, session, platformState)
+    ? buildUserDashboard(data, [...campaigns, ...publicPreviewCampaigns(platformState)], session, platformState)
     : data;
   const friendlyName = getFriendlyName(personalizedData.user.name);
 

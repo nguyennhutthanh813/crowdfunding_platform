@@ -1,7 +1,6 @@
 import type {
   AdminDashboardData,
   CampaignCardData,
-  CampaignDetail,
   CampaignStatus,
   CampaignOperationsData,
   CreatorPortfolioData,
@@ -21,7 +20,16 @@ export interface WorkspaceSnapshot {
   scopeCount?: number;
   selectedCampaignSlug?: string;
   selectedCampaignStatus?: CampaignStatus;
+  isCreatingCampaign?: boolean;
   creatorCampaigns?: CreatorPortfolioData["campaigns"];
+  hasSeedCollaboratorCampaign?: boolean;
+  collaboratorInvitations?: Array<{
+    campaignId: string;
+    title: string;
+    status: "PRE_LAUNCH" | "LIVE" | "SUSPENDED";
+    accepted: boolean;
+    permissions: { canUpdate: boolean; canReply: boolean; canViewAi: boolean };
+  }>;
 }
 
 export function buildBackerWorkspaceSnapshot(
@@ -40,36 +48,28 @@ export function buildBackerWorkspaceSnapshot(
       label: "việc đang chờ",
       value: String(data.attentionItems.length),
     },
-    updatedLabel: "Dữ liệu trong phiên đăng nhập",
+    updatedLabel: "Dữ liệu dùng thử · giữ trong phiên đăng nhập",
   };
 }
 
 export function buildCreatorWorkspaceSnapshot(
-  campaign?: CampaignCardData | CampaignDetail | null,
-  operations?: CampaignOperationsData | null,
-  portfolio?: CreatorPortfolioData | null,
+  campaign: CampaignCardData,
+  operations: CampaignOperationsData,
+  portfolio?: CreatorPortfolioData,
 ): WorkspaceSnapshot {
-  const openTasks =
-    operations?.tasks?.filter((task) => task.status !== "DONE") || [];
-  const pledged = campaign?.pledgedAmount ?? 0;
-  const goal = campaign?.goalAmount ?? 1;
-  const percent = fundingPercent(pledged, goal);
+  const openTasks = operations.tasks.filter((task) => task.status !== "DONE");
+  const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
 
   return {
-    entityCode: campaign
-      ? `CMP · ${campaign.id.replace("cmp_", "").toUpperCase()}`
-      : "CREATOR · WORKSPACE",
-    contextTitle: campaign?.title || "Không gian Chủ dự án",
+    entityCode: `CMP · ${campaign.id.replace("cmp_", "").toUpperCase()}`,
+    contextTitle: campaign.title,
     contextDetail: portfolio
-      ? `${portfolio.summary?.total ?? 0} chiến dịch đang quản lý`
-      : "Quản lý chiến dịch và cập nhật tiến độ",
-    statusLabel:
-      campaign?.status === "LIVE"
-        ? "ĐANG GỌI VỐN"
-        : (campaign?.status || "KHỞI TẠO"),
+      ? `${portfolio.summary.total} chiến dịch · Đang chọn ${campaign.daysLeft} ngày còn lại`
+      : `${campaign.daysLeft} ngày còn lại · ${campaign.backerCount.toLocaleString("vi-VN")} người ủng hộ`,
+    statusLabel: campaign.status === "LIVE" ? "ĐANG GỌI VỐN" : campaign.status,
     primaryMetric: {
       label: "đã cam kết",
-      value: formatVnd(pledged, true),
+      value: formatVnd(campaign.pledgedAmount, true),
     },
     secondaryMetric: {
       label: "việc đang mở",
@@ -79,39 +79,33 @@ export function buildCreatorWorkspaceSnapshot(
       label: `${percent}% mục tiêu`,
       value: percent,
     },
-    updatedLabel: operations
-      ? `Chốt số liệu ${operations.snapshotAt}`
-      : "Đang đồng bộ",
-    scopeCount: portfolio?.summary?.total,
-    selectedCampaignSlug: campaign?.slug,
-    selectedCampaignStatus: campaign?.status,
+    updatedLabel: `Số liệu dùng thử · chốt lúc ${operations.snapshotAt}`,
+    scopeCount: portfolio?.summary.total,
+    selectedCampaignSlug: campaign.slug,
+    selectedCampaignStatus: campaign.status,
     creatorCampaigns: portfolio?.campaigns,
   };
 }
 
 export function buildCollaboratorWorkspaceSnapshot(
-  campaign?: CampaignCardData | CampaignDetail | null,
-  operations?: CampaignOperationsData | null,
-  collaboratorId?: string | null,
+  campaign: CampaignCardData,
+  operations: CampaignOperationsData,
+  collaboratorId: string,
 ): WorkspaceSnapshot {
-  const myTasks =
-    operations?.tasks?.filter((task) => task.assigneeId === collaboratorId) ||
-    [];
-  const assignedTasks =
-    myTasks.length > 0 ? myTasks : operations?.tasks || [];
+  const assignedTasks = operations.tasks.filter(
+    (task) => task.assigneeId === collaboratorId,
+  );
   const openTasks = assignedTasks.filter((task) => task.status !== "DONE");
-  const collaborator =
-    operations?.team?.find((member) => member.id === collaboratorId) ??
-    operations?.team?.[0];
+  const collaborator = operations.team.find(
+    (member) => member.id === collaboratorId,
+  );
 
   return {
-    entityCode: campaign
-      ? `TEAM · ${campaign.id.replace("cmp_", "").toUpperCase()}`
-      : "COLLAB · WORKSPACE",
-    contextTitle: campaign?.title || "Không gian cộng tác",
+    entityCode: `TEAM · ${campaign.id.replace("cmp_", "").toUpperCase()}`,
+    contextTitle: campaign.title,
     contextDetail: collaborator
-      ? `${collaborator.role} · ${operations?.team?.length ?? 1} thành viên trong nhóm`
-      : `${operations?.team?.length ?? 1} thành viên trong nhóm`,
+      ? `${collaborator.role} · ${operations.team.length} thành viên trong nhóm`
+      : `${operations.team.length} thành viên trong nhóm`,
     statusLabel: "ĐANG CỘNG TÁC",
     primaryMetric: {
       label: "việc của bạn",
@@ -119,34 +113,28 @@ export function buildCollaboratorWorkspaceSnapshot(
     },
     secondaryMetric: {
       label: "lượt bàn giao",
-      value: String(operations?.handoffs?.length ?? 0),
+      value: String(operations.handoffs.length),
     },
-    updatedLabel: operations
-      ? `Đồng bộ ${operations.snapshotAt}`
-      : "Đang đồng bộ",
+    updatedLabel: `Số liệu nhóm · cập nhật lúc ${operations.snapshotAt}`,
   };
 }
 
 export function buildAdminWorkspaceSnapshot(
   data: AdminDashboardData,
 ): WorkspaceSnapshot {
-  const reviewQueue = data?.reviewQueue || [];
-  const operations = data?.operations || ({} as any);
-  const metrics = data?.metrics || ({} as any);
-
   return {
     entityCode: "OPS · GÓP",
     contextTitle: "Trung tâm kiểm duyệt",
-    contextDetail: `${reviewQueue.length} hồ sơ trong hàng đợi · ${operations.supportCasesOpen ?? 0} yêu cầu hỗ trợ`,
+    contextDetail: `${data.reviewQueue.length} hồ sơ trong hàng đợi · ${data.operations.supportCasesOpen} yêu cầu hỗ trợ`,
     statusLabel: "CA TRỰC ĐANG MỞ",
     primaryMetric: {
       label: "hồ sơ đến hạn",
-      value: String(operations.reviewsDueToday ?? reviewQueue.length),
+      value: String(data.operations.reviewsDueToday),
     },
     secondaryMetric: {
       label: "cảnh báo mở",
-      value: String(metrics.openAlerts ?? 0),
+      value: String(data.metrics.openAlerts),
     },
-    updatedLabel: `Snapshot ${operations.snapshotAt ?? new Date().toLocaleDateString("vi-VN")}`,
+    updatedLabel: `Số liệu vận hành · chốt lúc ${data.operations.snapshotAt}`,
   };
 }

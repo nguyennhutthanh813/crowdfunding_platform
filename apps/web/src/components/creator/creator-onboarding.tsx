@@ -7,6 +7,9 @@ import {
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
+import type { CreatorPortfolioCampaign } from "@/lib/api/contracts";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const onboardingSteps = [
   {
@@ -32,12 +35,12 @@ const onboardingSteps = [
 
 export function CreatorOnboarding({
   givenName,
-  submittedTitle,
-  reviewStatus,
+  campaigns = [],
+  showTimeline = false,
 }: {
   givenName: string;
-  submittedTitle?: string;
-  reviewStatus?: string;
+  campaigns?: CreatorPortfolioCampaign[];
+  showTimeline?: boolean;
 }) {
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
@@ -48,46 +51,48 @@ export function CreatorOnboarding({
               <Rocket className="size-4" /> Không gian Chủ dự án
             </span>
             <h1 className="mt-4 max-w-3xl font-display text-4xl font-extrabold tracking-[-0.055em] sm:text-5xl">
-              Chào {givenName}, mình bắt đầu từ một ý tưởng thật rõ nhé.
+              Chào {givenName}, vai trò Chủ dự án đã sẵn sàng.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-ink-soft">
-              {submittedTitle
-                ? `Chiến dịch "${submittedTitle}" của bạn đang được ban quản trị xét duyệt. Bạn có thể theo dõi tiến độ hoặc tiếp tục chỉnh sửa.`
-                : "Bạn đã mở vai trò Chủ dự án. Góp sẽ chia hồ sơ thành từng bước ngắn để bạn có thể lưu nháp và quay lại bất cứ lúc nào."}
+              {campaigns.length
+                ? `Bạn đang có ${campaigns.length} hồ sơ trong bản demo. Mỗi hồ sơ có mã riêng và chỉ tài khoản này được sửa.`
+                : "Bạn chưa có chiến dịch. Hãy bắt đầu bằng một hồ sơ ngắn; có thể lưu nháp trước khi gửi xét duyệt."}
             </p>
           </div>
           <div className="rounded-[16px] border border-forest/12 bg-white p-5">
             <p className="text-[11px] font-bold text-forest">
               Trạng thái tài khoản
             </p>
-            {submittedTitle ? (
-              <>
-                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
-                  <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
-                  {reviewStatus || "Đang chờ duyệt"}
-                </div>
-                <p className="mt-2 text-xs font-semibold text-ink truncate">
-                  {submittedTitle}
-                </p>
-                <p className="mt-1 text-[11px] text-ink-muted">
-                  Ban quản trị thường phản hồi trong vòng 24 giờ.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="mt-3 font-display text-xl font-extrabold">
-                  Sẵn sàng tạo chiến dịch đầu tiên
-                </p>
-                <p className="mt-2 text-xs leading-6 text-ink-muted">
-                  Bạn chỉ gửi xét duyệt khi đã điền đủ thông tin bắt buộc.
-                </p>
-              </>
-            )}
+            <p className="mt-3 font-display text-xl font-extrabold">
+              {campaigns.length ? `${campaigns.length} hồ sơ của bạn` : "Chưa có chiến dịch của bạn"}
+            </p>
+            <p className="mt-2 text-xs leading-6 text-ink-muted">
+              Hồ sơ tạo mới nằm trong dữ liệu thử của hệ thống. Chưa có
+              cơ sở dữ liệu production hoặc nhận tiền thật.
+            </p>
           </div>
         </div>
       </div>
 
       <div className="container-shell py-10 sm:py-14">
+        {campaigns.length ? (
+          <section className="mb-8" aria-labelledby="my-preview-campaigns">
+            <h2 id="my-preview-campaigns" className="font-display text-2xl font-extrabold">Hồ sơ đang làm</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {campaigns.filter((item) => isPreviewCampaignId(item.id)).map((campaign) => (
+                <div key={campaign.id} className="rounded-[18px] border border-line bg-white p-5">
+                  <StatusBadge status={campaign.status} />
+                  <h3 className="mt-3 text-base font-extrabold">{campaign.title}</h3>
+                  <p className="mt-2 text-xs leading-6 text-ink-soft">{campaign.nextActionDetail}</p>
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+                    <Link href={`/creator/campaigns/new?draft=${campaign.id}`} className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-forest hover:underline">{campaign.nextActionLabel} <ArrowRight className="size-4" /></Link>
+                    {showTimeline ? <Link href={`/campaigns/${campaign.id}/timeline`} className="inline-flex min-h-11 items-center text-xs font-bold text-[#426450] hover:underline">Xem tiến độ và lịch sử</Link> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <article className="rounded-[20px] border border-line bg-white p-6 sm:p-8">
             <p className="eyebrow text-coral">Lộ trình gợi ý</p>
@@ -106,7 +111,7 @@ export function CreatorOnboarding({
                       <Icon className="size-5" />
                     </span>
                     <div>
-                      <p className="text-[10px] font-bold tracking-wider text-ink-muted">
+                      <p className="text-[11px] font-bold tracking-wider text-ink-muted">
                         BƯỚC {step.number}
                       </p>
                       <h3 className="mt-1 text-sm font-extrabold">
@@ -127,25 +132,24 @@ export function CreatorOnboarding({
               <Plus className="size-5" />
             </span>
             <h2 className="mt-5 font-display text-2xl font-extrabold">
-              Tạo bản nháp đầu tiên
+              Bắt đầu hồ sơ của bạn
             </h2>
             <p className="mt-3 text-sm leading-7 text-ink-soft">
-              Bắt đầu bằng tên dự án và lĩnh vực. Mục tiêu vốn, gói quà và thành
-              viên có thể bổ sung ở các bước sau.
+              Điền ý tưởng của bạn, lưu nháp rồi quay lại bổ sung. Khi đủ thông
+              tin, hồ sơ sẽ xuất hiện trong hàng chờ của quản trị viên bản demo.
             </p>
             <Link
               href="/creator/campaigns/new"
               className="button-primary mt-6 w-full"
             >
-              Bắt đầu tạo chiến dịch <ArrowRight className="size-4" />
+              Tạo chiến dịch mới <ArrowRight className="size-4" />
             </Link>
             <Link
-              href="/creator/guidelines"
+              href="/system-design"
               className="mt-3 inline-flex min-h-11 w-full items-center justify-center text-xs font-bold text-forest hover:text-coral-dark"
             >
               Xem quy trình xét duyệt
             </Link>
-
           </aside>
         </div>
       </div>

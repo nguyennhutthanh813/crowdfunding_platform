@@ -42,22 +42,25 @@ const roleStyle: Record<
 
 export function DemoAccountPicker({
   busyAccountId,
+  creatorIntent = false,
   disabled,
   onSelect,
 }: {
   busyAccountId: string | null;
+  creatorIntent?: boolean;
   disabled: boolean;
   onSelect: (account: PreviewAccount) => void;
 }) {
   return (
     <aside className="border-t border-line bg-[#f8f6ef] p-6 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
       <p className="text-xs font-bold text-coral-dark">Đăng nhập nhanh</p>
-      <h2 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
+      <h2 id="tai-khoan-mau" tabIndex={-1} className="mt-2 scroll-mt-24 font-display text-2xl font-extrabold tracking-[-0.035em]">
         Xem thử từng vai trò
       </h2>
       <p className="mt-3 text-sm leading-6 text-ink-soft">
-        Chọn một tài khoản để mở đúng khu vực làm việc. Dữ liệu giữa các màn
-        hình đã được nối sẵn để tiện kiểm tra luồng.
+        {creatorIntent
+          ? "Chủ dự án vào form ngay. Với tài khoản Người ủng hộ, bạn cần xác nhận thêm quyền Chủ dự án trước khi tạo chiến dịch."
+          : "Chọn một tài khoản để mở đúng khu vực làm việc. Dữ liệu giữa các màn hình đã được nối sẵn để tiện kiểm tra luồng."}
       </p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
@@ -65,6 +68,13 @@ export function DemoAccountPicker({
           const style = roleStyle[account.activeRole];
           const Icon = style.icon;
           const loading = busyAccountId === account.id;
+          const roleHint = creatorIntent && account.roles.includes("CREATOR")
+            ? "Vào hồ sơ Chủ dự án"
+            : creatorIntent && account.roles.includes("BACKER")
+              ? "Có thể mở quyền Chủ dự án"
+              : account.roles.length > 1
+                ? `${account.roles.length} vai trò: ${account.roles.map((role) => roleLabels[role]).join(" + ")}`
+                : `Mở thẳng ${roleLabels[account.activeRole]}`;
           return (
             <button
               key={account.id}
@@ -85,16 +95,14 @@ export function DemoAccountPicker({
                 <span className="mt-0.5 block truncate text-sm font-bold text-ink">
                   {account.name}
                 </span>
-                <span className="mt-1 block text-[10px] leading-4 text-ink-muted">
+                <span className="mt-1 block text-[11px] leading-4 text-ink-muted">
                   {account.description}
                 </span>
-                <span className="mt-1 block truncate text-[9px] text-ink-muted">
+                <span className="mt-1 block truncate text-[11px] text-ink-muted">
                   {account.email}
                 </span>
-                <span className="mt-2 inline-flex max-w-full rounded-md bg-[#f1f0ea] px-2 py-1 text-[9px] font-semibold leading-4 text-ink-soft">
-                  {account.roles.length > 1
-                    ? `${account.roles.length} không gian: ${account.roles.map((role) => roleLabels[role]).join(" + ")}`
-                    : `Mở thẳng ${roleLabels[account.activeRole]}`}
+                <span className="mt-2 inline-flex max-w-full rounded-md bg-[#f1f0ea] px-2 py-1 text-[11px] font-semibold leading-4 text-ink-soft">
+                  {roleHint}
                 </span>
               </span>
               {loading ? (

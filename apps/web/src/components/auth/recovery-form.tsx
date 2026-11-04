@@ -1,308 +1,219 @@
-'use client';
+"use client";
 
 import {
-  Mail,
+  ArrowLeft,
   ArrowRight,
-  KeyRound,
   CheckCircle2,
-  Eye,
-  EyeOff,
-  RotateCcw,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useState } from 'react';
-import { clientRequest, clientRequestMessage } from '@/lib/api/client-request';
+  KeyRound,
+  LoaderCircle,
+  LockKeyhole,
+  Mail,
+} from "lucide-react";
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 
-type Step = 'EMAIL' | 'CODE' | 'NEW_PASSWORD' | 'DONE';
+type RecoveryStage = "REQUEST" | "RESET" | "DONE";
 
-interface ForgotPasswordResponse {
-  success: boolean;
-  message: string;
-  resetToken: string;
-}
-
-interface ResetPasswordResponse {
-  success: boolean;
-  message: string;
+interface RecoveryResponse {
+  data?: { previewCode?: string; message?: string; success?: boolean };
+  error?: { message?: string };
 }
 
 export function RecoveryForm() {
-  const [step, setStep] = useState<Step>('EMAIL');
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [resetToken, setResetToken] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [stage, setStage] = useState<RecoveryStage>("REQUEST");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [previewCode, setPreviewCode] = useState("");
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Gửi yêu cầu lấy mã OTP
-  async function handleSendCode(targetEmail?: string) {
-    const toEmail = (targetEmail || email).trim().toLowerCase();
-    if (!toEmail) {
-      setError('Vui lòng nhập địa chỉ email.');
-      return false;
-    }
-
-    setError('');
+  const submitEmail = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setSubmitting(true);
-
+    setMessage("");
     try {
-      const res = await clientRequest<ForgotPasswordResponse>(
-        '/api/v1/auth/forgot-password',
+      const payload = await clientRequest<RecoveryResponse>(
+        "/api/v1/auth/recovery",
         {
-          method: 'POST',
-          body: JSON.stringify({ email: toEmail }),
+          method: "POST",
+          body: JSON.stringify({ email }),
         },
       );
-
-      setResetToken(res.resetToken);
-      return true;
-    } catch (err) {
-      setError(clientRequestMessage(err, 'Chưa thể gửi mã xác nhận lúc này. Vui lòng thử lại.'));
-      return false;
+      const nextCode = payload.data?.previewCode ?? "";
+      setPreviewCode(nextCode);
+      setCode(nextCode);
+      setStage("RESET");
+    } catch (error) {
+      setMessage(clientRequestMessage(error, "Chưa thể tạo mã đặt lại."));
     } finally {
       setSubmitting(false);
     }
-  }
+  };
 
-  // Xử lý nộp form theo từng bước
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-
-    if (step === 'EMAIL') {
-      const ok = await handleSendCode();
-      if (ok) {
-        setStep('CODE');
-      }
-    } else if (step === 'CODE') {
-      const cleanCode = code.trim();
-      if (cleanCode.length < 4) {
-        setError('Vui lòng nhập đầy đủ mã xác nhận.');
-        return;
-      }
-      setStep('NEW_PASSWORD');
-    } else if (step === 'NEW_PASSWORD') {
-      if (newPassword.length < 6) {
-        setError('Mật khẩu mới phải có tối thiểu 6 ký tự.');
-        return;
-      }
-      if (newPassword !== confirmPassword) {
-        setError('Mật khẩu nhập lại không khớp.');
-        return;
-      }
-
-      setSubmitting(true);
-      try {
-        await clientRequest<ResetPasswordResponse>('/api/v1/auth/reset-password', {
-          method: 'POST',
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-            code: code.trim(),
-            resetToken,
-            newPassword,
-          }),
-        });
-
-        setStep('DONE');
-      } catch (err) {
-        setError(clientRequestMessage(err, 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.'));
-      } finally {
-        setSubmitting(false);
-      }
+  const submitReset = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const result = await clientRequest<RecoveryResponse>(
+        "/api/v1/auth/recovery",
+        {
+          method: "PATCH",
+          body: JSON.stringify({ email, code, password }),
+        },
+      );
+      setMessage(result.data?.message ?? "Bản dùng thử chưa hỗ trợ đổi mật khẩu.");
+      setPassword("");
+      setStage("DONE");
+    } catch (error) {
+      setMessage(clientRequestMessage(error, "Chưa thể đổi mật khẩu."));
+    } finally {
+      setSubmitting(false);
     }
-  }
+  };
 
-  if (step === 'DONE') {
+  if (stage === "DONE") {
     return (
-      <div className="text-center py-4">
-        <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-sm">
+      <div className="text-center">
+        <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
           <CheckCircle2 className="size-8" />
         </span>
-        <h2 className="mt-5 font-display text-2xl font-extrabold text-ink">
-          Đặt lại mật khẩu thành công!
-        </h2>
-        <p className="mt-3 text-sm text-ink-muted leading-relaxed max-w-sm mx-auto">
-          Mật khẩu tài khoản của bạn đã được cập nhật trực tiếp trên hệ thống. Bây giờ bạn có thể đăng nhập ngay với mật khẩu mới.
-        </p>
-        <div className="mt-8">
-          <Link
-            href="/auth"
-            className="button-primary inline-flex w-full justify-center py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all"
-          >
-            Đăng nhập ngay <ArrowRight className="size-4 ml-1.5" />
-          </Link>
-        </div>
+        <p className="eyebrow mt-6 text-emerald-700">Đã kiểm tra biểu mẫu</p>
+        <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
+          Đã hoàn tất bước thử
+        </h1>
+        <p className="mt-4 text-sm leading-7 text-ink-muted">{message}</p>
+        <Link href="/auth" className="button-dark mt-7">
+          Quay lại đăng nhập <ArrowRight className="size-4" />
+        </Link>
       </div>
     );
   }
 
   return (
     <div>
-      <p className="eyebrow text-coral-dark inline-flex items-center gap-1.5 font-bold">
-        <KeyRound className="size-3.5" /> Khôi phục tài khoản
-      </p>
-      <h1 className="mt-3 font-display text-2xl font-extrabold sm:text-3xl text-ink">
-        {step === 'EMAIL' && 'Nhập email đăng ký'}
-        {step === 'CODE' && 'Nhập mã xác nhận OTP'}
-        {step === 'NEW_PASSWORD' && 'Tạo mật khẩu mới'}
+      <Link
+        href="/auth"
+        className="inline-flex items-center gap-2 text-xs font-bold text-ink-muted hover:text-ink"
+      >
+        <ArrowLeft className="size-4" /> Quay lại đăng nhập
+      </Link>
+      <span className="mt-8 grid size-12 place-items-center rounded-2xl bg-[#eef1e5] text-forest">
+        {stage === "REQUEST" ? (
+          <Mail className="size-5" />
+        ) : (
+          <KeyRound className="size-5" />
+        )}
+      </span>
+      <p className="eyebrow mt-6 text-coral">Khôi phục tài khoản</p>
+      <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
+        {stage === "REQUEST"
+          ? "Tìm lại đường vào tài khoản"
+          : "Đặt mật khẩu mới"}
       </h1>
-      <p className="mt-2 text-sm text-ink-muted">
-        {step === 'EMAIL' && 'Chúng tôi sẽ gửi mã xác nhận 6 số tới địa chỉ email của bạn.'}
-        {step === 'CODE' && `Mã xác nhận 6 số đã được gửi tới ${email}.`}
-        {step === 'NEW_PASSWORD' && 'Thiết lập mật khẩu mới (tối thiểu 6 ký tự) để hoàn tất.'}
+      <p className="mt-4 text-sm leading-7 text-ink-muted">
+        {stage === "REQUEST"
+          ? "Luồng minh họa: mã xác nhận hiện trên màn hình, không gửi email và không đổi mật khẩu tài khoản mẫu."
+          : `Mã thử dành cho ${email}. Chỉ nhập mật khẩu thử, không dùng mật khẩu thật của bạn.`}
       </p>
 
-      {/* Step indicator */}
-      <div className="mt-5 flex gap-1.5">
-        {(['EMAIL', 'CODE', 'NEW_PASSWORD'] as Step[]).map((s, i) => (
-          <span
-            key={s}
-            className={`h-1 flex-1 rounded-full transition-colors ${
-              (['EMAIL', 'CODE', 'NEW_PASSWORD'] as Step[]).indexOf(step) >= i
-                ? 'bg-forest'
-                : 'bg-line'
-            }`}
-          />
-        ))}
-      </div>
-
-
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        {step === 'EMAIL' && (
+      {stage === "REQUEST" ? (
+        <form onSubmit={submitEmail} className="mt-7 space-y-4" noValidate>
           <label className="block">
-            <span className="text-xs font-bold text-ink-soft">Email đăng ký</span>
+            <span className="text-xs font-bold text-ink-soft">
+              Email tài khoản
+            </span>
             <span className="relative mt-2 block">
               <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
               <input
+                name="recovery-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 className="input-field input-with-icon"
                 autoComplete="email"
                 placeholder="ban@example.com"
-                required
               />
             </span>
           </label>
-        )}
-
-        {step === 'CODE' && (
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-ink-soft">Mã xác nhận 6 số</span>
-              <button
-                type="button"
-                onClick={() => handleSendCode()}
-                disabled={submitting}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-forest hover:underline disabled:opacity-50"
-              >
-                <RotateCcw className="size-3" /> Gửi lại mã
-              </button>
-            </div>
+          {message ? (
+            <p
+              role="alert"
+              className="rounded-xl bg-red-50 p-3 text-xs text-red-700"
+            >
+              {message}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="button-primary w-full disabled:cursor-wait disabled:opacity-60"
+          >
+            {submitting ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <Mail className="size-4" />
+            )}
+            Tạo mã đặt lại
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={submitReset} className="mt-7 space-y-4" noValidate>
+          <div className="rounded-2xl border border-lime/50 bg-lime/18 p-4 text-sm text-forest">
+            Mã xác nhận trong bản trải nghiệm:{" "}
+            <strong className="font-display">{previewCode}</strong>
+          </div>
+          <label className="block">
+            <span className="text-xs font-bold text-ink-soft">Mã xác nhận</span>
             <input
-              type="text"
+              name="recovery-code"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              className="input-field mt-2 text-center tracking-[0.35em] text-xl font-bold font-mono"
-              maxLength={6}
-              placeholder="••••••"
-              autoFocus
-              required
+              onChange={(event) => setCode(event.target.value)}
+              className="input-field mt-2 uppercase"
+              autoComplete="one-time-code"
             />
-            <div className="mt-2 text-right">
-              <button
-                type="button"
-                onClick={() => {
-                  setError('');
-                  setStep('EMAIL');
-                }}
-                className="text-xs text-ink-muted hover:text-ink underline"
-              >
-                Đổi email khác
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'NEW_PASSWORD' && (
-          <div className="space-y-4">
-            <label className="block">
-              <span className="text-xs font-bold text-ink-soft">Mật khẩu mới</span>
-              <div className="relative mt-2">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="input-field pr-10"
-                  autoComplete="new-password"
-                  placeholder="Tối thiểu 6 ký tự"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
-                >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-bold text-ink-soft">Xác nhận mật khẩu mới</span>
-              <div className="relative mt-2">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="input-field pr-10"
-                  autoComplete="new-password"
-                  placeholder="Nhập lại mật khẩu mới"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
-                >
-                  {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-            </label>
-          </div>
-        )}
-
-        {error ? (
-          <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs text-red-700 font-medium">
-            {error}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="button-primary w-full justify-center font-bold py-3"
-        >
-          {submitting
-            ? 'Đang xử lý…'
-            : step === 'EMAIL'
-              ? 'Gửi mã xác nhận'
-              : step === 'CODE'
-                ? 'Tiếp tục'
-                : 'Cập nhật mật khẩu'}
-          {!submitting && <ArrowRight className="size-4 ml-1" />}
-        </button>
-
-        <div className="text-center pt-2">
-          <Link href="/auth" className="text-xs text-ink-muted hover:text-ink font-semibold">
-            ← Quay lại đăng nhập
-          </Link>
-        </div>
-      </form>
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold text-ink-soft">
+              Mật khẩu mới
+            </span>
+            <span className="relative mt-2 block">
+              <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+              <input
+                name="new-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="input-field input-with-icon"
+                autoComplete="new-password"
+                placeholder="Ít nhất 8 ký tự"
+              />
+            </span>
+          </label>
+          {message ? (
+            <p
+              role="alert"
+              className="rounded-xl bg-red-50 p-3 text-xs text-red-700"
+            >
+              {message}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="button-primary w-full disabled:cursor-wait disabled:opacity-60"
+          >
+            {submitting ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <KeyRound className="size-4" />
+            )}
+            Kiểm tra thông tin đặt lại
+          </button>
+        </form>
+      )}
     </div>
   );
 }

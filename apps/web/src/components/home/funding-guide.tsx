@@ -1,4 +1,5 @@
 import { BadgeCheck, CreditCard, PackageCheck } from "lucide-react";
+import Image from "next/image";
 
 const steps = [
   {
@@ -11,13 +12,13 @@ const steps = [
     icon: CreditCard,
     number: "02",
     title: "Chọn mức muốn góp",
-    text: "Bạn chọn gói quà và địa chỉ giao. Khoản tiền mới được giữ ở trạng thái cam kết.",
+    text: "Bạn chọn gói quà và địa chỉ giao. Bản demo ghi một cam kết mẫu, chưa giữ tiền thật.",
   },
   {
     icon: PackageCheck,
     number: "03",
     title: "Chờ chiến dịch kết thúc",
-    text: "Đủ mục tiêu thì khoản góp được thu. Nếu không đủ, cam kết tự hủy và không mất tiền.",
+    text: "Theo thiết kế All-or-Nothing, đủ mục tiêu mới thu tiền; chưa đạt thì hủy giữ hạn mức. Thanh toán thật chưa được tích hợp.",
   },
 ] as const;
 
@@ -25,15 +26,25 @@ export function FundingGuide() {
   return (
     <section id="cach-hoat-dong" className="page-section scroll-mt-24 border-y border-line bg-white">
       <div className="container-shell">
-        <div className="max-w-2xl">
-          <p className="text-xs font-bold text-coral-dark">Cách Góp hoạt động</p>
-          <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-            Rõ trước khi góp, yên tâm khi chờ
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-ink-soft">
-            Góp dùng cơ chế tất cả hoặc không. Chủ dự án phải đạt mục tiêu đã
-            công bố thì khoản cam kết mới được xử lý.
-          </p>
+        <div className="grid gap-7 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-center">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold text-coral-dark">Cách Góp hoạt động</p>
+            <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
+              Rõ trước khi góp, yên tâm khi chờ
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-ink-soft">
+              Góp mô phỏng cơ chế tất cả hoặc không. Chủ dự án phải đạt mục tiêu đã
+              công bố thì khoản cam kết mới được xử lý ở phiên bản có cổng thanh toán.
+            </p>
+          </div>
+          <div className="relative min-h-[220px] overflow-hidden rounded-[18px] border border-line sm:min-h-[290px]">
+            <Image src="/images/editorial/dong-goi-qua-minh-hoa-v1.webp"
+              alt="Ảnh minh họa hai người chuẩn bị hộp quà thủ công trong xưởng nhỏ"
+              fill sizes="(max-width: 1024px) 100vw, 52vw" className="object-cover object-center" />
+            <p className="absolute bottom-3 left-3 right-3 w-fit max-w-[90%] rounded-lg bg-white/94 px-3 py-2 text-[11px] font-semibold text-forest shadow-sm backdrop-blur-sm">
+              Minh họa khâu chuẩn bị quà · chưa phải đơn hàng thật
+            </p>
+          </div>
         </div>
 
         <div className="mt-10 grid border-y border-line md:grid-cols-3">

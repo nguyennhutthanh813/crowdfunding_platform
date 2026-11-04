@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowLeft, Eye, FolderKanban, Sparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, Eye, FolderKanban } from "lucide-react";
 import Link from "next/link";
 import { CreatorCampaignOperations } from "@/components/creator/creator-campaign-operations";
 import { api } from "@/lib/api";
@@ -33,6 +33,16 @@ export default async function CollaboratorCampaignManagePage() {
   ) {
     return (
       <CampaignAccessNotice message="Bạn chưa được cấp quyền đăng cập nhật hoặc trả lời trong dự án này. Hãy trao đổi với chủ dự án nếu cần thay đổi phân công." />
+    );
+  }
+  if (access.isSuspended) {
+    return (
+      <CampaignAccessNotice
+        title="Chiến dịch đang tạm dừng"
+        message="Phần việc của cộng tác viên được giữ nguyên nhưng chưa thể đăng cập nhật hoặc trả lời cộng đồng cho đến khi chủ dự án xử lý yêu cầu quản trị."
+        actionLabel="Về bảng công việc"
+        actionHref="/collaborator"
+      />
     );
   }
   const operations = applyOperationsPreviewState(
@@ -69,7 +79,7 @@ export default async function CollaboratorCampaignManagePage() {
                 href="/collaborator/forecast"
                 className="button-secondary min-h-11 px-4 text-xs"
               >
-                <Sparkles className="size-4" /> Xem dự báo
+                <BarChart3 className="size-4" /> Xem dự báo
               </Link>
               <Link
                 href="/projects/orbit-one-ca-phe-thong-minh"

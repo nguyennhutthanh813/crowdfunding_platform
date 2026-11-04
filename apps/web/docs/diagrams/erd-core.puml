@@ -1,0 +1,170 @@
+@startuml
+title ERD CHI TIẾT CROWDFUNDING CORE
+hide circle
+skinparam backgroundColor #FBFAF6
+skinparam shadowing false
+skinparam linetype ortho
+skinparam entityBorderColor #75877E
+skinparam entityBackgroundColor #FFFFFF
+
+entity users {
+  * id : uuid <<PK>>
+  --
+  * email : citext <<UQ>>
+  * password_hash : text
+  * display_name : varchar
+  * status : account_status
+}
+entity user_roles {
+  * user_id : uuid <<PK,FK>>
+  * role : global_role <<PK>>
+  granted_by : uuid <<FK>>
+}
+entity categories {
+  * id : uuid <<PK>>
+  parent_id : uuid <<FK>>
+  * slug : varchar <<UQ>>
+}
+entity campaigns {
+  * id : uuid <<PK>>
+  --
+  * creator_id : uuid <<FK>>
+  * category_id : uuid <<FK>>
+  * status : campaign_status
+  * goal_amount : bigint
+  * duration_days : smallint
+  starts_at : timestamptz
+  ends_at : timestamptz
+}
+entity campaign_members {
+  * campaign_id : uuid <<PK,FK>>
+  * user_id : uuid <<PK,FK>>
+  * role : campaign_member_role
+  can_post_updates : boolean
+  can_reply_comments : boolean
+  can_view_ai_dashboard : boolean
+}
+entity campaign_media {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * media_type : media_type
+  * url : text
+}
+entity reward_tiers {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * amount : bigint
+  items : jsonb
+  * requires_shipping : boolean
+  quantity_limit : int
+  estimated_delivery : date
+}
+entity add_ons {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * amount : bigint
+  * requires_shipping : boolean
+  quantity_limit : int
+}
+entity shipping_options {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  province_code : varchar
+  * fee_amount : bigint
+}
+entity addresses {
+  * id : uuid <<PK>>
+  * user_id : uuid <<FK>>
+  * recipient_name : varchar
+  * province : varchar
+  * country_code : char(2)
+}
+entity pledges {
+  * id : uuid <<PK>>
+  --
+  * campaign_id : uuid <<FK>>
+  * backer_id : uuid <<FK>>
+  reward_tier_id : uuid <<FK>>
+  shipping_option_id : uuid <<FK>>
+  shipping_address_id : uuid <<FK>>
+  * status : pledge_status
+  * reward_amount : bigint
+  * add_on_amount : bigint
+  * shipping_amount : bigint
+  * bonus_amount : bigint
+  * total_amount : bigint <<generated>>
+}
+entity pledge_add_ons {
+  * pledge_id : uuid <<PK,FK>>
+  * campaign_id : uuid <<FK>>
+  * add_on_id : uuid <<PK,FK>>
+  * quantity : smallint
+  * unit_amount : bigint
+}
+entity payment_authorizations {
+  * id : uuid <<PK>>
+  * pledge_id : uuid <<FK>>
+  * provider_payment_id : varchar <<UQ>>
+  * status : payment_status
+  * amount : bigint
+  authorized_at : timestamptz
+  captured_at : timestamptz
+  canceled_at : timestamptz
+}
+entity payment_events {
+  * id : uuid <<PK>>
+  payment_authorization_id : uuid <<FK>>
+  * provider_event_id : varchar <<UQ>>
+  * payload : jsonb
+  processed_at : timestamptz
+}
+entity fulfillments {
+  * id : uuid <<PK>>
+  * pledge_id : uuid <<FK,UQ>>
+  * status : fulfillment_status
+  tracking_code : varchar
+}
+entity campaign_reviews {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * reviewer_id : uuid <<FK>>
+  * decision : review_decision
+}
+entity campaign_status_history {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  changed_by : uuid <<FK>>
+  * to_status : campaign_status
+}
+
+users ||--o{ user_roles
+categories ||--o{ categories : parent
+users ||--o{ campaigns : owns (1:N)
+categories ||--o{ campaigns
+campaigns ||--o{ campaign_members
+users ||--o{ campaign_members
+campaigns ||--o{ campaign_media
+campaigns ||--o{ reward_tiers
+campaigns ||--o{ add_ons
+campaigns ||--o{ shipping_options
+users ||--o{ addresses
+campaigns ||--o{ pledges
+users ||--o{ pledges : backer
+reward_tiers |o--o{ pledges
+shipping_options |o--o{ pledges
+addresses |o--o{ pledges
+pledges ||--o{ pledge_add_ons
+add_ons ||--o{ pledge_add_ons
+pledges ||--o{ payment_authorizations
+payment_authorizations ||--o{ payment_events
+pledges ||--o| fulfillments
+campaigns ||--o{ campaign_reviews
+users ||--o{ campaign_reviews : reviewer
+campaigns ||--o{ campaign_status_history
+
+note right of campaigns
+  creator_id không UNIQUE
+  1 user có thể sở hữu 0..N campaign
+  mỗi campaign có đúng 1 OWNER
+end note
+@enduml

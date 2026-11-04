@@ -1,39 +1,58 @@
-import type { Metadata, Viewport } from 'next';
-import { Be_Vietnam_Pro, Manrope } from 'next/font/google';
-import { AuthProvider } from '@/components/auth/auth-provider';
-import { ConnectivityBanner } from '@/components/ui/connectivity-banner';
-import { SiteFooter } from '@/components/layout/site-footer';
-import { SiteHeader } from '@/components/layout/site-header';
-import { getServerSession } from '@/lib/auth/server-session';
-import './globals.css';
+import type { Metadata, Viewport } from "next";
+import { Be_Vietnam_Pro, Manrope } from "next/font/google";
+import { AuthProvider } from "@/components/auth/auth-provider";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
+import { ConnectivityBanner } from "@/components/ui/connectivity-banner";
+import { DemoContextNotice } from "@/components/ui/demo-context-notice";
+import { siteConfig } from "@/config/site";
+import { getServerSession } from "@/lib/auth/server-session";
+import "./globals.css";
 
 const beVietnam = Be_Vietnam_Pro({
-  variable: '--font-be-vietnam',
-  subsets: ['vietnamese'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
+  variable: "--font-be-vietnam",
+  subsets: ["vietnamese"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const manrope = Manrope({
-  variable: '--font-manrope',
-  subsets: ['vietnamese'],
-  display: 'swap',
+  variable: "--font-manrope",
+  subsets: ["vietnamese"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
   title: {
-    default: 'Góp Ý – Gọi vốn cộng đồng cho ý tưởng Việt',
-    template: '%s | Góp Ý',
+    default: "Góp — Gọi vốn cộng đồng cho ý tưởng Việt",
+    template: "%s | Góp",
   },
-  description:
-    'Nơi những dự án Việt có kế hoạch rõ ràng tìm được cộng đồng cùng tin và cùng làm.',
-  keywords: ['crowdfunding', 'gọi vốn cộng đồng', 'dự án Việt'],
+  description: siteConfig.description,
+  keywords: ["crowdfunding", "gọi vốn cộng đồng", "dự án Việt"],
+  openGraph: {
+    type: "website",
+    locale: "vi_VN",
+    siteName: siteConfig.name,
+    title: "Góp — Gọi vốn cộng đồng cho ý tưởng Việt",
+    description: siteConfig.description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Góp — Gọi vốn cộng đồng cho ý tưởng Việt",
+    description: siteConfig.description,
+  },
+  icons: {
+    icon: [{ url: "/brand/gop-mark.svg", type: "image/svg+xml" }],
+    shortcut: "/brand/gop-mark.svg",
+    apple: "/brand/gop-mark.svg",
+  },
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-  themeColor: '#102a22',
+  themeColor: "#17392f",
 };
 
 export default async function RootLayout({
@@ -41,21 +60,23 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession();
+  const initialSession = await getServerSession();
 
   return (
     <html
       lang="vi"
       className={`${beVietnam.variable} ${manrope.variable}`}
+      data-scroll-behavior="smooth"
     >
       <body>
-        <AuthProvider initialSession={session}>
+        <AuthProvider initialSession={initialSession}>
           <a href="#noi-dung-chinh" className="skip-link">
             Bỏ qua phần điều hướng
           </a>
           <ConnectivityBanner />
           <SiteHeader />
-          <main id="noi-dung-chinh" tabIndex={-1} className="flex flex-1 flex-col">
+          <DemoContextNotice />
+          <main id="noi-dung-chinh" tabIndex={-1}>
             {children}
           </main>
           <SiteFooter />

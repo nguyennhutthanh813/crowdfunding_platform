@@ -1,0 +1,35 @@
+@startmindmap
+skinparam backgroundColor #FBFAF6
+skinparam defaultFontName Arial
+skinparam defaultFontSize 15
+skinparam shadowing false
+skinparam ArrowColor #5A6C64
+skinparam LineThickness 1
+skinparam nodesep 24
+skinparam ranksep 28
+scale max 2200 width
+*[#15352B] <color:#FFFFFF><b>GÓP</b></color>\n<color:#FFFFFF>CÂY CHỨC NĂNG THEO VAI TRÒ</color>
+**[#E7F0F6] <b>GUEST</b>
+***[#FFFFFF] <b>KHÁM PHÁ CÔNG KHAI - G01–G03</b>\n• Trang chủ và chiến dịch nổi bật\n• Tìm kiếm, category và bộ lọc\n• Project Detail đủ 7 tab
+***[#FFFFFF] <b>TÀI KHOẢN - G04–G05</b>\n• Đăng ký Backer mặc định\n• Đăng nhập, đăng xuất, khôi phục mật khẩu
+**[#E8F1D8] <b>BACKER</b>
+***[#FFFFFF] <b>CÁ NHÂN HÓA - B01–B05</b>\n• Chọn sở thích lúc onboarding\n• Nhận Top-N Recommendation có lý do\n• Save campaign, Follow Creator, Notify me
+***[#FFFFFF] <b>PLEDGE 4 BƯỚC - B06–B10</b>\n• Reward hoặc không nhận quà\n• Add-on, địa chỉ Việt Nam, shipping\n• Kiểm tra tổng tiền và authorize
+***[#FFFFFF] <b>SAU KHI ỦNG HỘ - B11–B16</b>\n• Đặt câu hỏi, đọc phản hồi của nhóm\n• Backed, Saved, Following, Activity\n• Pledge ID nối Backer → Creator → ngày chốt
+**[#FBE7DF] <b>CREATOR</b>
+***[#FFFFFF] <b>SOẠN CHIẾN DỊCH - C01–C06</b>\n• Draft, Story, ảnh minh họa mẫu, Risks\n• Goal 15–60 ngày, Reward, Add-on, shipping\n• Mời và phân quyền Collaborator theo campaign
+***[#FFFFFF] <b>DỰ BÁO & VÒNG ĐỜI - C07–C12</b>\n• Success Prediction và factors\n• Gửi duyệt, nhận phản hồi, Pre-launch\n• Launch, funding metric và live prediction
+***[#FFFFFF] <b>VẬN HÀNH - C13–C15</b>\n• Trả lời hoặc giao câu hỏi đúng thành viên\n• Giao quà chỉ mở sau Successful\n• Task/handoff nối Creator với Collaborator
+***[#FFFFFF] <b>SAU CORE - EXT-C01–EXT-C03</b>\n• Hỗ trợ rà tiêu đề và nội dung bản nháp\n• Gom chủ đề/cảm xúc của bình luận\n• Quick Reply chỉ điền nháp, người dùng tự gửi
+left side
+**[#EEE9F8] <b>COLLABORATOR</b>
+***[#FFFFFF] <b>QUYỀN THEO CAMPAIGN - C06</b>\n• Được Creator mời vào đúng chiến dịch\n• Quyền tách: update, reply, xem dự báo\n• Không có quyền launch, phí hoặc thành viên
+***[#FFFFFF] <b>BÀN LÀM VIỆC - C12–C14</b>\n• Xem task, câu hỏi được giao, deadline\n• Thông báo trong app, đánh dấu đã đọc\n• Theo dõi live prediction\n• Cập nhật quay về Creator trước khi tới Backer
+**[#F4E8E6] <b>ADMIN</b>
+***[#FFFFFF] <b>KIỂM DUYỆT - A01–A04</b>\n• Hàng chờ, version, tài liệu, SLA\n• Checklist và bằng chứng\n• Kết quả + lý do quay về đúng campaign
+***[#FFFFFF] <b>VẬN HÀNH SÀN - A05–A07</b>\n• Khóa/mở người dùng có lý do\n• Dòng vốn, doanh thu, đối soát\n• Phí nền tảng và nhật ký thay đổi
+***[#FFFFFF] <b>FRAUD REVIEW - A08–A10</b>\n• Hàng chờ theo risk score\n• Signals/evidence đã che dữ liệu nhạy cảm\n• Clear hoặc Escalate, không tự khóa bằng AI
+**[#EEF1EF] <b>SYSTEM / WORKER</b>
+***[#FFFFFF] <b>DỮ LIỆU & AI - S01–S03</b>\n• Tổng hợp metric và interaction hằng ngày\n• Chạy live prediction cho campaign\n• Chấm fraud score và tạo evidence tổng hợp
+***[#FFFFFF] <b>CHỐT CAMPAIGN - S04–S08</b>\n• Đạt Goal: capture; không đạt: cancel\n• Webhook idempotent theo provider event ID\n• Gửi thông báo kết quả và lỗi cần xử lý
+@endmindmap

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="432" height="80" viewBox="0 0 432 80" role="img" aria-labelledby="title desc">
+  <title id="title">Góp — Võ Phước Thịnh và Nhật Thanh Nguyễn</title>
+  <desc id="desc">Dấu nhóm PT và NT bên cạnh tên sản phẩm Góp và tên hai thành viên.</desc>
+  <rect x="2" y="6" width="68" height="68" rx="12" fill="#f2eadb" stroke="#17392f" stroke-width="2"/>
+  <text x="36" y="36" text-anchor="middle" fill="#17392f" font-family="Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="-1">PT</text>
+  <path d="M15 42h42" stroke="#c95339" stroke-width="3" stroke-linecap="round"/>
+  <text x="36" y="66" text-anchor="middle" fill="#17392f" font-family="Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="-1">NT</text>
+  <text x="90" y="39" fill="#17392f" font-family="Arial,sans-serif" font-size="37" font-weight="800" letter-spacing="-2">Góp</text>
+  <text x="91" y="65" fill="#9c3d2b" font-family="Arial,sans-serif" font-size="16" font-weight="700">Võ Phước Thịnh  ×  Nhật Thanh Nguyễn</text>
+</svg>

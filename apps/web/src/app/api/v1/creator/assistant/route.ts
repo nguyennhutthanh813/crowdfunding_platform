@@ -24,25 +24,37 @@ export async function GET(request: NextRequest) {
   const access = await requireSession(["CREATOR", "COLLABORATOR"]);
   if (access.response) return access.response;
 
-  const campaignId = request.nextUrl.searchParams.get("campaignId");
-  if (campaignId) {
-    const campaignAccess = resolveCampaignAccess(
-      campaignId,
-      access.session!,
-      await getServerPlatformPreviewState(),
+  const campaignId =
+    request.nextUrl.searchParams.get("campaignId") ?? "cmp_orbit";
+  const campaignAccess = resolveCampaignAccess(
+    campaignId,
+    access.session!,
+    await getServerPlatformPreviewState(),
+  );
+  if (!campaignAccess.campaign) {
+    return apiError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy chiến dịch.");
+  }
+  if (!campaignAccess.isOwner && !campaignAccess.canReplyComments) {
+    return apiError(
+      403,
+      "ASSISTANT_PERMISSION_REQUIRED",
+      "Bạn chưa được cấp quyền dùng trợ lý của chiến dịch này.",
     );
-    if (!campaignAccess.campaign) {
-      return apiError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy chiến dịch.");
-    }
-    if (!campaignAccess.isOwner && !campaignAccess.canReplyComments) {
-      return apiError(
-        403,
-        "ASSISTANT_PERMISSION_REQUIRED",
-        "Bạn chưa được cấp quyền dùng trợ lý của chiến dịch này.",
-      );
-    }
+  }
+  if (campaignAccess.isSuspended) {
+    return apiError(
+      423,
+      "CAMPAIGN_SUSPENDED",
+      "Chiến dịch đang tạm dừng nên trợ lý nội dung chưa thể xử lý dữ liệu mới.",
+    );
   }
 
+  if (campaignId !== "cmp_orbit")
+    return apiError(
+      404,
+      "ASSISTANT_NOT_AVAILABLE",
+      "Chưa có dữ liệu trợ lý mẫu cho dự án này.",
+    );
   return Response.json(await api.getCreatorAssistantData());
 }
 
@@ -89,6 +101,13 @@ export async function POST(request: Request) {
       "Bạn không thuộc nhóm vận hành của chiến dịch này.",
     );
   }
+  if (campaignAccess.isSuspended) {
+    return apiError(
+      423,
+      "CAMPAIGN_SUSPENDED",
+      "Chiến dịch đang tạm dừng nên trợ lý nội dung chưa thể chạy tác vụ mới.",
+    );
+  }
 
   if (action === "ANALYZE_DRAFT" && !campaignAccess.isOwner) {
     return apiError(
@@ -105,6 +124,12 @@ export async function POST(request: Request) {
     );
   }
 
+  if (campaignId !== "cmp_orbit")
+    return apiError(
+      404,
+      "ASSISTANT_NOT_AVAILABLE",
+      "Chưa có dữ liệu trợ lý mẫu cho dự án này.",
+    );
   const assistant = await api.getCreatorAssistantData();
   const processedAt = new Date().toISOString();
 
@@ -132,7 +157,7 @@ export async function POST(request: Request) {
         promptVersion: assistant.comments.runMeta.promptVersion,
         inputSnapshotAt: assistant.comments.runMeta.inputSnapshotAt,
       },
-      meta: { source: "assistant-service", replaceWith: "CommentAssistantService" },
+      meta: { source: "preview" },
     });
   }
 
@@ -156,12 +181,6 @@ export async function POST(request: Request) {
           : assistant.comments.runMeta.inputSnapshotAt,
       requiresHumanReview: true,
     },
-    meta: {
-      source: "assistant-service",
-      replaceWith:
-        action === "ANALYZE_DRAFT"
-          ? "CampaignContentAssistantService"
-          : "CommentAnalysisService",
-    },
+    meta: { source: "preview" },
   });
 }

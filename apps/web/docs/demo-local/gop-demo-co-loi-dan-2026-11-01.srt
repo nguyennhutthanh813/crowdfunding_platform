@@ -1,0 +1,351 @@
+1
+00:00:00,001 --> 00:00:06,812
+Đây là Góp, trang web mô phỏng gọi vốn cộng đồng cho những ý tưởng Việt. Người xem đọc
+
+2
+00:00:06,812 --> 00:00:13,544
+kế hoạch trước, chọn mức ủng hộ sau, rồi theo dõi tiến độ của chủ dự án. Bản quay hôm
+
+3
+00:00:13,544 --> 00:00:20,118
+nay chạy trên máy nhóm, lưu thao tác vào cơ sở dữ liệu cục bộ. Tất cả số tiền trong
+
+4
+00:00:20,118 --> 00:00:24,553
+video là cam kết mẫu; không có khoản tiền thật được thu.
+
+5
+00:00:26,196 --> 00:00:33,559
+Ở trang khám phá, người dùng lọc theo lĩnh vực và trạng thái. Mở một dự án, ta thấy mục
+
+6
+00:00:33,559 --> 00:00:40,753
+tiêu, tiến độ, người thực hiện và rủi ro trước khi quyết định. Bảy mục phía dưới tách
+
+7
+00:00:40,753 --> 00:00:47,946
+câu chuyện, gói ủng hộ, chủ dự án, hỏi đáp, cập nhật, bình luận và cộng đồng. Mình sẽ
+
+8
+00:00:47,946 --> 00:00:51,924
+dùng một hồ sơ mới để đi tiếp qua từng vai trò.
+
+9
+00:00:53,529 --> 00:00:59,963
+Trang đăng nhập có bốn tài khoản mẫu để thử nhanh. Cùng một người có thể có hơn một vai
+
+10
+00:00:59,963 --> 00:01:06,324
+trò; chẳng hạn Hoàng Linh vừa là người ủng hộ vừa là chủ dự án. Mỗi vai trò mở một khu
+
+11
+00:01:06,324 --> 00:01:12,610
+làm việc khác màu và khác quyền. Đăng nhập mẫu chỉ phục vụ trình diễn, không nên dùng
+
+12
+00:01:12,610 --> 00:01:15,273
+như cơ chế xác thực triển khai thật.
+
+13
+00:01:16,820 --> 00:01:24,006
+Đây là danh sách chiến dịch của Hoàng Linh. Tài khoản này quản lý nhiều hồ sơ, mỗi hồ sơ
+
+14
+00:01:24,006 --> 00:01:30,785
+có mã, trạng thái, thành viên và việc cần làm riêng. Chủ dự án có thể mở trang công
+
+15
+00:01:30,785 --> 00:01:37,726
+khai, xem nhật ký, theo dõi dự báo hoặc tạo chiến dịch mới. Ta bắt đầu hồ sơ Bếp Mây,
+
+16
+00:01:37,726 --> 00:01:41,156
+một bộ lọc nước cho căn bếp nhỏ ở Đà Nẵng.
+
+17
+00:01:42,685 --> 00:01:49,222
+Biểu mẫu chia thành năm bước để dễ soát. Bước đầu là tên, mô tả ngắn, lĩnh vực, địa
+
+18
+00:01:49,222 --> 00:01:55,838
+điểm, mục tiêu một trăm hai mươi triệu đồng và thời hạn ba mươi ngày. Nút điền ví dụ
+
+19
+00:01:55,838 --> 00:02:02,770
+giúp thử nhanh, nhưng khi nộp thật phải thay bằng thông tin có căn cứ. Trang kiểm tra dữ
+
+20
+00:02:02,770 --> 00:02:05,605
+liệu trước khi cho qua bước kế tiếp.
+
+21
+00:02:07,215 --> 00:02:13,843
+Bước câu chuyện nói rõ sản phẩm đã có gì, tiền gọi vốn sẽ dùng vào đâu và rủi ro giao
+
+22
+00:02:13,843 --> 00:02:20,471
+hàng. Hồ sơ ví dụ dùng ảnh minh họa có nhãn rõ ràng, không giả làm ảnh sản phẩm thật.
+
+23
+00:02:20,471 --> 00:02:27,255
+Đây là điểm quan trọng: người ủng hộ cần đọc được giới hạn của dự án chứ không chỉ nhìn
+
+24
+00:02:27,255 --> 00:02:28,815
+một con số mục tiêu.
+
+25
+00:02:30,356 --> 00:02:36,827
+Gói ủng hộ Bếp Mây là bộ lọc lô đầu, bảy trăm năm mươi nghìn đồng, giới hạn một trăm
+
+26
+00:02:36,827 --> 00:02:43,607
+suất. Phần bổ sung lõi lọc dự phòng được tính riêng. Nhóm có thể chỉnh số tiền, số lượng
+
+27
+00:02:43,607 --> 00:02:50,078
+và tháng giao trước khi gửi duyệt. Khi người ủng hộ chọn quà, giao diện sẽ cộng từng
+
+28
+00:02:50,078 --> 00:02:52,004
+khoản để họ kiểm tra lại.
+
+29
+00:02:53,558 --> 00:02:59,939
+Bước tiếp theo đặt phí giao ba mươi nghìn đồng và mời Gia Huy vào đúng chiến dịch này.
+
+30
+00:02:59,939 --> 00:03:06,320
+Quyền đăng cập nhật, trả lời và xem dự báo được cấp riêng, nên cộng tác viên không trở
+
+31
+00:03:06,320 --> 00:03:12,627
+thành chủ của mọi dự án. Ta lưu bản nháp; thao tác này tạo hồ sơ trong cơ sở dữ liệu,
+
+32
+00:03:12,627 --> 00:03:15,446
+vẫn có thể quay lại sửa trước khi gửi.
+
+33
+00:03:17,036 --> 00:03:24,006
+Màn xem trước gom các mục bắt buộc thành một danh sách kiểm. Sau khi rà tên, câu chuyện,
+
+34
+00:03:24,006 --> 00:03:30,977
+quà tặng và phí giao, chủ dự án gửi hồ sơ cho quản trị viên. Lúc này trạng thái đổi sang
+
+35
+00:03:30,977 --> 00:03:37,868
+đang xét duyệt; dự án chưa được công bố và người ủng hộ chưa thể cam kết cho hồ sơ này.
+
+36
+00:03:39,363 --> 00:03:46,367
+Quản trị viên thấy Bếp Mây trong hàng chờ, có thể mở nội dung, xem các kiểm tra và ghi
+
+37
+00:03:46,367 --> 00:03:53,533
+phản hồi. Ba hướng xử lý là yêu cầu sửa, từ chối hoặc duyệt. Trong lần demo này, sau khi
+
+38
+00:03:53,533 --> 00:04:00,537
+đọc hồ sơ, quản trị viên xác nhận duyệt. Quyết định thuộc về người quản trị; điểm cảnh
+
+39
+00:04:00,537 --> 00:04:03,387
+báo không tự ra quyết định thay họ.
+
+40
+00:04:04,955 --> 00:04:11,728
+Hoàng Linh quay lại đúng hồ sơ vừa duyệt và xem tiến độ xét duyệt. Chỉ sau mốc này, nút
+
+41
+00:04:11,728 --> 00:04:18,423
+mở gọi vốn mẫu mới xuất hiện. Hộp xác nhận nhắc lại rằng đây là dữ liệu thử, không kết
+
+42
+00:04:18,423 --> 00:04:25,273
+nối cổng thanh toán. Khi mở, trạng thái chuyển sang đang gọi vốn và trang dự án hiện cho
+
+43
+00:04:25,273 --> 00:04:26,363
+cộng đồng xem.
+
+44
+00:04:27,926 --> 00:04:34,625
+Trang công khai Bếp Mây lấy lại tên, câu chuyện, mục tiêu và gói quà từ hồ sơ đã duyệt.
+
+45
+00:04:34,625 --> 00:04:41,016
+Người xem có thể đọc các thẻ nội dung, theo dõi cập nhật và mở quy trình ủng hộ. Mã
+
+46
+00:04:41,016 --> 00:04:47,792
+chiến dịch sẽ được giữ nguyên khi đổi sang tài khoản người ủng hộ, cộng tác viên và quản
+
+47
+00:04:47,792 --> 00:04:50,102
+trị viên để đối chiếu dữ liệu.
+
+48
+00:04:51,590 --> 00:04:58,700
+Minh Anh chọn gói bộ lọc lô đầu. Trang xác nhận tách giá quà, phần bổ sung, khoản góp
+
+49
+00:04:58,700 --> 00:05:05,810
+thêm và phí giao. Với quà vật lý, người dùng phải nhập tên, số điện thoại, địa chỉ và
+
+50
+00:05:05,810 --> 00:05:13,087
+tỉnh thành; thiếu mục nào thì trang báo rõ. Sau khi xem tổng tiền, Minh Anh ghi một cam
+
+51
+00:05:13,087 --> 00:05:17,102
+kết mẫu. Hệ thống chưa giữ thẻ và chưa thu tiền.
+
+52
+00:05:18,656 --> 00:05:25,157
+Quay về sổ ủng hộ của Minh Anh, khoản vừa tạo phải hiện trong danh sách của chính tài
+
+53
+00:05:25,157 --> 00:05:31,582
+khoản này. Từ trang dự án, người ủng hộ có thể đặt câu hỏi hoặc bình luận và xem cập
+
+54
+00:05:31,582 --> 00:05:38,160
+nhật tiến độ. Những mục đã lưu, chủ dự án đang theo dõi, tin nhắn và lịch sử nằm trong
+
+55
+00:05:38,160 --> 00:05:41,984
+cùng khu tài khoản nhưng tách thành thẻ để dễ tìm.
+
+56
+00:05:43,542 --> 00:05:49,954
+Gia Huy chỉ nhìn thấy chiến dịch được mời và quyền mà chủ dự án cấp. Khu này ưu tiên
+
+57
+00:05:49,954 --> 00:05:56,519
+việc được giao, thông báo, cập nhật và phản hồi cộng đồng. Chủ dự án vẫn giữ quyền đổi
+
+58
+00:05:56,519 --> 00:06:02,931
+cấu hình quan trọng. Khi một người trong nhóm đăng tin, người ủng hộ đọc lại ở trang
+
+59
+00:06:02,931 --> 00:06:07,206
+công khai; đây là cách các vai trò dùng chung một hồ sơ.
+
+60
+00:06:08,693 --> 00:06:15,849
+Trang khám phá cho tìm, lọc và sắp xếp dự án. Gợi ý cá nhân hiện chỉ là dữ liệu mẫu. Chủ
+
+61
+00:06:15,849 --> 00:06:22,843
+dự án có màn dự báo, giải thích yếu tố tác động và việc nên làm; cộng tác viên xem khi
+
+62
+00:06:22,843 --> 00:06:29,918
+được cấp quyền. Các tỷ lệ trên màn chưa đến từ mô hình đã huấn luyện, nên nhóm chưa thể
+
+63
+00:06:29,918 --> 00:06:31,301
+báo độ chính xác.
+
+64
+00:06:34,106 --> 00:06:40,695
+Khu rủi ro xếp các cảnh báo theo mức ưu tiên và cho quản trị viên đọc tín hiệu liên
+
+65
+00:06:40,695 --> 00:06:47,601
+quan. Đây cũng là dữ liệu mẫu, chưa phải kết quả của mô hình phát hiện gian lận đã kiểm
+
+66
+00:06:47,601 --> 00:06:54,587
+chứng. Quản trị viên là người xem bằng chứng, ghi lý do rồi xử lý. Hệ thống không nên tự
+
+67
+00:06:54,587 --> 00:06:57,842
+khóa dự án chỉ vì một con số điểm rủi ro.
+
+68
+00:06:59,432 --> 00:07:06,533
+Cuối cùng, trang kiểm dữ liệu trên máy nối cùng mã Bếp Mây với chủ sở hữu, thành viên,
+
+69
+00:07:06,533 --> 00:07:13,304
+gói quà, lượt duyệt và cam kết. Ta mở nhật ký để thấy thứ tự thao tác và kiểm khóa
+
+70
+00:07:13,304 --> 00:07:20,571
+ngoại. Đây là cơ sở dữ liệu cục bộ phục vụ demo, còn bản triển khai trực tuyến hiện dùng
+
+71
+00:07:20,571 --> 00:07:25,112
+cơ chế dữ liệu thử khác; hai nơi chưa đồng bộ với nhau.
+
+72
+00:07:26,609 --> 00:07:33,393
+Người ủng hộ cũng có thể góp mà không lấy quà. Khi chọn nhánh này, biểu mẫu bỏ bước địa
+
+73
+00:07:33,393 --> 00:07:40,178
+chỉ giao hàng; ta chỉ xem cách điền và không ghi thêm cam kết. Trong khu tài khoản, các
+
+74
+00:07:40,178 --> 00:07:46,884
+thẻ dự án đã lưu, chủ dự án đang theo dõi, tin nhắn và thông báo được tách riêng. Minh
+
+75
+00:07:46,884 --> 00:07:51,329
+Anh có thể quay lại đây để kiểm tra sau mỗi lần thao tác.
+
+76
+00:07:52,922 --> 00:07:59,436
+Một chủ dự án có thể vận hành nhiều chiến dịch ở các giai đoạn khác nhau. Bếp Mây đang
+
+77
+00:07:59,436 --> 00:08:06,102
+gọi vốn, còn hồ sơ máy pha cà phê trước đó đã đạt mục tiêu. Chủ dự án xem danh sách giao
+
+78
+00:08:06,102 --> 00:08:12,616
+quà và trạng thái từng đơn mẫu. Khu nội dung của chiến dịch máy pha đang hoạt động cho
+
+79
+00:08:12,616 --> 00:08:19,130
+thấy việc nhóm và quyền thành viên. Các số liệu giao nhận này vẫn là dữ liệu minh họa.
+
+80
+00:08:23,127 --> 00:08:29,953
+Ngoài duyệt hồ sơ và cảnh báo, quản trị viên còn có khu người dùng để xem vai trò và
+
+81
+00:08:29,953 --> 00:08:36,860
+trạng thái tài khoản. Khu cài đặt cho thấy phí nền tảng và lịch sử thao tác; thay đổi
+
+82
+00:08:36,860 --> 00:08:43,849
+cần xác nhận, nên ở đây mình chỉ mở xem. Mục hồ sơ hệ thống nối sơ đồ chức năng, sơ đồ
+
+83
+00:08:43,849 --> 00:08:47,343
+dữ liệu và tiến độ đồ án để nhóm đối chiếu.
+
+84
+00:08:50,003 --> 00:08:57,132
+Một chiến dịch đã đi từ bản nháp, xét duyệt, mở gọi vốn tới cam kết và theo dõi giữa các
+
+85
+00:08:57,132 --> 00:09:04,100
+vai trò. Bản demo cho thấy cấu trúc giao diện và quan hệ dữ liệu, đồng thời để lộ phần
+
+86
+00:09:04,100 --> 00:09:10,986
+nhóm cần làm tiếp: cổng thanh toán thử đúng nghĩa, mô hình trí tuệ nhân tạo có tập dữ
+
+87
+00:09:10,986 --> 00:09:17,872
+liệu và phép đo, và cơ sở dữ liệu dùng chung khi triển khai. Nhật ký kèm video ghi rõ
+
+88
+00:09:17,872 --> 00:09:20,627
+các bước đã thử và điểm còn vướng.

@@ -12,7 +12,6 @@ import {
   MessageSquareText,
   Plus,
   Rocket,
-  Sparkles,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
@@ -23,16 +22,17 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RoleConnectionPanel } from "@/components/workspace/role-connection-panel";
 import { api } from "@/lib/api";
+import { buildMockCreatorPortfolio } from "@/lib/api/mock/creator-portfolio";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getFriendlyName } from "@/lib/auth/roles";
 import { getServerSession } from "@/lib/auth/server-session";
 import {
+  applyCampaignCardPreviewState,
   applyCreatorPortfolioPreviewState,
   applyOperationsPreviewState,
 } from "@/lib/preview-read-models";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
+import { localDbEnabled } from "@/lib/local-db/database";
 
 export const metadata: Metadata = {
   title: "Không gian Chủ dự án",
@@ -41,15 +41,18 @@ export const metadata: Metadata = {
 };
 
 export default async function CreatorPage() {
-  const [campaigns, basePortfolio, prediction, baseOperations, session, platformState] =
+  const [campaigns, prediction, baseOperations, session, platformState] =
     await Promise.all([
       api.listCampaigns(),
-      api.getCreatorPortfolio(),
       api.getCreatorAiDashboard(),
       api.getCampaignOperations("orbit-one-ca-phe-thong-minh"),
       getServerSession(),
       getServerPlatformPreviewState(),
     ]);
+  const basePortfolio = buildMockCreatorPortfolio(session?.user.id, session ? {
+    name: session.user.name,
+    initials: session.user.initials,
+  } : undefined);
   const operations = applyOperationsPreviewState(
     baseOperations,
     session,
@@ -64,17 +67,30 @@ export default async function CreatorPage() {
     campaigns: portfolioWithReviewState.campaigns.map((item) =>
       item.id === operations.campaignId
         ? {
-          ...item,
-          openTaskCount: operations.tasks.filter(
-            (task) => task.status !== "DONE",
-          ).length,
-          teamSize: operations.team.length,
-        }
+            ...item,
+            openTaskCount: operations.tasks.filter(
+              (task) => task.status !== "DONE",
+            ).length,
+            teamSize: operations.team.length,
+          }
         : item,
     ),
   };
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
 
+  if (session?.user.id !== "usr_hoang_linh") {
+    return <CreatorOnboarding givenName={givenName} campaigns={portfolio.campaigns} showTimeline={localDbEnabled()} />;
+  }
+
+  const baseCampaign =
+    campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
+    campaigns.find((item) => item.id === operations.campaignId);
+  if (!baseCampaign) {
+    return <CreatorOnboarding givenName={givenName} />;
+  }
+  const campaign = applyCampaignCardPreviewState(baseCampaign, platformState);
+  const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
+  const openTasks = operations.tasks.filter((task) => task.status !== "DONE");
   const draftReview = platformState.submittedReviews.find(
     (review) => review.campaignId === "cmp_orbit_mini",
   );
@@ -93,57 +109,19 @@ export default async function CreatorPage() {
           ? "Đã bị từ chối"
           : "Đang chờ duyệt";
 
-  const isCreatorUser = Boolean(
-    session?.user.roles?.includes("CREATOR") ||
-    session?.user.roles?.includes("ADMIN") ||
-    session?.user.email === "linh@orbit.vn" ||
-    session?.user.id === "usr_hoang_linh" ||
-    portfolio.campaigns.length > 0,
-  );
-
-  if (!isCreatorUser && portfolio.campaigns.length === 0) {
-    return (
-      <CreatorOnboarding
-        givenName={givenName}
-        submittedTitle={draftReview?.title}
-        reviewStatus={draftReview ? reviewLabel : undefined}
-      />
-    );
-  }
-
-  const campaign =
-    campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
-    campaigns.find((item) => item.id === operations.campaignId) ??
-    (portfolio.campaigns.length > 0
-      ? campaigns.find((item) => item.id === portfolio.campaigns[0].id)
-      : null) ??
-    campaigns[0];
-  if (!campaign) {
-    return (
-      <CreatorOnboarding
-        givenName={givenName}
-        submittedTitle={draftReview?.title}
-        reviewStatus={draftReview ? reviewLabel : undefined}
-      />
-    );
-  }
-  const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
-  const openTasks = operations.tasks.filter((task) => task.status !== "DONE");
-
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
-      <div className="border-b border-forest/10 bg-[#e5ebe5] py-9 sm:py-11">
-        <div className="container-shell flex flex-col justify-between gap-7 md:flex-row md:items-end">
+      <div className="border-b border-forest/10 bg-[#e5ebe5] py-6 sm:py-11">
+        <div className="container-shell flex flex-col justify-between gap-4 sm:gap-7 md:flex-row md:items-end">
           <div>
             <span className="eyebrow text-[#526827]">
               <Rocket className="size-4" /> Không gian Chủ dự án
             </span>
-            <h1 className="mt-3 max-w-3xl font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
+            <h1 className="mt-2 max-w-3xl font-display text-[1.7rem] leading-[1.15] font-extrabold tracking-[-0.045em] sm:mt-3 sm:text-4xl">
               Chào {givenName}, bạn đang quản lý {portfolio.summary.total} chiến dịch.
             </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-soft">
-              Mỗi chiến dịch có trạng thái, nhóm cộng tác và dòng tiền riêng.
-              ORBIT One đang được chọn để theo dõi sát trong phiên hôm nay.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft sm:mt-4 sm:leading-7">
+              Chọn một chiến dịch bên dưới để xem tiến độ và việc cần làm.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -151,7 +129,7 @@ export default async function CreatorPage() {
               href="/creator/campaigns/new"
               className="button-primary min-h-11 px-4 text-xs"
             >
-              <Plus className="size-4" /> Tạo chiến dịch
+              <Plus className="size-4" /> Tạo chiến dịch mới
             </Link>
             <Link
               href={`/projects/${campaign.slug}`}
@@ -163,8 +141,8 @@ export default async function CreatorPage() {
         </div>
       </div>
 
-      <div className="container-shell min-w-0 pt-8">
-        <CreatorPortfolioBoard portfolio={portfolio} />
+      <div className="container-shell min-w-0 pt-5 sm:pt-8">
+        <CreatorPortfolioBoard portfolio={portfolio} showTimeline={localDbEnabled()} />
         {draftReview ? (
           <article className="mb-5 mt-6 grid gap-4 rounded-[18px] border border-[#cbd7bd] bg-[#f4f7ed] p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
             <div className="flex items-start gap-3">
@@ -173,9 +151,9 @@ export default async function CreatorPage() {
               </span>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-extrabold">ORBIT Mini · bản gửi v{draftReview.submissionVersion}</p>
+                  <p className="text-sm font-extrabold">ORBIT Mini · gửi duyệt lần {draftReview.submissionVersion}</p>
                   <span
-                    className={`rounded-full px-2.5 py-1 text-[9px] font-extrabold ${draftDecision === "APPROVED" ? "bg-emerald-100 text-emerald-800" : draftDecision === "CHANGES" || draftDecision === "REJECTED" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${draftDecision === "APPROVED" ? "bg-emerald-100 text-emerald-800" : draftDecision === "CHANGES" || draftDecision === "REJECTED" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}
                   >
                     {reviewLabel.toUpperCase()}
                   </span>
@@ -187,7 +165,7 @@ export default async function CreatorPage() {
               </div>
             </div>
             <Link
-              href="/creator/campaigns/new"
+              href="/creator/campaigns/new?campaign=orbit-mini-bo-pha-gon"
               className="button-secondary min-h-11 px-4 text-xs"
             >
               Mở bản nháp <ArrowRight className="size-4" />
@@ -198,11 +176,11 @@ export default async function CreatorPage() {
           role="CREATOR"
           eyebrow="Chiến dịch đang chọn · bốn điểm bàn giao"
           title="ORBIT đang được nối giữa ai với ai?"
-          description="Mỗi cam kết đi vào cùng snapshot của chiến dịch; từ đây nhóm ORBIT nhận việc, quản trị viên theo dõi số tổng hợp và hệ thống chỉ thu tiền sau khi chiến dịch đạt mục tiêu."
+          description="Mỗi cam kết được ghi vào cùng hồ sơ chiến dịch. Từ đó nhóm ORBIT nhận việc, quản trị viên theo dõi số tổng hợp và hệ thống chỉ thu tiền sau khi chiến dịch đạt mục tiêu."
           recordCode={`CMP · ${campaign.id.replace("cmp_", "").toLocaleUpperCase("vi")}`}
           steps={[
             {
-              actor: "Chủ dự án + Admin",
+              actor: "Chủ dự án + Quản trị viên",
               title: "Hồ sơ đã qua kiểm duyệt",
               detail: "Mục tiêu và hạn chót được khóa trước khi mở gọi vốn.",
               kind: "admin",
@@ -218,20 +196,20 @@ export default async function CreatorPage() {
             {
               actor: `Nhóm ORBIT · ${operations.team.length} người`,
               title: `${openTasks.length} việc đang được xử lý`,
-              detail: "Creator giao đúng người; Collaborator chỉ thấy phần được cấp quyền.",
+              detail: "Chủ dự án giao đúng người; cộng tác viên chỉ thấy phần được cấp quyền.",
               kind: "team",
               state: "current",
             },
             {
               actor: operations.funding.deadlineLabel,
               title: "Chốt All-or-Nothing",
-              detail: "Đạt mục tiêu mới thu tiền và mở giao quà; không đạt thì hủy giữ hạn mức.",
+              detail: "Hai kết quả đạt/không đạt được mô phỏng; phần thu hoặc hủy tiền thật chưa tích hợp.",
               kind: "system",
               state: "next",
             },
           ]}
           action={{
-            label: "Mở snapshot vận hành",
+            label: "Mở bảng vận hành",
             href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=overview",
           }}
         />
@@ -245,7 +223,7 @@ export default async function CreatorPage() {
               href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=overview",
             },
             {
-              label: "Phát sinh hôm nay",
+              label: "Phát sinh tại mốc mẫu",
               value: formatVnd(operations.today.pledgedAmount, true),
               detail: `+${formatNumber(operations.today.backerCount)} người ủng hộ`,
               icon: WalletCards,
@@ -305,7 +283,7 @@ export default async function CreatorPage() {
                 <div className="min-w-0 p-6 sm:p-7">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={campaign.status} />
-                    <span className="rounded-full bg-[#eef3df] px-2.5 py-1 text-[10px] font-bold text-[#587024]">
+                    <span className="rounded-full bg-[#eef3df] px-2.5 py-1 text-xs font-bold text-[#587024]">
                       {campaign.daysLeft} ngày còn lại
                     </span>
                   </div>
@@ -328,19 +306,19 @@ export default async function CreatorPage() {
                   </div>
                   <div className="mt-5 grid gap-3 border-y border-line py-4 text-xs sm:grid-cols-3">
                     <div>
-                      <p className="text-[10px] text-ink-muted">Còn thiếu</p>
+                      <p className="text-xs text-ink-muted">Còn thiếu</p>
                       <p className="mt-1 font-bold">
                         {formatVnd(operations.funding.remainingAmount, true)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-ink-muted">Nhịp cần giữ</p>
+                      <p className="text-xs text-ink-muted">Nhịp cần giữ</p>
                       <p className="mt-1 font-bold">
                         {formatVnd(operations.funding.neededPerDay, true)}/ngày
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-ink-muted">Chốt chiến dịch</p>
+                      <p className="text-xs text-ink-muted">Chốt chiến dịch</p>
                       <p className="mt-1 font-bold">01/10 · 23:59</p>
                     </div>
                   </div>
@@ -352,7 +330,7 @@ export default async function CreatorPage() {
                       <FolderKanban className="size-4" /> Vận hành chiến dịch
                     </Link>
                     <Link href="/creator/ai" className="button-secondary">
-                      <Sparkles className="size-4" /> Xem dự báo
+                      <BarChart3 className="size-4" /> Xem dự báo
                     </Link>
                   </div>
                 </div>
@@ -367,7 +345,7 @@ export default async function CreatorPage() {
                 <div>
                   <p className="eyebrow text-coral">Cần bạn xem</p>
                   <h2 className="mt-2 font-display text-2xl font-extrabold">
-                    Ưu tiên của hôm nay
+                    Việc cần ưu tiên
                   </h2>
                 </div>
                 <span className="text-xs text-ink-muted">
@@ -408,7 +386,7 @@ export default async function CreatorPage() {
                         <span className="mt-1 block text-[11px] leading-5 text-ink-muted">
                           {task.detail}
                         </span>
-                        <span className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-semibold text-ink-soft">
+                        <span className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-ink-soft">
                           <span>{task.assigneeName}</span>
                           <span aria-hidden="true">·</span>
                           <span className="inline-flex items-center gap-1">
@@ -427,7 +405,7 @@ export default async function CreatorPage() {
           <aside className="space-y-6">
             <article className="rounded-[20px] border border-[#cbd7bd] bg-[#e5ecdd] p-6 text-ink sm:p-7">
               <p className="eyebrow text-[#587024]">
-                <Sparkles className="size-4" /> Tín hiệu dự báo
+                <BarChart3 className="size-4" /> Tín hiệu dự báo
               </p>
               <div className="mt-5 flex items-end gap-3">
                 <span className="font-display text-5xl font-extrabold tracking-[-0.06em] text-forest">
@@ -460,16 +438,16 @@ export default async function CreatorPage() {
               <div className="mt-5 space-y-3">
                 {operations.team.map((member) => (
                   <div key={member.id} className="flex items-center gap-3">
-                    <span className="grid size-9 place-items-center rounded-[10px] bg-[#edf0e7] text-[10px] font-extrabold text-forest">
+                    <span className="grid size-9 place-items-center rounded-[10px] bg-[#edf0e7] text-[11px] font-extrabold text-forest">
                       {member.initials}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-bold">{member.name}</p>
-                      <p className="mt-0.5 text-[10px] text-ink-muted">
+                      <p className="mt-0.5 text-[11px] text-ink-muted">
                         {member.role}
                       </p>
                     </div>
-                    <span className="text-right text-[9px] leading-4 text-ink-muted">
+                    <span className="text-right text-[11px] leading-4 text-ink-muted">
                       {member.openTasks} việc mở
                       <br />{member.lastSeen}
                     </span>
@@ -484,22 +462,20 @@ export default async function CreatorPage() {
               </Link>
             </article>
 
-            {operations.handoffs && operations.handoffs.length > 0 ? (
-              <article className="border-l-2 border-[#9bb56c] px-5 py-1">
-                <p className="text-[10px] font-bold text-[#587024]">
-                  BÀN GIAO GẦN NHẤT
-                </p>
-                <p className="mt-2 text-sm font-bold">
-                  {operations.handoffs[0].title}
-                </p>
-                <p className="mt-1 text-[11px] leading-5 text-ink-muted">
-                  {operations.handoffs[0].from} → {operations.handoffs[0].to} · {operations.handoffs[0].at}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-ink-soft">
-                  {operations.handoffs[0].note}
-                </p>
-              </article>
-            ) : null}
+            <article className="border-l-2 border-[#9bb56c] px-5 py-1">
+              <p className="text-[11px] font-bold text-[#587024]">
+                BÀN GIAO GẦN NHẤT
+              </p>
+              <p className="mt-2 text-sm font-bold">
+                {operations.handoffs[0].title}
+              </p>
+              <p className="mt-1 text-[11px] leading-5 text-ink-muted">
+                {operations.handoffs[0].from} → {operations.handoffs[0].to} · {operations.handoffs[0].at}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-ink-soft">
+                {operations.handoffs[0].note}
+              </p>
+            </article>
           </aside>
         </div>
       </div>

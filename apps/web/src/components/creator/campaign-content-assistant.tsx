@@ -8,7 +8,6 @@ import {
   FileText,
   RefreshCw,
   Save,
-  Sparkles,
   Undo2,
 } from "lucide-react";
 import { useState } from "react";
@@ -54,7 +53,10 @@ async function saveDraft(title: string, blurb: string) {
     method: "POST",
     body: JSON.stringify({
       action: "SAVE_DRAFT",
-      payload: { campaignId: "cmp_orbit", title, blurb },
+      payload: {
+        campaignId: "cmp_orbit",
+        draft: { title, blurb },
+      },
     }),
   });
 }
@@ -136,7 +138,7 @@ export function CampaignContentAssistant({
         <div className="flex flex-col justify-between gap-5 border-b border-line bg-[#edf1e4] p-5 sm:flex-row sm:items-end sm:p-7">
           <div>
             <span className="eyebrow text-coral">
-              <Sparkles className="size-4" /> Hỗ trợ nội dung bản nháp
+              <FileText className="size-4" /> Hỗ trợ nội dung bản nháp
             </span>
             <h2 className="mt-3 max-w-2xl font-display text-3xl font-extrabold tracking-[-0.045em]">
               Chỉnh từng phần có căn cứ, không viết lại cả câu chuyện.
@@ -243,7 +245,7 @@ export function CampaignContentAssistant({
                     <p className="text-xs font-semibold leading-6">
                       {option.text}
                     </p>
-                    <p className="mt-2 text-[10px] leading-4 text-ink-muted">
+                    <p className="mt-2 text-[11px] leading-4 text-ink-muted">
                       {option.reason}
                     </p>
                     <button
@@ -280,7 +282,7 @@ export function CampaignContentAssistant({
           <aside className="min-w-0 bg-[#fbfaf6] p-5 sm:p-7">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-muted">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">
                   Độ sẵn sàng nội dung
                 </p>
                 <p className="mt-2 font-display text-5xl font-extrabold tracking-[-0.07em] text-coral-dark">
@@ -296,23 +298,23 @@ export function CampaignContentAssistant({
                 style={{ width: `${score}%` }}
               />
             </div>
-            <div className="mt-4 flex gap-4 text-[10px] text-ink-muted">
+            <div className="mt-4 flex gap-4 text-[11px] text-ink-muted">
               <span>{data.wordCount} từ</span>
               <span className="inline-flex items-center gap-1">
                 <Clock3 className="size-3" /> {data.readingMinutes} phút đọc
               </span>
             </div>
-            <p className="mt-2 text-[10px] text-ink-muted">
+            <p className="mt-2 text-[11px] text-ink-muted">
               Phân tích lúc {formattedAnalyzedAt}
             </p>
-            <details className="mt-4 rounded-xl border border-line bg-white p-3 text-[10px] text-ink-muted">
+            <details className="mt-4 rounded-xl border border-line bg-white p-3 text-[11px] text-ink-muted">
               <summary className="cursor-pointer font-bold text-ink-soft">
                 Thông tin lần gợi ý
               </summary>
               <p className="mt-2 leading-5">
-                {data.runMeta.engineLabel} · bộ hướng dẫn {data.runMeta.promptVersion}
-                {" · "}dữ liệu chốt {formattedInputSnapshot}. Kết quả chỉ điền
-                vào bản nháp, chủ dự án vẫn phải đọc và quyết định.
+                Nguồn: {data.runMeta.engineLabel} · bản {data.runMeta.promptVersion}
+                {" · "}dữ liệu chốt {formattedInputSnapshot}. Nội dung gợi ý chỉ
+                được đưa vào bản nháp sau khi chủ dự án chọn.
               </p>
             </details>
 
@@ -328,12 +330,12 @@ export function CampaignContentAssistant({
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-bold">{check.label}</p>
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold ${config.tone}`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-bold ${config.tone}`}
                       >
                         <Icon className="size-3" /> {config.label}
                       </span>
                     </div>
-                    <p className="mt-1.5 text-[10px] leading-4 text-ink-muted">
+                    <p className="mt-1.5 text-[11px] leading-4 text-ink-muted">
                       {check.finding}
                     </p>
                   </div>
@@ -342,13 +344,13 @@ export function CampaignContentAssistant({
             </div>
 
             <div className="mt-7 rounded-2xl bg-forest p-4 text-white">
-              <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-lime">
+              <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-lime">
                 So sánh gói Early Bird
               </p>
               <p className="mt-3 font-display text-xl font-extrabold">
                 {formatVnd(data.rewardBenchmark.currentAmount)}
               </p>
-              <p className="mt-1 text-[10px] text-white/48">
+              <p className="mt-1 text-[11px] text-white/48">
                 Trung vị {formatVnd(data.rewardBenchmark.medianAmount)} ·{" "}
                 {data.rewardBenchmark.sampleSize} dự án{" "}
                 {data.rewardBenchmark.category}

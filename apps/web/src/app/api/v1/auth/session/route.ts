@@ -1,7 +1,5 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import type { SessionInput, SessionResult, UserRole } from "@/lib/api";
 import { api } from "@/lib/api";
 import {
@@ -10,23 +8,28 @@ import {
   requestError,
 } from "@/lib/api/request-validation";
 import { isNotificationPreferences } from "@/lib/auth/notification-preferences";
+import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import {
-  getEffectivePreviewState,
-  getInitialPreviewState,
-} from "@/lib/auth/preview-state";
-import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
+  clearPreviewSessionCookie,
+  writePreviewSessionCookie,
+} from "@/lib/auth/write-session-cookie";
 import { decodeSession, SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
+import {
+  decodePlatformPreview,
+  PLATFORM_PREVIEW_COOKIE_NAME,
+  writePlatformPreviewCookie,
+} from "@/lib/auth/platform-preview-cookie";
+import { requireSession } from "@/lib/auth/require-session";
 import { getInitials } from "@/lib/auth/roles";
+import { previewAccounts } from "@/lib/auth/preview-accounts";
+import {
+  createRegisteredPreviewSession,
+  storeRegisteredPreviewAccount,
+  verifyRegisteredPreviewPassword,
+} from "@/lib/auth/preview-registered-accounts";
+import { hydrateLocalSession, localDbEnabled, localSessionUserExists } from "@/lib/local-db/database";
 
 export const runtime = "nodejs";
-
-function getUploadsDir() {
-  const cwd = process.cwd();
-  if (fs.existsSync(path.join(cwd, "public"))) {
-    return path.join(cwd, "public", "uploads", "avatars");
-  }
-  return path.join(cwd, "apps", "web", "public", "uploads", "avatars");
-}
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -75,7 +78,22 @@ function validate(value: unknown) {
 export async function GET() {
   const cookieStore = await cookies();
   const session = decodeSession(cookieStore.get(SESSION_COOKIE_NAME)?.value);
-  return NextResponse.json({ data: session });
+  if (session && !localSessionUserExists(session.user.id)) {
+    const response = NextResponse.json({ data: null });
+    clearPreviewSessionCookie(response);
+    return response;
+  }
+  if (session) {
+    const platformState = decodePlatformPreview(
+      cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
+    );
+    if (platformState.userStatuses[session.user.id] === "SUSPENDED") {
+      const response = NextResponse.json({ data: null });
+      clearPreviewSessionCookie(response);
+      return response;
+    }
+  }
+  return NextResponse.json({ data: session ? hydrateLocalSession(session) : null });
 }
 
 export async function POST(request: Request) {
@@ -109,224 +127,78 @@ export async function POST(request: Request) {
     );
   }
 
-  const apiUrl =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:3001/api";
-
-  // Thử kết nối với backend NestJS nếu server đang chạy
-  try {
-    if (body.mode === "SIGN_IN") {
-      const apiRes = await fetch(`${apiUrl}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: body.email.trim().toLowerCase(),
-          password: body.password,
-        }),
-        signal: AbortSignal.timeout(3000),
-      });
-
-      if (apiRes.ok) {
-        const data = (await apiRes.json()) as {
-          user: {
-            id: string;
-            email: string;
-            displayName: string;
-            avatarUrl: string | null;
-            phone?: string | null;
-            bio?: string | null;
-            location?: string | null;
-            roles: string[];
-          };
-          tokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-          };
-        };
-
-        const expiresInMs = body.remember
-          ? 7 * 24 * 60 * 60 * 1000
-          : 2 * 60 * 60 * 1000;
-        const roles = (data.user?.roles || ["BACKER"]) as UserRole[];
-        const activeRole: UserRole = roles.includes("CREATOR")
-          ? "CREATOR"
-          : (roles[0] || "BACKER");
-        const displayName = data.user?.displayName || "Thành viên Góp";
-
-        const realSession: SessionResult = {
-          sessionId: `session_${data.user?.id ? data.user.id.slice(0, 8) : crypto.randomUUID().slice(0, 8)}`,
-          user: {
-            id: data.user?.id || `usr_${crypto.randomUUID().slice(0, 8)}`,
-            name: displayName,
-            email: data.user?.email || body.email,
-            initials: getInitials(displayName),
-            headline: data.user?.bio || "Thành viên cộng đồng Góp",
-            phone: data.user?.phone ?? null,
-            location: data.user?.location ?? null,
-            bio: data.user?.bio ?? null,
-            avatarUrl: data.user?.avatarUrl ?? null,
-            roles,
-            activeRole,
-          },
-          tokens: {
-            accessToken: data.tokens.accessToken,
-            refreshToken: data.tokens.refreshToken,
-            expiresIn: data.tokens.expiresIn,
-          },
-          previewState: getInitialPreviewState(data.user?.id),
-          expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
-          notice: "Đăng nhập thành công qua máy chủ API.",
-        };
-
-        const response = NextResponse.json(realSession, { status: 200 });
-        return writePreviewSessionCookie(response, realSession) ?? response;
-      } else {
-        const errorData = (await apiRes.json().catch(() => ({}))) as {
-          message?: string | string[];
-          statusCode?: number;
-          error?: string;
-        };
-
-        const rawMsg = Array.isArray(errorData.message)
-          ? errorData.message.join(", ")
-          : (errorData.message || "");
-
-        const isSuspended =
-          rawMsg.toLowerCase().includes("tạm khóa") ||
-          rawMsg.toLowerCase().includes("vô hiệu hóa") ||
-          rawMsg.toLowerCase().includes("khóa");
-
-        return NextResponse.json(
-          {
-            error: {
-              code: isSuspended ? "ACCOUNT_SUSPENDED" : "INVALID_CREDENTIALS",
-              message:
-                rawMsg ||
-                (apiRes.status === 401
-                  ? "Email hoặc mật khẩu chưa đúng"
-                  : "Đăng nhập không thành công"),
-              fieldErrors: {},
-            },
-          },
-          { status: apiRes.status || 401 },
-        );
-      }
-    } else if (body.mode === "REGISTER") {
-      const apiRes = await fetch(`${apiUrl}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: body.email.trim().toLowerCase(),
-          password: body.password,
-          displayName: body.fullName?.trim() || "Thành viên Góp",
-        }),
-        signal: AbortSignal.timeout(3000),
-      });
-
-      if (apiRes.ok) {
-        const data = (await apiRes.json()) as {
-          user: {
-            id: string;
-            email: string;
-            displayName: string;
-            avatarUrl: string | null;
-            roles: string[];
-          };
-          tokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-          };
-        };
-
-        const expiresInMs = body.remember
-          ? 7 * 24 * 60 * 60 * 1000
-          : 2 * 60 * 60 * 1000;
-        const roles = (data.user?.roles || ["BACKER"]) as UserRole[];
-        const displayName = data.user?.displayName || body.fullName || "Thành viên Góp";
-
-        const realSession: SessionResult = {
-          sessionId: `session_${data.user?.id ? data.user.id.slice(0, 8) : crypto.randomUUID().slice(0, 8)}`,
-          user: {
-            id: data.user?.id || `usr_${crypto.randomUUID().slice(0, 8)}`,
-            name: displayName,
-            email: data.user?.email || body.email,
-            initials: getInitials(displayName),
-            headline: "Thành viên mới của cộng đồng Góp",
-            roles,
-            activeRole: "BACKER",
-          },
-          tokens: {
-            accessToken: data.tokens.accessToken,
-            refreshToken: data.tokens.refreshToken,
-            expiresIn: data.tokens.expiresIn,
-          },
-          previewState: getInitialPreviewState(data.user?.id),
-          expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
-          notice: "Tài khoản đã được tạo thành công trên hệ thống.",
-        };
-
-        const response = NextResponse.json(realSession, { status: 201 });
-        return writePreviewSessionCookie(response, realSession) ?? response;
-      } else if (apiRes.status === 409) {
-        return NextResponse.json(
-          {
-            error: {
-              code: "EMAIL_TAKEN",
-              message: "Email này đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.",
-              fieldErrors: { email: "Email đã tồn tại" },
-            },
-          },
-          { status: 409 },
-        );
-      } else {
-        const errorData = (await apiRes.json().catch(() => ({}))) as {
-          message?: string | string[];
-          statusCode?: number;
-          error?: string;
-        };
-
-        const rawMsg = Array.isArray(errorData.message)
-          ? errorData.message.join(", ")
-          : (errorData.message || "");
-
-        return NextResponse.json(
-          {
-            error: {
-              code: "REGISTER_FAILED",
-              message: rawMsg || "Đăng ký không thành công. Vui lòng thử lại sau.",
-              fieldErrors: {},
-            },
-          },
-          { status: apiRes.status || 400 },
-        );
-      }
-    }
-  } catch {
-    // Nếu có lỗi kết nối trực tiếp, thử qua HttpPlatformApi
+  const cookieStore = await cookies();
+  const platformState = decodePlatformPreview(
+    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
+  );
+  const normalizedEmail = body.email.trim().toLowerCase();
+  const registeredAccount = platformState.registeredAccounts.find(
+    (account) => account.email === normalizedEmail,
+  );
+  if (
+    body.mode === "REGISTER" &&
+    (registeredAccount ||
+      previewAccounts.some((account) => account.email === normalizedEmail))
+  ) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "EMAIL_ALREADY_REGISTERED",
+          message: "Email này đã có tài khoản trong bản demo.",
+          fieldErrors: { email: "Bạn có thể chuyển sang tab đăng nhập." },
+        },
+      },
+      { status: 409 },
+    );
   }
 
   try {
-    const result = await api.createSession(body);
-    const response = NextResponse.json(result, {
-      status: body.mode === "REGISTER" ? 201 : 200,
-    });
-    return writePreviewSessionCookie(response, result) ?? response;
-  } catch (error) {
-    if (error instanceof Error && error.message === "ACCOUNT_SUSPENDED") {
+    let result: SessionResult;
+    let accountCreated = false;
+    if (body.mode === "SIGN_IN" && registeredAccount) {
+      if (!verifyRegisteredPreviewPassword(registeredAccount, body.password)) {
+        throw new Error("INVALID_CREDENTIALS");
+      }
+      result = createRegisteredPreviewSession(
+        registeredAccount,
+        body.remember,
+      );
+    } else {
+      result = await api.createSession(body);
+      if (body.mode === "REGISTER") {
+        platformState.registeredAccounts = [
+          storeRegisteredPreviewAccount(result, body.password),
+          ...platformState.registeredAccounts,
+        ].slice(0, localDbEnabled() ? undefined : 3);
+        accountCreated = true;
+      }
+    }
+    if (platformState.userStatuses[result.user.id] === "SUSPENDED") {
       return NextResponse.json(
         {
           error: {
             code: "ACCOUNT_SUSPENDED",
-            message: "Tài khoản đã bị tạm khóa hoặc vô hiệu hóa",
+            message:
+              "Tài khoản mẫu này đang tạm khóa. Hãy dùng tài khoản khác hoặc mở lại từ khu quản trị.",
             fieldErrors: {},
           },
         },
-        { status: 401 },
+        { status: 403 },
       );
     }
+    result = hydrateLocalSession(result);
+    const response = NextResponse.json(result, {
+      status: body.mode === "REGISTER" ? 201 : 200,
+    });
+    if (accountCreated) {
+      const platformFailure = writePlatformPreviewCookie(
+        response,
+        platformState,
+      );
+      if (platformFailure) return platformFailure;
+    }
+    return writePreviewSessionCookie(response, result, { persistPreviewState: false }) ?? response;
+  } catch (error) {
     if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
       return NextResponse.json(
         {
@@ -353,14 +225,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const cookieStore = await cookies();
-  const session = decodeSession(cookieStore.get(SESSION_COOKIE_NAME)?.value);
-  if (!session) {
-    return NextResponse.json(
-      { error: { code: "UNAUTHENTICATED", message: "Bạn chưa đăng nhập" } },
-      { status: 401 },
-    );
-  }
+  const access = await requireSession();
+  if (access.response) return access.response;
+  const session = access.session!;
 
   const parsed = await readJsonObject(request);
   if (parsed.response) return parsed.response;
@@ -434,69 +301,11 @@ export async function PATCH(request: Request) {
 
   const profileName =
     typeof profile?.name === "string" ? profile.name.trim() : undefined;
-  const profileHeadline =
-    typeof profile?.headline === "string" ? profile.headline.trim() : undefined;
-  const profilePhone =
-    typeof profile?.phone === "string" ? profile.phone.trim() : undefined;
-  const profileLocation =
-    typeof profile?.location === "string" ? profile.location.trim() : undefined;
-  const profileBio =
-    typeof profile?.bio === "string" ? profile.bio.trim() : undefined;
-  let profileAvatarUrl =
-    typeof profile?.avatarUrl === "string" ? profile.avatarUrl.trim() : undefined;
-
-  // Nếu avatarUrl là chuỗi Data URL Base64, lưu thành tệp tĩnh để tránh làm tràn cookie session (giới hạn 3800 bytes)
-  if (profileAvatarUrl && profileAvatarUrl.startsWith("data:image/")) {
-    try {
-      const match = profileAvatarUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
-      if (match) {
-        const ext = match[1] === "jpeg" ? "jpg" : match[1];
-        const buffer = Buffer.from(match[2], "base64");
-        const userId = (session.user.id ?? "user").replace(/[^a-zA-Z0-9_-]/g, "");
-        const filename = `avatar-${userId}-${Date.now()}.${ext}`;
-        const uploadsDir = getUploadsDir();
-        await fs.promises.mkdir(uploadsDir, { recursive: true });
-        await fs.promises.writeFile(path.join(uploadsDir, filename), buffer);
-        profileAvatarUrl = `/uploads/avatars/${filename}`;
-      }
-    } catch (err) {
-      console.warn("Failed to save base64 avatar to file:", err);
-    }
-  }
-
   if (body.profile && (!profileName || profileName.length < 2)) {
     return NextResponse.json(
       { error: { code: "INVALID_PROFILE", message: "Họ tên chưa hợp lệ" } },
       { status: 422 },
     );
-  }
-
-  // Cập nhật lên máy chủ backend NestJS nếu người dùng đăng nhập bằng token thật
-  if (body.profile && session.tokens?.accessToken && !session.tokens.accessToken.startsWith("session_")) {
-    const apiUrl =
-      process.env.API_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      "http://localhost:3001/api";
-
-    try {
-      await fetch(`${apiUrl}/users/me`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.tokens.accessToken}`,
-        },
-        body: JSON.stringify({
-          displayName: profileName,
-          phone: profilePhone,
-          location: profileLocation,
-          bio: profileBio || profileHeadline,
-          avatarUrl: profileAvatarUrl,
-        }),
-        signal: AbortSignal.timeout(3000),
-      });
-    } catch (err) {
-      console.warn("Failed to update profile on backend API:", err);
-    }
   }
 
   const nextSession: SessionResult = {
@@ -510,11 +319,10 @@ export async function PATCH(request: Request) {
         profileName && profileName !== session.user.name
           ? getInitials(profileName)
           : session.user.initials,
-      headline: profileHeadline ?? session.user.headline,
-      phone: profilePhone !== undefined ? profilePhone : session.user.phone,
-      location: profileLocation !== undefined ? profileLocation : session.user.location,
-      bio: profileBio !== undefined ? profileBio : session.user.bio,
-      avatarUrl: profileAvatarUrl !== undefined ? profileAvatarUrl : session.user.avatarUrl,
+      headline:
+        typeof profile?.headline === "string"
+          ? profile.headline.trim()
+          : session.user.headline,
     },
     previewState: isNotificationPreferences(body.notificationPreferences)
       ? {
@@ -524,17 +332,30 @@ export async function PATCH(request: Request) {
       : session.previewState,
   };
   const response = NextResponse.json(nextSession);
+  const cookieStore = await cookies();
+  const platformState = decodePlatformPreview(
+    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
+  );
+  const accountIndex = platformState.registeredAccounts.findIndex(
+    (account) => account.id === nextSession.user.id,
+  );
+  if (accountIndex >= 0) {
+    platformState.registeredAccounts[accountIndex] = {
+      ...platformState.registeredAccounts[accountIndex],
+      name: nextSession.user.name,
+      initials: nextSession.user.initials,
+      headline: nextSession.user.headline,
+      roles: [...nextSession.user.roles],
+      activeRole: nextSession.user.activeRole,
+    };
+    const platformFailure = writePlatformPreviewCookie(response, platformState);
+    if (platformFailure) return platformFailure;
+  }
   return writePreviewSessionCookie(response, nextSession) ?? response;
 }
 
 export async function DELETE() {
   const response = NextResponse.json({ success: true });
-  response.cookies.set(SESSION_COOKIE_NAME, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
-  });
+  clearPreviewSessionCookie(response);
   return response;
 }

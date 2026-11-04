@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FolderKanban, Sparkles } from "lucide-react";
+import { BarChart3, FolderKanban } from "lucide-react";
 import Link from "next/link";
 import { CreatorCampaignOperations } from "@/components/creator/creator-campaign-operations";
 import { api } from "@/lib/api";
@@ -24,13 +24,22 @@ export default async function CreatorCampaignManagePage() {
       getServerPlatformPreviewState(),
     ],
   );
-  if (
-    !session ||
-    !resolveCampaignAccess(baseOperations.campaignId, session, platformState)
-      .isOwner
-  ) {
+  const access = session
+    ? resolveCampaignAccess(baseOperations.campaignId, session, platformState)
+    : null;
+  if (!access?.isOwner) {
     return (
       <CampaignAccessNotice message="Trang vận hành này thuộc chủ dự án ORBIT One. Tài khoản Chủ dự án khác không được xem dữ liệu vận hành của nhóm." />
+    );
+  }
+  if (access.isSuspended) {
+    return (
+      <CampaignAccessNotice
+        title="ORBIT One đang tạm dừng"
+        message="Quản trị viên đã tạm khóa các thao tác gọi vốn, dự báo và cập nhật cộng đồng. Chủ dự án cần xem phản hồi quản trị trước khi tiếp tục chỉnh hồ sơ."
+        actionLabel="Về danh sách chiến dịch"
+        actionHref="/creator"
+      />
     );
   }
   const operations = applyOperationsPreviewState(
@@ -62,7 +71,7 @@ export default async function CreatorCampaignManagePage() {
                 href="/creator/ai"
                 className="button-secondary min-h-11 px-4 text-xs"
               >
-                <Sparkles className="size-4" /> Xem dự báo
+                <BarChart3 className="size-4" /> Xem dự báo
               </Link>
               <Link
                 href="/projects/orbit-one-ca-phe-thong-minh"

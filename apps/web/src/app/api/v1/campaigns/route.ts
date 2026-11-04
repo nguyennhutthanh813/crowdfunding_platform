@@ -1,5 +1,8 @@
 import type { CampaignStatus } from "@/lib/api";
 import { api } from "@/lib/api";
+import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
+import { applyCampaignCardPreviewState } from "@/lib/preview-read-models";
+import { publicPreviewCampaigns } from "@/lib/creator/public-preview-campaigns";
 
 const campaignStatuses = new Set<CampaignStatus>([
   "DRAFT",
@@ -16,12 +19,25 @@ export async function GET(request: Request) {
     rawStatus && campaignStatuses.has(rawStatus as CampaignStatus)
       ? (rawStatus as CampaignStatus)
       : undefined;
-  const campaigns = await api.listCampaigns({
-    category: searchParams.get("category") ?? undefined,
-    query: searchParams.get("query") ?? undefined,
-    status,
-  });
+  const [baseCampaigns, platformState] = await Promise.all([
+    api.listCampaigns({
+      category: searchParams.get("category") ?? undefined,
+      query: searchParams.get("query") ?? undefined,
+      status,
+    }),
+    getServerPlatformPreviewState(),
+  ]);
+  const query = searchParams.get("query")?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const campaigns = [
+    ...baseCampaigns.map((campaign) => applyCampaignCardPreviewState(campaign, platformState)),
+    ...publicPreviewCampaigns(platformState).filter((campaign) =>
+      (!status || campaign.status === status) &&
+      (!searchParams.get("category") || campaign.category === searchParams.get("category")) &&
+      (!query || `${campaign.title} ${campaign.blurb} ${campaign.category}`
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(query)),
+    ),
+  ];
   return Response.json(campaigns, {
-    headers: { "Cache-Control": "public, max-age=60" },
+    headers: { "Cache-Control": "private, no-store" },
   });
 }

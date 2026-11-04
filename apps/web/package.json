@@ -7,36 +7,42 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:ui-controls": "node scripts/audit-ui-controls.mjs",
+    "test:role-navigation": "node scripts/check-role-navigation.mjs",
+    "test:role-permissions": "node scripts/check-role-permissions.mjs",
+    "test:audit-regressions": "node scripts/check-audit-regressions.mjs",
+    "test:new-campaign-flow": "node scripts/check-new-campaign-flow.mjs",
+    "test:local-db": "node scripts/check-local-db-flow.mjs",
+    "test:comment-flow": "node scripts/check-comment-flow.mjs",
+    "test:local-concurrency": "node scripts/check-local-concurrent-writes.mjs",
+    "docs:sync": "node scripts/sync-project-docs.mjs --write",
+    "test:docs-sync": "node scripts/sync-project-docs.mjs",
+    "test:schema-relations": "node scripts/check-schema-relations.mjs",
+    "diagrams:drawio": "node scripts/generate-drawio.mjs",
+    "diagrams:week1": "node scripts/generate-week1-submission.mjs",
+    "diagrams:role-trees": "node scripts/generate-role-blueprints.mjs",
     "type-check": "tsc --noEmit",
     "clean": "rimraf .next"
   },
   "dependencies": {
-    "next": "16.3.5",
+    "lucide-react": "1.41.0",
+    "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "@tanstack/react-query": "^5.65.0",
-    "zustand": "^5.0.0",
-    "axios": "^1.7.0",
-    "react-hook-form": "^7.54.0",
-    "@hookform/resolvers": "^4.1.0",
-    "zod": "^3.24.0",
-    "clsx": "^2.1.0",
-    "tailwind-merge": "^3.0.0",
-    "lucide-react": "^0.475.0",
-    "sonner": "^2.0.0",
-    "date-fns": "^4.1.0",
-    "@crowdfunding/shared-types": "workspace:*"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.5",
+    "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
     "typescript": "^5",
     "rimraf": "^6.0.0"
   },
-  "packageManager": "pnpm@9.15.0"
+  "engines": {
+    "node": ">=24"
+  }
 }

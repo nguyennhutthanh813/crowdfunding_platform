@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
-import { api } from "@/lib/api";
+import { api, type CommentBadge } from "@/lib/api";
+import {
+  findMockCampaign,
+  getCampaignMembership,
+  mockUsers,
+  mockCampaignMembers,
+  mockPledges,
+  mockMessages,
+} from "@/lib/api/mock/relational-store";
 import {
   isRecord,
   readJsonObject,
   requestError,
 } from "@/lib/api/request-validation";
-import { fetchBackendWithAuth } from "@/lib/auth/backend-fetch";
-
 import { previewAccounts } from "@/lib/auth/preview-accounts";
 import { isNotificationPreferences } from "@/lib/auth/notification-preferences";
 import {
@@ -16,7 +22,14 @@ import {
 import { requireSession } from "@/lib/auth/require-session";
 import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
+import { localDbEnabled } from "@/lib/local-db/database";
 import { buildUserDashboard } from "@/lib/dashboard-preview";
+import { publicPreviewCampaignDetail, publicPreviewCampaigns } from "@/lib/creator/public-preview-campaigns";
+import { applyCampaignDetailPreviewState } from "@/lib/preview-read-models";
+import { commentLikeKey } from "@/lib/campaign/comments-preview";
+import { isPreviewCampaignId, previewCampaignStatus } from "@/lib/creator/preview-campaigns";
+import { previewInvitationForUser } from "@/lib/auth/preview-collaborators";
+import type { LocalCampaignEventInput } from "@/lib/local-db/database";
 
 export async function GET() {
   const access = await requireSession(["BACKER"]);
@@ -27,7 +40,7 @@ export async function GET() {
     getServerPlatformPreviewState(),
   ]);
   return Response.json(
-    buildUserDashboard(data, campaigns, access.session, platformState),
+    buildUserDashboard(data, [...campaigns, ...publicPreviewCampaigns(platformState)], access.session, platformState),
   );
 }
 
@@ -42,10 +55,7 @@ const allowedActions = new Set([
   "UPDATE_INTERESTS",
   "SEND_MESSAGE",
   "CREATE_COMMENT",
-  "UPDATE_COMMENT",
-  "DELETE_COMMENT",
   "LIKE_COMMENT",
-  "HIDE_COMMENT",
   "ASK_QUESTION",
 ]);
 
@@ -69,18 +79,16 @@ export async function POST(request: Request) {
       "INVALID_PAYLOAD",
       "Thông tin thao tác chưa hợp lệ.",
     );
-
-  const validRoles = ["BACKER", "CREATOR", "COLLABORATOR", "ADMIN"];
   if (
     !["CHANGE_PASSWORD", "UPDATE_NOTIFICATION_PREFERENCES"].includes(
       body.action,
     ) &&
-    !access.session.user.roles.some((r) => validRoles.includes(r))
+    !access.session.user.roles.includes("BACKER")
   ) {
     return requestError(
       403,
       "FORBIDDEN",
-      "Bạn cần có tài khoản người dùng hợp lệ để thực hiện thao tác này.",
+      "Thao tác này dành cho người ủng hộ.",
     );
   }
 
@@ -119,7 +127,7 @@ export async function POST(request: Request) {
         persisted: false,
         simulation: true,
         message:
-          "Đã kiểm tra thông tin hợp lệ. Bản demo không đổi mật khẩu; tài khoản mẫu vẫn dùng mật khẩu cũ.",
+          "Đã kiểm tra thông tin hợp lệ. Bản dùng thử không đổi mật khẩu; tài khoản mẫu vẫn dùng mật khẩu cũ.",
       },
     });
   }
@@ -128,6 +136,10 @@ export async function POST(request: Request) {
   const previewState = getEffectivePreviewState(access.session);
   const platformState = await getServerPlatformPreviewState();
   let platformPersisted = false;
+  let platformEvent: LocalCampaignEventInput | undefined;
+  let createdCommentId: string | undefined;
+  let createdCommentBadge: CommentBadge | undefined;
+  let likeResult: { liked: boolean; likes: number } | undefined;
 
   if (body.action === "UPDATE_NOTIFICATION_PREFERENCES") {
     const preferences = body.payload;
@@ -184,32 +196,18 @@ export async function POST(request: Request) {
         "INVALID_SAVE_INPUT",
         "Dự án hoặc trạng thái lưu chưa hợp lệ.",
       );
-    // Persist to real NestJS PostgreSQL backend if session has token
-    try {
-      if (saved) {
-        await fetchBackendWithAuth(
-          "/social/saved-campaigns",
-          {
-            method: "POST",
-            body: JSON.stringify({ campaignId }),
-          },
-          access.session,
-        );
-      } else {
-        await fetchBackendWithAuth(
-          `/social/saved-campaigns/${encodeURIComponent(campaignId)}`,
-          { method: "DELETE" },
-          access.session,
-        );
-      }
-    } catch (e) {
-      console.warn("Backend save-campaign call failed, falling back to local state:", e);
+  if (!findMockCampaign(campaignId) && !publicPreviewCampaignDetail(campaignId, platformState))
+      return requestError(
+        404,
+        "CAMPAIGN_NOT_FOUND",
+        "Không tìm thấy dự án muốn lưu.",
+      );
+    if (typeof campaignId === "string" && typeof saved === "boolean") {
+      const ids = new Set(previewState.savedCampaignIds ?? []);
+      if (saved) ids.add(campaignId);
+      else ids.delete(campaignId);
+      previewState.savedCampaignIds = [...ids];
     }
-
-    const ids = new Set(previewState.savedCampaignIds ?? []);
-    if (saved) ids.add(campaignId);
-    else ids.delete(campaignId);
-    previewState.savedCampaignIds = [...ids];
   }
 
   if (body.action === "SET_CREATOR_FOLLOW") {
@@ -221,33 +219,22 @@ export async function POST(request: Request) {
         "INVALID_FOLLOW_INPUT",
         "Người được theo dõi hoặc trạng thái chưa hợp lệ.",
       );
-
-    // Persist to real NestJS PostgreSQL backend if session has token
-    try {
-      if (following) {
-        await fetchBackendWithAuth(
-          "/social/follows",
-          {
-            method: "POST",
-            body: JSON.stringify({ creatorId }),
-          },
-          access.session,
-        );
-      } else {
-        await fetchBackendWithAuth(
-          `/social/follows/${encodeURIComponent(creatorId)}`,
-          { method: "DELETE" },
-          access.session,
-        );
-      }
-    } catch (e) {
-      console.warn("Backend follow call failed, falling back to local state:", e);
+    if (
+      !mockCampaignMembers.some(
+        (member) => member.userId === creatorId && member.role === "OWNER",
+      ) && !publicPreviewCampaigns(platformState).some((campaign) => campaign.creator.id === creatorId)
+    )
+      return requestError(
+        404,
+        "CREATOR_NOT_FOUND",
+        "Không tìm thấy chủ dự án muốn theo dõi.",
+      );
+    if (typeof creatorId === "string" && typeof following === "boolean") {
+      const ids = new Set(previewState.followedCreatorIds ?? []);
+      if (following) ids.add(creatorId);
+      else ids.delete(creatorId);
+      previewState.followedCreatorIds = [...ids];
     }
-
-    const ids = new Set(previewState.followedCreatorIds ?? []);
-    if (following) ids.add(creatorId);
-    else ids.delete(creatorId);
-    previewState.followedCreatorIds = [...ids];
   }
 
   if (body.action === "SET_PRELAUNCH_NOTIFICATION") {
@@ -259,34 +246,28 @@ export async function POST(request: Request) {
         "INVALID_NOTIFICATION_INPUT",
         "Dự án hoặc lựa chọn nhắc chưa hợp lệ.",
       );
-    // Persist to real NestJS PostgreSQL backend if session has token
-    try {
-      if (enabled) {
-        await fetchBackendWithAuth(
-          "/social/prelaunch-subscriptions",
-          {
-            method: "POST",
-            body: JSON.stringify({ campaignId, notifyEmail: true }),
-          },
-          access.session,
-        );
-      } else {
-        await fetchBackendWithAuth(
-          `/social/prelaunch-subscriptions/${encodeURIComponent(campaignId)}`,
-          { method: "DELETE" },
-          access.session,
-        );
-      }
-    } catch (e) {
-      console.warn("Backend prelaunch-subscription call failed, falling back to local state:", e);
+    const campaign = findMockCampaign(campaignId);
+    const newCampaign = isPreviewCampaignId(campaignId)
+      ? publicPreviewCampaignDetail(campaignId, platformState) : null;
+    if (!campaign && !newCampaign)
+      return requestError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy dự án.");
+    if (
+      enabled &&
+      (newCampaign ? previewCampaignStatus(campaignId, platformState) !== "PRE_LAUNCH"
+        : platformState.campaignStatuses[campaignId] || campaign?.status !== "PRE_LAUNCH")
+    )
+      return requestError(
+        409,
+        "CAMPAIGN_NOT_PRELAUNCH",
+        "Chỉ đăng ký nhắc ra mắt cho dự án sắp gọi vốn.",
+      );
+    if (typeof campaignId === "string" && typeof enabled === "boolean") {
+      const ids = new Set(previewState.notifiedCampaignIds ?? []);
+      if (enabled) ids.add(campaignId);
+      else ids.delete(campaignId);
+      previewState.notifiedCampaignIds = [...ids];
     }
-
-    const ids = new Set(previewState.notifiedCampaignIds ?? []);
-    if (enabled) ids.add(campaignId);
-    else ids.delete(campaignId);
-    previewState.notifiedCampaignIds = [...ids];
   }
-
 
   if (body.action === "MARK_MESSAGE_READ") {
     const messageId = body.payload?.messageId;
@@ -301,14 +282,18 @@ export async function POST(request: Request) {
         { status: 422 },
       );
     }
-    try {
-      await fetchBackendWithAuth(
-        `/messages/${encodeURIComponent(messageId.trim())}/read`,
-        { method: "PATCH" },
-        access.session,
+    if (
+      ![...mockMessages, ...platformState.messages].some(
+        (message) =>
+          message.id === messageId &&
+          message.recipientId === access.session.user.id,
+      )
+    ) {
+      return requestError(
+        404,
+        "MESSAGE_NOT_FOUND",
+        "Không tìm thấy tin nhắn trong hộp thư của bạn.",
       );
-    } catch (e) {
-      console.warn("Backend mark message read failed:", e);
     }
     previewState.readMessageIds = [
       ...new Set([...(previewState.readMessageIds ?? []), messageId.trim()]),
@@ -338,51 +323,60 @@ export async function POST(request: Request) {
         { status: 422 },
       );
     }
-    if (recipientUserId === access.session.user.id) {
-      return requestError(
-        400,
-        "SELF_MESSAGE_INVALID",
-        "Bạn không thể gửi tin nhắn cho chính mình.",
-      );
-    }
-    if (subject.trim().length > 180 || messageBody.trim().length > 4000) {
+    if (subject.trim().length > 80 || messageBody.trim().length > 240) {
       return Response.json(
         {
           error: {
             code: "MESSAGE_CONTENT_TOO_LONG",
-            message: "Tin nhắn vượt quá giới hạn ký tự cho phép.",
+            message: "Tin nhắn dài hơn giới hạn của bản mô phỏng.",
           },
         },
         { status: 422 },
       );
     }
-
-    try {
-      await fetchBackendWithAuth(
-        "/messages",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            campaignId,
-            recipientId: recipientUserId,
-            subject: subject.trim(),
-            body: messageBody.trim(),
-          }),
-        },
-        access.session,
+    const campaign = findMockCampaign(campaignId);
+    const newCampaign = isPreviewCampaignId(campaignId)
+      ? publicPreviewCampaignDetail(campaignId, platformState) : null;
+    const recipientIsMember = mockCampaignMembers.some(
+      (member) =>
+        member.campaignId === campaignId && member.userId === recipientUserId,
+    ) || Boolean(newCampaign?.creator.id === recipientUserId);
+    const senderBackedCampaign =
+      mockPledges.some(
+        (pledge) =>
+          pledge.campaignId === campaignId &&
+          pledge.backerId === access.session.user.id,
+      ) ||
+      previewState.authorizedPledges?.some(
+        (pledge) => pledge.campaignId === campaignId,
+      ) ||
+      platformState.pledges.some(
+        (pledge) =>
+          pledge.campaignId === campaignId &&
+          pledge.backerId === access.session.user.id,
       );
-    } catch (e) {
-      console.warn("Backend send message call failed, falling back to local state:", e);
+    if ((!campaign && !newCampaign) || !recipientIsMember || !senderBackedCampaign) {
+      return Response.json(
+        {
+          error: {
+            code: "MESSAGE_RELATION_INVALID",
+            message: "Chỉ có thể nhắn cho thành viên của dự án bạn đã ủng hộ.",
+          },
+        },
+        { status: 403 },
+      );
     }
-
+    const recipient = mockUsers.find((user) => user.id === recipientUserId);
+    const registeredRecipient = platformState.registeredAccounts.find((user) => user.id === recipientUserId);
+    if (!recipient && !registeredRecipient) return requestError(404, "RECIPIENT_NOT_FOUND", "Không tìm thấy người nhận.");
     const sharedMessage = {
       id: `sent_${crypto.randomUUID().slice(0, 8)}`,
       campaignId,
       senderId: access.session.user.id,
       senderName: access.session.user.name,
       senderInitials: access.session.user.initials,
-      recipientId: recipientUserId,
-      recipientName: "Chủ dự án",
+      recipientId: recipient?.id ?? registeredRecipient!.id,
+      recipientName: recipient?.displayName ?? registeredRecipient!.name,
       subject: subject.trim(),
       body: messageBody.trim(),
       sentAt: "Vừa xong",
@@ -399,146 +393,94 @@ export async function POST(request: Request) {
         sentAt: sharedMessage.sentAt,
       },
       ...(previewState.sentMessages ?? []),
-    ].slice(0, 5);
+    ].slice(0, localDbEnabled() ? undefined : 3);
     platformState.messages = [
       sharedMessage,
       ...platformState.messages.filter(
         (message) => message.id !== sharedMessage.id,
       ),
-    ].slice(0, 20);
+    ].slice(0, localDbEnabled() ? undefined : 12);
     platformPersisted = true;
+    if (newCampaign) platformEvent = {
+      campaignId, actorUserId: access.session.user.id, actorRole: "BACKER",
+      eventType: "SEND_MESSAGE", stage: "FUNDING", visibility: "INVOLVED",
+      title: "Người ủng hộ gửi tin cho chủ dự án", detail: subject.trim(),
+      refId: sharedMessage.id,
+    };
   }
 
-  if (body.action === "CREATE_COMMENT" || body.action === "ASK_QUESTION") {
-    const campaignId = body.payload?.campaignId;
-    const parentCommentId = body.payload?.parentCommentId || body.payload?.parentId;
-    const commentBody = body.payload?.body;
+  if (["CREATE_COMMENT", "ASK_QUESTION", "LIKE_COMMENT"].includes(body.action)) {
+    const campaignId = body.payload.campaignId;
+    if (typeof campaignId !== "string" || !campaignId.trim())
+      return requestError(422, "CAMPAIGN_ID_REQUIRED", "Cần chọn chiến dịch để thảo luận.");
+    const seed = findMockCampaign(campaignId);
+    const seedDetail = seed ? await api.getCampaignBySlug(seed.slug) : null;
+    const campaign = seedDetail
+      ? applyCampaignDetailPreviewState(seedDetail, platformState)
+      : publicPreviewCampaignDetail(campaignId, platformState);
+    if (!campaign) return requestError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy trang chiến dịch.");
+    if (campaign.status === "SUSPENDED")
+      return requestError(409, "DISCUSSION_PAUSED", "Chiến dịch đang tạm dừng nên chưa nhận thêm tương tác.");
 
-    if (
-      typeof campaignId !== "string" ||
-      typeof commentBody !== "string" ||
-      !commentBody.trim()
-    ) {
-      return requestError(
-        422,
-        "COMMENT_CONTENT_REQUIRED",
-        "Vui lòng nhập nội dung bình luận (1 - 4000 ký tự).",
-      );
-    }
+    if (body.action === "LIKE_COMMENT") {
+      const commentId = body.payload.commentId;
+      const liked = body.payload.liked;
+      if (typeof commentId !== "string" || typeof liked !== "boolean")
+        return requestError(422, "LIKE_INPUT_INVALID", "Bình luận hoặc trạng thái thích chưa hợp lệ.");
+      const target = campaign.comments.flatMap((item) => [item, ...(item.replies ?? [])])
+        .find((item) => item.id === commentId);
+      if (!target) return requestError(404, "COMMENT_NOT_FOUND", "Bình luận không thuộc chiến dịch này.");
+      const key = commentLikeKey(campaignId, commentId);
+      const users = new Set(platformState.commentLikes?.[key] ?? []);
+      const wasLiked = users.has(access.session.user.id);
+      if (liked) users.add(access.session.user.id);
+      else users.delete(access.session.user.id);
+      platformState.commentLikes ??= {};
+      if (users.size) platformState.commentLikes[key] = [...users];
+      else delete platformState.commentLikes[key];
+      platformPersisted = true;
+      likeResult = { liked, likes: target.likes + Number(liked) - Number(wasLiked) };
+    } else {
+      const text = typeof body.payload.body === "string" ? body.payload.body.trim() : "";
+      if (text.length < 3 || text.length > 1000)
+        return requestError(422, "COMMENT_INVALID", "Nội dung cần từ 3 đến 1.000 ký tự.");
+      if (body.payload.parentId != null && typeof body.payload.parentId !== "string")
+        return requestError(422, "COMMENT_PARENT_INVALID", "Bình luận muốn trả lời chưa hợp lệ.");
+      const parentId = typeof body.payload.parentId === "string" ? body.payload.parentId : null;
+      if (parentId && !campaign.comments.some((item) => item.id === parentId))
+        return requestError(404, "COMMENT_PARENT_NOT_FOUND", "Bình luận gốc không thuộc chiến dịch này.");
 
-    try {
-      await fetchBackendWithAuth(
-        "/social/comments",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            campaignId,
-            parentCommentId: parentCommentId ? String(parentCommentId) : undefined,
-            body: commentBody.trim(),
-          }),
-        },
-        access.session,
-      );
-    } catch (e) {
-      console.warn("Backend create comment call failed, falling back to local state:", e);
-    }
-  }
-
-  if (body.action === "UPDATE_COMMENT") {
-    const commentId = body.payload?.commentId;
-    const commentBody = body.payload?.body;
-    if (
-      typeof commentId !== "string" ||
-      typeof commentBody !== "string" ||
-      !commentBody.trim()
-    ) {
-      return requestError(
-        422,
-        "COMMENT_UPDATE_REQUIRED",
-        "Vui lòng nhập nội dung chỉnh sửa bình luận.",
-      );
-    }
-
-    try {
-      await fetchBackendWithAuth(
-        `/social/comments/${encodeURIComponent(commentId)}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ body: commentBody.trim() }),
-        },
-        access.session,
-      );
-    } catch (e) {
-      console.warn("Backend update comment call failed:", e);
-    }
-  }
-
-  if (body.action === "DELETE_COMMENT") {
-    const commentId = body.payload?.commentId;
-    if (typeof commentId !== "string" || !commentId.trim()) {
-      return requestError(
-        422,
-        "COMMENT_ID_REQUIRED",
-        "Mã bình luận cần xóa không hợp lệ.",
-      );
-    }
-
-    try {
-      await fetchBackendWithAuth(
-        `/social/comments/${encodeURIComponent(commentId)}`,
-        { method: "DELETE" },
-        access.session,
-      );
-    } catch (e) {
-      console.warn("Backend delete comment call failed:", e);
-    }
-  }
-
-  if (body.action === "LIKE_COMMENT") {
-    const commentId = body.payload?.commentId;
-    if (typeof commentId !== "string" || !commentId.trim()) {
-      return requestError(
-        422,
-        "COMMENT_ID_REQUIRED",
-        "Mã bình luận không hợp lệ.",
-      );
-    }
-
-    try {
-      await fetchBackendWithAuth(
-        `/social/comments/${encodeURIComponent(commentId)}/like`,
-        { method: "POST" },
-        access.session,
-      );
-    } catch (e) {
-      console.warn("Backend like comment call failed:", e);
-    }
-  }
-
-  if (body.action === "HIDE_COMMENT") {
-    const commentId = body.payload?.commentId;
-    const isHidden = body.payload?.isHidden !== undefined ? Boolean(body.payload.isHidden) : true;
-    const reason = typeof body.payload?.reason === "string" ? body.payload.reason : undefined;
-
-    if (typeof commentId !== "string" || !commentId.trim()) {
-      return requestError(
-        422,
-        "COMMENT_ID_REQUIRED",
-        "Mã bình luận không hợp lệ.",
-      );
-    }
-
-    try {
-      await fetchBackendWithAuth(
-        `/social/comments/${encodeURIComponent(commentId)}/hide`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ isHidden, reason }),
-        },
-        access.session,
-      );
-    } catch (e) {
-      console.warn("Backend hide comment call failed:", e);
+      const invitation = previewInvitationForUser(campaignId, access.session, platformState);
+      const member = getCampaignMembership(campaignId, access.session.user.id);
+      const isOwner = campaign.creator.id === access.session.user.id &&
+        access.session.user.roles.includes("CREATOR");
+      const canReplyAsTeam = access.session.user.roles.includes("COLLABORATOR") &&
+        ((member?.role === "COLLABORATOR" && member.canReplyComments) ||
+          Boolean(invitation?.accepted && invitation.permissions.canReply));
+      const badge: CommentBadge = isOwner ? "CREATOR" : canReplyAsTeam ? "COLLABORATOR" : "BACKER";
+      const comment = {
+        id: `comment_${crypto.randomUUID().slice(0, 12)}`, campaignId, parentId,
+        authorId: access.session.user.id, authorName: access.session.user.name,
+        authorInitials: access.session.user.initials, badge, body: text,
+        kind: body.action === "ASK_QUESTION" ? "QUESTION" as const : "COMMENT" as const,
+        createdAt: new Date().toISOString(),
+      };
+      platformState.campaignComments = [comment, ...platformState.campaignComments]
+        .slice(0, localDbEnabled() ? undefined : 10);
+      platformPersisted = true;
+      createdCommentId = comment.id;
+      createdCommentBadge = badge;
+      platformEvent = {
+        campaignId, actorUserId: access.session.user.id,
+        actorRole: badge === "CREATOR" ? "CREATOR" : badge === "COLLABORATOR" ? "COLLABORATOR" : "BACKER",
+        eventType: body.action, stage: campaign.status === "LIVE" ? "FUNDING" :
+          campaign.status === "SUCCESSFUL" || campaign.status === "FAILED" ? "DELIVERY" : "PREPARATION",
+        visibility: "PUBLIC",
+        title: parentId ? "Trả lời trong thảo luận" :
+          body.action === "ASK_QUESTION" ? "Đặt câu hỏi" : "Đăng bình luận",
+        detail: "Nội dung có trên tab Bình luận của chiến dịch.",
+        refId: comment.id,
+      };
     }
   }
 
@@ -561,7 +503,10 @@ export async function POST(request: Request) {
       payload: body.payload ?? {},
       actorId: access.session.user.id,
       processedAt: new Date().toISOString(),
-      persisted: statefulActions.has(body.action),
+      persisted: statefulActions.has(body.action) || platformPersisted,
+      recordId: createdCommentId,
+      badge: createdCommentBadge,
+      ...likeResult,
     },
     session: statefulActions.has(body.action) ? nextSession : undefined,
   });
@@ -571,7 +516,7 @@ export async function POST(request: Request) {
     if (failure) return failure;
   }
   if (platformPersisted) {
-    const failure = writePlatformPreviewCookie(response, platformState);
+    const failure = writePlatformPreviewCookie(response, platformState, platformEvent);
     if (failure) return failure;
   }
 

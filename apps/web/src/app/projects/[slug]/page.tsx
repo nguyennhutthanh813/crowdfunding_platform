@@ -12,14 +12,22 @@ import { CampaignVisual } from "@/components/campaign/campaign-visual";
 import { NotifyButton } from "@/components/notify-button";
 import { ProjectActions } from "@/components/campaign/project-actions";
 import { ProjectExperience } from "@/components/campaign/project-experience";
-import { ProjectViewTracker } from "@/components/campaign/project-view-tracker";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { api } from "@/lib/api";
+import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
+import { getServerSession } from "@/lib/auth/server-session";
+import { withViewerLikes } from "@/lib/campaign/comments-preview";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
+import { applyCampaignDetailPreviewState } from "@/lib/preview-read-models";
+import { localDbEnabled } from "@/lib/local-db/database";
+import { publicPreviewCampaignDetail } from "@/lib/creator/public-preview-campaigns";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 
-
-export const dynamic = "force-dynamic";
+export async function generateStaticParams() {
+  const campaigns = await api.listCampaigns();
+  return campaigns.map((campaign) => ({ slug: campaign.slug }));
+}
 
 export async function generateMetadata({
   params,
@@ -27,7 +35,10 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const campaign = await api.getCampaignBySlug(slug);
+  const platformState = await getServerPlatformPreviewState();
+  const campaign = isPreviewCampaignId(slug)
+    ? publicPreviewCampaignDetail(slug, platformState)
+    : await api.getCampaignBySlug(slug);
   if (!campaign) return { title: "Không tìm thấy dự án" };
   return { title: campaign.title, description: campaign.blurb };
 }
@@ -40,13 +51,26 @@ export default async function ProjectDetailPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const campaign = await api.getCampaignBySlug(slug);
-  if (!campaign) notFound();
+  const [platformState, session] = await Promise.all([
+    getServerPlatformPreviewState(), getServerSession(),
+  ]);
+  const baseCampaign = isPreviewCampaignId(slug)
+    ? publicPreviewCampaignDetail(slug, platformState)
+    : await api.getCampaignBySlug(slug);
+  if (!baseCampaign) notFound();
+  const campaignData = isPreviewCampaignId(slug)
+    ? baseCampaign
+    : applyCampaignDetailPreviewState(baseCampaign, platformState);
+  const campaign = {
+    ...campaignData,
+    comments: withViewerLikes(campaignData.id, campaignData.comments, platformState, session?.user.id),
+  };
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
   const isPreLaunch = campaign.status === "PRE_LAUNCH";
   const canPledge = campaign.status === "LIVE";
   const isSuccessful = campaign.status === "SUCCESSFUL";
   const isFailed = campaign.status === "FAILED";
+  const isSuspended = campaign.status === "SUSPENDED";
   const launchDate = new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -61,9 +85,7 @@ export default async function ProjectDetailPage({
 
   return (
     <>
-      <ProjectViewTracker campaignId={campaign.slug} />
       <section className="border-b border-line bg-canvas-soft pb-12 pt-7 sm:pt-9">
-
         <div className="container-shell">
           <nav
             aria-label="Đường dẫn trang"
@@ -88,9 +110,6 @@ export default async function ProjectDetailPage({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={campaign.status} />
-                <span className="rounded-[8px] border border-line bg-white px-2.5 py-1 text-[11px] font-bold text-ink-soft">
-                  Góp chọn
-                </span>
               </div>
               <h1 className="mt-5 max-w-4xl font-display text-[clamp(2.35rem,4.4vw,3.75rem)] font-extrabold leading-[1.07] tracking-[-0.05em]">
                 {campaign.title}
@@ -103,14 +122,17 @@ export default async function ProjectDetailPage({
                   <MapPin className="size-4 text-coral" /> {campaign.location}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <BadgeCheck className="size-4 text-coral" />{" "}
+                  {campaign.creator.verified ? <BadgeCheck className="size-4 text-coral" aria-label="Đã xác minh" /> : null}
                   {campaign.creator.name}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <CalendarDays className="size-4 text-coral" />
-                  {isPreLaunch ? "Dự kiến mở" : "Mở ngày"} {launchDate}
+                  {isPreLaunch && isPreviewCampaignId(campaign.id)
+                    ? "Chủ dự án chưa chọn ngày mở"
+                    : `${isPreLaunch ? "Dự kiến mở" : "Mở ngày"} ${launchDate}`}
                 </span>
               </div>
+              {localDbEnabled() ? <Link href={`/campaigns/${campaign.id}/timeline`} className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#b9cfbb] bg-white px-4 text-xs font-bold text-[#27533a] hover:bg-[#edf4e9]">Xem tiến độ và cập nhật đã ghi →</Link> : null}
             </div>
             <div className="lg:pt-1">
               <ProjectActions campaignId={campaign.id} />
@@ -150,10 +172,12 @@ export default async function ProjectDetailPage({
                   </div>
                   <div className="flex flex-col">
                     <dt className="mt-1 text-xs text-ink-muted">
-                      {isPreLaunch ? "ngày dự kiến mở" : "ngày còn"}
+                      {isPreLaunch && isPreviewCampaignId(campaign.id) ? "lịch mở" : isPreLaunch ? "ngày dự kiến mở" : "ngày còn"}
                     </dt>
                     <dd className="order-first font-display text-xl font-extrabold">
-                      {isPreLaunch ? shortLaunchDate : campaign.daysLeft}
+                      {isPreLaunch && isPreviewCampaignId(campaign.id)
+                        ? "Chưa chốt"
+                        : isPreLaunch ? shortLaunchDate : campaign.daysLeft}
                     </dd>
                   </div>
                 </dl>
@@ -167,20 +191,27 @@ export default async function ProjectDetailPage({
                       </>
                     ) : canPledge ? (
                       <>
-                        <strong>All-or-Nothing:</strong> thẻ chỉ được giữ hạn
-                        mức. Khoản tiền chỉ được thu khi dự án đạt mục tiêu lúc
-                        kết thúc.
+                        <strong>Bản demo All-or-Nothing:</strong> thao tác ủng hộ
+                        chỉ ghi cam kết mẫu. Chưa giữ hạn mức thẻ hay thu tiền;
+                        phần đối soát khi kết thúc cần tích hợp sau.
                       </>
                     ) : isSuccessful ? (
                       <>
-                        <strong>Đã đạt mục tiêu:</strong> các cam kết hợp lệ đã
-                        được thu và nhóm đang thực hiện kế hoạch sản xuất, giao
-                        quà.
+                        <strong>Đã đạt mục tiêu trong dữ liệu mẫu:</strong> nhóm
+                        chuyển sang theo dõi sản xuất và giao quà. Bản demo
+                        chưa thực hiện thu tiền.
                       </>
                     ) : isFailed ? (
                       <>
-                        <strong>Không đạt mục tiêu:</strong> toàn bộ ủy quyền đã
-                        được hủy, người ủng hộ không bị thu tiền.
+                        <strong>Không đạt mục tiêu trong dữ liệu mẫu:</strong>
+                        không phát sinh thu tiền. Bước hủy ủy quyền thật chưa
+                        được tích hợp.
+                      </>
+                    ) : isSuspended ? (
+                      <>
+                        <strong>Đang tạm dừng:</strong> chiến dịch chưa nhận
+                        thêm cam kết mẫu trong lúc quản trị viên và chủ dự án
+                        xử lý nội dung cần kiểm tra.
                       </>
                     ) : (
                       <>
@@ -207,6 +238,8 @@ export default async function ProjectDetailPage({
                       ? "Đã gọi vốn thành công"
                       : isFailed
                         ? "Đã kết thúc · không thu tiền"
+                        : isSuspended
+                          ? "Tạm dừng nhận cam kết"
                         : "Chiến dịch đã kết thúc"}
                   </p>
                 )}
@@ -220,7 +253,9 @@ export default async function ProjectDetailPage({
                     : isSuccessful
                       ? "Theo dõi cập nhật sản xuất và tiến độ giao quà"
                       : isFailed
-                        ? "Cam kết đã hủy theo nguyên tắc All-or-Nothing"
+                        ? "Bản demo không phát sinh khoản thu tiền"
+                        : isSuspended
+                          ? "Các cam kết cũ được giữ nguyên để chờ xử lý"
                         : "Không còn nhận cam kết mới"}
               </p>
             </aside>

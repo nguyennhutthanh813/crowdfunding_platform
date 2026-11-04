@@ -1,0 +1,208 @@
+@startuml
+title ERD CHI TIẾT COMMUNITY VÀ AI
+hide circle
+skinparam backgroundColor #FBFAF6
+skinparam shadowing false
+skinparam linetype ortho
+skinparam entityBorderColor #75877E
+skinparam entityBackgroundColor #FFFFFF
+
+entity users {
+  * id : uuid <<PK>>
+}
+entity campaigns {
+  * id : uuid <<PK>>
+}
+entity pledges {
+  * id : uuid <<PK>>
+}
+entity saved_campaigns {
+  * user_id : uuid <<PK,FK>>
+  * campaign_id : uuid <<PK,FK>>
+}
+entity creator_follows {
+  * follower_id : uuid <<PK,FK>>
+  * creator_id : uuid <<PK,FK>>
+}
+entity prelaunch_subscriptions {
+  * user_id : uuid <<PK,FK>>
+  * campaign_id : uuid <<PK,FK>>
+  notify_email : boolean
+}
+entity interaction_events {
+  * id : bigserial <<PK>>
+  user_id : uuid <<FK>>
+  * campaign_id : uuid <<FK>>
+  * event_type : interaction_type
+  session_hash : varchar
+  metadata : jsonb
+}
+entity campaign_updates {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * author_id : uuid <<FK>>
+}
+entity campaign_faqs {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+}
+entity comments {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  update_id : uuid <<FK>>
+  * author_id : uuid <<FK>>
+  parent_comment_id : uuid <<FK>>
+  kind : COMMENT | QUESTION
+  badge : comment_badge
+}
+entity question_assignments {
+  * campaign_id : uuid <<PK,FK>>
+  * comment_id : uuid <<PK,FK>>
+  * assignee_user_id : uuid <<FK>>
+  * assigned_by_user_id : uuid <<FK>>
+  assigned_at : timestamptz
+  read_at : timestamptz?
+}
+entity comment_likes {
+  * comment_id : uuid <<PK,FK>>
+  * user_id : uuid <<PK,FK>>
+  created_at : timestamptz
+}
+entity messages {
+  * id : uuid <<PK>>
+  campaign_id : uuid <<FK>>
+  * sender_id : uuid <<FK>>
+  * recipient_id : uuid <<FK>>
+  parent_message_id : uuid <<FK>>
+}
+entity notifications {
+  * id : uuid <<PK>>
+  * user_id : uuid <<FK>>
+  type : varchar
+  read_at : timestamptz
+}
+entity campaign_tasks {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * assignee_user_id : uuid <<FK>>
+  * created_by_user_id : uuid <<FK>>
+  area : campaign_task_area
+  priority : campaign_task_priority
+  status : campaign_task_status
+  due_at : timestamptz
+}
+entity campaign_task_handoffs {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * task_id : uuid <<FK>>
+  * from_user_id : uuid <<FK>>
+  * to_user_id : uuid <<FK>>
+  created_at : timestamptz
+}
+entity daily_campaign_metrics {
+  * campaign_id : uuid <<PK,FK>>
+  * metric_date : date <<PK>>
+  pledged_amount : bigint
+  new_backer_count : int
+  save_count : int
+  notify_count : int
+}
+entity ai_model_versions {
+  * id : uuid <<PK>>
+  * task : ai_task
+  * name : varchar
+  * version : varchar
+  metrics : jsonb
+  is_active : boolean
+}
+entity recommendation_results {
+  * id : bigserial <<PK>>
+  * user_id : uuid <<FK>>
+  * campaign_id : uuid <<FK>>
+  model_version_id : uuid <<FK>>
+  score : numeric
+  rank : smallint
+  reason : varchar
+}
+entity campaign_predictions {
+  * id : uuid <<PK>>
+  * campaign_id : uuid <<FK>>
+  * model_version_id : uuid <<FK>>
+  * probability : numeric
+  * prediction_stage : varchar
+  input_snapshot : jsonb
+}
+entity prediction_factors {
+  * id : uuid <<PK>>
+  * prediction_id : uuid <<FK>>
+  feature_name : varchar
+  impact : numeric
+  direction : varchar
+}
+entity fraud_alerts {
+  * id : uuid <<PK>>
+  pledge_id : uuid <<FK>>
+  * campaign_id : uuid <<FK>>
+  subject_user_id : uuid <<FK>>
+  model_version_id : uuid <<FK>>
+  risk_score : numeric
+  status : fraud_alert_status
+}
+entity fraud_signals {
+  * id : uuid <<PK>>
+  * alert_id : uuid <<FK>>
+  signal_code : varchar
+  weight : numeric
+  evidence : jsonb
+}
+entity moderation_actions {
+  * id : uuid <<PK>>
+  * admin_id : uuid <<FK>>
+  target_type : varchar
+  target_id : uuid
+  action : varchar
+}
+
+users ||--o{ saved_campaigns
+campaigns ||--o{ saved_campaigns
+users ||--o{ creator_follows : follower
+users ||--o{ creator_follows : creator
+users ||--o{ prelaunch_subscriptions
+campaigns ||--o{ prelaunch_subscriptions
+users |o--o{ interaction_events
+campaigns ||--o{ interaction_events
+campaigns ||--o{ campaign_updates
+users ||--o{ campaign_updates
+campaigns ||--o{ campaign_faqs
+campaigns ||--o{ comments
+campaign_updates |o--o{ comments
+users ||--o{ comments
+comments |o--o{ comments : parent
+comments ||--o| question_assignments : question
+campaigns ||--o{ question_assignments
+users ||--o{ question_assignments : assignee
+comments ||--o{ comment_likes
+users ||--o{ comment_likes
+users ||--o{ messages : sender
+users ||--o{ messages : recipient
+users ||--o{ notifications
+campaigns ||--o{ campaign_tasks
+users ||--o{ campaign_tasks : assignee
+users ||--o{ campaign_tasks : creator
+campaign_tasks ||--o{ campaign_task_handoffs
+users ||--o{ campaign_task_handoffs : from
+users ||--o{ campaign_task_handoffs : to
+campaigns ||--o{ daily_campaign_metrics
+ai_model_versions |o--o{ recommendation_results
+users ||--o{ recommendation_results
+campaigns ||--o{ recommendation_results
+ai_model_versions ||--o{ campaign_predictions
+campaigns ||--o{ campaign_predictions
+campaign_predictions ||--o{ prediction_factors
+campaigns ||--o{ fraud_alerts
+pledges |o--o{ fraud_alerts
+users |o--o{ fraud_alerts
+ai_model_versions |o--o{ fraud_alerts
+fraud_alerts ||--o{ fraud_signals
+users ||--o{ moderation_actions : admin
+@enduml

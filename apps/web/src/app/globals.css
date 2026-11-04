@@ -53,6 +53,19 @@ html {
   background: var(--canvas);
 }
 
+/* Giữ nguyên bố cục, chỉ nới chữ khi người xem chủ động bật chế độ dễ đọc. */
+html[data-reading-size="large"] {
+  font-size: 110%;
+}
+html[data-reading-size="large"] :is(.text-xs, .text-\[10px\], .text-\[11px\]) {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+html[data-reading-size="large"] .text-\[13px\] {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
 body {
   margin: 0;
   min-height: 100vh;

@@ -19,7 +19,6 @@ import {
   Send,
   Settings,
   ShieldCheck,
-  Sparkles,
   Truck,
   Users,
   XCircle,
@@ -61,7 +60,7 @@ const dashboardTabCopy: Record<
     eyebrow: "Cam kết & dòng tiền",
     title: "Các khoản ủng hộ của bạn.",
     description:
-      "Xem số tiền đang giữ hạn mức, khoản đã thu và tình trạng giao quà của từng chiến dịch.",
+      "Đối chiếu cam kết mẫu, kết quả giả lập và tình trạng giao quà của từng chiến dịch.",
     icon: FolderHeart,
   },
   saved: {
@@ -82,14 +81,14 @@ const dashboardTabCopy: Record<
     eyebrow: "Trao đổi theo chiến dịch",
     title: "Tin nhắn với đội dự án.",
     description:
-      "Mỗi cuộc trao đổi gắn với đúng campaign bạn đã ủng hộ để câu hỏi và phản hồi không bị lẫn.",
+      "Mỗi cuộc trao đổi gắn với đúng chiến dịch bạn đã ủng hộ, nên câu hỏi và phản hồi không bị lẫn.",
     icon: Mail,
   },
   activity: {
     eyebrow: "Nhật ký tài khoản",
     title: "Hoạt động gần đây của bạn.",
     description:
-      "Đối chiếu các lần cam kết, lưu dự án, đọc tin và những thay đổi vừa diễn ra trong phiên demo.",
+      "Đối chiếu các lần cam kết, lưu dự án, đọc tin và những thay đổi vừa diễn ra trong lần dùng thử này.",
     icon: Activity,
   },
   settings: {
@@ -161,7 +160,7 @@ function AttentionRail({ data }: { data: UserDashboardData }) {
             <p className="mt-2 max-w-xl text-xs leading-6 text-ink-soft">
               {primary.detail}
             </p>
-            <p className="mt-2 text-[10px] font-bold text-coral-dark">
+            <p className="mt-2 text-[11px] font-bold text-coral-dark">
               {primary.dueLabel}
             </p>
           </div>
@@ -174,7 +173,7 @@ function AttentionRail({ data }: { data: UserDashboardData }) {
         </div>
       </div>
       <div className="border-t border-[#ead4bd] bg-[#f6eadf] p-5 lg:border-l lg:border-t-0 sm:p-6">
-        <p className="text-[10px] font-bold tracking-wide text-ink-muted">
+        <p className="text-[11px] font-bold tracking-wide text-ink-muted">
           CẬP NHẬT LIÊN QUAN
         </p>
         <div className="mt-3 space-y-4">
@@ -188,13 +187,13 @@ function AttentionRail({ data }: { data: UserDashboardData }) {
                   <span className="block text-xs font-bold group-hover:text-coral-dark">
                     {item.title}
                   </span>
-                  <span className="mt-1 block text-[10px] leading-5 text-ink-muted">
+                  <span className="mt-1 block text-[11px] leading-5 text-ink-muted">
                     {item.detail}
                   </span>
                 </span>
                 <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-ink-muted group-hover:text-coral-dark" />
               </Link>
-              <p className="mt-1 text-[9px] font-semibold text-ink-muted">
+              <p className="mt-1 text-[11px] font-semibold text-ink-muted">
                 {item.dueLabel}
               </p>
             </div>
@@ -227,7 +226,7 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
     >
       <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
         <div className="p-5 sm:p-6">
-          <p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#d8e2c6]">
+          <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#d8e2c6]">
             <ShieldCheck className="size-4" /> Dòng tiền cam kết
           </p>
           <h3
@@ -237,8 +236,8 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
             Một khoản ủng hộ chỉ đi theo một trong hai kết quả.
           </h3>
           <p className="mt-2 max-w-md text-xs leading-6 text-white/70">
-            Góp áp dụng All-or-Nothing: khi dự án còn chạy, ngân hàng mới giữ
-            hạn mức. Nền tảng chưa thu tiền của bạn.
+            Bản demo dùng cơ chế tất cả hoặc không để minh họa các trạng thái.
+            Chưa có giao dịch ngân hàng; việc giữ và thu tiền cần tích hợp sau.
           </p>
 
           <div className="mt-5 rounded-2xl border border-white/15 bg-white/[0.07] p-4">
@@ -277,7 +276,7 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
               <dd className="mt-3 font-display text-lg font-extrabold">
                 {formatVnd(captured.amount)}
               </dd>
-              <dd className="mt-1 text-[10px] font-bold text-ink-muted">
+              <dd className="mt-1 text-[11px] font-bold text-ink-muted">
                 {captured.count} khoản đã thu tiền
               </dd>
               <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
@@ -292,7 +291,7 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
               <dd className="mt-3 font-display text-lg font-extrabold">
                 {formatVnd(canceled.amount)}
               </dd>
-              <dd className="mt-1 text-[10px] font-bold text-ink-muted">
+              <dd className="mt-1 text-[11px] font-bold text-ink-muted">
                 {canceled.count} khoản đã hủy giữ tiền
               </dd>
               <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
@@ -302,13 +301,13 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
           </dl>
 
           {failed.count ? (
-            <p className="mt-3 rounded-xl border border-amber-700/15 bg-[#fff8e8] px-3 py-2 text-[10px] font-semibold leading-5 text-amber-900">
+            <p className="mt-3 rounded-xl border border-amber-700/15 bg-[#fff8e8] px-3 py-2 text-[11px] font-semibold leading-5 text-amber-900">
               Có {failed.count} khoản thanh toán cần kiểm tra lại, tổng cộng {" "}
               {formatVnd(failed.amount)}. Đây là lỗi thanh toán, không phải kết
               quả gọi vốn của dự án.
             </p>
           ) : null}
-          <p className="mt-3 text-[9px] font-semibold text-ink-muted">
+          <p className="mt-3 text-[11px] font-semibold text-ink-muted">
             Số liệu được tính từ các cam kết đang hiển thị bên dưới.
           </p>
         </div>
@@ -412,7 +411,7 @@ function BackedPanel({
                         <p className="mt-2 text-xs text-ink-muted">
                           {item.rewardTitle}
                         </p>
-                        <p className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-ink-muted">
+                        <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
                           <ReceiptText className="size-3.5" /> {item.referenceCode}
                           <span aria-hidden="true">·</span>
                           {new Intl.DateTimeFormat("vi-VN", {
@@ -445,11 +444,11 @@ function BackedPanel({
                       </div>
                     </div>
                     <div className="mt-4 border-l-2 border-[#d29b66] bg-[#fff8f0] px-3 py-2.5">
-                      <p className="text-[10px] font-bold text-ink">Mốc kế tiếp</p>
+                      <p className="text-[11px] font-bold text-ink">Mốc kế tiếp</p>
                       <p className="mt-1 text-[11px] leading-5 text-ink-soft">
                         {item.nextStep}
                       </p>
-                      <p className="mt-1 text-[9px] font-semibold text-ink-muted">
+                      <p className="mt-1 text-[11px] font-semibold text-ink-muted">
                         {item.nextStepAt}
                       </p>
                     </div>
@@ -520,7 +519,7 @@ function SavedPanel({ data }: { data: UserDashboardData }) {
               />
             </Link>
             <div className="p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-coral">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-coral">
                 {campaign.category}
               </p>
               <Link
@@ -797,7 +796,7 @@ function MessagesPanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-coral px-2.5 py-1 text-[10px] font-bold text-white">
+          <span className="rounded-full bg-coral px-2.5 py-1 text-[11px] font-bold text-white">
             {data.messages.filter((item) => !readIds.has(item.id)).length} chưa
             đọc
           </span>
@@ -862,7 +861,7 @@ function MessagesPanel({
                 }
                 className="input-field mt-2"
                 placeholder="Ví dụ: Hỏi về thời gian giao quà"
-                maxLength={180}
+                maxLength={80}
               />
             </label>
           </div>
@@ -879,11 +878,11 @@ function MessagesPanel({
               }
               className="input-field mt-2 min-h-28 resize-y"
               placeholder="Viết nội dung bạn muốn trao đổi với nhóm dự án…"
-              maxLength={4000}
+              maxLength={240}
             />
-            <span className="mt-1.5 flex justify-between gap-4 text-[10px] text-ink-muted">
-              <span>Viết chi tiết để nhóm dự án phản hồi chính xác.</span>
-              <span>{draftMessage.body.length}/4000</span>
+            <span className="mt-1.5 flex justify-between gap-4 text-[11px] text-ink-muted">
+              <span>Viết ngắn gọn để nhóm dự án phản hồi nhanh hơn.</span>
+              <span>{draftMessage.body.length}/240</span>
             </span>
           </label>
           <div className="mt-4 flex justify-end gap-2">
@@ -911,7 +910,7 @@ function MessagesPanel({
       </Modal>
       {sentMessages.length ? (
         <div className="mt-5 space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
             Vừa gửi
           </p>
           {sentMessages.map((message) => (
@@ -921,7 +920,7 @@ function MessagesPanel({
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-bold">Đến {message.recipient}</p>
-                <span className="text-[10px] text-emerald-700">
+                <span className="text-[11px] text-emerald-700">
                   {message.sentAt}
                 </span>
               </div>
@@ -951,7 +950,7 @@ function MessagesPanel({
                   <p className="truncate font-display text-sm font-extrabold">
                     {message.sender}
                   </p>
-                  <span className="shrink-0 text-[10px] text-ink-muted">
+                  <span className="shrink-0 text-[11px] text-ink-muted">
                     {message.sentAt}
                   </span>
                 </div>
@@ -964,7 +963,7 @@ function MessagesPanel({
                   {message.preview}
                 </p>
                 {selectedId === message.id ? (
-                  <p className="mt-3 text-[10px] font-bold text-coral-dark">
+                  <p className="mt-3 text-[11px] font-bold text-coral-dark">
                     Tin nhắn đã được đánh dấu là đã đọc.
                   </p>
                 ) : null}
@@ -1027,7 +1026,7 @@ function ActivityPanel({ data }: { data: UserDashboardData }) {
                 {item.title}
               </p>
               <p className="mt-1 text-xs text-ink-soft">{item.detail}</p>
-              <p className="mt-2 text-[10px] text-ink-muted">
+              <p className="mt-2 text-[11px] text-ink-muted">
                 {item.occurredAt}
               </p>
             </div>
@@ -1208,11 +1207,11 @@ export function BackerDashboard({
               </span>
               <div>
                 <p className="text-xs font-bold">{data.user.name}</p>
-                <p className="mt-0.5 text-[10px] text-ink-muted">
+                <p className="mt-0.5 text-xs text-ink-muted">
                   Xin chào {friendlyName} · thành viên từ {data.user.memberSince}
                 </p>
               </div>
-              <Sparkles className="size-4 text-[#a94f33]" />
+              <CircleUserRound className="size-4 text-[#a94f33]" />
             </div>
           </div>
         </div>
@@ -1220,7 +1219,7 @@ export function BackerDashboard({
 
       <div id="workspace-content" className="container-shell scroll-mt-28 pt-6">
         <div
-          className="flex items-center gap-2 text-[10px] font-bold text-[#745f56]"
+          className="flex items-center gap-2 text-xs font-bold text-[#745f56]"
           role="status"
           aria-live="polite"
         >
@@ -1252,7 +1251,7 @@ export function BackerDashboard({
                 Chuyển mục bằng số liệu đang có
               </h2>
             </div>
-            <span className="hidden text-[10px] text-ink-muted sm:block">
+            <span className="hidden text-xs text-ink-muted sm:block">
               Mỗi ô mở một giao diện riêng
             </span>
           </div>
@@ -1275,7 +1274,7 @@ export function BackerDashboard({
                     <p className="font-display text-2xl font-extrabold">
                       {stat.value}
                     </p>
-                    <p className="text-[11px] text-ink-muted">{stat.label}</p>
+                    <p className="text-xs text-ink-muted">{stat.label}</p>
                   </div>
                 </button>
               );
@@ -1292,7 +1291,7 @@ export function BackerDashboard({
                   role="BACKER"
                   eyebrow="Dòng tiền của một cam kết"
                   title="Khoản ORBIT của bạn đang ở đâu?"
-                  description={`${formatVnd(orbitPledge.amount)} đang được giữ hạn mức cho ${orbitPledge.campaign.title}. Chủ dự án nhìn thấy một chỗ đã giữ, nhưng chưa nhận tiền và chưa được tạo đơn giao quà.`}
+                  description={`${formatVnd(orbitPledge.amount)} là cam kết mẫu cho ${orbitPledge.campaign.title}. Chủ dự án thấy khoản này trong tiến độ mô phỏng; chưa có tiền được giữ hoặc chuyển và chưa tạo đơn giao quà.`}
                   recordCode={orbitPledge.referenceCode}
                   steps={[
                     {
@@ -1303,23 +1302,23 @@ export function BackerDashboard({
                       state: "done",
                     },
                     {
-                      actor: "Ngân hàng thử nghiệm",
-                      title: "Đang giữ hạn mức",
-                      detail: "Chưa chuyển tiền cho Góp hoặc nhóm ORBIT.",
+                      actor: "Bản mô phỏng",
+                      title: "Chưa thực hiện thanh toán",
+                      detail: "Không có ủy quyền thẻ hoặc giao dịch ngân hàng.",
                       kind: "money",
                       state: "current",
                     },
                     {
                       actor: "Xưởng chiến dịch",
-                      title: "Ghi nhận một chỗ đã giữ",
-                      detail: "Số tiền được cộng vào tiến độ gọi vốn, chưa mở giao quà.",
+                      title: "Ghi nhận một cam kết mẫu",
+                      detail: "Số tiền được cộng vào tiến độ mô phỏng, chưa mở giao quà.",
                       kind: "campaign",
                       state: "current",
                     },
                     {
                       actor: "Ngày 01/10/2026",
                       title: "Hệ thống chốt kết quả",
-                      detail: "Đạt mục tiêu mới thu; không đạt thì tự hủy và không thu.",
+                      detail: "Bản demo cho thấy hai kết quả; thu/hủy tiền thật chưa tích hợp.",
                       kind: "system",
                       state: "next",
                     },

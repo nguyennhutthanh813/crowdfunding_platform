@@ -97,7 +97,7 @@ export function CollaboratorTaskList({
               type="button"
               aria-pressed={filter === id}
               onClick={() => setFilter(id as typeof filter)}
-              className={`min-h-11 rounded-full px-3 text-[10px] font-bold ${filter === id ? "bg-white text-forest shadow-sm" : "text-ink-muted"}`}
+              className={`min-h-11 rounded-full px-3 text-[11px] font-bold ${filter === id ? "bg-white text-forest shadow-sm" : "text-ink-muted"}`}
             >
               {label}
             </button>
@@ -125,7 +125,7 @@ export function CollaboratorTaskList({
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-bold">{task.title}</p>
                   <span
-                    className={`text-[9px] font-bold ${task.priority === "HIGH" ? "text-red-600" : "text-ink-muted"}`}
+                    className={`text-[11px] font-bold ${task.priority === "HIGH" ? "text-red-600" : "text-ink-muted"}`}
                   >
                     {priorityLabels[task.priority]}
                   </span>
@@ -133,7 +133,7 @@ export function CollaboratorTaskList({
                 <p className="mt-1 text-[11px] leading-5 text-ink-muted">
                   {task.detail}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold text-ink-soft">
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] font-semibold text-ink-soft">
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="size-3" /> {task.dueLabel}
                   </span>
@@ -148,7 +148,7 @@ export function CollaboratorTaskList({
                 </div>
               </div>
               {task.status === "DONE" ? (
-                <span className="col-span-2 inline-flex min-h-11 items-center gap-1.5 justify-self-start rounded-full bg-emerald-50 px-3 text-[10px] font-bold text-emerald-700 sm:col-span-1">
+                <span className="col-span-2 inline-flex min-h-11 items-center gap-1.5 justify-self-start rounded-full bg-emerald-50 px-3 text-[11px] font-bold text-emerald-700 sm:col-span-1">
                   <Check className="size-3" /> Đã xong
                 </span>
               ) : (
@@ -156,7 +156,7 @@ export function CollaboratorTaskList({
                   type="button"
                   disabled={busy === task.id}
                   onClick={() => void markDone(task.id)}
-                  className="col-span-2 min-h-11 justify-self-start rounded-full border border-line px-3 text-[10px] font-bold text-ink-soft hover:border-forest/25 hover:text-forest disabled:cursor-wait sm:col-span-1"
+                  className="col-span-2 min-h-11 justify-self-start rounded-full border border-line px-3 text-[11px] font-bold text-ink-soft hover:border-forest/25 hover:text-forest disabled:cursor-wait sm:col-span-1"
                 >
                   {busy === task.id ? (
                     <LoaderCircle className="size-3.5 animate-spin" />

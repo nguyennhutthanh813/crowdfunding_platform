@@ -6,6 +6,8 @@ import type {
 } from "@/lib/api";
 import type { PlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getEffectivePreviewState } from "@/lib/auth/preview-state";
+import { applyCampaignCardPreviewState } from "@/lib/preview-read-models";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 
 function creatorSummary(
   campaigns: CampaignCardData[],
@@ -38,7 +40,20 @@ export function mergePreviewDashboardState(
   const originalFollowingIds = new Set(
     data.following.map((creator) => creator.id),
   );
-  const latestPledges = (previewState.authorizedPledges ?? []).filter(
+  const sharedPledges = (platform?.pledges ?? [])
+    .filter((pledge) => pledge.backerId === session.user.id)
+    .map((pledge) => ({
+      authorizationId: pledge.authorizationId,
+      campaignId: pledge.campaignId,
+      rewardId: pledge.rewardId,
+      rewardTitle: pledge.rewardTitle,
+      totalAmount: pledge.totalAmount,
+      authorizedAt: pledge.authorizedAt,
+    }));
+  const latestPledges = [
+    ...sharedPledges,
+    ...(previewState.authorizedPledges ?? []),
+  ].filter(
     (pledge, index, rows) =>
       rows.findIndex((item) => item.campaignId === pledge.campaignId) === index,
   );
@@ -59,7 +74,7 @@ export function mergePreviewDashboardState(
         rewardTitle: pledge.rewardTitle,
         pledgedAt: pledge.authorizedAt,
         nextStep:
-          "Chờ chiến dịch kết thúc; hiện chưa có khoản tiền nào bị thu.",
+          "Cam kết mẫu đã được ghi; chưa có thẻ hoặc cổng thanh toán tham gia.",
         nextStepAt: "Hệ thống sẽ báo khi chiến dịch chốt kết quả",
       };
       const existing = data.backedProjects.find(
@@ -74,7 +89,13 @@ export function mergePreviewDashboardState(
   const backedProjects = [
     ...additions,
     ...data.backedProjects.map(
-      (item) => pledgeOverrides.get(item.campaign.id) ?? item,
+      (item) =>
+        pledgeOverrides.get(item.campaign.id) ?? {
+          ...item,
+          campaign:
+            campaigns.find((campaign) => campaign.id === item.campaign.id) ??
+            item.campaign,
+        },
     ),
   ];
 
@@ -217,8 +238,7 @@ export function buildUserDashboard(
   platform?: PlatformPreviewState,
 ): UserDashboardData {
   const baseData =
-    session.user.id === "usr_minh_anh" ||
-    session.user.email === "minhanh@example.com"
+    session.user.id === "usr_minh_anh"
       ? {
           ...sampleData,
           user: {
@@ -229,5 +249,8 @@ export function buildUserDashboard(
         }
       : emptyDashboard(session);
 
-  return mergePreviewDashboardState(baseData, campaigns, session, platform);
+  const visibleCampaigns = campaigns.map((campaign) =>
+    isPreviewCampaignId(campaign.id) ? campaign : applyCampaignCardPreviewState(campaign, platform),
+  );
+  return mergePreviewDashboardState(baseData, visibleCampaigns, session, platform);
 }

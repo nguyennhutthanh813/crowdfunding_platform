@@ -134,7 +134,7 @@ export function RoleConnectionPanel({
     >
       <div className="flex flex-col justify-between gap-4 border-b border-current/10 p-5 sm:flex-row sm:items-end sm:p-6">
         <div className="max-w-3xl">
-          <p className={`text-[10px] font-extrabold uppercase tracking-[0.12em] ${styles.eyebrow}`}>
+          <p className={`text-[11px] font-extrabold uppercase tracking-[0.1em] ${styles.eyebrow}`}>
             {eyebrow}
           </p>
           <h2
@@ -148,7 +148,7 @@ export function RoleConnectionPanel({
           </p>
         </div>
         <span
-          className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-[9px] border px-3 py-2 font-mono text-[9px] font-bold ${styles.record}`}
+          className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-[9px] border px-3 py-2 font-mono text-[11px] font-bold ${styles.record}`}
         >
           <CircleDashed className="size-3.5" /> {recordCode}
         </span>
@@ -168,20 +168,20 @@ export function RoleConnectionPanel({
                 >
                   <Icon className="size-4" />
                 </span>
-                <span className={`flex items-center gap-2 text-[9px] font-bold ${styles.muted}`}>
+                <span className={`flex items-center gap-2 text-[11px] font-bold ${styles.muted}`}>
                   {stateLabels[step.state]}
                   {index < steps.length - 1 ? (
                     <ArrowRight className={`size-3.5 ${styles.line}`} />
                   ) : null}
                 </span>
               </div>
-              <p className={`mt-4 text-[9px] font-extrabold uppercase tracking-[0.1em] ${styles.muted}`}>
+              <p className={`mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] ${styles.muted}`}>
                 {step.actor}
               </p>
               <p className="mt-1 text-sm font-extrabold leading-5">
                 {step.title}
               </p>
-              <p className={`mt-2 text-[11px] leading-5 ${styles.muted}`}>
+              <p className={`mt-2 text-xs leading-5 ${styles.muted}`}>
                 {step.detail}
               </p>
             </li>
@@ -189,9 +189,9 @@ export function RoleConnectionPanel({
         })}
       </ol>
 
-      <div className="flex flex-col justify-between gap-2 border-t border-current/10 px-5 py-3 text-[10px] sm:flex-row sm:items-center sm:px-6">
+      <div className="flex flex-col justify-between gap-2 border-t border-current/10 px-5 py-3 text-[11px] sm:flex-row sm:items-center sm:px-6">
         <p className={styles.muted}>
-          Cùng một mã dữ liệu được đối chiếu ở các không gian, không nhập lại số bằng tay.
+          Cùng một hồ sơ được chuyển tiếp giữa các vai trò, không phải nhập lại thông tin.
         </p>
         <Link
           href={action.href}

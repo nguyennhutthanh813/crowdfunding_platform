@@ -5,11 +5,9 @@ import {
   HeartPulse,
   LampDesk,
   Leaf,
-} from 'lucide-react';
-import Image from 'next/image';
-
-export type CampaignMotif = 'coffee' | 'game' | 'light' | 'health' | 'music' | 'eco';
-export type CampaignPalette = 'ember' | 'mint' | 'indigo' | 'sun' | 'rose' | 'ocean';
+} from "lucide-react";
+import Image from "next/image";
+import type { CampaignMotif, CampaignPalette } from "@/lib/api";
 
 const icons = {
   coffee: Coffee,
@@ -19,14 +17,13 @@ const icons = {
   music: Headphones,
   eco: Leaf,
 };
-
 const palettes: Record<CampaignPalette, string> = {
-  ember: 'from-[#51291f] via-[#b84e34] to-[#f4a15c] text-[#fff5e9]',
-  mint: 'from-[#173e31] via-[#2f7557] to-[#b9dc8d] text-[#f4ffe9]',
-  indigo: 'from-[#191d48] via-[#4350a0] to-[#d28bd4] text-[#fbf4ff]',
-  sun: 'from-[#493b22] via-[#a47a34] to-[#f4d58a] text-[#fff9e8]',
-  rose: 'from-[#492238] via-[#a64664] to-[#f3a1a6] text-[#fff5f7]',
-  ocean: 'from-[#13384a] via-[#267994] to-[#9bd7dc] text-[#f2fdff]',
+  ember: "from-[#51291f] via-[#b84e34] to-[#f4a15c] text-[#fff5e9]",
+  mint: "from-[#173e31] via-[#2f7557] to-[#b9dc8d] text-[#f4ffe9]",
+  indigo: "from-[#191d48] via-[#4350a0] to-[#d28bd4] text-[#fbf4ff]",
+  sun: "from-[#493b22] via-[#a47a34] to-[#f4d58a] text-[#fff9e8]",
+  rose: "from-[#492238] via-[#a64664] to-[#f3a1a6] text-[#fff5f7]",
+  ocean: "from-[#13384a] via-[#267994] to-[#9bd7dc] text-[#f2fdff]",
 };
 
 interface CampaignVisualProps {
@@ -35,6 +32,7 @@ interface CampaignVisualProps {
   label: string;
   imageSrc?: string;
   imageAlt?: string;
+  imageNote?: string;
   compact?: boolean;
   className?: string;
   priority?: boolean;
@@ -46,8 +44,9 @@ export function CampaignVisual({
   label,
   imageSrc,
   imageAlt,
+  imageNote,
   compact = false,
-  className = '',
+  className = "",
   priority = false,
 }: CampaignVisualProps) {
   const Icon = icons[motif];
@@ -58,19 +57,26 @@ export function CampaignVisual({
       aria-label={`Hình ảnh dự án ${label}`}
     >
       {imageSrc ? (
-        <Image
-          src={imageSrc}
-          alt={imageAlt ?? `Hình ảnh dự án ${label}`}
-          fill
-          loading={priority ? 'eager' : 'lazy'}
-          fetchPriority={priority ? 'high' : 'auto'}
-          sizes={
-            compact
-              ? '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw'
-              : '(max-width: 1024px) 100vw, 58vw'
-          }
-          className="object-cover"
-        />
+        <>
+          <Image
+            src={imageSrc}
+            alt={imageAlt ?? `Hình ảnh dự án ${label}`}
+            fill
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
+            sizes={
+              compact
+                ? "(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                : "(max-width: 1024px) 100vw, 58vw"
+            }
+            className="object-cover"
+          />
+          {imageNote ? (
+            <span className="absolute bottom-3 left-3 z-10 rounded-md bg-[#102a22]/80 px-2 py-1 text-[10px] font-bold text-white">
+              {imageNote}
+            </span>
+          ) : null}
+        </>
       ) : (
         <>
           <div className="absolute -right-[12%] -top-[25%] aspect-square w-[70%] rounded-full border border-white/20 bg-white/8 backdrop-blur-md" />
@@ -85,22 +91,22 @@ export function CampaignVisual({
             ))}
           </div>
           <div
-            className={`relative z-10 flex h-full flex-col justify-between ${compact ? 'p-5' : 'p-7 sm:p-9'}`}
+            className={`relative z-10 flex h-full flex-col justify-between ${compact ? "p-5" : "p-7 sm:p-9"}`}
           >
             <span className="eyebrow text-current/70">Hình đang cập nhật</span>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <Icon
-                  className={`${compact ? 'size-8' : 'size-11'} mb-4 stroke-[1.5]`}
+                  className={`${compact ? "size-8" : "size-11"} mb-4 stroke-[1.5]`}
                   aria-hidden="true"
                 />
                 <p
-                  className={`font-display font-extrabold tracking-[-0.06em] ${compact ? 'text-2xl' : 'text-4xl sm:text-5xl'}`}
+                  className={`font-display font-extrabold tracking-[-0.06em] ${compact ? "text-2xl" : "text-4xl sm:text-5xl"}`}
                 >
                   {label}
                 </p>
               </div>
-              <span className="rounded-full border border-white/22 bg-white/10 px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] backdrop-blur">
+              <span className="rounded-full border border-white/22 bg-white/10 px-2.5 py-1 font-display text-[11px] font-bold uppercase tracking-[0.14em] backdrop-blur">
                 Đang hoàn thiện
               </span>
             </div>

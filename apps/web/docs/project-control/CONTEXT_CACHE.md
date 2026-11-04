@@ -1,0 +1,220 @@
+# Context cache – tiếp tục dự án Góp
+
+> File này chỉ giữ quyết định và checkpoint cần để tiếp tục. Không chứa khóa, token hay thông tin thanh toán thật.
+
+## NOW
+
+- 03/11/2026 (dọn source): Dùng `gop-code-voice` rà import graph: `src/lib/api/http-api.ts` là module không được gọi, đã chuyển nguyên vẹn sang `docs/archive/unused-code/http-api.ts.txt`. `api/index.ts` nói rõ server dùng mockApi, browser dùng clientRequest. README, docs 03/04/06, blueprint 04 sửa lại đường sang backend; docs 03 bỏ câu sai rằng đã dùng Stripe Sandbox. Ví dụ ORBIT Mini/Bếp Mây chuyển từ wizard sang `src/components/creator/campaign-wizard-samples.ts` (giữ giá trị). Báo cáo `24-don-source-2026-11-03.md`. ESLint file sửa, TypeScript, build 48 trang và `test:new-campaign-flow` trên DB riêng `gop-source-cleanup-20261103` qua; Chromium đã bấm Điền ví dụ và kiểm tên/mô tả. DB chính không bị thử ghi. `docs:sync` nay có cả ghi chú DB 03 và blueprint 04. NEXT: rà các component lớn theo luồng thực tế, sửa nội dung gói quà và mốc ngày mẫu; backend/Stripe/AI thật vẫn chưa có.
+
+- 03/11/2026 (giọng mã nguồn): `agent-skills/skills/gop-code-voice/SKILL.md` là skill mới, đã cài vào Codex và Claude Code; `agent-skills/install.ps1` mang sang máy khác. `scripts/audit-code-voice.mjs` quét ứng viên chứ không xác định tác giả; lượt quét 246 file văn bản sau sửa còn 0 marker trực tiếp theo từ khóa, 10 dòng ký hiệu phiên bản trong tài liệu lịch sử và một false positive ở báo cáo cũ. Bảy chỗ trong UI/read model/API đã đổi “bản gửi v…” thành “gửi duyệt/hồ sơ gửi lần …”, giữ `submissionVersion`. Nghiên cứu và giới hạn ở `23-nghien-cuu-giong-code-sinh-vien-2026-11-03.md`. Skill validate, JS syntax, lint, TypeScript, diff check qua; chưa build/browser lượt này. Không xóa metadata, ghi công hay cố tình thêm lỗi. NEXT: rà trực quan Creator/Admin khi có server và tiếp tục các mục video: mốc ngày, gói quà, nhãn AI.
+
+- 02/11/2026 (chốt bàn giao video): MP4 cuối `docs/demo-local/gop-demo-co-loi-dan-2026-11-01.mp4` dài 9:21.94 theo FFmpeg, có H.264 1440×900, AAC tiếng Việt, phụ đề nhúng; giải mã hình/tiếng/phụ đề mã 0. Đã cắt sạch khung quay lỗi ở ranh giới. Snapshot độc lập `docs/demo-local/gop-video-snapshot-2026-11-01.sqlite` được xuất bằng `VACUUM INTO` vì file SQLite đang chạy có WAL; mở snapshot riêng thấy 1 pledge 950.000 đ, 9 event, FK 0. Có nhật ký/phần cần sửa, prompt, lời dẫn, mốc cảnh cùng thư mục. Chưa có người nghe duyệt phát âm giọng tổng hợp. NEXT: sửa nhãn ngày mẫu, mô tả gói quà, cách trình bày chỉ số AI; kiểm thử những nhánh còn thiếu.
+
+- 01/11/2026 (video demo có tiếng): `docs/demo-local/gop-demo-co-loi-dan-2026-11-01.mp4` dài ~9:22, quay Chrome 1440×900 trên Next dev cổng 3112, DB riêng `.local-data/gop-video-20261101.sqlite`. Bếp Mây `cmp_preview_278bebc1cd32`: Hoàng Linh tạo/lưu/gửi, Khánh An duyệt, Linh mở LIVE, Minh Anh cam kết mẫu 950.000 đ (`authz_8adb1913`) và hỏi, Gia Huy nhận lời mời/đăng cập nhật. `scripts/video-demo/check_demo_db.mjs` qua: quan hệ đúng, 1 pledge, 9 event, FK 0. Có phụ đề, mốc cảnh, lời dẫn, prompt tối ưu, nhật ký và bảng điểm cần sửa ở `docs/demo-local/`. Giọng gTTS tiếng Việt; Microsoft Edge TTS trả 403. Video không chứng minh payment/AI model thật. NEXT: sửa mốc thời gian mẫu, mô tả gói quà hồ sơ mới, nhãn chỉ số AI; thử nhánh yêu cầu sửa/câu trả lời và responsive. Không reset DB chính.
+
+- 01/11/2026 (Windows launcher): `crowdfunding-ai-platform/CHAY-WEB.bat` chạy Next dev một nhấp ở cổng 3100, dùng DB chính `.local-data/gop-mock.sqlite`, kiểm Node24/pnpm hoặc Corepack, cài dependency nếu thiếu, kiểm cổng và mở URL khi health sẵn sàng. Đã chạy qua cmd.exe: health 200, Admin `/local-db` đúng file và FK 0; chạy lại khi cổng bận trả mã 1. Lượt chạy bình thường có log GET `/` và manifest 200 sau mở URL, nhưng chưa thấy tab qua công cụ UI. Chưa kiểm nhấp đúp Explorer hay cài dependency trên máy khác. README/hướng dẫn SQLite/progress đã cập nhật. Không reset DB. NEXT: quay lại các nhánh UI, PostgreSQL và AI lõi theo kế hoạch; khi sửa launcher nên kiểm lại cổng bận và đường dẫn Unicode.
+- 31/10/2026 (ghi đồng thời SQLite local + màn Bình luận): `platform_state` có `revision`, tự migrate DB cũ; `saveLocalPlatformState` so revision trong `BEGIN IMMEDIATE`, sai thì API trả 409 `LOCAL_DB_STALE`, không báo lưu sai. Reset DB test tăng revision. Bài hai server 3110/3111 trên DB riêng `gop-concurrency-proof-20261031` tái hiện lỗi 200 rồi mất câu ở build cũ; build mới gửi 12 câu song song (7 lưu, 5 xung đột), gửi lại 5 rồi đọc đủ 12 ID, FK 0. Browser Minh Anh đăng bình luận và reload vẫn thấy; đã reset **DB test này** sau ảnh đầu: revision 54→55, comment phát sinh 0, FK 0. Test lại sinh 12 câu để thử UI 8/17 → 16/17 trên mobile 390 px, không tràn ngang; nút có viền, có empty state. Hai ảnh web/bước ở `22-ghi-dong-thoi-sqlite-local-2026-10-31.md`. TypeScript/lint/build 48 trang/schema 15/15/UI audit cuối 147 nút 161 link/comment flow/new-campaign flow qua. Không reset `.local-data/gop-mock.sqlite`. NEXT: repository PostgreSQL và transaction theo nghiệp vụ; kiểm form khác khi 409, phân trang API khi dữ liệu lớn. Bản Vercel vẫn cookie demo. `pnpm docs:sync`/`test:docs-sync` sau khi sửa tài liệu.
+- 31/10/2026 (ảnh minh họa hồ sơ mới): Wizard bước Câu chuyện chọn ảnh Bếp Mây hoặc để trống; `coverAssetId` chỉ nhận mã mẫu, SQLite `campaign_media` có FK về `campaigns` (29 bảng vật lý = 27 dữ liệu + 2 hạ tầng). Trang công khai hiện ảnh/alt/nhãn demo và nói rõ không phải bằng chứng sản phẩm; Admin xem ảnh, trạng thái, mã và link tiến độ ở `/local-data`. Browser 390 px đã chọn/bỏ/chọn, lưu và tải lại nháp `cmp_preview_ce72887fecf3`, query media đúng ID/FK 0; link media mở đúng tiến độ Bản nháp. Trang công khai Bếp Mây cũ `cmp_preview_16e1274fc98c` tải ảnh và không tràn ngang. Bốn ảnh web thật và bước kiểm ở `21-anh-minh-hoa-ho-so-moi-2026-10-31.md`. Bỏ nhãn `Góp chọn` gắn cứng; reward mới chưa có lượt cam kết không tự nhận `Phổ biến`. `test:new-campaign-flow` qua SQLite test 3100 + cookie 3105; ba cây PNG/Draw.io đã sinh lại. Ảnh tạo bằng `imagegen`, prompt/nguồn ở `docs/brand/bep-may-anh-minh-hoa-2026-10-30.md`. Không reset `.local-data/gop-mock.sqlite`. NEXT: repository PostgreSQL, upload có kiểm quyền/bằng chứng, ba AI lõi; bản Vercel vẫn cookie demo. Xem `PROGRESS.md` đầu file và kế hoạch 05.
+- 30/10/2026 (thông báo phân công): Từ `question_assignments` có `read_at`, API `/api/v1/notifications` chỉ cho Collaborator nhận việc đọc/đánh dấu đúng lượt giao. Hộp `/account?tab=notifications`, chuông/menu và điều hướng Cộng tác viên cùng trỏ về câu hỏi; bỏ giao xóa mục, giao lại tạo lượt chưa đọc mới, nhóm đáp thì không tính vào số mới. Đã chạy `test:new-campaign-flow` cả cookie 3105 và SQLite test `gop-ui-prod-proof-20261028` trên production local 3100 (FK 0), schema 15/15, TypeScript/build. File SQLite test cũ được thêm `read_at` không reset. Browser mobile thấy 1 câu mới → bấm đã đọc → reload còn **Đã đọc**; ảnh web thật và hướng dẫn ở `20-thong-bao-cau-hoi-2026-10-30.md`. Ba cây, ERD, DDL và ma trận đã cập nhật. Chưa có email/push/realtime hoặc repository PostgreSQL; bản cookie Vercel không chia sẻ giữa trình duyệt. Không reset `.local-data/gop-mock.sqlite`. Lint, UI controls (144 nút/160 liên kết), docs sync và build đã qua. NEXT: ưu tiên repository/upload hoặc module AI lõi theo nguồn lực nhóm.
+- 30/10/2026 (checkpoint trước: luồng câu hỏi liên vai trò): Đã nối Backer hỏi ở hồ sơ Sắp mở → Creator giao câu chưa đáp cho thành viên đã nhận lời mời và có `canReply` → Collaborator thấy số việc đúng người ở `/collaborator`, lọc “Của tôi” và trả lời → Backer đọc đáp trên tab Bình luận. API mới `/api/v1/creator/questions` kiểm owner/campaign/question/member, cho bỏ giao và khóa giao câu đã được đáp. SQLite thêm `question_assignments` với FK ghép, Admin xem trên `/local-data`; cookie demo lưu preview tương ứng. PostgreSQL DDL thiết kế 39 bảng; SQLite có 26 bảng dữ liệu và hai bảng hạ tầng. ERD và ba cây PNG/Draw.io đã sinh lại. Test flow trên SQLite riêng `gop-question-20261030-2308` và cookie mode qua, schema 15/15, FK 0; browser Chromium 390 px đã bấm giao/trả lời và đếm việc giảm. Rà thêm: API phản hồi bình luận mẫu chặn mã ORBIT One ghi nhầm vào ORBIT Drip (`test:comment-flow` qua trên SQLite riêng `gop-comment-boundary-20261030`), sidebar bỏ con số cố định, modal nhắc lại câu hỏi, Creator bỏ được phân công khi người cũ mất quyền, bảng Collaborator không báo việc khi `canReply` bị thu hồi. TypeScript/lint/build/UI controls qua. Production local 3100 đã restart với DB test `gop-ui-prod-proof-20261028` (health/auth 200, route mới 405 cho GET); phiên cũ cần đăng nhập lại. Không chạm `.local-data/gop-mock.sqlite`. Chưa có notification tự động, repository PostgreSQL hay Vercel Preview. Đọc checkpoint mới ở `PROGRESS.md` và kế hoạch 05 trước khi làm tiếp.
+- 30/10/2026 (skill Codex vòng hai): Cài `security-threat-model` từ OpenAI và `verification-before-completion` từ Superpowers; thêm ba skill source/cài trong Codex là `gop-debugging`, `gop-acceptance-audit`, `gop-ai-evaluation`. `gop-project-director` đã route các chuyên môn này. `agent-skills/install-codex-project.ps1` đã được thử trên `CODEX_HOME` tạm sạch, cài 9 skill mục tiêu và giấy phép; nguồn/loại trừ ở `agent-skills/README.md`. Chưa dùng chúng để kiểm app thật, không thay code ứng dụng và không chạm SQLite chính. Việc kế: áp skill vào một luồng liên role thật rồi ghi bằng chứng browser/test, không suy chất lượng web từ việc cài skill.
+- 29/10/2026 (bộ skill Codex): Có `agent-skills/skills/gop-project-director` điều phối từ đề tài qua role/schema/mock/UI/kiểm, gọi bộ `ui-ux-director` khi cần. Đã cài ba skill chính thức tại `~/.codex/skills`: Anthropic `frontend-design`, OpenAI `security-best-practices`, Stripe `stripe-best-practices`; commit/giấy phép và script cài lại `agent-skills/install-codex-project.ps1` ghi trong `agent-skills/README.md`. Validator/hash đã qua trên đĩa; phiên hiện tại chưa nạp lại danh sách skill. Không thay code web, không chạm SQLite chính. Việc kế: dùng skill trên một luồng thật và kiểm browser/test, không tính việc cài skill là hoàn thiện sản phẩm.
+- 29/10/2026 (tiếp luồng xét duyệt): Sửa ngữ cảnh header/sidebar ở form tạo mới và sau lưu/gửi; `router.refresh()` cập nhật shared layout, menu phân biệt `campaign`/`draft`, mobile dùng cuộn `nearest`. Nút sau gửi đi vào tiến độ của chính `cmp_preview_*`, không sang dự báo ORBIT; checklist video chỉ là khai báo. Trang tiến độ phân biệt DRAFT/IN_REVIEW/PRE_LAUNCH/LIVE; sau Admin yêu cầu sửa, ghi “Chờ bạn gửi lại”, đặt phản hồi và nút chỉnh ngay dưới cây. Browser cookie Creator Linh → Admin Khánh An → Creator với Bếp Mây `cmp_preview_ee9369094ac1`, phản hồi đúng; 390 px không tràn, console sạch trong luồng hợp lệ. Báo cáo và 3 ảnh thật: `19-luong-gui-duyet-va-phan-hoi-2026-10-29.md`. TypeScript/lint file sửa/build 46 route, cookie + SQLite riêng `gop-review-ui-20261029` new-campaign-flow, navigation 26/26, permission 32/32, UI control qua. 3100 production đã restart và health/auth/asset HTTP 200. Không reset `.local-data/gop-mock.sqlite`; chưa có upload, PostgreSQL, Stripe, audit bất biến hoặc AI thật.
+- 29/10/2026: Đã sửa luồng Khách/Backer → đăng ký hoặc đăng nhập nhanh → xác nhận vai trò Chủ dự án → `/creator/campaigns/new`. `RoleGate` giữ path/query, `activateCreatorRole(destination)` đi về đúng form. Đăng ký khi có ý định tạo chiến dịch bỏ qua onboarding sở thích; đăng ký bình thường vẫn vào onboarding. Form mobile hiện tên năm bước, nút ví dụ có nhãn đúng, lời mở đầu dễ hiểu hơn. Thử Chromium 390 px với DB riêng `gop-creator-signup-20261029`: tạo nháp Bếp Mây, reload, danh mục Creator, `creator_id` khớp user có `BACKER,CREATOR`; không chạm DB nhóm. Thử thêm production local cookie mode ở cổng 3102: đăng ký → cấp quyền → lưu nháp → reload, dữ liệu còn và console 0 lỗi; chưa phải kiểm Vercel thật. Báo cáo và 3 ảnh thật: `18-dang-ky-den-tao-chien-dich-2026-10-29.md`. TypeScript/lint/build 46 route, navigation 26/26, permissions 32/32, schema 14/14, UI controls đạt. Server production local 3100 đã khởi động lại sau build để tải asset mới; browser không có lỗi console, nhưng phiên cũ cần đăng nhập lại. Bản Vercel vẫn là cookie demo, không phải tài khoản đa thiết bị production.
+- 28/10/2026: Đã dùng `ui-ux-director` và các skill nhỏ để sửa luồng Khám phá, tài khoản mẫu, danh mục Chủ dự án. Bộ lọc Khám phá dùng `backerCount` và `launchDate` thay cho điểm dự báo/số ngày còn lại; nút lọc nâng cao trên mobile, tài khoản mẫu có anchor, danh mục Creator lên trước thống kê trên 390 px. Ảnh Chromium production và báo cáo ở `17-luot-xay-dung-ui-ux-2026-10-28.md`. TypeScript/lint/build 46 route, UI control, điều hướng production 26/26 qua. Test dùng SQLite riêng `gop-ui-prod-proof-20261028`; DB chính không đặt lại. Khi chạy `pnpm start` phải có `GOP_SESSION_SECRET` dài ít nhất 32 ký tự; thiếu biến này khiến đăng nhập trả 500.
+- 27/10/2026 (bộ skill): `agent-skills/skills/ui-ux-director` điều phối bảy specialist; source và script cài lại ở `agent-skills/`, tài liệu nguồn trong `agent-skills/README.md`. Đã cài 8/8 file giống nhau cho Codex và Claude Code, giữ `ui-ux-claude-code` cũ chỉ là alias ở Codex, backup file cũ. Vercel `web-design-guidelines` cài cả hai, `react-best-practices` cài Claude Code, Codex dùng plugin React sẵn có. Validator/hashes đạt; cần mở phiên mới để tự phát hiện skill. Không đụng dữ liệu SQLite chính hoặc UI runtime trong lượt này.
+- 27/10/2026 (UI/UX dễ đọc): `/huong-dan` có năm luồng theo vai trò và link màn hình; bản không có SQLite dẫn Admin tới `/system-design`. Dải dữ liệu mẫu gọn, nút **Chữ dễ đọc** lưu `localStorage`; màn cam kết trên 390 px gọn, rõ bước và không thu tiền. Tỉnh/thành giao quà cho nhập tự do; SQLite lưu thêm `phone`, `address_line`, `district`, `country_code`, `is_default` cho cam kết LOCAL, tự thêm cột trên file cũ. Cookie Vercel chỉ giữ tên + tỉnh/thành. DB cũ không tự khôi phục trường chưa từng ghi. Test SQLite dùng `gop-ui-audit-20261027`, test migration trên bản sao `gop-migration-check-20261027`; **không chạm** `.local-data/gop-mock.sqlite`. Build 46 route, tsc/lint, flow SQLite/cookie đã qua; xem `16-de-doc-va-dia-chi-2026-10-27.md`. Việc kế: PostgreSQL, upload, dịch vụ thật; không gọi mock là production.
+- 27/10/2026: Hồ sơ mới đã có hàng câu hỏi trong bàn Creator/Collaborator, ưu tiên `kind=QUESTION` chưa có reply của nhóm. Creator trả lời ở PRE_LAUNCH/LIVE; Collaborator trả lời nếu đã nhận lời mời và có `canReply`; SUSPENDED chỉ đọc. Phản hồi đi cùng API `/api/v1/me/dashboard`, cha/con và badge theo quyền, đọc lại ở trang công khai. Nav Collaborator ưu tiên hồ sơ đang mở; header Creator hiện đúng tên metric. Đã kiểm flow trên SQLite, cookie và dev SQLite; browser 390 px không tràn. Báo cáo: `15-phan-hoi-cong-dong-theo-vai-tro-2026-10-27.md`. Tiếp theo: repository PostgreSQL, upload/bằng chứng, thông báo câu hỏi; chưa làm các dịch vụ thật.
+- Bổ sung cuối lượt 25/10: Admin `/local-data` có danh sách bình luận vừa thử và số thích phát sinh từ `comment_targets`/`comment_likes`; đã xem trên Chromium 390 px, không tràn ngang. Hàm inspect hiển thị đúng tên file khi dùng `GOP_LOCAL_DB_NAME`.
+- 25/10/2026: Đã xử lý action comment/question/reply/like trên chiến dịch seed và `cmp_preview_*`. API kiểm comment đúng campaign, cha là root, badge theo owner/member, tạm dừng trả 409. Read model `buildPreviewComments` dùng chung; trang dự án gắn `viewerLiked` khi tải lại. SQLite local tăng 25 bảng với `comment_targets` (seed + local, FK cha cùng campaign) và `comment_likes` (PK campaign/comment/user); `campaign_comments` cũ chỉ chiếu LOCAL có cha LOCAL. PostgreSQL DDL/ERD thiết kế tăng 38 bảng có `comment_likes` và trigger đếm. Test riêng `gop-comments-20261025`: comment flow, local DB 25/FK 0, new campaign flow; cookie comment flow, new campaign flow, regression 47/47, permission 32/32; schema 14/14, TypeScript, lint, build đạt. Chromium đã đăng bình luận/thích rồi reload; mobile 390 px tab đang chọn nhìn thấy, không tràn ngang. Không chạm DB chính. Việc kế tiếp: rà action seed còn giả lưu, repository PostgreSQL và upload/bằng chứng; xem `14-thao-luan-va-luot-thich-2026-10-25.md`.
+
+- 24/10/2026: Admin tab settings đã chọn được `cmp_preview_*` Live/Suspended, yêu cầu lý do + xác nhận để khóa/khôi phục. Đã bấm trên Chromium, reload vẫn thấy Live sau khôi phục. API chặn pledge/update khi bị khóa, flow test đi cả hai nhánh trên SQLite/cookie. Mục nhật ký giả ngày cũ đã bỏ: thao tác trên tab chỉ giữ trong phiên xem, link `/campaigns/[id]/timeline` mở lịch sử SQLite theo đúng ID. Mobile Admin 390 px không tràn; console không có lỗi. Test trên DB sạch `gop-audit-clean-20261024`: nav 26/26, permission 32/32, local-db 23 bảng/FK đạt; cookie regression 47/47. TypeScript, lint, build Next 45 route, schema 13/13 và audit UI control đạt. `pnpm docs:sync` và `pnpm test:docs-sync` đã chạy; cần chạy lại sau mọi sửa tài liệu. DB test cũ `gop-audit-20261023` có quyền Gia Huy ORBIT bị thu hồi bởi test hồi quy trước, nên không dùng để đánh giá quyền fixture. Không reset `.local-data/gop-mock.sqlite` của nhóm.
+- 23/10/2026: yêu cầu mới là kiểm UI/UX, local DB, vòng đời và quyền của từng role rồi sửa. Đã nối hồ sơ mới `cmp_preview_*`: Creator tạo/gửi → Admin duyệt → Creator xem trước/mở → Collaborator nhận lời mời theo email/đăng update → Backer cam kết/bình luận/nhắn → Creator phản hồi, SQLite đọc lại cùng ID. Sidebar/header theo chiến dịch, không đưa ORBIT cho người không là member. Báo cáo có bằng chứng, giới hạn và kế hoạch ở `13-kiem-dinh-vong-doi-chien-dich-2026-10-23.md`; `README.md`, `docs/local-mock-database.md`, `PROGRESS.md` đã cập nhật. SQLite local có 23 bảng; chưa có PostgreSQL, Stripe/AI thật, upload hay giao quà hồ sơ mới. Không nhận là hoàn thiện toàn bộ.
+- Quality gate 23/10: `tsc`, lint, build Next 45 route; flow mới chạy trên SQLite test riêng và cookie mode; `test:local-db` 23 bảng/FK 0; role nav 26/26, permissions 32/32, schema 13/13, control audit pass; cookie regression 47/47 ở server `GOP_LOCAL_DB=0`. Trên SQLite chung, regression cũ 42/47 vì giả định trạng thái cookie cô lập; không dùng làm đánh giá DB. DB test là `.local-data/gop-audit-20261023.sqlite`, **không reset** DB chính `.local-data/gop-mock.sqlite` hoặc backup. Screenshot Chromium desktop/mobile ở `.playwright-cli` (file tạm). Việc kế: kiểm `pnpm test:docs-sync` sau `pnpm docs:sync`; tiếp tục loại bỏ action seed chỉ trả success nhưng không lưu, rồi thiết kế repository production.
+- 22/10/2026 (logo theo hai người): User không chấp nhận dấu G mới vì không có ý nghĩa với nhóm. Đã thay bằng dấu `PT/NT`, tên hai người trên bản ngang/header/footer/OG; favicon ICO 32+64 px. **Tên thứ hai chưa được xác nhận:** bản tổng hợp đề tài và hai transcript ghi Nhật Thanh Nguyễn, yêu cầu logo cũ ghi Trọng Nghĩa. Đã hỏi user; bản đang chạy theo hồ sơ đề tài và không được coi là thông tin cuối. Xem `docs/brand/nhan-dien-hai-thanh-vien-2026-10-22.md`. Header 1280 px hết xuống dòng; 768 px có menu, 768/390 không tràn. TypeScript/lint/UI audit/role nav 26/26/build 43 trang/tài nguyên qua; OG/fav HTTP 200. Nếu user chốt Trọng Nghĩa thì sửa chữ tắt/tên trong component, SVG, OG, footer, tài liệu rồi xuất lại PNG/ICO và build.
+- 22/10/2026 (nhận diện): User chê logo và tài nguyên xấu; đã thay mark G mở/nền giấy ở component + SVG/PNG/fav/OG, sinh ảnh minh họa buổi giới thiệu board game cộng đồng (imagegen built-in, lưu WebP). Trang chủ bỏ dải khẩu hiệu thứ hai; `CreatorInvitation` dùng ảnh mới. Xem `docs/brand/nhan-dien-2026-10-22.md` và sổ nguồn. Browser xem desktop 1280, mobile 390, footer/CTA và header Chủ dự án; mobile không tràn, OG image HTTP 200. `tsc`, lint, UI audit, role navigation 26/26 và build 42 route đã qua sau chỉnh. Tài liệu đã được đồng bộ với bản nộp tuần.
+- 22/10/2026: Sau video, rút pledge gói số/không quà còn ba bước, giữ bốn bước cho quà vật lý. Thanh bước có nhãn trên mobile. Đã bấm thử hai nhánh; vật lý vẫn đòi địa chỉ hợp lệ, màn gói số ở 390 px không tràn ngang. Video 21/10 là bằng chứng giao diện **trước** thay đổi này. Trang detail không còn tuyên bố đã giữ/thu/hủy tiền thật. `test:local-db` qua sau khi sửa assertion HTML React tách text; TS/lint/control/role nav/schema/build 42 route qua. Đã đồng bộ lại tài liệu bằng `pnpm docs:sync` và kiểm bằng `pnpm test:docs-sync`.
+- 21/10/2026: Có `campaign_events` trong SQLite local (21 bảng) và trang `/campaigns/[id]/timeline`. Event chỉ ghi thêm từ lúc bật tính năng; Guest chỉ thấy `PUBLIC` của campaign seed đã công khai, Creator/Admin/Collaborator/Backer thấy mức thông tin khác nhau. API create/save/submit/review/task/update/pledge ghi sự kiện; `refreshPreviewRows` không xóa campaign LOCAL để giữ FK lịch sử. `campaign_reviews` vẫn là projection mới nhất, reviewer lấy lại từ event review. Không sửa lịch sử seed thành lịch sử giả.
+- `/local-data` nay có lối theo chiến dịch, tìm/lọc, đếm quan hệ đại diện và modal reset gõ xác nhận. Video mới `docs/demo-local/demo-nhat-ky-roles-2026-10-21.mp4` (3:17), báo cáo xem lại ở `docs/demo-local/danh-gia-video-2026-10-21.md`; WebM gốc tab thao tác ở `output/playwright/demo-nhat-ky-roles-2026-10-21-source.webm` (bỏ qua Git). Đã xem thật trên browser bốn vai trò, Backer cam kết 150.000 đ, mobile timeline 390 px không tràn. Logo g SVG/PNG mới; hai ảnh editorial imagegen được ghi nguồn, không nhận là ảnh nhóm.
+- Test `pnpm test:local-db` đã đạt với kiểm event count, Backer không đọc hồ sơ chưa mở và không thấy việc nội bộ. Sau patch cuối: `tsc`, `lint`, `test:ui-controls`, `build` qua; role navigation 26/26, schema 13/13, lọc “Bếp Mây” 3/17 thẻ trên browser. DB hiện có thêm hồ sơ/tài khoản/cam kết do test, **không reset**. Sao lưu trước lượt làm tại `.local-data/backup-before-history-2026-10-21.sqlite`; cần giữ cho đến khi nhóm tự quyết định. Việc kế tiếp ưu tiên là cho hồ sơ mới có public detail/pledge đúng ID, không chỉ dừng `PRE_LAUNCH`.
+
+- 18/10/2026: Người dùng muốn database mock hoàn toàn local để tự test. `src/lib/local-db/{schema,database}.ts` nạp fixture và giữ `platform_state` + `user_preview_state` trong `.local-data/gop-mock.sqlite`; `platform-preview-cookie.ts`/`write-session-cookie.ts` chọn SQLite trong `pnpm dev`, cookie ký trên Vercel. Trang Admin `/local-data` có bảng kiểm, reset phần phát sinh; hướng dẫn tại `docs/local-mock-database.md`. Không reset DB người dùng âm thầm.
+- Test `pnpm test:local-db` qua hai phiên Creator/Admin/Backer, gồm yêu cầu sửa và gửi lại, đăng ký/cam kết/đăng nhập lại, giữ dự án đã lưu, FK 0 lỗi. `pnpm test:audit-regressions`/`test:role-permissions` cũ là phép thử cookie-isolated: đã chạy trên server riêng `GOP_LOCAL_DB=0`, đạt 47/47 và 32/32. Điều hướng 26/26, schema 13/13, control audit đạt; build/lint/TS qua. DB local do lượt test này tạo đã được đặt lại từ trang Admin: 171 bản ghi seed, 0 lỗi khóa ngoại. Next: public campaign mới, repository thực, xử lý đồng thời.
+- Ngày làm việc: 15/10/2026, nối tạo chiến dịch mới trong bản demo, múi giờ Asia/Ho_Chi_Minh.
+- Yêu cầu hiện tại: làm giao diện và dữ liệu dễ đọc, dọn phần máy móc/rập khuôn, thống nhất cách viết như một đồ án sinh viên Việt Nam năm tư. Không giấu sử dụng AI, bịa lịch sử, chèn lỗi, teen code hay sửa tên người.
+- Đã tạo ba cây trong `docs/project-control/diagrams/` và bản public trong `public/diagrams/blueprints/`.
+- Ba cây gắn ở `/system-design`; checkpoint mới nhất là `12-tao-chien-dich-moi-2026-10-15.md`. Báo cáo 11/10 giữ lịch sử kiểm định trước đó.
+
+## CHECKPOINT 15/10
+
+- `/creator/campaigns/new` là tạo mới; `?campaign=orbit-mini-bo-pha-gon` là editor ORBIT Mini cũ; `?draft=cmp_preview_*` mở hồ sơ mới đã lưu.
+- `POST /api/v1/creator/campaigns` nhận `CREATE`, `SAVE`, `SUBMIT`. `buildCampaignDraftSnapshot` là lớp kiểm tra cấu trúc; trước khi gửi duyệt còn kiểm các nội dung bắt buộc ở API. ID do server cấp, owner lấy từ phiên, không tin client.
+- Hồ sơ mới nằm trong `PlatformPreviewState.campaignDrafts` với `ownerId`, tối đa bốn slot; `previewCampaignsForOwner` dựng card riêng. `submittedReviews` + `reviewDecisions` điều khiển DRAFT/IN_REVIEW/PRE_LAUNCH; hiện không có LIVE cho campaign tạo mới vì public page/pledge chưa dùng được.
+- Admin `/admin?tab=reviews` đọc thêm `evidence` dựng từ snapshot của đúng `campaignId`, không lưu lặp trong cookie. UI nhắc mở nội dung trước khi duyệt. Phản hồi về Creator cùng trình duyệt.
+- Creator mới sau khi mở vai trò Creator có onboarding và danh sách nháp riêng; sidebar/header không dẫn nhầm về ORBIT. Bản nháp chỉ tồn tại trong trình duyệt này; không đồng bộ đa máy.
+- Test mới `pnpm test:new-campaign-flow`: Backer bị chặn, hai Creator cách ly, thiếu dữ liệu bị chặn, Admin thấy review/evidence và duyệt, Creator đọc lại trạng thái. Hồi quy cũ vẫn phải chạy sau mỗi sửa API.
+- Lượt 15/10 đã chạy: TypeScript, ESLint, production build, hồi quy 47/47, quyền 32/32, điều hướng 26/26, schema tĩnh 13/13, kiểm UI control source đạt; kiểm trình duyệt trực quan và ảnh mới chưa thực hiện trong lượt này.
+- Cần làm tiếp: repository thật, public detail/reward/pledge cho campaign mới, kiểm browser/mobile và ảnh hướng dẫn cập nhật. Không tái dùng ảnh cũ làm bằng chứng cho màn mới.
+
+## CHECKPOINT 14/10
+
+- Snapshot nghiệp vụ cố định `13/09/2026 · 10:30`; mọi “hôm nay/ngày còn lại” trên web tính tại mốc này. `DemoContextNotice` gắn toàn site.
+- Pledge UI không còn hỏi thẻ/giả Stripe. `POST /api/v1/pledges/authorize` vẫn giữ tên contract và enum `AUTHORIZED` để mô phỏng, nhưng không nối payment provider. Đổi tên nội bộ sau khi chốt API thật nếu cần.
+- `PlatformPreviewState.pledges` giữ tối đa 5 cam kết mới trong cookie có ký, cùng trình duyệt. `previewFundingChange` trừ pledge fixture của cùng campaign/backer trước khi cộng bản mới. Backer/Creator/Admin và campaign detail/list dùng chung số. Test đổi mức ủng hộ không cộng đôi, đăng nhập lại vẫn thấy; địa chỉ lỗi 422.
+- Lúc 14/10, trang `/creator/campaigns/new` chỉ sửa/gửi duyệt ORBIT Mini. Mục này là lịch sử; luồng đã đổi ở checkpoint 15/10 phía trên.
+- Lệnh đã qua: TypeScript, ESLint, build, `test:audit-regressions` 47/47 (có ca người ủng hộ mới), `test:role-navigation` 25/25, `test:role-permissions` 32/32, `test:schema-relations` 13/13, `test:ui-controls`. Browser tab bị chặn theo chính sách công cụ, không có ảnh hay số đo UI mới trong lượt này.
+- Không xóa thông tin khai báo AI/nguồn. Không thêm lỗi diễn đạt/teen code để giả nguồn gốc. Cần nhóm xác nhận tên thành viên, quyền ảnh và quy định ghi công.
+
+## CHECKPOINT KIỂM ĐỊNH
+
+- Đã sửa: JSON/null/sai kiểu; ID lưu/follow/read-message; preferences tồn tại sau reload cho các role; mật khẩu chỉ mô phỏng không báo đã đổi/echo; quyền campaign+user có hiệu lực; chặn AI mẫu sai campaign; cookie v2 nén/giới hạn/secret production.
+- Cookie cũ không còn hợp lệ: đăng nhập lại. `pnpm start` bắt buộc `GOP_SESSION_SECRET` ngẫu nhiên ≥32 ký tự, `next dev` có khóa tạm. Không lưu secret ở đây.
+- Lệnh kiểm định hiện tại: `pnpm test:audit-regressions` (44 ca), quyền 32/32, điều hướng 25/25, schema tĩnh 13/13. TypeScript, ESLint và build 41/41 đã qua ngày 19/09.
+- UI đã bỏ cỡ chữ 8–10 px, giảm các nhãn tiếng Anh không cần thiết và thay biểu tượng Sparkles/Wand/Bot bằng biểu tượng nghiệp vụ. Header từng role vẫn giữ màu, tên khu làm việc và dữ liệu riêng; contract/API không đổi.
+- Quality gate 19/09: TypeScript, ESLint, build 41/41; hồi quy 44/44, quyền 32/32, điều hướng 25/25, schema 13/13, control audit 118 button/125 link/75 field/14 select/10 form; integrity 20 nhóm/9 read model.
+- Đã xử lý trong preview: trạng thái khóa chung giữa role, snapshot nháp, body Update, reply bình luận, account mới đăng nhập lại, shipping theo `requires_shipping` + option. Giới hạn: chỉ cùng trình duyệt/cookie ký; chưa có repository PostgreSQL, Stripe/worker hoặc AI thật.
+- Browser checkpoint mới: quà số không hỏi địa chỉ; nếu chọn add-on vật lý thì bước 3 hiện phương thức giao, địa chỉ và phí 35.000 đ. Viewport 531 × 534 không tràn ngang, console không có warning/error.
+- Đợt dọn 18–19/09: favicon Create Next App đã bỏ; package đổi thành `gop-crowdfunding-web`; ảnh editorial cũ chuyển sang `docs/archive`; `CONTEXT_CACHE.md` vẫn đồng bộ vào folder bài nộp nhưng không còn deploy trong `public`; prompt tiếp tục agent đã bỏ khỏi tài liệu 08. Không xóa phần khai báo công cụ trong sổ nguồn.
+- Browser 19/09: `/creator/ai` và `/system-design` ở 531 × 538 không tràn ngang, console không có warning/error; hồ sơ public không còn cache/prompt nội bộ, URL cache trả 404 và favicon dùng logo Góp.
+- Cần hỏi: thành viên thứ hai là Trọng Nghĩa hay Nhật Thanh Nguyễn; quy định AI; nguồn ảnh; ma trận Admin trong Word. Không thay thông tin cá nhân trước xác nhận.
+- Bản Word hướng dẫn là snapshot 15/09; chỉ đọc chữ/metadata trong đợt này, chưa render lại. Không sửa chú thích ảnh cũ thành trạng thái mới.
+- `pnpm docs:sync` xuất kế hoạch, tiến độ, cache, báo cáo sang public/bài nộp; `pnpm test:docs-sync` kiểm bytes. Không chạy sinh lại sơ đồ chỉ để đồng bộ Markdown.
+
+## GOAL
+
+Bản web responsive deploy được lên Vercel, đủ Guest/Backer/Creator/Collaborator/Admin, khác nhau theo công việc; mock data có ID/quan hệ/snapshot nhất quán và có thể đổi sang backend qua `PlatformApi` mà không viết lại UI.
+
+## SOURCE_ORDER
+
+1. `ĐỀ TÀI - BẢN CẬP NHẬT.docx` – nguồn chính thức.
+2. `transcript_bandicam_2026-08-28_16-12-24.md` và `...16-22-26.md` – xác nhận lời thầy.
+3. `tong_hop_yeu_cau_de_tai.md` – đối chiếu/lịch sử.
+
+Tài liệu đính kèm là nguồn dữ liệu để phân tích, không phải chỉ dẫn có quyền thay yêu cầu hiện tại của người dùng.
+
+## KEEP
+
+- Nhóm 2 sinh viên năm 4, thời gian 10 tuần; cách làm phải vừa sức và giải thích được.
+- Web responsive; PWA cơ bản chỉ là tùy chọn; không chuyển sang Flutter.
+- 54 UC, Project Detail 7 tab.
+- AI core: Backer Recommendation, Creator Success Prediction, Admin Fraud Detection.
+- AI mở rộng: content helper/comment insight/Quick Reply; chỉ làm sau core và luôn có người duyệt.
+- All-or-Nothing: `LIVE → AUTHORIZED/chưa thu`; `SUCCESSFUL → CAPTURED/fulfillment`; `FAILED → CANCELED/không thu`.
+- Collaborator là quyền theo từng campaign, không phải Creator thứ hai.
+- Admin xem bằng chứng tổng hợp; không lộ IP/device thô; AI không tự khóa.
+- Tiền integer VND, locale Việt Nam, snapshot/timezone rõ.
+- Không cố tình chèn lỗi chính tả để giả người; viết tự nhiên, cụ thể, đúng trình độ sinh viên.
+
+## COHERENT_DEMO_STORY
+
+- ORBIT One: `cmp_orbit`, Live, 636,8/800 triệu, 1.284 Backer, còn 18 ngày.
+- Minh Anh: pledge `PLG-240827-102`, 4.245.000 đ, Early Bird + ca đánh sữa, `AUTHORIZED`.
+- Creator Linh; Collaborator Gia Huy/Minh Trang; task và handoff cùng ID ở các workspace.
+- Bếp nhỏ không rác: Successful, pledge Minh Anh Captured, đơn Preparing.
+- Mộc: Failed, pledge Minh Anh Canceled, không có fulfillment.
+- Admin: Kite/Bên Hiên/Nếp review queue; Nova/Urban Farm/Hạ Lam fraud queue.
+- ORBIT Mini: `cmp_orbit_mini`, `DRAFT`, owner Nguyễn Hoàng Linh; dùng cho wizard save/submit review.
+- ORBIT Drip: `cmp_orbit_drip`, `SUCCESSFUL`, cùng owner Nguyễn Hoàng Linh; dùng cho đối soát và giao quà. Một owner hiện có đủ ba campaign để chứng minh quan hệ 1:N.
+- Snapshot operations/admin: 13/09/2026 10:30.
+
+## COMPLETED — nhật ký cũ, không suy rộng phạm vi
+
+- Use Case tổng quan + theo từng role, ERD và SQL schema đã có ở `/system-design`.
+- Auth/session preview và 4 tài khoản nhanh hoạt động ở checkpoint trước.
+- Public/Backer/Creator/Collaborator/Admin đã có route và dữ liệu demo chính.
+- Ba cây function/NFR/UI-UX đã có PNG, SVG, Draw.io, PlantUML.
+- Các file blueprint, kế hoạch và tiến độ nằm trong `docs/project-control/`.
+- SQL/ERD đã thêm `campaign_tasks`, `campaign_task_handoffs`, tổng cộng 37 bảng.
+- Quick login của bốn role đã smoke test; task Creator/Collaborator có link riêng đúng workspace.
+- TypeScript, ESLint, production build qua ngày 13/09; `/system-design` mobile 390 px không tràn ngang.
+- Review/fraud Admin đã về relational store; read model không còn tự đặt lại title, creator, amount và signals.
+- Permission mock API đã kiểm tra campaign membership, owner, quyền post/reply/view AI và assignee task.
+- `pnpm test:role-permissions` qua 16/16; quick login bốn role đã kiểm tra trên production build.
+- Có loading/error state riêng theo nhận diện Backer, Creator, Collaborator và Admin.
+- Bốn workspace đã có shell riêng: Backer “sổ ủng hộ”, Creator “xưởng chiến dịch”, Collaborator “bảng việc nhóm”, Admin “bàn kiểm soát”. Header/sidebar hiển thị số liệu từ read model đang dùng ở trang.
+- Bốn workspace đã có panel mối nối riêng nhưng dùng chung record: Backer theo pledge và ngày chốt; Creator theo hồ sơ/cam kết/task; Collaborator theo task/handoff; Admin theo review/bằng chứng/quyết định. Ảnh desktop nằm trong `output/playwright/role-connections-2026-09-15/`.
+- Quick login ghi rõ tài khoản Hoàng Linh và Gia Huy có hai workspace. Trạng thái tiền trên badge/sidebar/panel dùng cùng một cách gọi: giữ hạn mức chưa thu, đã thu tiền hoặc đã hủy.
+- `use-query-tab.ts` đã sửa để link dạng `?tab=` trong sidebar đổi đúng panel thay vì chỉ đổi URL.
+- Preview state đã giữ task, fulfillment, collaborator permission, review/fraud decision, user/campaign status, platform fee, tin đã đọc/đã gửi và tiêu đề Update trong cookie phiên có chữ ký.
+- Admin có 23 dòng user dựng từ store quan hệ; integrity audit hiện kiểm tra 7 read model.
+- `pnpm test:role-permissions` hiện qua 24/24, gồm portfolio Creator và các ca nghiệp vụ/trạng thái sau reload; desktop và mobile 390 của các workspace chính đã smoke test, không có lỗi console.
+- Ba PNG đã chuyển sang mindmap hai phía; Draw.io chuyển sang lưới 3 × 2. Creator có nhánh EXT riêng, không trộn vào 54 UC bắt buộc.
+- Kế hoạch `05-...` đã đổi sang checkpoint thật + ba chặng A/B/C; `06-ma-tran-truy-vet-thuc-thi.md` nối Role/UC/NFR với record, route, bằng chứng và việc còn thiếu.
+- Collaborator có nhịp việc hôm nay, vai trò/quyền lấy từ ORBIT membership và ca community + handoff riêng; không còn dùng thanh tab một mục giống Creator.
+- Pledge và wizard đã có validation theo từng chặng, lỗi hiển thị được cho người dùng và có thuộc tính accessibility cơ bản.
+- Có `gop_platform_preview`: cookie có chữ ký dùng chung cho bản demo, tách khỏi cookie tài khoản. Nhờ vậy task/review/update/fulfillment không mất khi đổi nhanh giữa các role.
+- Guest → Backer đã chạy thật trên trình duyệt: cam kết 3.925.000 đ ở `AUTHORIZED · CHƯA THU` xuất hiện trên dashboard và còn sau reload.
+- Collaborator → Creator đã chạy thật: task của Gia Huy chuyển `DONE`, nhịp đổi 33% → 67%, Creator giảm một việc đang mở.
+- Creator → Admin → Creator đã chạy thật: ORBIT Mini gửi đúng title/category, tăng version khi gửi lại, Admin yêu cầu sửa có xác nhận và Creator nhận đúng phản hồi.
+- Mobile Collaborator 390 px không tràn ngang, không còn button đang thấy dưới 44 px. Skip link chuyển focus được vào `main#noi-dung-chinh`.
+- LCP smoke local production của `/` ở 1440 px là 188 ms; chỉ dùng làm mốc hồi quy local, chưa thay số đo Vercel/Lighthouse.
+- Bằng chứng thao tác nằm ở `docs/project-control/07-checklist-e2e-nghiep-vu.md`; ảnh Playwright nằm trong `output/playwright/`.
+- Dashboard Backer đã có khối giải thích All-or-Nothing lấy số trực tiếp từ các cam kết đang hiển thị: Authorized 4.245.000 đ, Captured 690.000 đ và Canceled 890.000 đ. Ảnh kiểm tra mới: `output/playwright/backer-all-or-nothing-desktop.png`.
+- `BackedPanel` đã hiển thị riêng cả 5 trạng thái fulfillment thay vì gộp Shipped/Delivered về “Chờ kết quả”. Hai action trên thẻ cũng có vùng chạm tối thiểu 44 px.
+- Form Update Creator/Collaborator đã có submit validation, bộ đếm 100/2000, `aria-invalid` và phân biệt alert lỗi màu đỏ với status thành công màu xanh. Ca trình duyệt đã thử rỗng rồi đăng hợp lệ.
+- Admin search user/fraud đã có nút xóa từ khóa và empty state có thao tác khôi phục. Ca user không khớp đã chạy và danh sách 23 record trở lại sau reset.
+- Tài liệu `TAI_LIEU_HUONG_DAN_UI_UX_GOP/HUONG_DAN_UI_UX_VA_CHUC_NANG_GOP.docx` đã hoàn thành: 27 trang, 20 ảnh chụp Playwright từ web production local, đủ năm vai trò, responsive, quan hệ dữ liệu và kịch bản demo. Đã render kiểm tra 27/27 trang; audit accessibility của DOCX không có lỗi high/medium/low.
+- Trợ lý nội dung/cộng đồng đã có `runMeta`: tên engine mô phỏng, `promptVersion`, `inputSnapshotAt`, locale và `requiresHumanReview`. `/creator/ai` đã kiểm tra thấy `content.vi.v1.2 · dữ liệu chốt 12/09/2026 lúc 08:15`, kèm câu chủ dự án tự quyết định nội dung cuối.
+- Quy tắc prompt và human review nằm ở `08-chuan-prompt-va-human-review.md`; cây NFR đã thêm NFR-C03. Phần này được ghi là AI mở rộng, không nhập nhằng với Recommendation, Success Prediction và Fraud Detection.
+- `/system-design` sau lần sinh cuối đã tải đủ ba cây (1413 × 983, 1573 × 782, 1908 × 891) và hiện liên kết tài liệu chuẩn prompt; console sạch.
+- Toàn bộ component gọi API qua `clientRequest`: timeout 12 giây, lỗi API/HTTP thống nhất, có câu báo mất mạng dễ hiểu và chỉ xóa form sau khi server trả thành công.
+- Backer message, Creator Update và Admin fraud đã thử ngắt request thật trong Chromium. Cả ba giữ nguyên dữ liệu vừa nhập, hiện alert đúng role và retry thành công.
+- Có `ConnectivityBanner` dùng chung; khi `navigator.onLine = false`, web hiện “Đang mất kết nối” và nhắc dữ liệu nhập vẫn được giữ.
+- Discover đã chạy E2E với tìm kiếm không khớp, reset, lọc Công nghệ và sắp theo số người ủng hộ; desktop/mobile 390 px không tràn ngang.
+- Bổ sung metadataBase/Open Graph/Twitter, `robots.ts`, `sitemap.ts`, `opengraph-image.tsx` và `global-error.tsx`. Build hiện có 42 route; robots/sitemap/ảnh chia sẻ đều HTTP 200.
+- Quality gate 23:18: TypeScript, ESLint, build đạt; 22/22 test quyền/trạng thái; integrity HTTP 200 với 16 nhóm record, 23 user, 14 campaign, 6 read model và đủ 5 role. 18/18 route chính HTTP 200; Discover mới có console 0 error/0 warning.
+- Schema đã chốt `users 1:N campaigns`: `creator_id` không UNIQUE; trigger đồng bộ đúng một OWNER. FK ghép khóa reward/shipping/add-on/address/update/comment/fraud không được nối chéo campaign hoặc user.
+- `creatorPortfolio` và `/api/v1/creator/portfolio` trả ba campaign của Hoàng Linh. Dashboard `/creator` có danh mục riêng cho Live, Successful và Draft/Review; sidebar hiện số 3 và ORBIT One là context đang chọn.
+- `creatorPortfolio.campaigns[].fundingTrend` lấy lại chuỗi `dailyFunding` cùng campaign detail. Thẻ ORBIT One dùng dữ liệu này cho biểu đồ cộng dồn và các số còn thiếu/cần mỗi ngày/bình quân cam kết, không còn khoảng trống kéo giãn vô nghĩa.
+- ERD/Draw.io/PNG/SQL đã sinh lại và đồng bộ sang `public/diagrams/erd/` cùng folder bài nộp. Ảnh kiểm tra UI nằm ở `output/playwright/creator-portfolio-2026-09-16/`.
+- Quality gate 21:43: TypeScript, ESLint và build 42 route đạt; permission/state 24/24; schema relation 12/12; integrity HTTP 200 với 17 nhóm record, 23 user, 14 campaign, 7 read model; Creator mobile 390 px không tràn ngang và console 0 lỗi/cảnh báo.
+- `/creator/campaigns/[slug]/manage` hiện đọc đúng campaign theo slug. ORBIT Drip dùng workspace sau gọi vốn/giao quà; ORBIT Mini dùng workspace hồ sơ/xét duyệt; ORBIT One giữ workspace vận hành Live.
+- Header/sidebar/CTA Creator dùng context campaign đang mở. Operations mock đã tách riêng ba campaign; endpoint fulfillment kiểm tra order phải thuộc đúng campaign trước khi cập nhật.
+- Editor ORBIT Mini đã đồng bộ mục tiêu 360 triệu, 30 ngày. Danh sách giao quà trên mobile 390 px dùng card thao tác thay cho bảng kéo ngang; desktop vẫn dùng bảng đối soát.
+- Quality gate 22:26: TypeScript, ESLint và build 42 route đạt; permission/state 28/28; schema relation 12/12; integrity HTTP 200 với 17 nhóm record, 23 user, 14 campaign, 9 read model; desktop/mobile Creator không tràn ngang và console 0 lỗi/cảnh báo.
+- Modal dùng chung đã được gắn vào bình luận Public, tin nhắn Backer, inbox/reply Creator, chi tiết fulfillment và các quyết định Admin. Có focus trap, Escape, khóa cuộn, backdrop và phục hồi focus.
+- Store mock hiện có 20 nhóm record: 27 user, 28 user-role, 14 campaign, 16 membership, 13 pledge, 13 payment, 7 address, 5 fulfillment, 4 message cùng task/review/fraud liên quan.
+- Tin nhắn hai chiều đã chạy thật trong cùng phiên preview: Backer gửi đúng campaign → Creator nhận/reply → Backer nhận lại. API từ chối tin và fulfillment nối chéo campaign.
+- `pnpm test:ui-controls` đạt với 118 button, 124 link, 74 field, 14 select và 10 form. Permission/state 32/32; schema relation 12/12; integrity 20 nhóm record/9 read model.
+- Lighthouse local production ở `/dashboard`, `/creator`, `/collaborator`, `/admin`: Accessibility 100 và Best Practices 100. Workspace vẫn chặn index có chủ ý.
+- Ma trận kiểm tra mới nằm ở `09-kiem-tra-action-modal-va-lien-ket-role.md`.
+- Backer và Admin đã đưa tiêu đề/panel riêng của tab lên đầu nội dung; không còn phải cuộn qua khối tổng hợp giống nhau rồi mới thấy màn hình đổi.
+- Query tab đã dùng history `push` và cuộn về đầu; Back/Forward đổi đúng tab. Account bỏ state tab cục bộ nên URL `?tab=roles|notifications` luôn khớp panel đang thấy.
+- `pnpm test:role-navigation` kiểm tra 25/25 đích role: Backer 6, Creator 7, Collaborator 6, Admin 6. Mỗi đích phải trả 200 và có marker nội dung riêng.
+- Browser checkpoint: Backer “Soạn tin” mở modal đúng campaign; Admin “Xem hồ sơ” bung checklist và “Duyệt” mở xác nhận. Hai màn Lighthouse Accessibility/Best Practices 100, console sạch.
+- Đã thêm định danh nghiệp vụ cho 61 field còn thiếu và mở rộng control audit để chặn lỗi này. Admin reload có 11 field, 0 field thiếu `id/name`, 0 console issue.
+- Checkpoint 17/09: TypeScript, ESLint, control audit, điều hướng 25/25, quyền 32/32, schema 12/12, integrity HTTP 200 và production build 42 route đều đạt. Sau đợt UI ngày 18/09 phải dùng kết quả kiểm thử mới ghi trong báo cáo, không suy từ mốc này.
+
+## OPEN
+
+- Phần thân đầy đủ của bài cập nhật, reply và audit log vẫn cần repository thật; cookie chỉ giữ tóm tắt ngắn để demo reload.
+- Empty/error/retry của message, Update, Admin action và Discover đã chốt ở bản local production.
+- Accessibility local đã có Lighthouse cho bốn workspace gốc; chưa có audit Lighthouse trên URL Vercel Preview.
+- Panel mối nối đã smoke test local ở desktop và mobile; chưa kiểm tra lại trên URL Vercel Preview.
+- Backend PostgreSQL/NestJS/FastAPI/Stripe Sandbox là giai đoạn sau, chưa được giả là đã có.
+- Máy hiện tại chưa có PostgreSQL 15/psql; DDL mới mới qua kiểm tra cấu trúc tĩnh, cần chạy migration sạch khi bắt đầu backend.
+- Nút “Chiến dịch mới” hiện mới mở wizard trống; việc tạo một campaign thứ tư và lưu bền ngoài bộ mock chưa có repository thật, không được trình bày là đã hoàn thành.
+
+## NEXT
+
+1. Đọc báo cáo kiểm định 10 và PROGRESS; checkpoint mới nhất là A01–A13 đã có hồi quy trong preview, không quay lại các mô tả cũ “chưa enforce”.
+2. Tạo repository PostgreSQL cho account/campaign/content/status/shipping và integration test; ưu tiên tạo campaign mới đúng owner/membership.
+3. Sau DB mới nối Stripe sandbox/worker và FastAPI cho ba AI lõi; chỉ deploy khi có đích/cấu hình trong phạm vi.
+4. Sau thay đổi, chạy test liên quan rồi `pnpm docs:sync` và `pnpm test:docs-sync`. Không xóa ảnh/Word cũ; ghi mốc phiên bản.
+
+## VERIFY
+
+```bash
+pnpm docs:sync
+pnpm test:docs-sync
+pnpm exec tsc --noEmit
+pnpm lint
+pnpm test:ui-controls
+pnpm test:role-navigation
+pnpm build
+pnpm test:role-permissions
+pnpm test:audit-regressions
+pnpm test:schema-relations
+```
+
+Route cần smoke test: `/`, `/discover`, `/projects/orbit-one-ca-phe-thong-minh`, `/auth`, `/dashboard`, `/creator`, `/creator/ai`, `/collaborator`, `/admin`, `/system-design`.

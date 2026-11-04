@@ -60,7 +60,7 @@ export function WorkspaceLoading({
           </span>
           <div>
             <p
-              className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-lime" : "text-coral-dark"}`}
+              className={`text-[11px] font-bold uppercase tracking-[0.14em] ${dark ? "text-lime" : "text-coral-dark"}`}
             >
               {config.eyebrow}
             </p>

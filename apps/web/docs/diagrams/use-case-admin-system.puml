@@ -1,0 +1,90 @@
+@startuml
+title USE CASE CHI TIẾT — ADMIN & SYSTEM AUTOMATION (18 USE CASE)
+left to right direction
+skinparam dpi 180
+skinparam backgroundColor #FBFAF6
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam linetype ortho
+skinparam ArrowColor #53665D
+skinparam ActorBorderColor #102A22
+skinparam ActorFontColor #102A22
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseBorderColor #93A199
+skinparam UsecaseFontColor #10251E
+skinparam PackageBorderColor #CBD3CE
+
+actor Admin
+actor "Scheduler / Worker" as Worker
+actor "Stripe Sandbox" as Stripe
+actor "AI Service" as AI
+
+rectangle "GÓP PLATFORM" {
+  package "Moderation & Platform" {
+    usecase "UC-A01\nXem hàng chờ duyệt" as A01
+    usecase "UC-A02\nKiểm tra checklist" as A02
+    usecase "UC-A03\nDuyệt / yêu cầu sửa / từ chối" as A03
+    usecase "UC-A04\nKhóa / mở campaign" as A04
+    usecase "UC-A05\nKhóa / mở user" as A05
+    usecase "UC-A06\nXem doanh thu và dòng vốn" as A06
+    usecase "UC-A07\nCấu hình phí nền tảng" as A07
+  }
+
+  package "Fraud Review" {
+    usecase "UC-A08\nXem Fraud Queue" as A08
+    usecase "UC-A09\nXem fraud signals / evidence" as A09
+    usecase "UC-A10\nClear / Escalate alert" as A10
+  }
+
+  package "AI & Daily Jobs" {
+    usecase "UC-S01\nTổng hợp metric hằng ngày" as S01
+    usecase "UC-S02\nChạy live prediction" as S02
+    usecase "UC-S03\nChạy fraud scoring" as S03
+  }
+
+  package "All-or-Nothing Worker" {
+    usecase "UC-S04\nChốt campaign đến hạn" as S04
+    usecase "UC-S05\nCapture khi đạt Goal" as S05
+    usecase "UC-S06\nCancel khi không đạt Goal" as S06
+    usecase "UC-S07\nXử lý webhook idempotent" as S07
+    usecase "UC-S08\nGửi notification kết quả" as S08
+  }
+}
+
+Admin --> A01
+Admin --> A02
+Admin --> A03
+Admin --> A04
+Admin --> A05
+Admin --> A06
+Admin --> A07
+Admin --> A08
+Admin --> A09
+Admin --> A10
+
+A01 .> A02 : <<include>>
+A03 .> A02 : <<include>>
+A08 .> A09 : <<include>>
+A10 .> A09 : <<include>>
+
+Worker --> S01
+Worker --> S02
+Worker --> S03
+Worker --> S04
+Worker --> S08
+S01 .> S02 : <<include>>
+S02 --> AI
+S03 --> AI
+S03 .> A08 : <<extend>>\n[risk vượt ngưỡng]
+S05 .> S04 : <<extend>>\n[đạt Goal]
+S06 .> S04 : <<extend>>\n[không đạt]
+S05 --> Stripe
+S06 --> Stripe
+Stripe --> S07 : webhook
+S07 .> S08 : <<include>>
+
+note bottom of A10
+  Fraud model không tự khóa user/campaign.
+  Quyết định và lý do của Admin phải được audit.
+end note
+@enduml

@@ -1,9 +1,3 @@
-import { HttpPlatformApi } from "./http-api";
-
-const apiUrl =
-  process.env.API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:3001/api";
-
-export const api = new HttpPlatformApi(apiUrl);
+// Trang và route server đọc bộ mock này; thao tác ở browser đi qua clientRequest.
+export { mockApi as api } from "./mock/adapter";
 export type * from "./contracts";

@@ -1,35 +1,45 @@
-import { ArrowUpRight, Bell, Sparkles } from 'lucide-react';
-import Link from 'next/link';
-import type { CampaignCardData } from '@/types/campaign';
-import { formatDate, formatNumber, formatVnd, fundingPercent } from '@/lib/format';
-import { ProgressBar } from '@/components/ui/progress-bar';
-import { StatusBadge } from '@/components/ui/status-badge';
-import { CampaignVisual } from './campaign-visual';
+import { ArrowUpRight, Bell, Compass } from "lucide-react";
+import Link from "next/link";
+import type { CampaignCardData } from "@/lib/api";
+import {
+  formatDate,
+  formatNumber,
+  formatVnd,
+  fundingPercent,
+} from "@/lib/format";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { CampaignVisual } from "./campaign-visual";
 
 export function CampaignCard({
   campaign,
   showReason = false,
-  recommendationReason,
+  priority = false,
 }: {
   campaign: CampaignCardData;
   showReason?: boolean;
-  recommendationReason?: string;
+  priority?: boolean;
 }) {
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
-  const upcoming = campaign.status === 'PRE_LAUNCH';
-
+  const upcoming = campaign.status === "PRE_LAUNCH";
   return (
     <article className="card-lift group overflow-hidden rounded-[18px] border border-line bg-white">
-      <Link href={`/projects/${campaign.slug}`} className="block overflow-hidden">
+      <Link
+        href={`/projects/${campaign.slug}`}
+        className="block overflow-hidden"
+      >
         <CampaignVisual
           {...campaign.visual}
           compact
+          priority={priority}
           className="aspect-[16/10] transition-transform duration-500 group-hover:scale-[1.015]"
         />
       </Link>
       <div className="p-5">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs font-bold text-coral-dark">{campaign.category}</span>
+          <span className="text-xs font-bold text-coral-dark">
+            {campaign.category}
+          </span>
           <StatusBadge status={campaign.status} />
         </div>
         <Link
@@ -41,24 +51,26 @@ export function CampaignCard({
           </h3>
           <ArrowUpRight className="mt-1 size-4 shrink-0 text-ink-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-coral" />
         </Link>
-        <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-soft">{campaign.blurb}</p>
-
-        {showReason && recommendationReason ? (
+        <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-soft">
+          {campaign.blurb}
+        </p>
+        {showReason && campaign.recommendationReason ? (
           <div className="mt-4 flex items-start gap-2 border-l-2 border-[#a7be52] pl-3 text-xs leading-5 text-[#526331]">
-            <Sparkles className="mt-0.5 size-3.5 shrink-0" />
-            {recommendationReason}
+            <Compass className="mt-0.5 size-3.5 shrink-0" />
+            {campaign.recommendationReason}
           </div>
         ) : null}
-
         {upcoming ? (
           <div className="mt-5 flex items-center justify-between border-t border-line pt-4">
             <div>
-              <p className="text-[11px] font-semibold text-ink-muted">Mở gọi vốn</p>
+              <p className="text-[11px] font-semibold text-ink-muted">
+                Mở gọi vốn
+              </p>
               <p className="mt-1 text-sm font-bold text-ink">
                 {formatDate(campaign.launchDate, {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
                 })}
               </p>
             </div>
@@ -80,7 +92,9 @@ export function CampaignCard({
                 <p className="font-display text-base font-extrabold text-ink">
                   {formatVnd(campaign.pledgedAmount, true)}
                 </p>
-                <p className="mt-0.5 text-[11px] text-ink-muted">đạt {percent}% mục tiêu</p>
+                <p className="mt-0.5 text-[11px] text-ink-muted">
+                  đạt {percent}% mục tiêu
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-sm font-bold text-ink">
@@ -89,7 +103,7 @@ export function CampaignCard({
                     : formatNumber(campaign.backerCount)}
                 </p>
                 <p className="mt-0.5 text-[11px] text-ink-muted">
-                  {campaign.daysLeft > 0 ? 'còn lại' : 'người ủng hộ'}
+                  {campaign.daysLeft > 0 ? "còn lại" : "người ủng hộ"}
                 </p>
               </div>
             </div>

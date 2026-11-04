@@ -5,16 +5,18 @@
   "description": "Nền tảng gọi vốn cộng đồng — Crowdfunding Platform",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:web": "corepack pnpm --filter @crowdfunding/web dev",
+    "build:web": "corepack pnpm --filter @crowdfunding/web build",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-    "db:generate": "pnpm --filter api prisma:generate",
-    "db:push": "pnpm --filter api prisma:push",
-    "db:migrate": "pnpm --filter api prisma:migrate",
-    "db:studio": "pnpm --filter api prisma:studio",
-    "db:seed": "pnpm --filter api prisma:seed",
+    "db:generate": "corepack pnpm --filter @crowdfunding/api prisma:generate",
+    "db:push": "corepack pnpm --filter @crowdfunding/api prisma:push",
+    "db:migrate": "corepack pnpm --filter @crowdfunding/api prisma:migrate",
+    "db:studio": "corepack pnpm --filter @crowdfunding/api prisma:studio",
+    "db:seed": "corepack pnpm --filter @crowdfunding/api prisma:seed",
     "clean": "turbo run clean && rimraf node_modules",
     "prepare": "husky"
   },
@@ -36,6 +38,6 @@
   },
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }

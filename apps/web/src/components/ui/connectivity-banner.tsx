@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { CloudOff } from 'lucide-react';
-import { useSyncExternalStore } from 'react';
+import { CloudOff } from "lucide-react";
+import { useSyncExternalStore } from "react";
 
 function subscribe(callback: () => void) {
-  window.addEventListener('online', callback);
-  window.addEventListener('offline', callback);
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
   return () => {
-    window.removeEventListener('online', callback);
-    window.removeEventListener('offline', callback);
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
   };
 }
 

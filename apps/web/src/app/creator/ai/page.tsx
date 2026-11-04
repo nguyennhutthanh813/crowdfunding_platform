@@ -3,9 +3,9 @@ import {
   BrainCircuit,
   ChevronDown,
   Eye,
+  FileText,
   FolderKanban,
   Plus,
-  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { CampaignContentAssistant } from "@/components/creator/campaign-content-assistant";
@@ -49,7 +49,7 @@ export default async function CreatorAiPage() {
                 <BrainCircuit className="size-4" /> Dữ liệu chiến dịch
               </span>
               <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
-                Chiến dịch đang kể điều gì qua dữ liệu?
+                Dự báo tiến độ của ORBIT One
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
                 Đây là bộ dự báo minh họa cho ORBIT One, chưa chạy mô hình AI
@@ -62,7 +62,7 @@ export default async function CreatorAiPage() {
                 href="#content-assistant"
                 className="button-dark min-h-11 px-4 text-xs"
               >
-                <Sparkles className="size-4" /> Tối ưu nội dung
+                <FileText className="size-4" /> Rà lại bản nháp
               </Link>
               <Link
                 href={`/projects/${data.campaign.slug}`}
@@ -86,7 +86,7 @@ export default async function CreatorAiPage() {
           </div>
           <div className="mt-7 flex max-w-xl items-center justify-between rounded-[12px] border border-line bg-white px-4 py-3">
             <div>
-              <p className="text-[10px] font-bold text-ink-muted">
+              <p className="text-[11px] font-bold text-ink-muted">
                 Đang phân tích
               </p>
               <p className="mt-1 text-sm font-bold">{data.campaign.title}</p>

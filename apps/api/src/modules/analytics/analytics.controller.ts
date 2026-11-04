@@ -1,28 +1,30 @@
 import { Controller, Get, Post, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { CurrentUser } from '../../common/decorators';
 import { AnalyticsService } from './analytics.service';
 import { MetricsQueryDto, CreateInteractionEventDto } from './dto';
 
-function extractUserIdFromBearer(authHeader?: string): string | null {
+function extractUserIdFromBearer(authHeader: string | undefined, jwtService: JwtService): string | null {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   try {
-    const token = authHeader.slice(7);
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-      return payload.sub || payload.id || null;
-    }
-  } catch {}
-  return null;
+    const payload = jwtService.verify<{ sub?: string; id?: string }>(authHeader.slice(7));
+    return payload.sub || payload.id || null;
+  } catch {
+    // Sự kiện vẫn được ghi ẩn danh nếu token sai hoặc hết hạn.
+    return null;
+  }
 }
 
 @ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Get('campaigns/:campaignId/metrics')
   @UseGuards(AuthGuard('jwt'))
@@ -51,7 +53,7 @@ export class AnalyticsController {
     @Req() req: Request,
     @Body() dto: CreateInteractionEventDto,
   ) {
-    const userId = extractUserIdFromBearer(req.headers['authorization'] as string | undefined);
+    const userId = extractUserIdFromBearer(req.headers['authorization'], this.jwtService);
     return this.analyticsService.recordEvent(userId, dto);
   }
 }

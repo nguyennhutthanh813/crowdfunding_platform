@@ -195,7 +195,7 @@ function DraftOrReviewWorkspace({
               <div className="rounded-[14px] bg-[#f2f4eb] p-4">
                 <p className="text-xs text-ink-muted">Cam kết</p>
                 <p className="mt-2 font-display text-xl font-extrabold tabular-nums">0</p>
-                <p className="mt-1 text-[10px] text-ink-muted">Chưa mở gọi vốn</p>
+                <p className="mt-1 text-[11px] text-ink-muted">Chưa mở gọi vốn</p>
               </div>
             </div>
 
@@ -212,7 +212,7 @@ function DraftOrReviewWorkspace({
                     <p className="text-sm font-bold">{label}</p>
                     <p className="mt-1 text-xs leading-5 text-ink-muted">{detail}</p>
                   </div>
-                  <span className="text-[10px] font-bold text-ink-muted">
+                  <span className="text-[11px] font-bold text-ink-muted">
                     {done ? "Đã có dữ liệu" : "Cần xử lý"}
                   </span>
                 </div>
@@ -238,12 +238,12 @@ function DraftOrReviewWorkspace({
                 <Link href="/creator" className="button-dark">
                   <Rocket className="size-4" /> Xem danh mục đang gọi vốn
                 </Link>
-              ) : (
+              ) : campaign.slug === "orbit-mini-bo-pha-gon" ? (
                 <Link href={editHref} className="button-dark">
                   <FilePenLine className="size-4" />
                   {isReviewing ? "Xem bản đã gửi" : "Tiếp tục chỉnh sửa"}
                 </Link>
-              )}
+              ) : null}
               <button
                 type="button"
                 onClick={() => setTab("review")}
@@ -303,7 +303,7 @@ function DraftOrReviewWorkspace({
             {[
               ["1", "Lưu bản nháp", "Chủ dự án chỉnh nội dung và quà tặng.", true],
               ["2", "Gửi xét duyệt", "Tạo một phiên bản hồ sơ trong hàng chờ.", isReviewing || isReady],
-              ["3", "Admin phản hồi", "Lý do và người xử lý được lưu cùng quyết định.", isReady],
+              ["3", "Quản trị viên phản hồi", "Lý do và người xử lý được lưu cùng quyết định.", isReady],
               ["4", "Mở gọi vốn", "Chỉ mở sau khi hồ sơ đã được duyệt.", isLaunched],
             ].map(([step, label, detail, done], index) => (
               <li
@@ -502,7 +502,7 @@ function SuccessfulWorkspace({
                   ["Chờ địa chỉ", formatNumber(operations.fulfillment.currentCampaign.surveyPendingCount)],
                 ].map(([label, value]) => (
                   <div key={label} className="border-b border-r border-white/10 p-5 last:border-b-0">
-                    <p className="text-[10px] text-white/42">{label}</p>
+                    <p className="text-[11px] text-white/42">{label}</p>
                     <p className="mt-2 font-display text-lg font-extrabold">{value}</p>
                   </div>
                 ))}
@@ -536,7 +536,7 @@ function SuccessfulWorkspace({
                 ["04", "Giao quà", "Theo dõi từng đơn"],
               ].map(([step, label, detail]) => (
                 <div key={step} className="border-l-2 border-[#cbdc72] bg-[#f5f6f0] p-4">
-                  <p className="text-[10px] font-extrabold text-[#71813a]">{step}</p>
+                  <p className="text-[11px] font-extrabold text-[#71813a]">{step}</p>
                   <p className="mt-3 text-sm font-extrabold">{label}</p>
                   <p className="mt-1 text-xs text-ink-muted">{detail}</p>
                 </div>
@@ -568,7 +568,7 @@ function SuccessfulWorkspace({
                   <Truck className="size-4" /> Danh sách đối soát
                 </p>
                 <h2 className="mt-3 font-display text-2xl font-extrabold">
-                  4 đơn đại diện trong bản demo
+                  4 đơn minh họa trong bản dùng thử
                 </h2>
                 <p className="mt-2 text-xs leading-5 text-ink-muted">
                   Bản thật sẽ phân trang đủ {formatNumber(campaign.backerCount)} đơn và đọc từ fulfillment repository.
@@ -583,12 +583,12 @@ function SuccessfulWorkspace({
                 <section key={order.id} className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-muted">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">
                         Mã đơn
                       </p>
                       <p className="mt-1 text-sm font-extrabold">{order.id}</p>
                     </div>
-                    <span className="rounded-full bg-[#f1f4e7] px-3 py-1 text-[10px] font-extrabold text-[#587024]">
+                    <span className="rounded-full bg-[#f1f4e7] px-3 py-1 text-[11px] font-extrabold text-[#587024]">
                       {order.city}
                     </span>
                   </div>
@@ -604,7 +604,7 @@ function SuccessfulWorkspace({
                     </div>
                   </dl>
 
-                  <label className="block text-[10px] font-bold uppercase tracking-[0.12em] text-ink-muted">
+                  <label className="block text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">
                     Trạng thái giao quà
                     <span className="relative mt-2 block">
                       <select
@@ -645,7 +645,7 @@ function SuccessfulWorkspace({
 
             <div className="hidden overflow-x-auto md:block">
               <table className="min-w-[940px] w-full text-left text-xs">
-                <thead className="bg-[#f4f5ef] text-[10px] text-ink-muted">
+                <thead className="bg-[#f4f5ef] text-[11px] text-ink-muted">
                   <tr>
                     <th className="px-5 py-3 font-bold">Mã đơn</th>
                     <th className="px-5 py-3 font-bold">Người ủng hộ</th>
@@ -718,14 +718,14 @@ function SuccessfulWorkspace({
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[16px] bg-[#f4f5ef] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-muted">Người nhận</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Người nhận</p>
                 <p className="mt-2 text-sm font-extrabold">{selectedOrder.backer}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-muted">
                   <MapPin className="size-3.5" /> {selectedOrder.city}
                 </p>
               </div>
               <div className="rounded-[16px] bg-[#f4f5ef] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-muted">Giá trị đã thu</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Giá trị đã thu</p>
                 <p className="mt-2 text-sm font-extrabold">{formatVnd(selectedOrder.amount)}</p>
                 <p className="mt-1 text-xs text-ink-muted">{selectedOrder.reward}</p>
               </div>
