@@ -49,40 +49,54 @@ export function buildCreatorWorkspaceSnapshot(
   operations?: CampaignOperationsData | null,
   portfolio?: CreatorPortfolioData | null,
 ): WorkspaceSnapshot {
-  const openTasks =
-    operations?.tasks?.filter((task) => task.status !== "DONE") || [];
+  const totalCount = portfolio?.summary?.total ?? portfolio?.campaigns?.length ?? 1;
+  const liveCount = portfolio?.campaigns?.filter((c) => c.status === "LIVE").length ?? 0;
+  const isLive = campaign?.status === "LIVE";
+  const isSuccessful = campaign?.status === "SUCCESSFUL";
   const pledged = campaign?.pledgedAmount ?? 0;
   const goal = campaign?.goalAmount ?? 1;
   const percent = fundingPercent(pledged, goal);
 
   return {
-    entityCode: campaign
-      ? `CMP · ${campaign.id.replace("cmp_", "").toUpperCase()}`
-      : "CREATOR · WORKSPACE",
-    contextTitle: campaign?.title || "Không gian Chủ dự án",
+    entityCode: campaign ? "DỰ ÁN ĐANG QUẢN LÝ" : "QUẢN LÝ DỰ ÁN",
+    contextTitle: campaign?.title || "Chiến dịch của tôi",
     contextDetail: portfolio
-      ? `${portfolio.summary?.total ?? 0} chiến dịch đang quản lý`
+      ? `${totalCount} chiến dịch đang quản lý`
       : "Quản lý chiến dịch và cập nhật tiến độ",
     statusLabel:
-      campaign?.status === "LIVE"
+      isLive
         ? "ĐANG GỌI VỐN"
-        : (campaign?.status || "KHỞI TẠO"),
-    primaryMetric: {
-      label: "đã cam kết",
-      value: formatVnd(pledged, true),
-    },
-    secondaryMetric: {
-      label: "việc đang mở",
-      value: String(openTasks.length),
-    },
-    progress: {
-      label: `${percent}% mục tiêu`,
-      value: percent,
-    },
+        : isSuccessful
+          ? "ĐÃ THÀNH CÔNG"
+          : (campaign?.status || "DANH MỤC"),
+    primaryMetric: isLive || isSuccessful
+      ? {
+          label: isSuccessful ? "đã thu tiền" : "đã cam kết",
+          value: formatVnd(pledged, true),
+        }
+      : {
+          label: "tổng dự án",
+          value: `${totalCount} chiến dịch`,
+        },
+    secondaryMetric: isLive || isSuccessful
+      ? {
+          label: "người ủng hộ",
+          value: String(campaign?.backerCount ?? 0),
+        }
+      : {
+          label: "đang gọi vốn",
+          value: `${liveCount} dự án`,
+        },
+    progress: (isLive || isSuccessful) && percent > 0
+      ? {
+          label: `${percent}% mục tiêu`,
+          value: percent,
+        }
+      : undefined,
     updatedLabel: operations
       ? `Chốt số liệu ${operations.snapshotAt}`
-      : "Đang đồng bộ",
-    scopeCount: portfolio?.summary?.total,
+      : "Đồng bộ thời gian thực",
+    scopeCount: totalCount,
     selectedCampaignSlug: campaign?.slug,
     selectedCampaignStatus: campaign?.status,
     creatorCampaigns: portfolio?.campaigns,
@@ -131,8 +145,8 @@ export function buildAdminWorkspaceSnapshot(
   data: AdminDashboardData,
 ): WorkspaceSnapshot {
   const reviewQueue = data?.reviewQueue || [];
-  const operations = data?.operations || ({} as any);
-  const metrics = data?.metrics || ({} as any);
+  const operations = data?.operations || ({} as Record<string, unknown>);
+  const metrics = data?.metrics || ({} as Record<string, unknown>);
 
   return {
     entityCode: "OPS · GÓP",

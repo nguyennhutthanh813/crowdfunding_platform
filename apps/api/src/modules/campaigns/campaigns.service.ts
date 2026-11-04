@@ -50,6 +50,13 @@ export class CampaignsService {
       include: {
         category: { select: { id: true, name: true, slug: true } },
         _count: { select: { pledges: true, comments: true } },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            reviewer: { select: { id: true, displayName: true } },
+          },
+        },
       },
     });
   }
@@ -80,6 +87,13 @@ export class CampaignsService {
           creator: { select: { id: true, displayName: true, avatarUrl: true } },
           category: { select: { id: true, name: true, slug: true } },
           _count: { select: { pledges: true } },
+          reviews: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: {
+              reviewer: { select: { id: true, displayName: true } },
+            },
+          },
         },
       }),
       this.prisma.campaign.count({ where }),
@@ -107,6 +121,12 @@ export class CampaignsService {
           include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
         },
         _count: { select: { pledges: true, comments: true } },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            reviewer: { select: { id: true, displayName: true } },
+          },
+        },
       },
     });
 

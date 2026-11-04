@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { CampaignWizard } from "@/components/creator/campaign-wizard";
-import { getServerSession } from "@/lib/auth/server-session";
 
 export const metadata: Metadata = {
   title: "Tạo chiến dịch",
@@ -14,17 +13,15 @@ export default async function NewCampaignPage({
   searchParams: Promise<{ campaign?: string }>;
 }) {
   const { campaign } = await searchParams;
-  const session = await getServerSession();
+  const isEditing = Boolean(campaign);
   const editingOrbitMini = campaign === "orbit-mini-bo-pha-gon";
+
   return (
     <CampaignWizard
-      prefillSample={
-        session?.user.id === "usr_hoang_linh" ||
-        session?.user.email === "linh@orbit.vn"
-      }
-      mode={editingOrbitMini ? "edit" : "create"}
-      campaignId="cmp_orbit_mini"
-      campaignSlug={editingOrbitMini ? campaign : undefined}
+      prefillSample={editingOrbitMini}
+      mode={isEditing ? "edit" : "create"}
+      campaignId={editingOrbitMini ? "cmp_orbit_mini" : undefined}
+      campaignSlug={campaign}
     />
   );
 }

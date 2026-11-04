@@ -68,6 +68,8 @@ export interface CreatorPortfolioCampaign {
   category: string;
   location: string;
   status: CampaignStatus;
+  reviewStatus?: "NEEDS_CHANGES" | "PENDING" | "APPROVED" | "REJECTED";
+  reviewFeedback?: string;
   ownership: "OWNER";
   goalAmount: number;
   pledgedAmount: number;
@@ -79,6 +81,7 @@ export interface CreatorPortfolioCampaign {
   nextAction: CreatorCampaignNextAction;
   nextActionLabel: string;
   nextActionDetail: string;
+  visual?: CampaignCardData["visual"];
 }
 
 export interface CreatorPortfolioData {
@@ -498,6 +501,8 @@ export interface ReviewQueueItem {
   category: string;
   completeness: number;
   status: "PENDING" | "NEEDS_CHANGES";
+  feedback?: string;
+  reviews?: any[];
   submissionVersion: number;
   assignedTo: string;
   reviewDueAt: string;
@@ -531,6 +536,7 @@ export interface AdminDashboardData {
   };
   alerts: FraudAlert[];
   reviewQueue: ReviewQueueItem[];
+  campaigns?: CampaignCardData[];
   users: Array<{
     id: string;
     name: string;
@@ -748,7 +754,11 @@ export interface PlatformApi {
   listCampaigns(filters?: CampaignFilters): Promise<CampaignCardData[]>;
   getCampaignBySlug(slug: string): Promise<CampaignDetail | null>;
   getUserDashboard(): Promise<UserDashboardData>;
-  getCreatorPortfolio(): Promise<CreatorPortfolioData>;
+  getCreatorPortfolio(
+    userId?: string,
+    token?: string,
+    user?: { name?: string; id?: string; email?: string; initials?: string },
+  ): Promise<CreatorPortfolioData>;
   getCreatorAiDashboard(): Promise<CreatorAiDashboardData>;
   getCreatorAssistantData(): Promise<CreatorAssistantData>;
   getCampaignOperations(slug: string): Promise<CampaignOperationsData>;

@@ -27,26 +27,43 @@ export function applyCreatorPortfolioPreviewState(
       };
     }
 
-    const review = platform.submittedReviews.find(
-      (item) => item.campaignId === campaign.id,
+    const review = platform.submittedReviews?.find(
+      (item) => item.campaignId === campaign.id || item.id === campaign.id,
     );
-    if (!review) return campaign;
+    const decision =
+      platform.reviewDecisions[campaign.id] ||
+      (review ? platform.reviewDecisions[review.id] : undefined);
+    const feedback =
+      platform.reviewFeedback[campaign.id] ||
+      (review ? platform.reviewFeedback[review.id] : undefined) ||
+      (review as any)?.feedback ||
+      campaign.reviewFeedback;
 
-    const decision = platform.reviewDecisions[review.id];
-    if (!decision) {
+    if (
+      decision === "CHANGES" ||
+      campaign.reviewStatus === "NEEDS_CHANGES" ||
+      review?.status === "NEEDS_CHANGES"
+    ) {
       return {
         ...campaign,
-        status: "IN_REVIEW" as const,
-        nextAction: "FOLLOW_REVIEW" as const,
-        nextActionLabel: "Theo dõi xét duyệt",
-        nextActionDetail: `Bản gửi v${review.submissionVersion} đang được quản trị viên kiểm tra.`,
+        status: "DRAFT" as const,
+        reviewStatus: "NEEDS_CHANGES" as const,
+        reviewFeedback:
+          feedback ||
+          "Ban quản trị yêu cầu bổ sung thông tin cho chiến dịch. Vui lòng kiểm tra lại phản hồi.",
+        nextAction: "CONTINUE_DRAFT" as const,
+        nextActionLabel: "Chỉnh sửa theo yêu cầu",
+        nextActionDetail:
+          feedback ||
+          "Ban quản trị yêu cầu bổ sung thông tin cho chiến dịch. Vui lòng chỉnh sửa và gửi lại.",
       };
     }
 
-    if (decision === "APPROVED") {
+    if (decision === "APPROVED" || campaign.reviewStatus === "APPROVED") {
       return {
         ...campaign,
         status: "PRE_LAUNCH" as const,
+        reviewStatus: "APPROVED" as const,
         nextAction: "OPERATE" as const,
         nextActionLabel: "Chuẩn bị mở gọi vốn",
         nextActionDetail:
@@ -54,15 +71,18 @@ export function applyCreatorPortfolioPreviewState(
       };
     }
 
-    return {
-      ...campaign,
-      status: "DRAFT" as const,
-      nextAction: "CONTINUE_DRAFT" as const,
-      nextActionLabel: "Chỉnh theo phản hồi",
-      nextActionDetail:
-        platform.reviewFeedback[review.id] ||
-        "Mở bản nháp để bổ sung đúng mục quản trị viên đã ghi chú.",
-    };
+    if (review && !decision) {
+      return {
+        ...campaign,
+        status: "IN_REVIEW" as const,
+        reviewStatus: "PENDING" as const,
+        nextAction: "FOLLOW_REVIEW" as const,
+        nextActionLabel: "Theo dõi xét duyệt",
+        nextActionDetail: `Bản gửi v${review.submissionVersion || 1} đang được quản trị viên kiểm tra.`,
+      };
+    }
+
+    return campaign;
   });
 
   return {
@@ -86,24 +106,51 @@ export function applyOperationsPreviewState(
   data: CampaignOperationsData | null | undefined,
   session: SessionResult | null,
   platform?: PlatformPreviewState,
+  fallbackCampaign?: {
+    id: string;
+    slug: string;
+    title: string;
+    goalAmount?: number;
+    pledgedAmount?: number;
+    backerCount?: number;
+    daysLeft?: number;
+  },
 ): CampaignOperationsData {
   if (!data) {
+    const remaining = Math.max(
+      0,
+      (fallbackCampaign?.goalAmount ?? 0) -
+        (fallbackCampaign?.pledgedAmount ?? 0),
+    );
     return {
-      campaignId: "cmp_orbit_one",
-      slug: "orbit-one-ca-phe-thong-minh",
+      campaignId: fallbackCampaign?.id || "cmp_default",
+      slug: fallbackCampaign?.slug || "chien-dich",
       snapshotAt: new Date().toLocaleDateString("vi-VN"),
       today: {
-        pledgedAmount: 0,
-        backerCount: 0,
-        averagePledgeAmount: 0,
+        pledgedAmount: fallbackCampaign?.pledgedAmount ?? 0,
+        backerCount: fallbackCampaign?.backerCount ?? 0,
+        averagePledgeAmount:
+          (fallbackCampaign?.backerCount ?? 0) > 0
+            ? Math.round(
+                (fallbackCampaign?.pledgedAmount ?? 0) /
+                  (fallbackCampaign?.backerCount ?? 1),
+              )
+            : 0,
         unansweredComments: 0,
       },
       funding: {
-        remainingAmount: 0,
-        neededPerDay: 0,
-        projectedMinAmount: 0,
-        projectedMaxAmount: 0,
-        deadlineLabel: "Chưa xác định",
+        remainingAmount: remaining,
+        neededPerDay:
+          (fallbackCampaign?.daysLeft ?? 0) > 0
+            ? Math.ceil(remaining / (fallbackCampaign?.daysLeft ?? 1))
+            : 0,
+        projectedMinAmount: fallbackCampaign?.pledgedAmount ?? 0,
+        projectedMaxAmount: Math.round(
+          (fallbackCampaign?.goalAmount ?? 0) * 1.15,
+        ),
+        deadlineLabel: fallbackCampaign?.daysLeft
+          ? `Còn ${fallbackCampaign.daysLeft} ngày`
+          : "Chưa xác định",
       },
       tasks: [],
       team: [],
@@ -265,14 +312,17 @@ export function applyAdminPreviewState(
     ),
   );
 
-  const isReviewDecided = (review: (typeof allReviews)[number]) =>
-    Boolean(
-      reviewDecisions[review.id] ||
-        (review.campaignId && reviewDecisions[review.campaignId]),
-    );
+  const getReviewDecision = (review: (typeof allReviews)[number]) =>
+    reviewDecisions[review.id] ||
+    (review.campaignId ? reviewDecisions[review.campaignId] : undefined);
+
+  const isReviewCompleted = (review: (typeof allReviews)[number]) => {
+    const dec = getReviewDecision(review);
+    return dec === "APPROVED" || dec === "REJECTED";
+  };
 
   const pendingSharedReviews = sharedReviews.filter(
-    (review) => !isReviewDecided(review),
+    (review) => !getReviewDecision(review),
   );
   const alerts = data.alerts.map((alert) => ({
     ...alert,
@@ -303,13 +353,38 @@ export function applyAdminPreviewState(
     })),
   ];
 
+  const processedReviews = allReviews
+    .filter((review) => !isReviewCompleted(review))
+    .map((review) => {
+      const dec = getReviewDecision(review);
+      const fb =
+        platform?.reviewFeedback[review.id] ||
+        (review.campaignId ? platform?.reviewFeedback[review.campaignId] : undefined);
+
+      if (dec === "CHANGES") {
+        return {
+          ...review,
+          status: "NEEDS_CHANGES" as const,
+          feedback: fb || review.feedback,
+        };
+      }
+      return review;
+    });
+
   return {
     ...data,
     metrics: {
       ...data.metrics,
       openAlerts: Math.max(0, data.metrics.openAlerts - clearedInSession),
     },
-    reviewQueue: allReviews.filter((review) => !isReviewDecided(review)),
+    reviewQueue: processedReviews,
+    campaigns: (data.campaigns || []).map((campaign) => ({
+      ...campaign,
+      status:
+        state?.campaignStatuses?.[campaign.id] ??
+        platform?.campaignStatuses?.[campaign.id] ??
+        campaign.status,
+    })),
     alerts,
     users: [
       ...(state?.createdUsers ?? []),

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowLeft, BadgeCheck, FilePenLine, PackageCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, FilePenLine, PackageCheck, AlertTriangle } from "lucide-react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CreatorCampaignStageWorkspace } from "@/components/creator/creator-campaign-stage-workspace";
@@ -68,25 +68,68 @@ export default async function CreatorCampaignStagePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [basePortfolio, baseOperations, session, platformState] =
-    await Promise.all([
-      api.getCreatorPortfolio(),
-      api.getCampaignOperations(slug).catch(() => null),
-      getServerSession(),
-      getServerPlatformPreviewState(),
-    ]);
+  const [session, platformState] = await Promise.all([
+    getServerSession(),
+    getServerPlatformPreviewState(),
+  ]);
+
+  const [basePortfolio, baseOperations, publicDetail] = await Promise.all([
+    api.getCreatorPortfolio(
+      session?.user.id,
+      session?.tokens?.accessToken,
+      session?.user
+        ? {
+            name: session.user.name,
+            id: session.user.id,
+            email: session.user.email,
+            initials: session.user.initials,
+          }
+        : undefined,
+    ),
+    api.getCampaignOperations(slug).catch(() => null),
+    api.getCampaignBySlug(slug).catch(() => null),
+  ]);
+
   const portfolio = applyCreatorPortfolioPreviewState(
     basePortfolio,
     platformState,
   );
-  const campaign = portfolio.campaigns.find((item) => item.slug === slug);
-  if (!campaign || !baseOperations) notFound();
+  const campaign =
+    portfolio.campaigns.find((item) => item.slug === slug) ??
+    (publicDetail
+      ? {
+          id: publicDetail.id,
+          slug: publicDetail.slug,
+          title: publicDetail.title,
+          blurb: publicDetail.blurb,
+          category: publicDetail.category,
+          location: publicDetail.location,
+          status: publicDetail.status,
+          ownership: "OWNER" as const,
+          goalAmount: publicDetail.goalAmount,
+          pledgedAmount: publicDetail.pledgedAmount,
+          backerCount: publicDetail.backerCount,
+          daysLeft: publicDetail.daysLeft,
+          teamSize: 1,
+          openTaskCount: 0,
+          fundingTrend: [],
+          nextAction: "OPERATE" as const,
+          nextActionLabel: "Vận hành",
+          nextActionDetail: "",
+        }
+      : null);
+
+  if (!campaign) notFound();
 
   const operations = applyOperationsPreviewState(
     baseOperations,
     session,
     platformState,
+    campaign,
   );
+  const isNeedsChanges =
+    campaign.reviewStatus === "NEEDS_CHANGES" ||
+    Boolean(campaign.reviewFeedback);
   const copy = stageCopy[campaign.status];
   const isSuccessful = campaign.status === "SUCCESSFUL";
   const editHref = `/creator/campaigns/new?campaign=${campaign.slug}`;
@@ -103,7 +146,7 @@ export default async function CreatorCampaignStagePage({
                 ) : (
                   <BadgeCheck className="size-4" />
                 )}
-                {copy.eyebrow}
+                {isNeedsChanges ? "Cần chỉnh sửa hồ sơ" : copy.eyebrow}
               </span>
               <h1 className="mt-3 max-w-3xl font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
                 {campaign.title}
@@ -124,12 +167,42 @@ export default async function CreatorCampaignStagePage({
                   <PackageCheck className="size-4" /> Mở giao quà
                 </Link>
               ) : (
-                <Link href={editHref} className="button-primary min-h-11 px-4 text-xs">
-                  <FilePenLine className="size-4" /> Chỉnh sửa hồ sơ
+                <Link
+                  href={editHref}
+                  className={`button-primary min-h-11 px-4 text-xs ${
+                    isNeedsChanges ? "bg-red-600 hover:bg-red-700 text-white" : ""
+                  }`}
+                >
+                  <FilePenLine className="size-4" />{" "}
+                  {isNeedsChanges ? "Sửa hồ sơ theo yêu cầu" : "Chỉnh sửa hồ sơ"}
                 </Link>
               )}
             </div>
           </div>
+
+          {isNeedsChanges ? (
+            <div className="mt-6 flex items-start gap-3.5 rounded-2xl border border-red-200 bg-red-50/90 p-4 text-ink shadow-sm">
+              <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-red-600 text-white shadow-sm">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-extrabold text-red-950 text-sm">
+                  Ban quản trị yêu cầu chỉnh sửa thông tin hồ sơ
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-red-900 font-medium italic">
+                  &quot;{campaign.reviewFeedback || "Vui lòng cập nhật bổ sung hồ sơ theo các ghi chú của ban quản trị."}&quot;
+                </p>
+                <div className="mt-3">
+                  <Link
+                    href={editHref}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white shadow transition hover:bg-red-700"
+                  >
+                    <FilePenLine className="size-3.5" /> Chỉnh sửa hồ sơ ngay
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

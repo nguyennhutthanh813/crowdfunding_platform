@@ -8,7 +8,6 @@ import {
   CircleDollarSign,
   FileText,
   Gift,
-  ImagePlus,
   Info,
   LayoutTemplate,
   LoaderCircle,
@@ -147,9 +146,9 @@ const sampleCollaborators: DraftCollaborator[] = [
 ];
 
 export function CampaignWizard({
-  prefillSample = true,
+  prefillSample = false,
   mode = "create",
-  campaignId = "cmp_orbit_mini",
+  campaignId = "cmp_draft",
   campaignSlug,
 }: {
   prefillSample?: boolean;
@@ -498,7 +497,7 @@ export function CampaignWizard({
                 {mode === "edit" ? "Quay lại hồ sơ" : "Quay lại danh mục"}
               </Link>
               <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
-                {mode === "edit" ? "Chỉnh sửa ORBIT Mini" : "Tạo chiến dịch mới"}
+                {mode === "edit" ? "Chỉnh sửa hồ sơ chiến dịch" : "Tạo chiến dịch mới"}
               </h1>
             </div>
             <div className="flex flex-wrap gap-2">

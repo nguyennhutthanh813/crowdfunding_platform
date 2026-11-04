@@ -645,6 +645,22 @@ function FaqPanel({
   );
 }
 
+function formatUpdateDate(value?: string): string {
+  if (!value) return "Gần đây";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) {
+    // If already pre-formatted or localized string, return as is
+    return value;
+  }
+  try {
+    return new Intl.DateTimeFormat("vi-VN", {
+      dateStyle: "medium",
+    }).format(date);
+  } catch {
+    return value;
+  }
+}
+
 function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
   return (
     <div>
@@ -660,9 +676,7 @@ function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
                 #{campaign.updates.length - index}
               </span>
               <span className="text-[11px] text-ink-muted">
-                {new Intl.DateTimeFormat("vi-VN", {
-                  dateStyle: "medium",
-                }).format(new Date(update.publishedAt))}
+                {formatUpdateDate(update.publishedAt)}
               </span>
             </div>
             <h3 className="mt-5 font-display text-xl font-extrabold">

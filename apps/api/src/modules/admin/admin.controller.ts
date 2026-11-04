@@ -136,6 +136,17 @@ export class AdminController {
     return this.adminService.reviewCampaign(id, reviewerId, dto);
   }
 
+  @Patch('campaigns/:id/status')
+  @ApiOperation({ summary: 'Update campaign status directly (admin only)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async updateCampaignStatus(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body() body: { status: string; reason?: string },
+  ) {
+    return this.adminService.updateCampaignStatus(id, body.status, body.reason, adminId);
+  }
+
   // ─── Fraud Alerts ──────────────────────────────────────
 
   @Get('fraud-alerts')

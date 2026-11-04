@@ -4,12 +4,12 @@ import {
   Activity,
   BarChart3,
   Bell,
+  BookHeart,
   Bookmark,
   Bot,
   Boxes,
   ClipboardCheck,
   FileCheck2,
-  FilePenLine,
   FolderHeart,
   FolderKanban,
   Gift,
@@ -70,111 +70,41 @@ const navigation: Record<UserRole, WorkspaceNavItem[]> = {
     { href: "/account?tab=roles", label: "Quyền của tôi", note: "Tài khoản & phiên", icon: UserRoundCog },
   ],
   ADMIN: [
-    { href: "/admin?tab=overview", label: "Tổng quan ca trực", note: "Việc đến hạn", icon: Activity },
-    { href: "/admin?tab=reviews", label: "Duyệt chiến dịch", note: "Hồ sơ & bằng chứng", icon: FileCheck2 },
-    { href: "/admin?tab=fraud", label: "Rủi ro giao dịch", note: "Tín hiệu cần xem", icon: ShieldAlert },
-    { href: "/admin?tab=users", label: "Người dùng", note: "Trạng thái tài khoản", icon: UserRoundCog },
-    { href: "/admin?tab=settings", label: "Phí & nhật ký", note: "Cấu hình có audit", icon: Settings2 },
-    { href: "/system-design", label: "Hồ sơ hệ thống", note: "Use Case & ERD", icon: Boxes },
+    { href: "/admin/campaigns", label: "Quản lý chiến dịch", note: "Danh sách & xét duyệt", icon: FolderHeart },
+    { href: "/admin/users", label: "Người dùng", note: "Tài khoản & phân quyền", icon: UserRoundCog },
+    { href: "/admin/fraud", label: "Cảnh báo gian lận", note: "Rủi ro giao dịch", icon: ShieldAlert },
+    { href: "/admin/settings", label: "Cấu hình & nhật ký", note: "Phí & audit log", icon: Settings2 },
   ],
 };
 
 function creatorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
-  const slug = snapshot.selectedCampaignSlug ?? "orbit-one-ca-phe-thong-minh";
-  const status = snapshot.selectedCampaignStatus ?? "LIVE";
-  const shortName = snapshot.contextTitle.split("—")[0]?.trim() || "chiến dịch";
-  const manageHref = `/creator/campaigns/${slug}/manage`;
-  const items: WorkspaceNavItem[] = [
+  return [
     {
       href: "/creator",
       label: "Chiến dịch của tôi",
-      note: "Danh mục & nhịp vận hành",
+      note: "Danh mục & tiến độ",
       icon: LayoutDashboard,
+      badge: snapshot.scopeCount ? String(snapshot.scopeCount) : undefined,
+    },
+    {
+      href: "/creator/ai",
+      label: "Trợ lý AI & Dự báo",
+      note: "Phân tích số liệu & gợi ý",
+      icon: Bot,
+    },
+    {
+      href: "/creator/guidelines",
+      label: "Quy chuẩn duyệt dự án",
+      note: "Tiêu chí & chính sách nền tảng",
+      icon: BookHeart,
     },
   ];
-
-  if (status === "LIVE") {
-    items.push(
-      {
-        href: `${manageHref}?tab=overview`,
-        label: `Vận hành ${shortName}`,
-        note: "Chiến dịch đang chọn",
-        icon: FolderKanban,
-      },
-      {
-        href: `${manageHref}?tab=content`,
-        label: "Nội dung & nhóm",
-        note: "Thành viên",
-        icon: Users,
-      },
-      {
-        href: `${manageHref}?tab=community`,
-        label: "Cộng đồng",
-        note: "Cập nhật & phản hồi",
-        icon: MessageSquareText,
-      },
-      {
-        href: `${manageHref}?tab=fulfillment`,
-        label: "Giao quà",
-        note: "Khóa đến khi đạt mục tiêu",
-        icon: Gift,
-      },
-    );
-    if (slug === "orbit-one-ca-phe-thong-minh") {
-      items.push({
-        href: "/creator/ai",
-        label: "Dự báo chiến dịch",
-        note: "AI có giải thích",
-        icon: Bot,
-      });
-    }
-  } else if (status === "SUCCESSFUL") {
-    items.push(
-      {
-        href: `${manageHref}?tab=overview`,
-        label: `Tổng kết ${shortName}`,
-        note: "Dòng tiền sau gọi vốn",
-        icon: FolderKanban,
-      },
-      {
-        href: `${manageHref}?tab=fulfillment`,
-        label: "Giao quà & đối soát",
-        note: "342 cam kết đã thu",
-        icon: Gift,
-      },
-    );
-  } else {
-    items.push(
-      {
-        href: `${manageHref}?tab=overview`,
-        label: `Hồ sơ ${shortName}`,
-        note:
-          status === "IN_REVIEW"
-            ? "Đang chờ quản trị viên"
-            : status === "PRE_LAUNCH"
-              ? "Đã duyệt · chờ mở"
-              : "Bản nháp đang làm",
-        icon: FolderKanban,
-      },
-      {
-        href: `/creator/campaigns/new?campaign=${slug}`,
-        label: "Chỉnh sửa bản nháp",
-        note: "Nội dung, quà & nhóm",
-        icon: FilePenLine,
-      },
-    );
-  }
-
-  items.push({
-    href: "/creator/campaigns/new",
-    label: "Chiến dịch mới",
-    note: "Tạo bản nháp trống",
-    icon: Plus,
-  });
-  return items;
 }
 
-function workspaceNavigation(role: UserRole, snapshot: WorkspaceSnapshot) {
+function workspaceNavigation(
+  role: UserRole,
+  snapshot: WorkspaceSnapshot,
+) {
   return role === "CREATOR" ? creatorNavigation(snapshot) : navigation[role];
 }
 
@@ -188,10 +118,35 @@ function creatorSnapshotForLocation(
   )?.[1];
   const slug =
     pathname === "/creator/campaigns/new" ? campaignQuery : slugFromPath;
-  const campaign = snapshot.creatorCampaigns?.find(
-    (item) => item.slug === slug,
-  );
-  if (!campaign) return snapshot;
+  const campaign = slug
+    ? snapshot.creatorCampaigns?.find((item) => item.slug === slug)
+    : undefined;
+
+  const totalCount =
+    snapshot.scopeCount ?? snapshot.creatorCampaigns?.length ?? 1;
+  const liveCount =
+    snapshot.creatorCampaigns?.filter((c) => c.status === "LIVE").length ?? 0;
+
+  if (!campaign) {
+    return {
+      ...snapshot,
+      entityCode: "QUẢN LÝ DỰ ÁN",
+      contextTitle: "Chiến dịch của tôi",
+      contextDetail: `${totalCount} chiến dịch đang quản lý`,
+      statusLabel: "DANH MỤC DỰ ÁN",
+      primaryMetric: {
+        label: "tổng dự án",
+        value: `${totalCount} chiến dịch`,
+      },
+      secondaryMetric: {
+        label: "đang gọi vốn",
+        value: `${liveCount} dự án`,
+      },
+      progress: undefined,
+      selectedCampaignSlug: undefined,
+      selectedCampaignStatus: undefined,
+    };
+  }
 
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
   const statusLabels = {
@@ -200,43 +155,45 @@ function creatorSnapshotForLocation(
     PRE_LAUNCH: "SẮP MỞ",
     LIVE: "ĐANG GỌI VỐN",
     SUCCESSFUL: "ĐÃ THÀNH CÔNG",
-    FAILED: "KHÔNG ĐẠT MỤC TIÊU",
-    SUSPENDED: "ĐANG TẠM DỪNG",
+    FAILED: "KHÔNG ĐẠT",
+    SUSPENDED: "TẠM DỪNG",
   } as const;
+
+  const isLiveOrSuccessful = ["LIVE", "SUCCESSFUL"].includes(campaign.status);
 
   return {
     ...snapshot,
-    entityCode: `CMP · ${campaign.id.replace("cmp_", "").toUpperCase()}`,
+    entityCode: "DỰ ÁN ĐANG QUẢN LÝ",
     contextTitle: campaign.title,
-    contextDetail: `${snapshot.scopeCount ?? snapshot.creatorCampaigns?.length ?? 1} chiến dịch · ${campaign.nextActionDetail}`,
+    contextDetail: `${statusLabels[campaign.status]} · Mục tiêu ${formatVnd(campaign.goalAmount, true)}`,
     statusLabel: statusLabels[campaign.status],
     primaryMetric: {
-      label:
-        campaign.status === "SUCCESSFUL"
+      label: isLiveOrSuccessful
+        ? campaign.status === "SUCCESSFUL"
           ? "đã thu tiền"
-          : campaign.status === "LIVE"
-            ? "đã cam kết"
-            : "mục tiêu dự kiến",
+          : "đã cam kết"
+        : "mục tiêu gọi vốn",
       value: formatVnd(
-        ["LIVE", "SUCCESSFUL"].includes(campaign.status)
-          ? campaign.pledgedAmount
-          : campaign.goalAmount,
+        isLiveOrSuccessful ? campaign.pledgedAmount : campaign.goalAmount,
         true,
       ),
     },
     secondaryMetric: {
-      label: "việc đang mở",
-      value: String(campaign.openTaskCount),
+      label: isLiveOrSuccessful ? "người ủng hộ" : "thành viên nhóm",
+      value: String(
+        isLiveOrSuccessful ? campaign.backerCount : campaign.teamSize || 1,
+      ),
     },
-    progress: ["LIVE", "SUCCESSFUL"].includes(campaign.status)
-      ? {
-          label:
-            campaign.status === "SUCCESSFUL"
-              ? `${percent}% mục tiêu · đã chốt`
-              : `${percent}% mục tiêu`,
-          value: Math.min(100, percent),
-        }
-      : undefined,
+    progress:
+      isLiveOrSuccessful && percent > 0
+        ? {
+            label:
+              campaign.status === "SUCCESSFUL"
+                ? `${percent}% mục tiêu · đã chốt`
+                : `${percent}% mục tiêu`,
+            value: Math.min(100, percent),
+          }
+        : undefined,
     selectedCampaignSlug: campaign.slug,
     selectedCampaignStatus: campaign.status,
   };
@@ -313,10 +270,13 @@ function navIsActive(
   currentTab: string | null,
 ) {
   const url = new URL(item.href, "http://gop.local");
+  if (url.pathname === pathname) return true;
+  if (pathname === "/admin" && item.href === "/admin/campaigns") return true;
+  if (pathname.startsWith(url.pathname) && url.pathname !== "/" && url.pathname !== "/admin") return true;
   if (url.pathname !== pathname) return false;
   const itemTab = url.searchParams.get("tab");
   if (!itemTab) return true;
-  const defaultTab = pathname === "/dashboard" ? "backed" : pathname === "/admin" ? "overview" : pathname.includes("/manage") ? "overview" : null;
+  const defaultTab = pathname === "/dashboard" ? "backed" : pathname === "/admin" ? "campaigns" : pathname.includes("/manage") ? "overview" : null;
   return itemTab === (currentTab ?? defaultTab);
 }
 
@@ -336,12 +296,9 @@ function Sidebar({
     <aside className={`hidden min-h-[calc(100dvh-72px)] border-r lg:sticky lg:top-[72px] lg:flex lg:max-h-[calc(100dvh-72px)] lg:flex-col lg:overflow-y-auto ${theme.aside}`}>
       <div className={`border-b p-5 ${theme.divider}`}>
         <p className={`text-[9px] font-bold tracking-[0.13em] ${theme.muted}`}>{snapshot.entityCode}</p>
-        <div className="mt-2 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="truncate font-display text-base font-extrabold">{snapshot.contextTitle}</h2>
-            <p className={`mt-1 text-[10px] leading-5 ${theme.muted}`}>{snapshot.contextDetail}</p>
-          </div>
-          <span className={`mt-1 size-2 shrink-0 rounded-full ${role === "ADMIN" ? "bg-[#e5484d]" : role === "BACKER" ? "bg-[#dc8a4b]" : role === "CREATOR" ? "bg-lime" : "bg-[#8fd2fb]"}`} />
+        <div className="mt-2">
+          <h2 className="truncate font-display text-base font-extrabold">{snapshot.contextTitle}</h2>
+          <p className={`mt-1 text-[10px] leading-5 ${theme.muted}`}>{snapshot.contextDetail}</p>
         </div>
       </div>
 
@@ -350,11 +307,17 @@ function Sidebar({
           const Icon = item.icon;
           const active = navIsActive(item, pathname, searchParams.get("tab"));
           const badge =
-            role === "ADMIN" && item.href.includes("tab=fraud")
-              ? snapshot.secondaryMetric.value
-              : role === "CREATOR" && item.href === "/creator"
-                ? snapshot.scopeCount
-                : item.badge;
+            role === "ADMIN" && (item.href.includes("/campaigns") || item.href.includes("tab=campaigns"))
+              ? Number(snapshot.primaryMetric.value) > 0
+                ? snapshot.primaryMetric.value
+                : undefined
+              : role === "ADMIN" && (item.href.includes("/fraud") || item.href.includes("tab=fraud"))
+                ? Number(snapshot.secondaryMetric.value) > 0
+                  ? snapshot.secondaryMetric.value
+                  : undefined
+                : role === "CREATOR" && item.href === "/creator"
+                  ? snapshot.scopeCount
+                  : item.badge;
           return (
             <Link
               key={item.href}

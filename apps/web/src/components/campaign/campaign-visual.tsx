@@ -40,6 +40,21 @@ interface CampaignVisualProps {
   priority?: boolean;
 }
 
+function isSafeImageSrc(src?: string | null): boolean {
+  if (!src) return false;
+  const s = src.toLowerCase();
+  if (
+    s.includes("youtube.com") ||
+    s.includes("youtu.be") ||
+    s.includes("vimeo.com") ||
+    s.endsWith(".mp4") ||
+    s.endsWith(".webm")
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function CampaignVisual({
   motif,
   palette,
@@ -51,15 +66,16 @@ export function CampaignVisual({
   priority = false,
 }: CampaignVisualProps) {
   const Icon = icons[motif];
+  const safeSrc = isSafeImageSrc(imageSrc) ? imageSrc : null;
   return (
     <div
       className={`relative isolate overflow-hidden bg-gradient-to-br ${palettes[palette]} ${className}`}
       role="group"
       aria-label={`Hình ảnh dự án ${label}`}
     >
-      {imageSrc ? (
+      {safeSrc ? (
         <Image
-          src={imageSrc}
+          src={safeSrc}
           alt={imageAlt ?? `Hình ảnh dự án ${label}`}
           fill
           loading={priority ? 'eager' : 'lazy'}

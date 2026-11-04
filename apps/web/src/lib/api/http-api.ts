@@ -101,6 +101,29 @@ function getMotifAndPalette(
   return { motif: "coffee", palette: "ember", label: "Sáng tạo Việt" };
 }
 
+function isValidImageUrl(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  const clean = url.trim().toLowerCase();
+  if (
+    clean.includes("youtube.com") ||
+    clean.includes("youtu.be") ||
+    clean.includes("vimeo.com") ||
+    clean.endsWith(".mp4") ||
+    clean.endsWith(".webm")
+  ) {
+    return false;
+  }
+  if (
+    clean.startsWith("/") ||
+    clean.startsWith("data:image/") ||
+    clean.startsWith("http://") ||
+    clean.startsWith("https://")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function getDefaultImageForSlug(slug: string): string {
   const s = slug.toLowerCase();
   if (s.includes("orbit")) return "/images/campaigns/orbit-one.png";
@@ -136,9 +159,14 @@ export function transformCampaignCard(raw: any): CampaignCardData {
   const goalAmount = Number(raw.goalAmount ?? 0);
   const pledgedAmount = Number(raw.pledgedAmount ?? 0);
 
+  const imageMedia = raw.media?.find(
+    (m: any) =>
+      (m.mediaType === "IMAGE" || !m.mediaType) && isValidImageUrl(m.url),
+  );
+
   const mediaUrl =
-    raw.media?.[0]?.url ||
-    raw.imageUrl ||
+    (imageMedia && isValidImageUrl(imageMedia.url) ? imageMedia.url : null) ||
+    (isValidImageUrl(raw.imageUrl) ? raw.imageUrl : null) ||
     getDefaultImageForSlug(raw.slug);
 
   return {
@@ -230,13 +258,11 @@ export function transformCampaignDetail(
     id: u.id,
     title: u.title,
     excerpt: u.bodyMarkdown ? u.bodyMarkdown.slice(0, 160) : "",
-    publishedAt: u.publishedAt
-      ? new Date(u.publishedAt).toLocaleDateString("vi-VN", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        })
-      : "Gần đây",
+    publishedAt: u.publishedAt && !isNaN(new Date(u.publishedAt).getTime())
+      ? new Date(u.publishedAt).toISOString()
+      : typeof u.publishedAt === "string" && u.publishedAt
+        ? u.publishedAt
+        : new Date().toISOString(),
     commentCount: u._count?.comments ?? 0,
   }));
 
@@ -510,21 +536,72 @@ export class HttpPlatformApi implements PlatformApi {
     };
   }
 
-  async getCreatorPortfolio(): Promise<CreatorPortfolioData> {
+  async getCreatorPortfolio(
+    userId?: string,
+    token?: string,
+    user?: { name?: string; id?: string; email?: string; initials?: string },
+  ): Promise<CreatorPortfolioData> {
     let campaigns: any[] = [];
-    try {
-      const res = await request<{ data: any[] } | any[]>(
-        `${this.baseUrl}/campaigns?limit=50`,
+    const isUuid =
+      userId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        userId,
       );
-      campaigns = Array.isArray(res) ? res : (res as any)?.data || [];
-    } catch (e: any) {
-      if (
-        e?.digest === "DYNAMIC_SERVER_USAGE" ||
-        e?.message?.includes("Dynamic server usage")
-      ) {
-        throw e;
+
+    // Xác định ID người dùng thực tế trong PostgreSQL
+    let effectiveUserId: string | null = isUuid ? userId : null;
+
+    if (!effectiveUserId && user?.email) {
+      try {
+        const allUsers = await fetchRealAdminUsers(token);
+        const matched = allUsers?.find(
+          (u) =>
+            u.email.toLowerCase().trim() === user.email!.toLowerCase().trim(),
+        );
+        if (matched) {
+          effectiveUserId = matched.id;
+        }
+      } catch (err) {
+        console.warn("getCreatorPortfolio: could not lookup user by email:", err);
       }
-      console.error("Failed to load campaigns for portfolio:", e);
+    }
+
+    // 1. Nếu có token, gọi endpoint /campaigns/creator/my để lấy danh sách chiến dịch của chính chủ
+    if (token) {
+      try {
+        const res = await request<{ data: any[] } | any[]>(
+          `${this.baseUrl}/campaigns/creator/my`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        if (list.length > 0) {
+          campaigns = list;
+        }
+      } catch (e: any) {
+        if (
+          e?.digest === "DYNAMIC_SERVER_USAGE" ||
+          e?.message?.includes("Dynamic server usage")
+        ) {
+          throw e;
+        }
+      }
+    }
+
+    // 2. Nếu chưa có chiến dịch và có effectiveUserId trong PostgreSQL, query theo creatorId
+    if (campaigns.length === 0 && effectiveUserId) {
+      try {
+        const res = await request<{ data: any[] } | any[]>(
+          `${this.baseUrl}/campaigns?creatorId=${encodeURIComponent(effectiveUserId)}&limit=50`,
+        );
+        campaigns = Array.isArray(res) ? res : (res as any)?.data || [];
+      } catch (e: any) {
+        if (
+          e?.digest === "DYNAMIC_SERVER_USAGE" ||
+          e?.message?.includes("Dynamic server usage")
+        ) {
+          throw e;
+        }
+      }
     }
 
     const mappedCampaigns = campaigns.map((c: any) => {
@@ -534,7 +611,19 @@ export class HttpPlatformApi implements PlatformApi {
       let nextActionDetail =
         "Theo dõi số người ủng hộ và đăng bài viết cập nhật tiến độ.";
 
-      if (c.status === "DRAFT") {
+      const latestReview = Array.isArray(c.reviews) ? c.reviews[0] : undefined;
+      const isNeedsChanges =
+        latestReview?.decision === "CHANGES_REQUESTED" ||
+        latestReview?.decision === "CHANGES";
+      const reviewFeedback = latestReview?.feedback || undefined;
+
+      if (isNeedsChanges) {
+        nextAction = "CONTINUE_DRAFT";
+        nextActionLabel = "Chỉnh sửa theo yêu cầu";
+        nextActionDetail =
+          reviewFeedback ||
+          "Ban quản trị yêu cầu bổ sung thông tin. Vui lòng chỉnh sửa và gửi lại xét duyệt.";
+      } else if (c.status === "DRAFT") {
         nextAction = "CONTINUE_DRAFT";
         nextActionLabel = "Hoàn thiện bản nháp";
         nextActionDetail =
@@ -558,6 +647,8 @@ export class HttpPlatformApi implements PlatformApi {
         category: card.category,
         location: card.location,
         status: card.status,
+        reviewStatus: isNeedsChanges ? ("NEEDS_CHANGES" as const) : undefined,
+        reviewFeedback,
         ownership: "OWNER" as const,
         goalAmount: card.goalAmount,
         pledgedAmount: card.pledgedAmount,
@@ -574,6 +665,7 @@ export class HttpPlatformApi implements PlatformApi {
         nextAction,
         nextActionLabel,
         nextActionDetail,
+        visual: card.visual,
       };
     });
 
@@ -590,13 +682,14 @@ export class HttpPlatformApi implements PlatformApi {
       0,
     );
 
-    const activeId = mappedCampaigns[0]?.id ?? "cmp_default";
+    const activeId = mappedCampaigns[0]?.id ?? "";
+    const creatorDisplayName = user?.name || "Chủ dự án";
 
     return {
       owner: {
-        id: "owner_creator",
-        name: "Nguyễn Hoàng Linh",
-        initials: "NL",
+        id: effectiveUserId || user?.id || userId || "owner_creator",
+        name: creatorDisplayName,
+        initials: user?.initials || getInitials(creatorDisplayName),
       },
       activeCampaignId: activeId,
       snapshotAt: new Date().toISOString(),
@@ -939,6 +1032,7 @@ export class HttpPlatformApi implements PlatformApi {
   async getAdminDashboard(): Promise<AdminDashboardData> {
     const users = (await fetchRealAdminUsers()) || [];
     const reviews = (await fetchRealReviewQueue()) || [];
+    const campaigns = (await this.listCampaigns()) || [];
 
     const reviewQueue = reviews.map((r) => ({
       id: r.id,
@@ -996,6 +1090,7 @@ export class HttpPlatformApi implements PlatformApi {
       },
       alerts: [],
       reviewQueue,
+      campaigns,
       users,
       fundingSeries: [
         { month: "T4", amount: 620000000 },

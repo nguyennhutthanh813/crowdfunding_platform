@@ -1,17 +1,23 @@
+"use client";
+
 import {
   ArrowRight,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
+  Eye,
+  FileCheck2,
+  FilePenLine,
   Files,
   FolderKanban,
   MapPin,
   Plus,
-  TrendingUp,
+  Sparkles,
   UsersRound,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
+import { CampaignVisual } from "@/components/campaign/campaign-visual";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type {
@@ -21,221 +27,290 @@ import type {
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
 
 function getCampaignHref(campaign: CreatorPortfolioCampaign) {
-  if (campaign.nextAction === "OPERATE" && campaign.status === "LIVE") {
+  if (campaign.status === "LIVE") {
     return `/creator/campaigns/${campaign.slug}/manage?tab=overview`;
   }
-  if (campaign.nextAction === "FULFILL") {
-    return `/creator/campaigns/${campaign.slug}/manage?tab=fulfillment#orbit-drip-fulfillment`;
+  if (campaign.status === "SUCCESSFUL") {
+    return `/creator/campaigns/${campaign.slug}/manage?tab=fulfillment`;
+  }
+  if (campaign.status === "IN_REVIEW") {
+    return `/creator/campaigns/${campaign.slug}/manage?tab=review`;
   }
   return `/creator/campaigns/${campaign.slug}/manage?tab=overview`;
 }
 
-function CampaignFacts({
+function ActiveCampaignCard({
   campaign,
-  dark = false,
+  isSolo = false,
 }: {
   campaign: CreatorPortfolioCampaign;
-  dark?: boolean;
+  isSolo?: boolean;
 }) {
-  return (
-    <div
-      className={`grid grid-cols-3 gap-3 border-y py-4 ${dark ? "border-white/12" : "border-line"}`}
-    >
-      <div>
-        <p className={`text-[9px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
-          Người ủng hộ
-        </p>
-        <p className="mt-1 text-sm font-extrabold tabular-nums">
-          {formatNumber(campaign.backerCount)}
-        </p>
-      </div>
-      <div>
-        <p className={`text-[9px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
-          Thành viên
-        </p>
-        <p className="mt-1 text-sm font-extrabold tabular-nums">
-          {campaign.teamSize}
-        </p>
-      </div>
-      <div>
-        <p className={`text-[9px] ${dark ? "text-white/68" : "text-ink-muted"}`}>
-          Việc đang mở
-        </p>
-        <p className="mt-1 text-sm font-extrabold tabular-nums">
-          {campaign.openTaskCount}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ActiveCampaignCard({ campaign }: { campaign: CreatorPortfolioCampaign }) {
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
   const remainingAmount = Math.max(0, campaign.goalAmount - campaign.pledgedAmount);
-  const neededPerDay = campaign.daysLeft > 0 ? remainingAmount / campaign.daysLeft : 0;
-  const averagePledge = campaign.backerCount > 0
-    ? campaign.pledgedAmount / campaign.backerCount
-    : 0;
-  const maxTrendAmount = Math.max(
-    1,
-    ...campaign.fundingTrend.map((point) => point.amount),
-  );
-  const latestChange = campaign.fundingTrend.length > 1
-    ? campaign.fundingTrend.at(-1)!.amount - campaign.fundingTrend.at(-2)!.amount
-    : 0;
+  const neededPerDay =
+    campaign.daysLeft > 0 ? Math.ceil(remainingAmount / campaign.daysLeft) : 0;
+
+  const isLive = campaign.status === "LIVE";
+  const isInReview = campaign.status === "IN_REVIEW";
+  const isDraft = campaign.status === "DRAFT";
+  const isSuccessful = campaign.status === "SUCCESSFUL";
+
+  const visualProps = campaign.visual ?? {
+    motif: "coffee" as const,
+    palette: "ember" as const,
+    label: campaign.category,
+    imageSrc: undefined,
+    imageAlt: campaign.title,
+  };
 
   return (
-    <article className="relative overflow-hidden rounded-[22px] bg-[#102a22] p-6 text-white shadow-[0_22px_60px_rgba(16,42,34,0.17)] sm:p-7">
-      <span className="pointer-events-none absolute -right-14 -top-14 size-48 rounded-full border-[34px] border-lime/8" />
-      <span className="pointer-events-none absolute bottom-24 right-5 hidden font-display text-[86px] font-extrabold tracking-[-0.08em] text-white/[0.025] xl:block">
-        ORBIT
-      </span>
-      <div className="relative flex h-full flex-col">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+    <article className="overflow-hidden rounded-[22px] border border-[#d3ddc7] bg-white shadow-[0_12px_36px_rgba(23,47,37,0.06)] transition-[box-shadow,border-color] hover:border-forest/30">
+      <div
+        className={`grid ${
+          isSolo
+            ? "md:grid-cols-[340px_minmax(0,1fr)] lg:grid-cols-[380px_minmax(0,1fr)]"
+            : "md:grid-cols-[280px_minmax(0,1fr)]"
+        }`}
+      >
+        {/* Thumbnail / Cover */}
+        <div className="relative min-h-[240px] md:min-h-full">
+          <CampaignVisual
+            motif={visualProps.motif}
+            palette={visualProps.palette}
+            label={visualProps.label}
+            imageSrc={visualProps.imageSrc}
+            imageAlt={visualProps.imageAlt ?? campaign.title}
+            compact
+            priority
+            className="h-full min-h-[240px] w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+          <div className="absolute left-4 top-4 flex flex-wrap items-center gap-2">
             <StatusBadge status={campaign.status} />
-            <span className="rounded-full border border-lime/25 bg-lime/10 px-2.5 py-1 text-[10px] font-bold text-lime">
+            <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
               ĐANG CHỌN
             </span>
           </div>
-          <span className="text-[10px] font-semibold text-white/68">
-            OWNER · {campaign.category}
-          </span>
+          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs font-semibold text-white">
+            <span className="flex items-center gap-1.5 drop-shadow">
+              <MapPin className="size-3.5" /> {campaign.location}
+            </span>
+            {isLive ? (
+              <span className="rounded-full bg-lime/90 px-2.5 py-0.5 text-[10px] font-extrabold text-forest drop-shadow">
+                {campaign.daysLeft} ngày còn lại
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        <h3 className="mt-6 max-w-xl font-display text-2xl font-extrabold leading-tight tracking-[-0.04em] sm:text-[30px]">
-          {campaign.title}
-        </h3>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-white/64">
-          {campaign.blurb}
-        </p>
-
-        <div className="mt-6">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-[10px] text-white/68">Tổng cam kết</p>
-              <p className="mt-1 font-display text-2xl font-extrabold text-lime">
-                {formatVnd(campaign.pledgedAmount)}
-              </p>
+        {/* Content details */}
+        <div className="flex flex-col justify-between p-6 sm:p-7">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[10px] font-bold tracking-[0.08em] text-ink-muted">
+                CHỦ DỰ ÁN (OWNER) · {campaign.category.toUpperCase()}
+              </span>
+              <span className="rounded-full bg-[#f0f4e8] px-2.5 py-0.5 text-[10px] font-semibold text-[#5a7322]">
+                Mã: {campaign.id.slice(0, 8)}
+              </span>
             </div>
-            <p className="text-xs font-bold text-white/72">
-              {percent}% / {formatVnd(campaign.goalAmount)}
+
+            <h3 className="mt-2.5 font-display text-2xl font-extrabold leading-tight tracking-[-0.035em] text-forest sm:text-[26px]">
+              <Link
+                href={getCampaignHref(campaign)}
+                className="transition-colors hover:text-coral-dark"
+              >
+                {campaign.title}
+              </Link>
+            </h3>
+
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-soft">
+              {campaign.blurb}
             </p>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-            <span
-              className="block h-full rounded-full bg-lime"
-              style={{ width: `${Math.min(100, percent)}%` }}
-            />
-          </div>
-        </div>
 
-        <CampaignFacts campaign={campaign} dark />
+            {/* Financial / Stage block */}
+            <div className="mt-5 rounded-[16px] border border-line bg-[#f8faf5] p-4">
+              {isLive || isSuccessful ? (
+                <>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] font-bold text-ink-muted">
+                        Đã cam kết
+                      </p>
+                      <p className="mt-0.5 font-display text-2xl font-extrabold text-forest">
+                        {formatVnd(campaign.pledgedAmount)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-ink-muted">Mục tiêu gọi vốn</p>
+                      <p className="mt-0.5 text-xs font-bold text-ink">
+                        {percent}% / {formatVnd(campaign.goalAmount)}
+                      </p>
+                    </div>
+                  </div>
+                  <ProgressBar value={percent} className="mt-2.5 h-2" />
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line/60 pt-3 text-xs">
+                    <div>
+                      <p className="text-[10px] text-ink-muted">Còn thiếu</p>
+                      <p className="mt-0.5 font-bold">
+                        {formatVnd(remainingAmount, true)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-ink-muted">Nhịp cần giữ</p>
+                      <p className="mt-0.5 font-bold">
+                        {formatVnd(neededPerDay, true)}/ngày
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-ink-muted">Hạn chót</p>
+                      <p className="mt-0.5 font-bold text-forest">
+                        {campaign.daysLeft} ngày nữa
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : isInReview ? (
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-800">
+                    <Clock3 className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-amber-900">
+                      Hồ sơ đang trong hàng chờ duyệt
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800/80">
+                      Mục tiêu đăng ký:{" "}
+                      <strong className="font-semibold text-amber-950">
+                        {formatVnd(campaign.goalAmount)}
+                      </strong>
+                      . Ban quản trị đang thẩm định nội dung, tính hợp lệ và minh
+                      bạch trong 24 giờ làm việc.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700">
+                    <FilePenLine className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-slate-800">
+                      Bản nháp đang hoàn thiện
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                      Mục tiêu: {formatVnd(campaign.goalAmount)}. Hãy bổ sung gói
+                      quà, câu chuyện và đội ngũ để gửi duyệt hồ sơ.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
-        <div className="mt-5 rounded-[14px] border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-[9px] font-bold tracking-[0.1em] text-white/68">
-            TIẾN TRÌNH RIÊNG CỦA CHIẾN DỊCH
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ["Hồ sơ", "Đã duyệt", "text-lime"],
-              ["Gọi vốn", "Đang diễn ra", "text-lime"],
-              ["Chốt", `${campaign.daysLeft} ngày nữa`, "text-white/72"],
-              ["Giao quà", "Sau thành công", "text-white/68"],
-            ].map(([label, value, tone]) => (
-              <div key={label} className="border-l border-white/12 pl-2.5">
-                <p className="text-[8px] text-white/68">{label}</p>
-                <p className={`mt-1 text-[10px] font-bold ${tone}`}>{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1.35fr)_minmax(175px,0.65fr)]">
-          <div className="rounded-[14px] border border-white/10 bg-black/10 p-4">
-            <div className="flex items-start justify-between gap-3">
+            {/* Quick stats row */}
+            <div className="mt-4 grid grid-cols-3 gap-2 border-y border-line py-3 text-center sm:text-left">
               <div>
-                <p className="flex items-center gap-1.5 text-[9px] font-bold tracking-[0.08em] text-white/68">
-                  <TrendingUp className="size-3.5 text-lime" /> NHỊP GỌI VỐN GẦN ĐÂY
-                </p>
-                <p className="mt-1.5 text-[10px] text-white/68">
-                  Số cộng dồn theo lần chốt dữ liệu
+                <p className="text-[10px] text-ink-muted">Người ủng hộ</p>
+                <p className="mt-0.5 font-display text-base font-extrabold">
+                  {formatNumber(campaign.backerCount)}
                 </p>
               </div>
-              {latestChange > 0 ? (
-                <span className="rounded-full bg-lime/10 px-2.5 py-1 text-[9px] font-bold text-lime">
-                  +{formatVnd(latestChange, true)}
-                </span>
-              ) : null}
+              <div>
+                <p className="text-[10px] text-ink-muted">Nhóm dự án</p>
+                <p className="mt-0.5 font-display text-base font-extrabold">
+                  {campaign.teamSize} người
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-ink-muted">Việc mở</p>
+                <p className="mt-0.5 font-display text-base font-extrabold text-coral-dark">
+                  {campaign.openTaskCount} việc
+                </p>
+              </div>
             </div>
 
-            {campaign.fundingTrend.length > 0 ? (
-              <>
+            {/* Stage tracker */}
+            <div className="mt-4 flex items-center justify-between gap-1 text-[10px]">
+              {[
+                {
+                  label: "1. Hồ sơ",
+                  done: true,
+                  active: isDraft,
+                },
+                {
+                  label: "2. Xét duyệt",
+                  done: isLive || isSuccessful,
+                  active: isInReview,
+                },
+                {
+                  label: "3. Gọi vốn",
+                  done: isSuccessful,
+                  active: isLive,
+                },
+                {
+                  label: "4. Giao quà",
+                  done: false,
+                  active: isSuccessful,
+                },
+              ].map((step) => (
                 <div
-                  className="mt-4 flex h-20 items-end gap-1.5"
-                  role="list"
-                  aria-label="Biểu đồ vốn cộng dồn"
+                  key={step.label}
+                  className={`flex items-center gap-1.5 font-semibold ${
+                    step.active
+                      ? "text-forest"
+                      : step.done
+                        ? "text-emerald-700"
+                        : "text-ink-muted"
+                  }`}
                 >
-                  {campaign.fundingTrend.map((point, index) => (
-                    <span
-                      key={`${point.date}-${point.amount}`}
-                      className="group relative min-w-0 flex-1 rounded-t-[4px] bg-lime/25 transition-colors hover:bg-lime"
-                      style={{ height: `${Math.max(12, (point.amount / maxTrendAmount) * 100)}%` }}
-                      title={`${point.date}: ${formatVnd(point.amount)}`}
-                      role="listitem"
-                      aria-label={`${point.date}: ${formatVnd(point.amount)}`}
-                    >
-                      {index === campaign.fundingTrend.length - 1 ? (
-                        <span className="absolute inset-x-0 top-0 h-1 rounded-full bg-lime" />
-                      ) : null}
-                    </span>
-                  ))}
+                  <span
+                    className={`size-2 rounded-full ${
+                      step.active
+                        ? "animate-pulse bg-forest ring-4 ring-forest/15"
+                        : step.done
+                          ? "bg-emerald-600"
+                          : "bg-line"
+                    }`}
+                  />
+                  <span>{step.label}</span>
                 </div>
-                <div className="mt-2 flex justify-between text-[8px] text-white/68">
-                  <span>{campaign.fundingTrend[0]?.date}</span>
-                  <span>{campaign.fundingTrend.at(-1)?.date} · {formatVnd(campaign.pledgedAmount, true)}</span>
-                </div>
-              </>
-            ) : (
-              <p className="mt-5 text-[10px] leading-5 text-white/68">
-                Biểu đồ sẽ xuất hiện khi chiến dịch bắt đầu nhận cam kết.
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[14px] border border-white/10 bg-white/10 sm:grid-cols-1">
-            {[
-              ["Còn thiếu", formatVnd(remainingAmount, true)],
-              ["Cần mỗi ngày", formatVnd(neededPerDay, true)],
-              ["Bình quân", `${formatVnd(averagePledge, true)}/cam kết`],
-            ].map(([label, value], index) => (
-              <div key={label} className="bg-[#102a22] px-3 py-3.5">
-                <p className="flex items-center gap-1.5 text-[8px] text-white/68">
-                  {index === 0 ? <WalletCards className="size-3 text-lime" /> : null}
-                  {label}
-                </p>
-                <p className="mt-1 text-[10px] font-extrabold text-white/78">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-auto flex flex-col gap-4 pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-2.5">
-            <Clock3 className="mt-0.5 size-4 shrink-0 text-lime" />
-            <div>
-              <p className="text-xs font-bold">{campaign.nextActionLabel}</p>
-              <p className="mt-1 max-w-md text-[10px] leading-5 text-white/68">
-                {campaign.nextActionDetail}
-              </p>
+              ))}
             </div>
           </div>
-          <Link
-            href={getCampaignHref(campaign)}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-lime px-4 text-xs font-extrabold text-forest hover:bg-[#e2ef95]"
-          >
-            Mở chiến dịch <ArrowRight className="size-4" />
-          </Link>
+
+          {/* Action buttons */}
+          <div className="mt-6 flex flex-wrap items-center gap-2 pt-4 border-t border-line">
+            <Link
+              href={getCampaignHref(campaign)}
+              className="button-primary min-h-11 px-5 text-xs font-bold"
+            >
+              <FolderKanban className="size-4" />
+              {isInReview
+                ? "Theo dõi hàng chờ duyệt"
+                : isLive
+                  ? "Vận hành chiến dịch"
+                  : isSuccessful
+                    ? "Giao quà & Đối soát"
+                    : "Quản lý hồ sơ"}
+            </Link>
+
+            <Link
+              href={`/creator/campaigns/new?campaign=${campaign.slug}`}
+              className="button-secondary min-h-11 px-4 text-xs font-semibold"
+            >
+              <FilePenLine className="size-4" />
+              Chỉnh sửa nội dung
+            </Link>
+
+            <Link
+              href={`/projects/${campaign.slug}`}
+              className="button-ghost min-h-11 px-3 text-xs font-semibold text-ink-soft hover:text-forest"
+            >
+              <Eye className="size-4" />
+              {isLive ? "Trang công khai" : "Xem bản mẫu"}
+            </Link>
+          </div>
         </div>
       </div>
     </article>
@@ -253,23 +328,26 @@ function SecondaryCampaignCard({
   );
 
   return (
-    <article className="rounded-[20px] border border-line bg-white p-5 transition-[border-color,box-shadow] hover:border-forest/20 hover:shadow-[0_16px_42px_rgba(23,47,37,0.07)] sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <article className="rounded-[18px] border border-line bg-white p-5 transition-[border-color,box-shadow] hover:border-forest/25 hover:shadow-[0_12px_32px_rgba(23,47,37,0.06)]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <StatusBadge status={campaign.status} />
         <span className="text-[9px] font-bold tracking-[0.08em] text-ink-muted">
-          OWNER · {campaign.category.toLocaleUpperCase("vi")}
+          {campaign.category.toUpperCase()}
         </span>
       </div>
-      <h3 className="mt-4 font-display text-xl font-extrabold leading-tight tracking-[-0.035em]">
-        {campaign.title}
+
+      <h3 className="mt-3 font-display text-lg font-extrabold leading-tight tracking-[-0.03em]">
+        <Link
+          href={getCampaignHref(campaign)}
+          className="hover:text-forest"
+        >
+          {campaign.title}
+        </Link>
       </h3>
-      <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-muted">
+
+      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-ink-muted">
         {campaign.blurb}
       </p>
-
-      <div className="mt-5 flex items-center gap-2 text-[10px] text-ink-muted">
-        <MapPin className="size-3.5" /> {campaign.location}
-      </div>
 
       <div className="mt-4">
         <div className="flex items-center justify-between gap-3 text-[10px]">
@@ -280,31 +358,18 @@ function SecondaryCampaignCard({
             {isDraftLike ? "Đang chuẩn bị hồ sơ" : `${percent}% mục tiêu`}
           </span>
         </div>
-        <ProgressBar value={isDraftLike ? 0 : percent} className="mt-2 h-1.5" />
+        <ProgressBar value={isDraftLike ? 0 : percent} className="mt-1.5 h-1.5" />
       </div>
 
-      <CampaignFacts campaign={campaign} />
-
-      <div className="mt-4 flex items-start gap-2.5 rounded-[12px] bg-[#f4f5f0] p-3">
-        {campaign.status === "SUCCESSFUL" ? (
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
-        ) : (
-          <Files className="mt-0.5 size-4 shrink-0 text-[#687b31]" />
-        )}
-        <div>
-          <p className="text-[11px] font-bold">{campaign.nextActionLabel}</p>
-          <p className="mt-1 text-[10px] leading-4 text-ink-muted">
-            {campaign.nextActionDetail}
-          </p>
-        </div>
+      <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[11px] text-ink-soft">
+        <span>{formatNumber(campaign.backerCount)} người ủng hộ</span>
+        <Link
+          href={getCampaignHref(campaign)}
+          className="inline-flex items-center gap-1 font-bold text-forest hover:text-coral-dark"
+        >
+          Mở quản lý <ArrowRight className="size-3.5" />
+        </Link>
       </div>
-
-      <Link
-        href={getCampaignHref(campaign)}
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-forest/15 bg-white px-4 text-xs font-extrabold text-forest hover:bg-[#f0f3e9]"
-      >
-        {campaign.nextActionLabel} <ArrowRight className="size-4" />
-      </Link>
     </article>
   );
 }
@@ -327,64 +392,94 @@ export function CreatorPortfolioBoard({
 
   if (!activeCampaign) return null;
 
+  const isSolo = otherCampaigns.length === 0;
+
   return (
-    <section id="danh-muc-chien-dich" className="scroll-mt-28" aria-labelledby="portfolio-title">
+    <section
+      id="danh-muc-chien-dich"
+      className="scroll-mt-28"
+      aria-labelledby="portfolio-title"
+    >
+      {/* Header and Quick Stats */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <span className="eyebrow text-[#587024]">
             <FolderKanban className="size-4" /> Danh mục của chủ dự án
           </span>
-          <h2 id="portfolio-title" className="mt-3 font-display text-2xl font-extrabold tracking-[-0.04em] sm:text-3xl">
-            {portfolio.summary.total} chiến dịch, mỗi chiến dịch một nhịp riêng.
+          <h2
+            id="portfolio-title"
+            className="mt-2.5 font-display text-2xl font-extrabold tracking-[-0.04em] sm:text-3xl"
+          >
+            {portfolio.summary.total} chiến dịch do bạn làm chủ
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-            Một tài khoản chủ dự án có thể tạo và quản lý nhiều chiến dịch. Nhóm,
-            cam kết, quà tặng và trạng thái được tách riêng để không lẫn dữ liệu.
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
+            Quản lý độc lập từng dự án: nhóm cộng tác, cam kết, câu chuyện và
+            tiến độ giải ngân được phân tách minh bạch.
           </p>
         </div>
-        <Link href="/creator/campaigns/new" className="button-secondary min-h-11 shrink-0 px-4 text-xs">
-          <Plus className="size-4" /> Thêm chiến dịch
+        <Link
+          href="/creator/campaigns/new"
+          className="button-primary min-h-11 shrink-0 px-4 text-xs font-bold"
+        >
+          <Plus className="size-4" /> Thêm chiến dịch mới
         </Link>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* 4 Summary Metric Cards */}
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
             label: "Tổng chiến dịch",
             value: portfolio.summary.total,
             note: "do bạn làm chủ",
             icon: Files,
+            href: "#danh-muc-chien-dich",
           },
           {
             label: "Đang gọi vốn",
             value: portfolio.summary.live,
             note: "cần theo dõi hằng ngày",
             icon: CircleDollarSign,
+            href: "#danh-muc-chien-dich",
           },
           {
-            label: "Đang chuẩn bị",
+            label: "Đang xét duyệt / Nháp",
             value: portfolio.summary.draftOrReview,
-            note: "bản nháp hoặc xét duyệt",
+            note: "hồ sơ đang xử lý",
             icon: Clock3,
+            href: "#danh-muc-chien-dich",
           },
           {
             label: "Đã thành công",
             value: portfolio.summary.successful,
-            note: formatVnd(successfulPledgedAmount, true) + " đã đối soát",
+            note:
+              successfulPledgedAmount > 0
+                ? `${formatVnd(successfulPledgedAmount, true)} đã đối soát`
+                : "sau gọi vốn",
             icon: CheckCircle2,
+            href: "#danh-muc-chien-dich",
           },
         ].map((item) => {
           const Icon = item.icon;
           return (
-            <div key={item.label} className="flex items-center gap-3 rounded-[15px] border border-line bg-white px-4 py-3.5">
-              <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#edf1e3] text-forest">
-                <Icon className="size-4" />
+            <div
+              key={item.label}
+              className="flex items-center gap-3.5 rounded-[16px] border border-line bg-white px-4 py-3.5 shadow-sm transition-transform hover:-translate-y-0.5"
+            >
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#edf1e3] text-forest">
+                <Icon className="size-4.5" />
               </span>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-ink-muted">{item.label}</p>
+                <p className="text-[11px] font-semibold text-ink-muted">
+                  {item.label}
+                </p>
                 <p className="mt-0.5 flex items-baseline gap-2">
-                  <span className="font-display text-xl font-extrabold tabular-nums">{item.value}</span>
-                  <span className="truncate text-[9px] text-ink-muted">{item.note}</span>
+                  <span className="font-display text-2xl font-extrabold tabular-nums">
+                    {item.value}
+                  </span>
+                  <span className="truncate text-[10px] text-ink-muted">
+                    {item.note}
+                  </span>
                 </p>
               </div>
             </div>
@@ -392,18 +487,37 @@ export function CreatorPortfolioBoard({
         })}
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <ActiveCampaignCard campaign={activeCampaign} />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-          {otherCampaigns.map((campaign) => (
-            <SecondaryCampaignCard key={campaign.id} campaign={campaign} />
-          ))}
-        </div>
+      {/* Main Campaign Card & Companions */}
+      <div
+        className={`mt-6 ${
+          isSolo
+            ? "w-full"
+            : "grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]"
+        }`}
+      >
+        <ActiveCampaignCard campaign={activeCampaign} isSolo={isSolo} />
+
+        {!isSolo ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-base font-bold text-ink">
+                Chiến dịch khác ({otherCampaigns.length})
+              </h3>
+              <span className="text-xs text-ink-muted">Nhấn để xem chi tiết</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {otherCampaigns.map((c) => (
+                <SecondaryCampaignCard key={c.id} campaign={c} />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <p className="mt-3 flex items-center gap-2 text-[10px] leading-5 text-ink-muted">
-        <UsersRound className="size-3.5 shrink-0" />
-        Quyền OWNER áp dụng theo từng chiến dịch; cộng tác viên của ORBIT One không tự động xem được ORBIT Mini.
+      <p className="mt-3.5 flex items-center gap-2 text-[11px] text-ink-muted">
+        <UsersRound className="size-3.5 shrink-0 text-forest" />
+        Quyền OWNER áp dụng theo từng chiến dịch; cộng tác viên chỉ truy cập
+        được các chiến dịch mà bạn phân quyền cụ thể.
       </p>
     </section>
   );

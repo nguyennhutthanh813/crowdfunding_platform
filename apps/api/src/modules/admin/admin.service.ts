@@ -580,6 +580,49 @@ export class AdminService {
     return review;
   }
 
+  async updateCampaignStatus(
+    campaignId: string,
+    status: string,
+    reason?: string,
+    adminId?: string,
+  ) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { id: true, title: true, status: true, creatorId: true },
+    });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    const updated = await this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: {
+        status: status as any,
+        statusHistory: {
+          create: {
+            fromStatus: campaign.status,
+            toStatus: status as any,
+            changedBy: adminId,
+            reason: reason || undefined,
+          },
+        },
+      },
+    });
+
+    if (adminId) {
+      await this.prisma.moderationAction.create({
+        data: {
+          adminId,
+          targetType: 'CAMPAIGN',
+          targetId: campaignId,
+          action: status === 'SUSPENDED' ? 'SUSPEND_CAMPAIGN' : 'ACTIVATE_CAMPAIGN',
+          reason: reason || `Cập nhật trạng thái chiến dịch thành ${status}`,
+          metadata: { previousStatus: campaign.status, newStatus: status },
+        },
+      });
+    }
+
+    return updated;
+  }
+
   // ─── Fraud Alerts ──────────────────────────────────────
 
   async listFraudAlerts(query: FraudAlertQueryDto) {

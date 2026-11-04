@@ -41,6 +41,7 @@ export interface PlatformPreviewState {
   submittedReviews: SharedCampaignReview[];
   reviewDecisions: Record<string, "APPROVED" | "CHANGES" | "REJECTED">;
   reviewFeedback: Record<string, string>;
+  reviewTimestamps?: Record<string, string>;
   campaignStatuses: Record<string, "LIVE" | "SUSPENDED">;
   messages: SharedPlatformMessage[];
 }
@@ -55,6 +56,7 @@ export function createEmptyPlatformPreviewState(): PlatformPreviewState {
     submittedReviews: [],
     reviewDecisions: {},
     reviewFeedback: {},
+    reviewTimestamps: {},
     campaignStatuses: {},
     messages: [],
   };
@@ -94,6 +96,7 @@ export function decodePlatformPreview(
         : [],
       reviewDecisions: { ...(parsed.reviewDecisions ?? {}) },
       reviewFeedback: { ...(parsed.reviewFeedback ?? {}) },
+      reviewTimestamps: { ...(parsed.reviewTimestamps ?? {}) },
       campaignStatuses: { ...(parsed.campaignStatuses ?? {}) },
       messages: Array.isArray(parsed.messages)
         ? parsed.messages.slice(0, 12)

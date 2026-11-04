@@ -15,30 +15,55 @@ export default async function CreatorLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [campaigns, basePortfolio, baseOperations, session, platformState] =
-    await Promise.all([
-      api.listCampaigns(),
-      api.getCreatorPortfolio(),
-      api.getCampaignOperations("orbit-one-ca-phe-thong-minh"),
-      getServerSession(),
-      getServerPlatformPreviewState(),
-    ]);
-  const operations = applyOperationsPreviewState(
-    baseOperations,
-    session,
-    platformState,
+  const [session, platformState] = await Promise.all([
+    getServerSession(),
+    getServerPlatformPreviewState(),
+  ]);
+
+  const basePortfolio = await api.getCreatorPortfolio(
+    session?.user.id,
+    session?.tokens?.accessToken,
+    session?.user
+      ? {
+          name: session.user.name,
+          id: session.user.id,
+          email: session.user.email,
+          initials: session.user.initials,
+        }
+      : undefined,
   );
+
   const portfolio = applyCreatorPortfolioPreviewState(
     basePortfolio,
     platformState,
   );
+
+  const activeCampaignSlug =
+    portfolio.campaigns.find((c) => c.id === portfolio.activeCampaignId)?.slug ??
+    portfolio.campaigns[0]?.slug;
+
+  const [campaigns, baseOperations] = await Promise.all([
+    api.listCampaigns(),
+    activeCampaignSlug
+      ? api.getCampaignOperations(activeCampaignSlug).catch(() => null)
+      : null,
+  ]);
+
   const campaign =
-    campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
-    campaigns.find((item) => item.id === operations.campaignId) ??
+    (activeCampaignSlug
+      ? campaigns.find((item) => item.slug === activeCampaignSlug)
+      : null) ??
     (portfolio.campaigns.length > 0
       ? campaigns.find((item) => item.id === portfolio.campaigns[0].id)
       : null) ??
     campaigns[0];
+
+  const operations = applyOperationsPreviewState(
+    baseOperations,
+    session,
+    platformState,
+    campaign,
+  );
 
   return (
     <RoleWorkspaceShell

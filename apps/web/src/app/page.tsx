@@ -20,12 +20,21 @@ export default async function HomePage() {
     api.listCampaigns(),
     getServerSession(),
   ]);
-  const featured = campaigns[0];
-  const activeCampaigns = campaigns
-    .filter((campaign) => campaign.status === "LIVE" && campaign.id !== featured?.id)
+  const liveCampaigns = campaigns.filter((c) => c.status === "LIVE");
+  const featured =
+    liveCampaigns[0] ??
+    campaigns.find((c) => c.status === "PRE_LAUNCH") ??
+    campaigns[0];
+  const activeCampaigns = liveCampaigns
+    .filter((campaign) => campaign.id !== featured?.id)
     .slice(0, 3);
   const upcoming =
-    campaigns.find((campaign) => campaign.status === "PRE_LAUNCH") ?? campaigns[3];
+    campaigns.find(
+      (campaign) =>
+        campaign.status === "PRE_LAUNCH" && campaign.id !== featured?.id,
+    ) ??
+    campaigns.find((c) => c.id !== featured?.id) ??
+    campaigns[0];
   const showRecommendations = Boolean(
     session?.user.roles.includes("BACKER"),
   );

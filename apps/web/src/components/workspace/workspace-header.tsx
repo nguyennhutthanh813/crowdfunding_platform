@@ -2,15 +2,16 @@
 
 import {
   AlertTriangle,
-  ArrowLeftRight,
   Bell,
   BookHeart,
   ChevronDown,
   ClipboardCheck,
   FolderKanban,
+  Home,
   LogIn,
   LogOut,
   Menu,
+  Plus,
   Search,
   Settings,
   ShieldAlert,
@@ -21,6 +22,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
+import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
 import type { UserRole } from "@/lib/api/contracts";
 import { roleLabels } from "@/lib/auth/roles";
 import type { WorkspaceSnapshot } from "@/lib/workspace-snapshot";
@@ -80,10 +82,9 @@ const headerCopy: Record<
     actionHref: "/discover",
   },
   CREATOR: {
-    workspace: "Xưởng chiến dịch",
-    action: "Cập nhật ORBIT One",
-    actionHref:
-      "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community",
+    workspace: "Quản lý dự án",
+    action: "Tạo chiến dịch",
+    actionHref: "/creator/campaigns/new",
   },
   COLLABORATOR: {
     workspace: "Bảng việc nhóm",
@@ -207,32 +208,16 @@ export function WorkspaceHeader({
   snapshot: WorkspaceSnapshot;
 }) {
   const pathname = usePathname();
-  const { session, status, busy, switchRole, signOut } = useAuth();
+  const { session, status, busy, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = headerTheme[role];
-  const creatorSlug = snapshot.selectedCampaignSlug;
-  const creatorShortName = snapshot.contextTitle.split("—")[0]?.trim();
   const copy =
-    role === "CREATOR" && creatorSlug
-      ? snapshot.selectedCampaignStatus === "SUCCESSFUL"
-        ? {
-            workspace: "Xưởng chiến dịch",
-            action: "Theo dõi giao quà",
-            actionHref: `/creator/campaigns/${creatorSlug}/manage?tab=fulfillment`,
-          }
-        : ["DRAFT", "IN_REVIEW", "PRE_LAUNCH"].includes(
-              snapshot.selectedCampaignStatus ?? "",
-            )
-          ? {
-              workspace: "Xưởng chiến dịch",
-              action: `Sửa ${creatorShortName}`,
-              actionHref: `/creator/campaigns/new?campaign=${creatorSlug}`,
-            }
-          : {
-              workspace: "Xưởng chiến dịch",
-              action: `Cập nhật ${creatorShortName}`,
-              actionHref: `/creator/campaigns/${creatorSlug}/manage?tab=community`,
-            }
+    role === "CREATOR"
+      ? {
+          workspace: "Quản lý dự án",
+          action: "Tạo chiến dịch",
+          actionHref: "/creator/campaigns/new",
+        }
       : headerCopy[role];
   const selectedRole =
     session?.user.roles.includes(role) ? role : session?.user.activeRole;
@@ -242,7 +227,7 @@ export function WorkspaceHeader({
       : role === "COLLABORATOR"
         ? ClipboardCheck
         : role === "CREATOR"
-          ? FolderKanban
+          ? Plus
           : BookHeart;
 
   return (
@@ -286,14 +271,12 @@ export function WorkspaceHeader({
             <ActionIcon className="size-4" /> {copy.action}
           </Link>
 
-          <Link
-            href="/account?tab=notifications"
-            className={`relative hidden size-11 place-items-center rounded-[10px] border sm:grid ${theme.iconButton}`}
-            aria-label="Mở thông báo"
-          >
-            <Bell className="size-4" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-current bg-coral" />
-          </Link>
+          <div className="hidden sm:block">
+            <NotificationDropdown
+              role={role}
+              buttonClassName={theme.iconButton}
+            />
+          </div>
 
           {status === "loading" ? (
             <span className="h-10 w-24 animate-pulse rounded-[10px] bg-current/8" />
@@ -315,44 +298,92 @@ export function WorkspaceHeader({
                   <p className="truncate text-sm font-bold">{session.user.name}</p>
                   <p className="mt-1 truncate text-[10px] text-[#77827d]">{session.user.email}</p>
                 </div>
-                <label className="mt-2 block px-3 pb-2 pt-1 text-[10px] font-semibold text-[#77827d]">
-                  Chuyển không gian
-                  <span className="relative mt-1.5 block">
-                    <select
-                      name="workspaceRole"
-                      value={selectedRole}
-                      disabled={busy}
-                      onChange={(event) => void switchRole(event.target.value as UserRole)}
-                      className="h-11 w-full appearance-none rounded-[10px] border border-[#dedfdc] bg-white px-3 pr-8 text-xs font-bold text-[#17251f] outline-none"
+                <div className="mt-2 space-y-0.5 border-b border-[#dedfdc] pb-2">
+                  <Link
+                    href="/"
+                    className="flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-xs font-semibold text-[#17251f] hover:bg-[#f3f2ed] transition-colors"
+                  >
+                    <Home className="size-4 text-ink-muted" />
+                    <span>Về trang chủ</span>
+                  </Link>
+
+                  <Link
+                    href="/creator"
+                    className={`flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-xs font-semibold transition-colors ${
+                      role === "CREATOR"
+                        ? "bg-forest/10 text-forest font-bold"
+                        : "text-[#17251f] hover:bg-[#f3f2ed]"
+                    }`}
+                  >
+                    <FolderKanban className="size-4 text-forest" />
+                    <div className="min-w-0 flex-1">
+                      <p>Chiến dịch của tôi</p>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/dashboard"
+                    className={`flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-xs font-semibold transition-colors ${
+                      role === "BACKER"
+                        ? "bg-coral/10 text-coral-dark font-bold"
+                        : "text-[#17251f] hover:bg-[#f3f2ed]"
+                    }`}
+                  >
+                    <BookHeart className="size-4 text-coral-dark" />
+                    <div className="min-w-0 flex-1">
+                      <p>Dự án đã ủng hộ</p>
+                    </div>
+                  </Link>
+
+                  {session.user.roles.includes("ADMIN") ? (
+                    <Link
+                      href="/admin"
+                      className={`flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-xs font-semibold transition-colors ${
+                        role === "ADMIN"
+                          ? "bg-red-100 text-red-800 font-bold"
+                          : "text-red-700 hover:bg-red-50"
+                      }`}
                     >
-                      {session.user.roles.map((availableRole) => (
-                        <option key={availableRole} value={availableRole}>
-                          {roleLabels[availableRole]}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#77827d]" />
-                  </span>
-                </label>
-                <Link href="/account" className="flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-xs font-semibold hover:bg-[#f3f2ed]">
-                  <Settings className="size-4" /> Hồ sơ và cài đặt
-                </Link>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void signOut("/auth")}
-                  className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2.5 text-left text-xs font-semibold hover:bg-[#f3f2ed]"
-                >
-                  <ArrowLeftRight className="size-4" /> Đổi tài khoản
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void signOut()}
-                  className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2.5 text-left text-xs font-semibold text-red-600 hover:bg-red-50"
-                >
-                  <LogOut className="size-4" /> Đăng xuất
-                </button>
+                      <ShieldAlert className="size-4 text-red-600" />
+                      <div className="min-w-0 flex-1">
+                        <p>Trang quản trị</p>
+                      </div>
+                    </Link>
+                  ) : null}
+
+                  {session.user.roles.includes("COLLABORATOR") ? (
+                    <Link
+                      href="/collaborator"
+                      className={`flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-xs font-semibold transition-colors ${
+                        role === "COLLABORATOR"
+                          ? "bg-blue-100 text-blue-800 font-bold"
+                          : "text-blue-700 hover:bg-blue-50"
+                      }`}
+                    >
+                      <ClipboardCheck className="size-4 text-blue-600" />
+                      <div className="min-w-0 flex-1">
+                        <p>Công việc cộng tác</p>
+                      </div>
+                    </Link>
+                  ) : null}
+                </div>
+
+                <div className="pt-1.5 space-y-0.5">
+                  <Link
+                    href="/account"
+                    className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-xs font-semibold hover:bg-[#f3f2ed] transition-colors"
+                  >
+                    <Settings className="size-4" /> Hồ sơ và cài đặt
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void signOut()}
+                    className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut className="size-4" /> Đăng xuất
+                  </button>
+                </div>
               </div>
             </details>
           ) : (
@@ -398,25 +429,38 @@ export function WorkspaceHeader({
           </div>
           {session && selectedRole ? (
             <div className={`mt-3 border-t pt-3 ${theme.divider}`}>
-              <label className={`text-[10px] font-semibold ${theme.muted}`}>
-                Không gian làm việc
-                <select
-                  name="mobileWorkspaceRole"
-                  value={selectedRole}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setMobileOpen(false);
-                    void switchRole(event.target.value as UserRole);
-                  }}
-                  className="mt-1.5 h-11 w-full rounded-[10px] border border-[#dedfdc] bg-white px-3 text-sm font-bold text-[#17251f] outline-none"
+              <div className="space-y-1">
+                <Link
+                  href="/"
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex min-h-10 items-center gap-2 rounded-[10px] px-3 text-xs font-semibold ${theme.iconButton}`}
                 >
-                  {session.user.roles.map((availableRole) => (
-                    <option key={availableRole} value={availableRole}>
-                      {roleLabels[availableRole]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <Home className="size-4" /> Về trang chủ
+                </Link>
+                <Link
+                  href="/creator"
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex min-h-10 items-center gap-2 rounded-[10px] px-3 text-xs font-semibold ${theme.iconButton}`}
+                >
+                  <FolderKanban className="size-4" /> Chiến dịch của tôi
+                </Link>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex min-h-10 items-center gap-2 rounded-[10px] px-3 text-xs font-semibold ${theme.iconButton}`}
+                >
+                  <BookHeart className="size-4" /> Dự án đã ủng hộ
+                </Link>
+                {session.user.roles.includes("ADMIN") ? (
+                  <Link
+                    href="/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex min-h-10 items-center gap-2 rounded-[10px] border border-red-500/20 bg-red-500/10 px-3 text-xs font-semibold text-red-300"
+                  >
+                    <ShieldAlert className="size-4 text-red-400" /> Trang quản trị
+                  </Link>
+                ) : null}
+              </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <Link href="/account" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${theme.iconButton}`}>
                   <Settings className="size-4" /> Tài khoản

@@ -265,11 +265,33 @@ export async function POST(request: Request) {
           ? "Hồ sơ đã đạt checklist của vòng duyệt hiện tại."
           : "Quản trị viên chưa để lại phản hồi."),
     };
+    const decidedAt = new Date().toISOString();
+    platformState.reviewTimestamps = {
+      ...(platformState.reviewTimestamps ?? {}),
+      [payload.reviewId as string]: decidedAt,
+    };
 
     const targetReviewId = payload.reviewId as string;
-    platformState.submittedReviews = platformState.submittedReviews.filter(
-      (item) => item.id !== targetReviewId && item.campaignId !== targetReviewId,
-    );
+    if (payload.decision === "CHANGES") {
+      const feedbackText =
+        (payload.feedback as string | undefined)?.trim() ||
+        "Ban quản trị yêu cầu bổ sung thông tin hồ sơ.";
+      platformState.submittedReviews = platformState.submittedReviews.map(
+        (item) =>
+          item.id === targetReviewId || item.campaignId === targetReviewId
+            ? {
+                ...item,
+                status: "NEEDS_CHANGES",
+                feedback: feedbackText,
+              }
+            : item,
+      );
+    } else {
+      platformState.submittedReviews = platformState.submittedReviews.filter(
+        (item) =>
+          item.id !== targetReviewId && item.campaignId !== targetReviewId,
+      );
+    }
 
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -469,10 +491,31 @@ export async function POST(request: Request) {
   }
 
   if (action === "SET_CAMPAIGN_STATUS") {
+    const campaignId = payload.campaignId as string;
+    const status = payload.status as "LIVE" | "SUSPENDED";
+    const reason = (payload.reason as string) || undefined;
     previewState.campaignStatuses = {
       ...(previewState.campaignStatuses ?? {}),
-      [payload.campaignId as string]: payload.status as "LIVE" | "SUSPENDED",
+      [campaignId]: status,
     };
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        campaignId,
+      );
+    if (isUuid) {
+      try {
+        await fetchBackendWithAuth(
+          `/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ status, reason }),
+          },
+          access.session,
+        );
+      } catch (e) {
+        console.warn("Backend campaign status update failed:", e);
+      }
+    }
   }
 
   const nextSession = { ...access.session!, previewState };
