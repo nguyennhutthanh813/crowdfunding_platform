@@ -18,7 +18,7 @@ Dùng skill này khi người dùng muốn commit, lấy thay đổi từ remote
 
 - Gom một thay đổi có cùng mục đích vào một commit; tách khi hai phần có thể xem hoặc hoàn tác độc lập. Stage theo đường dẫn cụ thể, kiểm `git diff --cached` trước khi commit. Nếu còn file người khác hoặc thay đổi ngoài phạm vi, để nguyên.
 - Chạy kiểm tra phù hợp với phần sửa: ví dụ API thì type-check, test và build; giao diện thì lint, type-check, build hoặc luồng browser liên quan. Ghi kết quả thật, kể cả kiểm tra chưa chạy được.
-- Viết tiêu đề ngắn bằng tiếng Việt hoặc tiếng Anh nhất quán với lịch sử repo, nêu hành động và đối tượng cụ thể. Ví dụ: `Khớp quyền cộng tác viên và dữ liệu cam kết với form web`. Phần thân chỉ ghi lý do hoặc giới hạn khi tiêu đề chưa đủ; không nhét checklist “hoàn hảo”, câu quảng cáo hoặc tuyên bố đã kiểm thử khi chưa chạy.
+- Repo Góp dùng tiếng Anh cho tiêu đề và phần thân commit. Nêu hành động và đối tượng cụ thể, ví dụ: `Align campaign and pledge APIs with web forms`. Giữ tên riêng và tên kỹ thuật khi cần; không trộn một câu tiếng Việt vào tiêu đề tiếng Anh. Phần thân chỉ ghi lý do hoặc giới hạn khi tiêu đề chưa đủ; không nhét checklist “hoàn hảo”, câu quảng cáo hoặc tuyên bố đã kiểm thử khi chưa chạy.
 - Không thêm lỗi chính tả, teen code, timestamp tùy tiện hoặc câu chuyện cá nhân để giả phong cách sinh viên. Mã và commit nên dễ hiểu với hai thành viên khi đọc lại sau vài tuần.
 
 ## Pull và push
