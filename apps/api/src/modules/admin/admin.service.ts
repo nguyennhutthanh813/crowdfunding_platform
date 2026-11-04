@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { CampaignStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationArgs, buildPaginatedResponse } from '../../common/helpers';
@@ -385,6 +386,7 @@ export class AdminService {
             reviewer: { select: { id: true, displayName: true, email: true } },
           },
         },
+        _count: { select: { reviews: true } },
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -436,10 +438,12 @@ export class AdminService {
         imageUrl: primaryImage,
         completeness,
         status: campaign.status === 'IN_REVIEW' ? ('PENDING' as const) : ('NEEDS_CHANGES' as const),
-        submissionVersion: campaign.reviews.length + 1,
+        submissionVersion: campaign.status === 'IN_REVIEW'
+          ? campaign._count.reviews + 1
+          : campaign._count.reviews,
         assignedTo: 'Ban quản trị',
-        reviewDueAt: 'Trong 24 giờ',
-        documentCount: 3 + campaign.rewardTiers.length + campaign.addOns.length,
+        reviewDueAt: 'Chưa ấn định',
+        documentCount: campaign.media.length + campaign.rewardTiers.length + campaign.addOns.length,
         checks,
         rewardTiers: campaign.rewardTiers.map((r) => ({
           ...r,
@@ -499,61 +503,19 @@ export class AdminService {
     });
 
     if (!campaign) throw new NotFoundException('Campaign not found');
+    if (campaign.status !== 'IN_REVIEW') {
+      throw new ConflictException('Chỉ có thể duyệt chiến dịch đang chờ xét duyệt');
+    }
+    if (dto.decision !== 'APPROVED' && !dto.feedback?.trim()) {
+      throw new BadRequestException('Cần ghi lý do để chủ dự án biết phần phải sửa');
+    }
 
-    // Create review record
-    const review = await this.prisma.campaignReview.create({
-      data: {
-        campaignId,
-        reviewerId,
-        decision: dto.decision as any,
-        checklist: dto.checklist ?? {},
-        feedback: dto.feedback,
-        decidedAt: new Date(),
-      },
-    });
-
-    // Update campaign status based on decision
-    const statusMap: Record<string, string> = {
+    const statusMap: Record<ReviewCampaignDto['decision'], CampaignStatus> = {
       APPROVED: 'PRE_LAUNCH',
       CHANGES_REQUESTED: 'DRAFT',
       REJECTED: 'SUSPENDED',
     };
-
     const newStatus = statusMap[dto.decision];
-    if (newStatus) {
-      await this.prisma.campaign.update({
-        where: { id: campaignId },
-        data: {
-          status: newStatus as any,
-          statusHistory: {
-            create: {
-              fromStatus: campaign.status,
-              toStatus: newStatus as any,
-              changedBy: reviewerId,
-              reason: dto.feedback,
-            },
-          },
-        },
-      });
-    }
-
-    // Ghi nhật ký kiểm duyệt ModerationAction (ADM-MOD-01)
-    await this.prisma.moderationAction.create({
-      data: {
-        adminId: reviewerId,
-        targetType: 'CAMPAIGN',
-        targetId: campaignId,
-        action: `REVIEW_${dto.decision}`,
-        reason: dto.feedback || `Quản trị viên quyết định ${dto.decision} chiến dịch`,
-        metadata: {
-          reviewId: review.id,
-          decision: dto.decision,
-          checklist: dto.checklist,
-        },
-      },
-    });
-
-    // Tạo thông báo cho Creator (NOTIF-01)
     const titleNotice =
       dto.decision === 'APPROVED'
         ? `Chiến dịch "${campaign.title}" đã được phê duyệt!`
@@ -567,17 +529,57 @@ export class AdminService {
         ? 'Chiến dịch của bạn đã sẵn sàng để chuẩn bị ra mắt (Pre-launch) hoặc khởi chạy gọi vốn.'
         : 'Vui lòng kiểm tra lại phản hồi chi tiết từ ban quản trị.');
 
-    await this.prisma.notification.create({
-      data: {
-        userId: campaign.creatorId,
-        type: 'CAMPAIGN_STATUS',
-        title: titleNotice,
-        body: bodyNotice,
-        actionUrl: `/creator/campaigns/${campaign.slug}/manage`,
-      },
-    });
 
-    return review;
+    // Review, trạng thái, lịch sử và thông báo phải cùng thành công hoặc cùng rollback.
+    return this.prisma.$transaction(async (tx) => {
+      const changed = await tx.campaign.updateMany({
+        where: { id: campaignId, status: 'IN_REVIEW' },
+        data: { status: newStatus },
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException('Chiến dịch vừa được xử lý bởi quản trị viên khác');
+      }
+
+      const review = await tx.campaignReview.create({
+        data: {
+          campaignId,
+          reviewerId,
+          decision: dto.decision,
+          checklist: dto.checklist ?? {},
+          feedback: dto.feedback?.trim(),
+          decidedAt: new Date(),
+        },
+      });
+      await tx.campaignStatusHistory.create({
+        data: {
+          campaignId,
+          fromStatus: 'IN_REVIEW',
+          toStatus: newStatus,
+          changedBy: reviewerId,
+          reason: dto.feedback?.trim(),
+        },
+      });
+      await tx.moderationAction.create({
+        data: {
+          adminId: reviewerId,
+          targetType: 'CAMPAIGN',
+          targetId: campaignId,
+          action: `REVIEW_${dto.decision}`,
+          reason: dto.feedback?.trim() || `Quản trị viên quyết định ${dto.decision} chiến dịch`,
+          metadata: { reviewId: review.id, decision: dto.decision, checklist: dto.checklist ?? {} },
+        },
+      });
+      await tx.notification.create({
+        data: {
+          userId: campaign.creatorId,
+          type: 'CAMPAIGN_STATUS',
+          title: titleNotice,
+          body: bodyNotice,
+          actionUrl: `/creator/campaigns/${campaign.slug}/manage`,
+        },
+      });
+      return review;
+    });
   }
 
   // ─── Fraud Alerts ──────────────────────────────────────

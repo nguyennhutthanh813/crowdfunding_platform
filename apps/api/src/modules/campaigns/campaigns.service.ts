@@ -534,8 +534,8 @@ export class CampaignsService {
       throw new ForbiddenException('Only the campaign creator can launch this campaign');
     }
 
-    if ((campaign.status as string) !== 'APPROVED' && campaign.status !== 'PRE_LAUNCH') {
-      throw new BadRequestException('Campaign can only be launched after being approved (status PRE_LAUNCH or APPROVED)');
+    if (campaign.status !== 'PRE_LAUNCH') {
+      throw new BadRequestException('Chiến dịch cần được duyệt trước khi mở gọi vốn');
     }
 
     const durationDays = campaign.durationDays || 30;
