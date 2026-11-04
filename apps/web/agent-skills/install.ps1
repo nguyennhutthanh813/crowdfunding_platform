@@ -14,7 +14,8 @@ $names = @(
   'ui-interaction-build',
   'ui-accessibility-check',
   'ui-browser-proof',
-  'gop-code-voice'
+  'gop-code-voice',
+  'gop-git-workflow'
 )
 
 $locations = @()

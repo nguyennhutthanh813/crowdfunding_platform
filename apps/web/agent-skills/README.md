@@ -15,6 +15,7 @@ Các skill nhỏ của nhóm được bổ sung để xử lý phần việc kh�
 | `gop-debugging` | Nút, API, quyền, số liệu hoặc test sai; lần theo cùng record qua UI → request → store → màn đọc lại. |
 | `gop-acceptance-audit` | Trước demo hoặc khi cần kết luận một luồng đã đáp ứng UC/NFR, có dữ liệu và bằng chứng trình duyệt. |
 | `gop-ai-evaluation` | Khi bắt đầu dataset/baseline/model cho ba AI cốt lõi; chống rò dữ liệu và ghi metric có thể tái hiện. |
+| `gop-git-workflow` | Khi commit, pull, push hoặc chép bản web local vào monorepo; rà diff, đúng tài khoản/nhánh và ghi rõ kết quả thật. |
 
 Năm skill bên ngoài được chọn sau khi xem nội dung và giấy phép, cài trong `~/.codex/skills` từ commit cố định:
 
@@ -63,7 +64,7 @@ Từ thư mục `crowdfunding-ai-platform`, chạy:
 .\agent-skills\install.ps1 -Target Both
 ```
 
-Script chép tám skill UI và `gop-code-voice` tới `~/.codex/skills` và `~/.claude/skills`; bốn skill Góp điều phối, sửa lỗi, kiểm định và đánh giá AI chỉ được chép sang Codex. Nếu chạy lại mà file đích đã được sửa riêng, script giữ một bản `SKILL.before-ui-suite.md` trước khi đồng bộ. Source ở đây là bản để nhóm lưu cùng dự án và mang sang máy khác. Mở cuộc trò chuyện mới để hai ứng dụng nạp danh sách skill mới. Năm skill bên ngoài ở đầu tài liệu được cài thêm bằng `install-codex-project.ps1`.
+Script chép tám skill UI, `gop-code-voice` và `gop-git-workflow` tới `~/.codex/skills` và `~/.claude/skills`; bốn skill Góp điều phối, sửa lỗi, kiểm định và đánh giá AI chỉ được chép sang Codex. Nếu chạy lại mà file đích đã được sửa riêng, script giữ một bản `SKILL.before-ui-suite.md` trước khi đồng bộ. Source ở đây là bản để nhóm lưu cùng dự án và mang sang máy khác. Mở cuộc trò chuyện mới để hai ứng dụng nạp danh sách skill mới. Năm skill bên ngoài ở đầu tài liệu được cài thêm bằng `install-codex-project.ps1`.
 
 Tên cũ `ui-ux-claude-code` trong Codex được giữ làm lối gọi tương thích và chuyển sang `ui-ux-director`; bản cũ được sao lưu trước khi thay. Không cài tên này cho Claude Code vì quy tắc đặt tên skill của Claude không nhận tên chứa `claude`.
 
