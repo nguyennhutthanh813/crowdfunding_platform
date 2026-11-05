@@ -61,18 +61,21 @@ function isCurrentPage(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SiteHeader() {
+export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) {
   const pathname = usePathname();
   const { session, status, busy, switchRole, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const routeRole = inferWorkspaceRole(pathname);
+  const navigation = siteConfig.navigation.filter(
+    (item) => item.href !== "/du-lieu-chung" || connectedEnabled,
+  );
   const displayedRole = session?.user.activeRole;
   const unreadCount = useUnreadNotifications(session?.user.id,
     !routeRole && displayedRole === "COLLABORATOR");
 
   // Khu vực theo vai trò đã có thanh điều hướng riêng ở layout bên trong.
-  if (routeRole) return null;
+  if (routeRole || pathname.startsWith("/du-lieu-chung")) return null;
 
   const tone = displayedRole ? roleHeaderTone[displayedRole] : null;
   const primaryAction =
@@ -104,7 +107,7 @@ export function SiteHeader() {
           className="hidden items-center gap-5 whitespace-nowrap xl:flex"
           aria-label="Điều hướng chính"
         >
-          {siteConfig.navigation.map((item) => {
+          {navigation.map((item) => {
             const active = isCurrentPage(pathname, item.href);
             return (
               <Link
@@ -282,7 +285,7 @@ export function SiteHeader() {
             className="mx-auto flex max-w-lg flex-col gap-1"
             aria-label="Điều hướng di động"
           >
-            {siteConfig.navigation.map((item) => (
+            {navigation.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

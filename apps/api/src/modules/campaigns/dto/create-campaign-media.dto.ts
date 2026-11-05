@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum, IsInt, IsUrl, Min, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsInt, Matches, Min, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCampaignMediaDto {
@@ -9,7 +9,10 @@ export class CreateCampaignMediaDto {
 
   @ApiProperty({ description: 'Media URL' })
   @IsString()
-  @IsUrl()
+  // Ảnh nằm trong public/images/campaigns dùng đường dẫn tương đối, giống dữ liệu seed.
+  @Matches(/^(?:\/images\/campaigns\/[a-z0-9_-]+\.(?:png|jpe?g|webp|svg)|https?:\/\/[^\s/]+(?:\/[^\s]*)?)$/i, {
+    message: 'Ảnh cần là URL http(s) hoặc đường dẫn /images/campaigns/...',
+  })
   url!: string;
 
   @ApiPropertyOptional({ description: 'Alt text for accessibility', maxLength: 240 })

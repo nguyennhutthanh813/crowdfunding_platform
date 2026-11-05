@@ -42,6 +42,9 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
         findUnique: jest.fn(),
         findMany: jest.fn(),
       },
+      campaignStatusHistory: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       campaignMedia: {
         create: jest.fn(),
         delete: jest.fn(),

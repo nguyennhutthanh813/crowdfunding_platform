@@ -38,6 +38,7 @@ export function SiteFooter() {
     "/collaborator",
     "/creator",
     "/dashboard",
+    "/du-lieu-chung",
     "/onboarding",
     "/pledge",
   ];

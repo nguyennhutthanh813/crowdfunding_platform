@@ -74,7 +74,7 @@ export default async function RootLayout({
             Bỏ qua phần điều hướng
           </a>
           <ConnectivityBanner />
-          <SiteHeader />
+          <SiteHeader connectedEnabled={Boolean(process.env.GOP_BACKEND_URL)} />
           <DemoContextNotice />
           <main id="noi-dung-chinh" tabIndex={-1}>
             {children}

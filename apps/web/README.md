@@ -2,6 +2,8 @@
 
 > Trong repo `crowdfunding_platform`, thư mục này là `apps/web`. Cài dependency từ root bằng `corepack pnpm install --frozen-lockfile`, rồi chạy `corepack pnpm dev:web`. Bản SQLite riêng được tạo trong `apps/web/.local-data` khi chạy local; GitHub chỉ chứa source và seed, không chứa file dữ liệu đang thao tác.
 
+Trang `/du-lieu-chung` đã nối một luồng Creator → Admin → Backer → Collaborator qua NestJS và PostgreSQL. Nó có tài khoản backend riêng, không dùng chung phiên/ID với bản SQLite demo. Xem [hướng dẫn chạy hai ứng dụng](../../docs/du-lieu-dung-chung.md); các màn còn lại bên dưới vẫn mô tả bản demo.
+
 Đây là phần web của đồ án **Nghiên cứu và xây dựng nền tảng gọi vốn cộng đồng tích hợp trí tuệ nhân tạo hỗ trợ đánh giá và tối ưu hóa chiến dịch**.
 
 Nhóm có 2 thành viên và dự kiến thực hiện trong 10 tuần, vì vậy phạm vi được chốt ở một web responsive với ba chức năng AI chính:

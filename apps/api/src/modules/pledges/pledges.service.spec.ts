@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, NotFoundExc
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { PledgesService } from './pledges.service';
+import { PledgeQueryDto } from './dto/pledge-query.dto';
 
 describe('PledgesService với dữ liệu từ form web', () => {
   const campaignId = '11111111-1111-4111-8111-111111111111';
@@ -15,10 +16,11 @@ describe('PledgesService với dữ liệu từ form web', () => {
   beforeEach(() => {
     tx = {
       campaign: { findUnique: jest.fn().mockResolvedValue({
-        id: campaignId, status: 'LIVE', endsAt: new Date(Date.now() + 86_400_000),
+        id: campaignId, creatorId: 'creator-1', status: 'LIVE', endsAt: new Date(Date.now() + 86_400_000),
       }) },
       pledge: {
         findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn().mockResolvedValue({ id: 'pledge-1', status: 'PENDING' }),
       },
@@ -70,6 +72,22 @@ describe('PledgesService với dữ liệu từ form web', () => {
     await expect(service.create(backerId, { campaignId, rewardId, addOnIds: [addOnId] }))
       .rejects.toThrow(NotFoundException);
     expect(tx.pledge.create).not.toHaveBeenCalled();
+  });
+
+  it('chặn chủ dự án tự tạo cam kết', async () => {
+    tx.campaign.findUnique.mockResolvedValue({
+      id: campaignId, creatorId: backerId, status: 'LIVE', endsAt: new Date(Date.now() + 86_400_000),
+    });
+    await expect(service.create(backerId, { campaignId, bonusAmount: 50_000 }))
+      .rejects.toThrow(ForbiddenException);
+    expect(tx.pledge.create).not.toHaveBeenCalled();
+  });
+
+  it('sắp xếp danh sách cam kết theo ngày cam kết, không dùng createdAt', async () => {
+    await service.findMyPledges(backerId, new PledgeQueryDto());
+    expect(tx.pledge.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      orderBy: { pledgedAt: 'desc' },
+    }));
   });
 
   it('không cho dùng địa chỉ của tài khoản khác', async () => {

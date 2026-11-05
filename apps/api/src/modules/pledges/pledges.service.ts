@@ -42,9 +42,12 @@ export class PledgesService {
       return await this.prisma.$transaction(async (tx) => {
         const campaign = await tx.campaign.findUnique({
           where: { id: dto.campaignId },
-          select: { id: true, status: true, endsAt: true },
+          select: { id: true, creatorId: true, status: true, endsAt: true },
         });
         if (!campaign) throw new NotFoundException('Không tìm thấy chiến dịch');
+        if (campaign.creatorId === backerId) {
+          throw new ForbiddenException('Chủ dự án không thể tự ủng hộ chiến dịch của mình');
+        }
         if (campaign.status !== 'LIVE' || (campaign.endsAt && campaign.endsAt <= new Date())) {
           throw new ConflictException('Chiến dịch hiện không nhận cam kết');
         }
@@ -204,12 +207,12 @@ export class PledgesService {
     });
 
     if (!pledge) {
-      throw new NotFoundException('Pledge not found');
+      throw new NotFoundException('Không tìm thấy cam kết');
     }
 
-    // Only backer or campaign creator can view pledge details
+    // Người ủng hộ và chủ chiến dịch mới xem được chi tiết cam kết này.
     if (pledge.backerId !== userId && pledge.campaign.creatorId !== userId) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException('Bạn không có quyền xem cam kết này');
     }
 
     return pledge;

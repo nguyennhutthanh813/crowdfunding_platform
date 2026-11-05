@@ -2,6 +2,7 @@
 
 import { Type } from "lucide-react";
 import { useEffect, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { DEMO_SNAPSHOT_LABEL } from "@/lib/api/mock/relational-store";
 
 const readingSizeKey = "gop_reading_size";
@@ -26,6 +27,7 @@ function currentReadingSize() {
 }
 
 export function DemoContextNotice() {
+  const pathname = usePathname();
   const largeText = useSyncExternalStore(subscribe, currentReadingSize, () => false);
 
   useEffect(() => {
@@ -42,6 +44,8 @@ export function DemoContextNotice() {
     }
     window.dispatchEvent(new Event(readingSizeEvent));
   };
+
+  if (pathname.startsWith("/du-lieu-chung")) return null;
 
   return (
     <div className="border-b border-[#d9e2cf] bg-[#f3f7ea] text-[#385447]">

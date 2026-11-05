@@ -9,6 +9,7 @@ export const siteConfig = {
     { href: "/discover?status=PRE_LAUNCH", label: "Sắp ra mắt" },
     { href: "/#cach-hoat-dong", label: "Cách hoạt động" },
     { href: "/huong-dan", label: "Hướng dẫn" },
+    { href: "/du-lieu-chung", label: "Dữ liệu dùng chung" },
   ],
   footer: {
     discover: [

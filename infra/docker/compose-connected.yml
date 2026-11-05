@@ -1,0 +1,20 @@
+services:
+  postgres-connected:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:55434:5432"
+    environment:
+      POSTGRES_DB: gop_connected
+      POSTGRES_USER: gop_dev
+      POSTGRES_PASSWORD: gop_dev_local_only
+    volumes:
+      - postgres_connected_data:/var/lib/postgresql/data
+      - ./connected-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gop_dev -d gop_connected"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_connected_data:

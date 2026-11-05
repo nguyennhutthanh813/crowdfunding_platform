@@ -113,7 +113,10 @@ export class CampaignsService {
         addOns: { where: { isActive: true } },
         shippingOptions: { where: { isActive: true } },
         faqs: { orderBy: { sortOrder: 'asc' } },
-        updates: { orderBy: { publishedAt: 'desc' } },
+        updates: {
+          orderBy: { publishedAt: 'desc' },
+          include: { author: { select: { id: true, displayName: true } } },
+        },
         members: {
           include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
         },
@@ -122,7 +125,7 @@ export class CampaignsService {
     });
 
     if (!campaign) {
-      throw new NotFoundException('Campaign not found');
+      throw new NotFoundException('Không tìm thấy chiến dịch');
     }
 
     return campaign;
@@ -145,7 +148,12 @@ export class CampaignsService {
     if (!member && campaign.creatorId !== userId) {
       throw new ForbiddenException('Bạn không thuộc nhóm chiến dịch này');
     }
-    return campaign;
+    const statusHistory = await this.prisma.campaignStatusHistory.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { changedAt: 'asc' },
+      include: { changer: { select: { displayName: true } } },
+    });
+    return { ...campaign, statusHistory };
   }
 
   async create(creatorId: string, dto: CreateCampaignDto) {
@@ -240,7 +248,7 @@ export class CampaignsService {
     const campaign = await this.ensureOwnership(campaignId, userId);
 
     if (campaign.status !== 'DRAFT') {
-      throw new BadRequestException('Only draft campaigns can be submitted for review');
+      throw new BadRequestException('Chỉ bản nháp mới có thể gửi duyệt');
     }
 
     const fullCampaign = await this.prisma.campaign.findUnique({
@@ -253,18 +261,18 @@ export class CampaignsService {
 
     const missing: string[] = [];
     if (!fullCampaign?.storyMarkdown || fullCampaign.storyMarkdown.trim().length === 0) {
-      missing.push('story');
+      missing.push('kế hoạch dự án');
     }
     if (!fullCampaign?.media || fullCampaign.media.length === 0) {
-      missing.push('at least 1 media item');
+      missing.push('ít nhất một ảnh hoặc video');
     }
     if (!fullCampaign?.rewardTiers || fullCampaign.rewardTiers.length === 0) {
-      missing.push('at least 1 reward tier');
+      missing.push('ít nhất một gói ủng hộ');
     }
 
     if (missing.length > 0) {
       throw new BadRequestException(
-        `Campaign review checklist incomplete. Missing: ${missing.join(', ')}`,
+        `Hồ sơ chưa đủ để gửi duyệt: ${missing.join(', ')}`,
       );
     }
 
