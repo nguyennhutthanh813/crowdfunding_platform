@@ -4,6 +4,7 @@ import type {
   CampaignDetail,
   CampaignStatus,
   CampaignOperationsData,
+  CreatorPortfolioCampaign,
   CreatorPortfolioData,
   UserDashboardData,
 } from "@/lib/api/contracts";
@@ -45,11 +46,12 @@ export function buildBackerWorkspaceSnapshot(
 }
 
 export function buildCreatorWorkspaceSnapshot(
-  campaign?: CampaignCardData | CampaignDetail | null,
+  campaign?: CampaignCardData | CampaignDetail | CreatorPortfolioCampaign | null,
   operations?: CampaignOperationsData | null,
   portfolio?: CreatorPortfolioData | null,
 ): WorkspaceSnapshot {
-  const totalCount = portfolio?.summary?.total ?? portfolio?.campaigns?.length ?? 1;
+  const totalCount =
+    portfolio?.summary?.total ?? portfolio?.campaigns?.length ?? 0;
   const liveCount = portfolio?.campaigns?.filter((c) => c.status === "LIVE").length ?? 0;
   const isLive = campaign?.status === "LIVE";
   const isSuccessful = campaign?.status === "SUCCESSFUL";

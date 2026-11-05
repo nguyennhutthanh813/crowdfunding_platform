@@ -63,6 +63,28 @@ export async function fetchRealAdminUsers(
           pledges: number;
           fraudAlertsSubject: number;
         };
+        campaigns?: Array<{
+          id: string;
+          title: string;
+          slug: string;
+          status: string;
+          goalAmount: number | string | bigint;
+          createdAt: string;
+          pledges?: Array<{ totalAmount: number | string | bigint | null }>;
+          _count?: { pledges: number };
+        }>;
+        campaignMembers?: Array<{
+          role: string;
+          joinedAt: string;
+          campaign: {
+            id: string;
+            title: string;
+            slug: string;
+            status: string;
+            goalAmount: number | string | bigint;
+            _count?: { pledges: number };
+          };
+        }>;
       }>;
     };
 
@@ -87,6 +109,56 @@ export async function fetchRealAdminUsers(
           }).format(new Date(user.lastLoginAt))
         : "Chưa đăng nhập";
 
+      const mappedCampaigns = (user.campaigns || []).map((camp) => {
+        const pledgedAmount = (camp.pledges || []).reduce(
+          (sum, p) => sum + Number(p.totalAmount ?? 0),
+          0,
+        );
+        const campDate = camp.createdAt
+          ? new Intl.DateTimeFormat("vi-VN", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).format(new Date(camp.createdAt))
+          : createdDate;
+
+        return {
+          id: camp.id,
+          title: camp.title,
+          slug: camp.slug,
+          status: camp.status,
+          goalAmount: Number(camp.goalAmount ?? 0),
+          pledgedAmount,
+          backerCount: camp._count?.pledges ?? 0,
+          createdAt: campDate,
+          memberRole: "Chủ dự án",
+        };
+      });
+
+      const mappedMemberships = (user.campaignMembers || []).map((cm) => {
+        const joinDate = cm.joinedAt
+          ? new Intl.DateTimeFormat("vi-VN", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).format(new Date(cm.joinedAt))
+          : createdDate;
+
+        return {
+          role: cm.role === "COLLABORATOR" ? "Cộng tác viên" : "Chủ sở hữu",
+          campaignId: cm.campaign.id,
+          campaignTitle: cm.campaign.title,
+          campaignSlug: cm.campaign.slug,
+          campaignStatus: cm.campaign.status,
+          joinedAt: joinDate,
+        };
+      });
+
+      const campaignCount =
+        mappedCampaigns.length > 0
+          ? mappedCampaigns.length
+          : (user._count?.campaigns ?? 0);
+
       return {
         id: user.id,
         name: user.displayName,
@@ -100,11 +172,12 @@ export async function fetchRealAdminUsers(
         bio: user.bio || undefined,
         createdAt: createdDate,
         emailVerified: !!user.emailVerifiedAt,
-        campaignCount: user._count?.campaigns ?? 0,
+        campaignCount,
         pledgeCount: user._count?.pledges ?? 0,
         totalPledgedAmount: 0,
         fraudAlertCount: user._count?.fraudAlertsSubject ?? 0,
-        campaigns: [],
+        campaigns: mappedCampaigns,
+        campaignMembers: mappedMemberships,
         pledges: [],
         moderationActions: [
           {
@@ -188,6 +261,41 @@ export async function forwardUserActionToBackend(
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         return { success: false, error: err.message || "Cập nhật trạng thái thất bại." };
+      }
+      return { success: true, data: await res.json() };
+    }
+
+    if (action === "ASSIGN_CAMPAIGN_COLLABORATOR") {
+      const userId = String(payload.userId);
+      const campaignId = String(payload.campaignId);
+      const reason = payload.reason ? String(payload.reason) : undefined;
+      const res = await fetch(`${apiUrl}/admin/users/${userId}/collaborator`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ campaignId, reason }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { success: false, error: err.message || "Gán vai trò cộng tác viên dự án thất bại." };
+      }
+      return { success: true, data: await res.json() };
+    }
+
+    if (action === "REMOVE_CAMPAIGN_COLLABORATOR") {
+      const userId = String(payload.userId);
+      const campaignId = String(payload.campaignId);
+      const reason = payload.reason ? String(payload.reason) : undefined;
+      const query = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+      const res = await fetch(
+        `${apiUrl}/admin/users/${userId}/collaborator/${campaignId}${query}`,
+        {
+          method: "DELETE",
+          headers,
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { success: false, error: err.message || "Thu hồi vai trò cộng tác viên dự án thất bại." };
       }
       return { success: true, data: await res.json() };
     }

@@ -126,13 +126,27 @@ export async function GET() {
           (n.type === "review" && n.message === feedback)
       );
 
+      const matchingReview = platformState.submittedReviews?.find(
+        (r) => r.id === id || r.campaignId === id
+      );
+
+      // Chỉ hiển thị thông báo duyệt nếu review này thuộc về tài khoản hiện tại
+      if (session?.user) {
+        if (!matchingReview) continue;
+        const isMatch =
+          (matchingReview.creatorEmail &&
+            matchingReview.creatorEmail.toLowerCase() ===
+              session.user.email?.toLowerCase()) ||
+          (matchingReview.creator &&
+            matchingReview.creator.toLowerCase() ===
+              session.user.name?.toLowerCase());
+        if (!isMatch) continue;
+      }
+
       if (!exists && (decision === "CHANGES" || decision === "APPROVED")) {
         // Retrieve persistent timestamp from cookie or initialize with real submitted review time
         let notifCreatedAt = platformState.reviewTimestamps[id];
         if (!notifCreatedAt) {
-          const matchingReview = platformState.submittedReviews?.find(
-            (r) => r.id === id || r.campaignId === id
-          );
           const reviewItems = matchingReview?.reviews;
           const lastReviewTime =
             Array.isArray(reviewItems) && reviewItems.length > 0

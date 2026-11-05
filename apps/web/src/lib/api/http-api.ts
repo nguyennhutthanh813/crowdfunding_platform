@@ -164,6 +164,19 @@ export function transformCampaignCard(raw: any): CampaignCardData {
       (m.mediaType === "IMAGE" || !m.mediaType) && isValidImageUrl(m.url),
   );
 
+  const videoMedia = raw.media?.find(
+    (m: any) =>
+      m.mediaType === "VIDEO" ||
+      (typeof m.url === "string" &&
+        (m.url.includes("youtu") ||
+          m.url.includes("vimeo") ||
+          m.url.endsWith(".mp4") ||
+          m.url.endsWith(".webm"))),
+  );
+  const videoUrl =
+    (videoMedia?.url ? String(videoMedia.url) : null) ||
+    (raw.videoUrl ? String(raw.videoUrl) : undefined);
+
   const mediaUrl =
     (imageMedia && isValidImageUrl(imageMedia.url) ? imageMedia.url : null) ||
     (isValidImageUrl(raw.imageUrl) ? raw.imageUrl : null) ||
@@ -180,6 +193,7 @@ export function transformCampaignCard(raw: any): CampaignCardData {
     pledgedAmount,
     backerCount,
     daysLeft,
+    videoUrl,
     launchDate:
       raw.publishedAt ??
       raw.startsAt ??
@@ -198,6 +212,8 @@ export function transformCampaignCard(raw: any): CampaignCardData {
       backedProjects: raw.creator?.backedProjects ?? 3,
     },
     tags: [categoryName, raw.location ?? "Việt Nam"],
+    isFeatured: Boolean(raw.isFeatured),
+    durationDays: raw.durationDays ? Number(raw.durationDays) : 30,
     recommendationReason: raw.recommendationReason,
     predictionScore: raw.predictionScore,
     visual: {
@@ -216,14 +232,25 @@ export function transformCampaignDetail(
 ): CampaignDetail {
   const card = transformCampaignCard(raw);
 
-  const storyText = raw.storyMarkdown || raw.story || card.blurb;
-  const rawParagraphs = storyText
+  const storyMarkdown =
+    raw.storyMarkdown || raw.story || (typeof card.blurb === "string" ? card.blurb : "");
+  const rawParagraphs = storyMarkdown
     .split(/\n\s*\n/)
     .map((p: string) => p.trim())
-    .filter((p: string) => p && !p.startsWith("#"));
+    .filter((p: string) => p);
 
   const paragraphs = rawParagraphs.length > 0 ? rawParagraphs : [card.blurb];
-  const lead = paragraphs[0] || card.blurb;
+  const lead =
+    rawParagraphs.find(
+      (p: string) =>
+        !p.startsWith("#") && !p.startsWith("![") && !p.startsWith(">"),
+    ) || card.blurb;
+
+  const gallery = (raw.media ?? []).map((m: any) => ({
+    url: m.url,
+    altText: m.altText ?? "",
+    mediaType: m.mediaType ?? "IMAGE",
+  }));
 
   const rewards = (raw.rewardTiers ?? []).map((r: any) => ({
     id: r.id,
@@ -267,32 +294,55 @@ export function transformCampaignDetail(
   }));
 
   const team = (raw.members ?? []).map((m: any) => ({
+    id: m.userId || m.id,
+    userId: m.userId,
     name: m.user?.displayName ?? "Thành viên",
+    email: m.user?.email ?? "",
     role: m.role === "OWNER" ? "Chủ dự án" : "Cộng tác viên",
     initials: getInitials(m.user?.displayName ?? "TV"),
+    canPostUpdates: m.canPostUpdates ?? true,
+    canReplyComments: m.canReplyComments ?? true,
+    canViewAiDashboard: m.canViewAiDashboard ?? true,
   }));
   if (team.length === 0 && card.creator) {
     team.push({
+      id: card.creator.id || "member_owner",
+      userId: card.creator.id,
       name: card.creator.name,
+      email: (card.creator as any)?.email ?? "",
       role: "Chủ dự án",
       initials: card.creator.initials,
+      canPostUpdates: true,
+      canReplyComments: true,
+      canViewAiDashboard: true,
     });
   }
 
-  const mappedComments: CampaignComment[] = comments.map((c: any) => {
-    const authorName = c.user?.displayName ?? c.author ?? "Thành viên";
-    let badge: CommentBadge = "BACKER";
-    if (c.user?.roles?.some((r: any) => (r.role || r) === "ADMIN"))
+  function mapComment(c: any): CampaignComment {
+    const authorName =
+      c.user?.displayName ??
+      (typeof c.author === "string" ? c.author : c.author?.displayName) ??
+      "Thành viên";
+    const authorId = c.userId ?? c.authorId ?? c.author?.id;
+    let badge: CommentBadge = c.badge || "BACKER";
+    if (
+      c.user?.roles?.some((r: any) => (r.role || r) === "ADMIN") ||
+      c.author?.roles?.some((r: any) => (r.role || r) === "ADMIN")
+    ) {
       badge = "ADMIN";
-    else if (c.userId === raw.creatorId) badge = "CREATOR";
-    else if (raw.members?.some((m: any) => m.userId === c.userId))
+    } else if (authorId === raw.creatorId) {
+      badge = "CREATOR";
+    } else if (
+      raw.members?.some((m: any) => (m.userId || m.user?.id) === authorId)
+    ) {
       badge = "COLLABORATOR";
+    }
 
     return {
       id: c.id,
-      authorId: c.userId,
+      authorId,
       author: authorName,
-      initials: getInitials(authorName),
+      initials: getInitials(typeof authorName === "string" ? authorName : "TV"),
       badge,
       body: c.body,
       createdAt: c.createdAt
@@ -301,11 +351,16 @@ export function transformCampaignDetail(
       likes: c.likeCount ?? c.likes ?? 0,
       isHidden: c.isHidden,
       parentCommentId: c.parentCommentId,
+      replies: Array.isArray(c.replies) ? c.replies.map(mapComment) : undefined,
     };
-  });
+  }
+
+  const mappedComments: CampaignComment[] = comments.map(mapComment);
 
   return {
     ...card,
+    storyMarkdown,
+    gallery,
     story: {
       lead,
       paragraphs,
@@ -936,7 +991,7 @@ export class HttpPlatformApi implements PlatformApi {
           assigneeInitials: detail.creator.initials,
           dueLabel: "Trong 3 ngày",
           hrefByRole: {
-            creator: "/creator/operations",
+            creator: `/creator/campaigns/${slug}/manage`,
             collaborator: "/collaborator/tasks",
           },
         },
@@ -952,7 +1007,7 @@ export class HttpPlatformApi implements PlatformApi {
           assigneeInitials: detail.creator.initials,
           dueLabel: "Ngày mai",
           hrefByRole: {
-            creator: "/creator/operations",
+            creator: `/creator/campaigns/${slug}/manage`,
             collaborator: "/collaborator/tasks",
           },
         },
@@ -968,29 +1023,50 @@ export class HttpPlatformApi implements PlatformApi {
           assigneeInitials: detail.creator.initials,
           dueLabel: "Đã hoàn thành",
           hrefByRole: {
-            creator: "/creator/operations",
+            creator: `/creator/campaigns/${slug}/manage`,
             collaborator: "/collaborator/tasks",
           },
         },
       ],
       team:
         detail.team && detail.team.length > 0
-          ? detail.team.map((m, idx) => ({
-              id: `member_${idx}`,
+          ? detail.team.map((m: any, idx: number) => ({
+              id: m.userId || m.id || `member_${idx}`,
+              userId: m.userId || m.id,
+              memberId: m.id,
               name: m.name,
+              email: m.email || "",
               initials: m.initials,
               role: m.role,
-              permissions: ["Toàn quyền chiến dịch"],
+              canPostUpdates: m.canPostUpdates ?? true,
+              canReplyComments: m.canReplyComments ?? true,
+              canViewAiDashboard: m.canViewAiDashboard ?? true,
+              permissions: [
+                m.role === "Chủ dự án"
+                  ? "Toàn quyền quản trị"
+                  : [
+                      m.canPostUpdates ? "Đăng bài cập nhật" : null,
+                      m.canReplyComments ? "Trả lời bình luận" : null,
+                      m.canViewAiDashboard ? "Xem phân tích AI" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Cộng tác viên",
+              ],
               openTasks: 1,
               lastSeen: "Vừa xong",
             }))
           : [
               {
-                id: "member_owner",
+                id: detail.creator.id || "member_owner",
+                userId: detail.creator.id,
                 name: detail.creator.name,
+                email: (detail.creator as any)?.email || "",
                 initials: detail.creator.initials,
                 role: "Chủ dự án",
-                permissions: ["Toàn quyền chiến dịch"],
+                permissions: ["Toàn quyền quản trị"],
+                canPostUpdates: true,
+                canReplyComments: true,
+                canViewAiDashboard: true,
                 openTasks: 2,
                 lastSeen: "Vừa xong",
               },

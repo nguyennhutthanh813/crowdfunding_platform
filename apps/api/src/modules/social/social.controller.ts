@@ -77,13 +77,27 @@ export class SocialController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Like a comment (increment like count)' })
+  @ApiOperation({ summary: 'Like or unlike a comment' })
   @ApiParam({ name: 'id', description: 'Comment UUID' })
   async likeComment(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
+    @Body() body?: { unlike?: boolean },
   ) {
-    return this.socialService.likeComment(id, userId);
+    return this.socialService.likeComment(id, userId, body?.unlike);
+  }
+
+  @Delete('comments/:id/like')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlike a comment' })
+  @ApiParam({ name: 'id', description: 'Comment UUID' })
+  async unlikeComment(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.socialService.likeComment(id, userId, true);
   }
 
   @Patch('comments/:id/hide')

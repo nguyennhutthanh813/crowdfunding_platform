@@ -46,6 +46,9 @@ export interface CampaignCardData {
       >
     >;
   tags: string[];
+  isFeatured?: boolean;
+  durationDays?: number;
+  videoUrl?: string;
   recommendationReason?: string;
   predictionScore?: number;
   visual: {
@@ -151,6 +154,12 @@ export interface CampaignComment {
 }
 
 export interface CampaignDetail extends CampaignCardData {
+  storyMarkdown?: string;
+  gallery?: Array<{
+    url: string;
+    altText?: string;
+    mediaType: "IMAGE" | "VIDEO";
+  }>;
   story: {
     lead: string;
     paragraphs: string[];
@@ -178,7 +187,17 @@ export interface CampaignDetail extends CampaignCardData {
   faqs: Array<{ question: string; answer: string }>;
   updates: CampaignUpdate[];
   comments: CampaignComment[];
-  team: Array<{ name: string; role: string; initials: string }>;
+  team: Array<{
+    id?: string;
+    userId?: string;
+    name: string;
+    email?: string;
+    role: string;
+    initials: string;
+    canPostUpdates?: boolean;
+    canReplyComments?: boolean;
+    canViewAiDashboard?: boolean;
+  }>;
   community: {
     newBackerPercent: number;
     returningBackerPercent: number;
@@ -400,10 +419,16 @@ export interface CampaignOperationsData {
   tasks: CampaignWorkspaceTask[];
   team: Array<{
     id: string;
+    userId?: string;
+    memberId?: string;
     name: string;
+    email?: string;
     initials: string;
     role: string;
     permissions: string[];
+    canPostUpdates?: boolean;
+    canReplyComments?: boolean;
+    canViewAiDashboard?: boolean;
     openTasks: number;
     lastSeen: string;
   }>;
@@ -557,11 +582,21 @@ export interface AdminDashboardData {
     campaigns?: Array<{
       id: string;
       title: string;
+      slug?: string;
       status: string;
       goalAmount: number;
       pledgedAmount: number;
       backerCount: number;
       createdAt: string;
+      memberRole?: string;
+    }>;
+    campaignMembers?: Array<{
+      role: string;
+      campaignId: string;
+      campaignTitle: string;
+      campaignSlug: string;
+      campaignStatus: string;
+      joinedAt: string;
     }>;
     pledges?: Array<{
       id: string;
@@ -698,6 +733,7 @@ export interface SessionResult {
     savedCampaignIds?: string[];
     followedCreatorIds?: string[];
     notifiedCampaignIds?: string[];
+    likedCommentIds?: string[];
     authorizedPledges?: PreviewAuthorizedPledge[];
     taskStatuses?: Record<string, WorkspaceTaskStatus>;
     fulfillmentStatuses?: Record<
@@ -720,7 +756,12 @@ export interface SessionResult {
         adminName: string;
       }>
     >;
-    campaignStatuses?: Record<string, "LIVE" | "SUSPENDED">;
+    campaignStatuses?: Record<
+      string,
+      "LIVE" | "SUSPENDED" | "SUCCESSFUL" | "FAILED" | "PRE_LAUNCH" | "DRAFT"
+    >;
+    featuredCampaigns?: Record<string, boolean>;
+    deletedCampaignIds?: string[];
     platformFeePercent?: number;
     readMessageIds?: string[];
     sentMessages?: Array<{

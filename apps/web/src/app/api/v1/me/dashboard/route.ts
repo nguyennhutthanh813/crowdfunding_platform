@@ -496,6 +496,7 @@ export async function POST(request: Request) {
 
   if (body.action === "LIKE_COMMENT") {
     const commentId = body.payload?.commentId;
+    const isUnlike = Boolean(body.payload?.unlike);
     if (typeof commentId !== "string" || !commentId.trim()) {
       return requestError(
         422,
@@ -504,10 +505,22 @@ export async function POST(request: Request) {
       );
     }
 
+    const ids = new Set(previewState.likedCommentIds ?? []);
+    if (isUnlike) {
+      ids.delete(commentId);
+    } else {
+      ids.add(commentId);
+    }
+    previewState.likedCommentIds = [...ids];
+
     try {
       await fetchBackendWithAuth(
         `/social/comments/${encodeURIComponent(commentId)}/like`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ unlike: isUnlike }),
+        },
         access.session,
       );
     } catch (e) {
@@ -550,6 +563,7 @@ export async function POST(request: Request) {
     "SET_PRELAUNCH_NOTIFICATION",
     "MARK_MESSAGE_READ",
     "SEND_MESSAGE",
+    "LIKE_COMMENT",
   ]);
   if (statefulActions.has(body.action)) {
     nextSession = { ...access.session, previewState };

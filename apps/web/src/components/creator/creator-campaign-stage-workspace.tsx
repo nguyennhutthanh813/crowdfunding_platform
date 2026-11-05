@@ -32,8 +32,9 @@ import type {
 } from "@/lib/api/contracts";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
+import { CampaignTeamWorkspace } from "./campaign-team-workspace";
 
-type StageTab = "overview" | "review" | "fulfillment";
+type StageTab = "overview" | "review" | "fulfillment" | "team";
 type FulfillmentStatus = "PENDING" | "PREPARING" | "SHIPPED" | "DELIVERED";
 
 const fulfillmentLabels: Record<FulfillmentStatus, string> = {
@@ -62,7 +63,7 @@ function DraftOrReviewWorkspace({
 }) {
   const router = useRouter();
   const [tab, setTab] = useQueryTab<StageTab>(
-    ["overview", "review"],
+    ["overview", "review", "team"],
     "overview",
   );
   const [status, setStatus] = useState<CampaignStatus>(campaign.status);
@@ -128,6 +129,11 @@ function DraftOrReviewWorkspace({
         {[
           { id: "overview" as const, label: "Tổng quan hồ sơ", icon: ClipboardCheck },
           { id: "review" as const, label: "Tiến độ xét duyệt", icon: BadgeCheck },
+          {
+            id: "team" as const,
+            label: `Đội ngũ & Cộng tác viên (${operations.team.length})`,
+            icon: UsersRound,
+          },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -160,7 +166,16 @@ function DraftOrReviewWorkspace({
         </div>
       ) : null}
 
-      {tab === "overview" ? (
+      {tab === "team" ? (
+        <div className="mt-5">
+          <CampaignTeamWorkspace
+            campaignId={campaign.id}
+            campaignTitle={campaign.title}
+            initialTeam={operations.team}
+            isOwner={campaign.ownership === "OWNER"}
+          />
+        </div>
+      ) : tab === "overview" ? (
         <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
           <article className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -186,12 +201,23 @@ function DraftOrReviewWorkspace({
                   {formatVnd(campaign.goalAmount, true)}
                 </p>
               </div>
-              <div className="rounded-[14px] bg-[#f2f4eb] p-4">
-                <p className="text-xs text-ink-muted">Nhóm hiện tại</p>
-                <p className="mt-2 font-display text-xl font-extrabold tabular-nums">
-                  {campaign.teamSize} người
+              <button
+                type="button"
+                onClick={() => setTab("team")}
+                className="rounded-[14px] bg-[#f2f4eb] p-4 text-left transition hover:bg-[#e8ece0]"
+                title="Quản lý đội ngũ & mời cộng tác viên"
+              >
+                <div className="flex items-center justify-between text-xs text-ink-muted">
+                  <span>Nhóm hiện tại</span>
+                  <UsersRound className="size-3.5 text-forest" />
+                </div>
+                <p className="mt-2 font-display text-xl font-extrabold tabular-nums text-forest">
+                  {operations.team.length || campaign.teamSize} người
                 </p>
-              </div>
+                <p className="mt-1 text-[10px] font-bold text-forest hover:underline">
+                  Quản lý cộng tác viên →
+                </p>
+              </button>
               <div className="rounded-[14px] bg-[#f2f4eb] p-4">
                 <p className="text-xs text-ink-muted">Cam kết</p>
                 <p className="mt-2 font-display text-xl font-extrabold tabular-nums">0</p>
@@ -332,7 +358,7 @@ function SuccessfulWorkspace({
   operations: CampaignOperationsData;
 }) {
   const [tab, setTab] = useQueryTab<StageTab>(
-    ["overview", "fulfillment"],
+    ["overview", "fulfillment", "team"],
     "overview",
   );
   const [orders, setOrders] = useState(
@@ -430,6 +456,11 @@ function SuccessfulWorkspace({
         {[
           { id: "overview" as const, label: "Tổng kết gọi vốn", icon: Banknote },
           { id: "fulfillment" as const, label: "Giao quà & đối soát", icon: Truck },
+          {
+            id: "team" as const,
+            label: `Đội ngũ & Cộng tác viên (${operations.team.length})`,
+            icon: UsersRound,
+          },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -462,7 +493,16 @@ function SuccessfulWorkspace({
         </div>
       ) : null}
 
-      {tab === "overview" ? (
+      {tab === "team" ? (
+        <div className="mt-5">
+          <CampaignTeamWorkspace
+            campaignId={campaign.id}
+            campaignTitle={campaign.title}
+            initialTeam={operations.team}
+            isOwner={campaign.ownership === "OWNER"}
+          />
+        </div>
+      ) : tab === "overview" ? (
         <div className="mt-5 space-y-5">
           <section className="overflow-hidden rounded-[22px] bg-[#102a22] text-white">
             <div className="grid lg:grid-cols-[1.2fr_0.8fr]">

@@ -44,6 +44,19 @@ export interface PlatformPreviewState {
   reviewTimestamps?: Record<string, string>;
   campaignStatuses: Record<string, "LIVE" | "SUSPENDED">;
   messages: SharedPlatformMessage[];
+  invitedMembers?: Array<{
+    id: string;
+    campaignId: string;
+    userId?: string;
+    name: string;
+    email: string;
+    role: string;
+    permissions: string[];
+    canPostUpdates: boolean;
+    canReplyComments: boolean;
+    canViewAiDashboard: boolean;
+  }>;
+  removedMemberIds?: string[];
 }
 
 export function createEmptyPlatformPreviewState(): PlatformPreviewState {

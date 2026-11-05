@@ -38,37 +38,30 @@ export default async function CreatorLayout({
     platformState,
   );
 
-  const activeCampaignSlug =
-    portfolio.campaigns.find((c) => c.id === portfolio.activeCampaignId)?.slug ??
-    portfolio.campaigns[0]?.slug;
+  const activeCampaign =
+    portfolio.campaigns.find((c) => c.id === portfolio.activeCampaignId) ??
+    portfolio.campaigns[0] ??
+    null;
 
-  const [campaigns, baseOperations] = await Promise.all([
-    api.listCampaigns(),
-    activeCampaignSlug
-      ? api.getCampaignOperations(activeCampaignSlug).catch(() => null)
-      : null,
-  ]);
-
-  const campaign =
-    (activeCampaignSlug
-      ? campaigns.find((item) => item.slug === activeCampaignSlug)
-      : null) ??
-    (portfolio.campaigns.length > 0
-      ? campaigns.find((item) => item.id === portfolio.campaigns[0].id)
-      : null) ??
-    campaigns[0];
+  const baseOperations = activeCampaign?.slug
+    ? await api.getCampaignOperations(activeCampaign.slug).catch(() => null)
+    : null;
 
   const operations = applyOperationsPreviewState(
     baseOperations,
     session,
     platformState,
-    campaign,
+    activeCampaign ?? undefined,
   );
 
   return (
     <RoleWorkspaceShell
       role="CREATOR"
-      snapshot={buildCreatorWorkspaceSnapshot(campaign, operations, portfolio)}
+      snapshot={buildCreatorWorkspaceSnapshot(
+        activeCampaign,
+        operations,
+        portfolio,
+      )}
     >
       {children}
     </RoleWorkspaceShell>

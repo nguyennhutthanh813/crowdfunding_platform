@@ -22,6 +22,7 @@ export const roleDescriptions: Record<UserRole, string> = {
 };
 
 export function getInitials(name: string) {
+  if (typeof name !== "string" || !name.trim()) return "TV";
   return name
     .trim()
     .split(/\s+/)
@@ -31,5 +32,6 @@ export function getInitials(name: string) {
 }
 
 export function getFriendlyName(name: string) {
+  if (typeof name !== "string" || !name.trim()) return "Thành viên";
   return name.trim().split(/\s+/).slice(-2).join(" ");
 }

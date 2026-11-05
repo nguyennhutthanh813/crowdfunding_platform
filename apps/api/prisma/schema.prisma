@@ -230,6 +230,7 @@ model Campaign {
   risksMarkdown   String         @default("") @map("risks_markdown")
   location        String         @default("Việt Nam") @db.VarChar(120)
   status          CampaignStatus @default(DRAFT)
+  isFeatured      Boolean        @default(false) @map("is_featured")
   goalAmount      BigInt         @map("goal_amount")
   currency        String         @default("VND") @db.Char(3)
   durationDays    Int            @map("duration_days") @db.SmallInt

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum, IsInt, IsUrl, Min, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsInt, Min, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCampaignMediaDto {
@@ -7,9 +7,8 @@ export class CreateCampaignMediaDto {
   @IsEnum(['IMAGE', 'VIDEO'] as const)
   mediaType!: 'IMAGE' | 'VIDEO';
 
-  @ApiProperty({ description: 'Media URL' })
+  @ApiProperty({ description: 'Media URL or local path' })
   @IsString()
-  @IsUrl()
   url!: string;
 
   @ApiPropertyOptional({ description: 'Alt text for accessibility', maxLength: 240 })

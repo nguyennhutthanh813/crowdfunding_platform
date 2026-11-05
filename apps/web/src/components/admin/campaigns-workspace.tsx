@@ -3,17 +3,21 @@
 import {
   AlertTriangle,
   Ban,
+  CalendarPlus,
   Check,
   Clock3,
   ExternalLink,
   Eye,
   FileCheck2,
+  Flag,
   FolderHeart,
   LoaderCircle,
   Search,
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
+  Star,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -45,6 +49,23 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
   const [statusTargetCampaign, setStatusTargetCampaign] =
     useState<CampaignCardData | null>(null);
   const [statusReason, setStatusReason] = useState("");
+
+  const [extendTargetCampaign, setExtendTargetCampaign] =
+    useState<CampaignCardData | null>(null);
+  const [extendDays, setExtendDays] = useState(14);
+  const [extendReason, setExtendReason] = useState("");
+
+  const [closeTargetCampaign, setCloseTargetCampaign] =
+    useState<CampaignCardData | null>(null);
+  const [closeFinalStatus, setCloseFinalStatus] = useState<
+    "SUCCESSFUL" | "FAILED"
+  >("SUCCESSFUL");
+  const [closeReason, setCloseReason] = useState("");
+
+  const [deleteTargetCampaign, setDeleteTargetCampaign] =
+    useState<CampaignCardData | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [featuredOnly, setFeaturedOnly] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<any | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [pendingDecision, setPendingDecision] = useState<{
@@ -78,6 +99,7 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
   const preLaunchCount = campaigns.filter(
     (c) => c.status === "PRE_LAUNCH",
   ).length;
+  const featuredCount = campaigns.filter((c) => Boolean(c.isFeatured)).length;
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -89,6 +111,10 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
 
   const filteredCampaigns = useMemo(() => {
     let result = [...campaigns];
+
+    if (featuredOnly) {
+      result = result.filter((c) => Boolean(c.isFeatured));
+    }
 
     if (statusFilter !== "ALL") {
       result = result.filter((c) => c.status === statusFilter);
@@ -120,7 +146,7 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
     });
 
     return result;
-  }, [campaigns, statusFilter, categoryFilter, searchTerm, sortBy]);
+  }, [campaigns, featuredOnly, statusFilter, categoryFilter, searchTerm, sortBy]);
 
   // Handle Suspend / Resume toggle
   const handleToggleStatus = async () => {
@@ -215,10 +241,10 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
 
       const nextStatus =
         decision === "APPROVED"
-          ? "LIVE"
+          ? "PRE_LAUNCH"
           : decision === "CHANGES"
-            ? "NEEDS_CHANGES"
-            : "REJECTED";
+            ? "DRAFT"
+            : "SUSPENDED";
 
       setCampaigns((prev) =>
         prev.map((c) =>
@@ -234,7 +260,7 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
 
       setNotice(
         decision === "APPROVED"
-          ? `Đã phê duyệt chiến dịch "${target.title}" thành công. Dự án đã được đưa lên sàn!`
+          ? `Đã phê duyệt chiến dịch "${target.title}". Dự án đã chuyển sang trạng thái "Sắp ra mắt" (PRE_LAUNCH) để chủ dự án sẵn sàng phát động gọi vốn!`
           : decision === "CHANGES"
             ? `Đã gửi yêu cầu bổ sung chỉnh sửa tới chủ dự án "${target.creator}".`
             : `Đã từ chối hồ sơ chiến dịch "${target.title}".`,
@@ -245,6 +271,173 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
       setReviewFeedback("");
     } catch (err: any) {
       setNotice(err?.message || "Không thể thực hiện phê duyệt hồ sơ.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Toggle Featured / Staff Pick badge
+  const handleToggleFeatured = async (camp: CampaignCardData) => {
+    const nextFeatured = !camp.isFeatured;
+    setBusy(camp.id);
+    setNotice(null);
+
+    try {
+      await callAdminAction("TOGGLE_CAMPAIGN_FEATURED", {
+        campaignId: camp.id,
+        isFeatured: nextFeatured,
+      });
+
+      setCampaigns((prev) =>
+        prev.map((c) =>
+          c.id === camp.id ? { ...c, isFeatured: nextFeatured } : c,
+        ),
+      );
+
+      if (selectedCampaign?.id === camp.id) {
+        setSelectedCampaign((prev) =>
+          prev ? { ...prev, isFeatured: nextFeatured } : null,
+        );
+      }
+
+      setNotice(
+        nextFeatured
+          ? `Đã gắn nhãn nổi bật cho chiến dịch "${camp.title}".`
+          : `Đã gỡ nhãn nổi bật của chiến dịch "${camp.title}".`,
+      );
+    } catch (err: any) {
+      setNotice(err?.message || "Không thể cập nhật nhãn nổi bật.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Execute Extend Deadline
+  const handleExecuteExtendDeadline = async () => {
+    if (!extendTargetCampaign) return;
+    const days = Number(extendDays);
+    if (!days || days <= 0) {
+      setNotice("Vui lòng nhập số ngày gia hạn hợp lệ (lớn hơn 0).");
+      return;
+    }
+
+    setBusy(extendTargetCampaign.id);
+    setNotice(null);
+
+    try {
+      await callAdminAction("EXTEND_CAMPAIGN_DEADLINE", {
+        campaignId: extendTargetCampaign.id,
+        additionalDays: days,
+        reason: extendReason.trim() || undefined,
+      });
+
+      setCampaigns((prev) =>
+        prev.map((c) => {
+          if (c.id === extendTargetCampaign.id) {
+            return {
+              ...c,
+              durationDays: (c.durationDays || 30) + days,
+              daysLeft: (c.daysLeft || 0) + days,
+            };
+          }
+          return c;
+        }),
+      );
+
+      if (selectedCampaign?.id === extendTargetCampaign.id) {
+        setSelectedCampaign((prev) =>
+          prev
+            ? {
+                ...prev,
+                durationDays: (prev.durationDays || 30) + days,
+                daysLeft: (prev.daysLeft || 0) + days,
+              }
+            : null,
+        );
+      }
+
+      setNotice(
+        `Đã gia hạn thêm ${days} ngày cho chiến dịch "${extendTargetCampaign.title}".`,
+      );
+      setExtendTargetCampaign(null);
+      setExtendReason("");
+    } catch (err: any) {
+      setNotice(err?.message || "Không thể gia hạn thời gian chiến dịch.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Execute Close Early
+  const handleExecuteCloseEarly = async () => {
+    if (!closeTargetCampaign) return;
+
+    setBusy(closeTargetCampaign.id);
+    setNotice(null);
+
+    try {
+      await callAdminAction("CLOSE_CAMPAIGN_EARLY", {
+        campaignId: closeTargetCampaign.id,
+        finalStatus: closeFinalStatus,
+        reason: closeReason.trim() || undefined,
+      });
+
+      setCampaigns((prev) =>
+        prev.map((c) =>
+          c.id === closeTargetCampaign.id
+            ? { ...c, status: closeFinalStatus, daysLeft: 0 }
+            : c,
+        ),
+      );
+
+      if (selectedCampaign?.id === closeTargetCampaign.id) {
+        setSelectedCampaign((prev) =>
+          prev ? { ...prev, status: closeFinalStatus, daysLeft: 0 } : null,
+        );
+      }
+
+      setNotice(
+        `Đã kết thúc sớm chiến dịch "${closeTargetCampaign.title}" với kết quả: ${
+          closeFinalStatus === "SUCCESSFUL" ? "Thành công" : "Thất bại"
+        }.`,
+      );
+      setCloseTargetCampaign(null);
+      setCloseReason("");
+    } catch (err: any) {
+      setNotice(err?.message || "Không thể đóng kết thúc chiến dịch.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Execute Delete Campaign
+  const handleExecuteDeleteCampaign = async () => {
+    if (!deleteTargetCampaign) return;
+
+    setBusy(deleteTargetCampaign.id);
+    setNotice(null);
+
+    try {
+      await callAdminAction("DELETE_CAMPAIGN", {
+        campaignId: deleteTargetCampaign.id,
+        reason: deleteReason.trim() || undefined,
+      });
+
+      setCampaigns((prev) =>
+        prev.filter((c) => c.id !== deleteTargetCampaign.id),
+      );
+
+      if (selectedCampaign?.id === deleteTargetCampaign.id) {
+        setSelectedCampaign(null);
+      }
+
+      setNotice(
+        `Đã xóa vĩnh viễn chiến dịch "${deleteTargetCampaign.title}".`,
+      );
+      setDeleteTargetCampaign(null);
+      setDeleteReason("");
+    } catch (err: any) {
+      setNotice(err?.message || "Không thể xóa chiến dịch.");
     } finally {
       setBusy(null);
     }
@@ -412,44 +605,96 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
           </div>
 
           {/* Quick status filters */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-line/60">
-            <span className="text-[11px] font-semibold text-ink-muted mr-1">
-              Lọc trạng thái:
-            </span>
-            {[
-              { id: "ALL", label: "Tất cả", count: totalCount },
-              { id: "IN_REVIEW", label: "Chờ duyệt", count: inReviewCount },
-              { id: "LIVE", label: "Đang gọi vốn", count: liveCount },
-              { id: "SUCCESSFUL", label: "Thành công", count: successfulCount },
-              { id: "SUSPENDED", label: "Tạm khóa", count: suspendedCount },
-              { id: "PRE_LAUNCH", label: "Sắp ra mắt", count: preLaunchCount },
-              { id: "DRAFT", label: "Bản nháp", count: draftCount },
-            ].map((pill) => {
-              const active = statusFilter === pill.id;
-              return (
-                <button
-                  key={pill.id}
-                  type="button"
-                  onClick={() => setStatusFilter(pill.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
-                    active
-                      ? "bg-forest text-white shadow-sm"
-                      : "bg-[#f3f3ed] text-ink-soft hover:bg-stone-200"
-                  }`}
-                >
-                  <span>{pill.label}</span>
-                  <span
-                    className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line/60">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-ink-muted mr-1">
+                Lọc trạng thái:
+              </span>
+              {[
+                { id: "ALL", label: "Tất cả", count: totalCount },
+                { id: "IN_REVIEW", label: "Chờ duyệt", count: inReviewCount },
+                { id: "LIVE", label: "Đang gọi vốn", count: liveCount },
+                { id: "SUCCESSFUL", label: "Thành công", count: successfulCount },
+                { id: "SUSPENDED", label: "Tạm khóa", count: suspendedCount },
+                { id: "PRE_LAUNCH", label: "Sắp ra mắt", count: preLaunchCount },
+                { id: "DRAFT", label: "Bản nháp", count: draftCount },
+              ].map((pill) => {
+                const active = statusFilter === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => setStatusFilter(pill.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
                       active
-                        ? "bg-white/25 text-white"
-                        : "bg-white text-ink-muted"
+                        ? "bg-forest text-white shadow-sm"
+                        : "bg-[#f3f3ed] text-ink-soft hover:bg-stone-200"
                     }`}
                   >
-                    {pill.count}
-                  </span>
-                </button>
-              );
-            })}
+                    <span>{pill.label}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                        active
+                          ? "bg-white/25 text-white"
+                          : "bg-white text-ink-muted"
+                      }`}
+                    >
+                      {pill.count}
+                    </span>
+                  </button>
+                );
+              })}
+
+              <span className="h-4 w-px bg-line/80 mx-1 hidden sm:inline-block" />
+
+              <button
+                type="button"
+                onClick={() => setFeaturedOnly((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
+                  featuredOnly
+                    ? "bg-amber-500 text-white shadow-sm"
+                    : "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
+                }`}
+                title="Lọc chỉ các chiến dịch được gắn nhãn nổi bật"
+              >
+                <Star
+                  className={`size-3.5 ${
+                    featuredOnly ? "fill-white" : "fill-amber-400 text-amber-500"
+                  }`}
+                />
+                <span>Nổi bật</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                    featuredOnly
+                      ? "bg-white/25 text-white"
+                      : "bg-amber-200/70 text-amber-900"
+                  }`}
+                >
+                  {featuredCount}
+                </span>
+              </button>
+            </div>
+
+            {(statusFilter !== "ALL" ||
+              categoryFilter !== "ALL" ||
+              searchTerm.trim() !== "" ||
+              sortBy !== "newest" ||
+              featuredOnly) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter("ALL");
+                  setCategoryFilter("ALL");
+                  setSearchTerm("");
+                  setSortBy("newest");
+                  setFeaturedOnly(false);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-forest hover:underline"
+              >
+                <X className="size-3" />
+                <span>Đặt lại bộ lọc</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -499,9 +744,17 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                               )}
                             </div>
                             <div className="min-w-0 max-w-xs">
-                              <p className="font-bold text-ink truncate text-xs hover:text-forest">
-                                {camp.title}
-                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-ink truncate text-xs hover:text-forest">
+                                  {camp.title}
+                                </p>
+                                {camp.isFeatured && (
+                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.2 text-[9px] font-black text-amber-800 shrink-0">
+                                    <Star className="size-2.5 fill-amber-500 text-amber-600" />
+                                    Nổi bật
+                                  </span>
+                                )}
+                              </div>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-ink-muted">
                                 <span className="rounded-md bg-stone-100 px-1.5 py-0.5 font-semibold text-ink-soft">
                                   {camp.category || "Dự án"}
@@ -607,6 +860,69 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                               </button>
                             )}
 
+                            {/* Toggle Featured */}
+                            <button
+                              type="button"
+                              disabled={busy === camp.id}
+                              onClick={() => handleToggleFeatured(camp)}
+                              className={`grid size-8 place-items-center rounded-lg border transition ${
+                                camp.isFeatured
+                                  ? "border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"
+                                  : "border-line bg-white text-ink-muted hover:border-amber-300 hover:text-amber-600"
+                              }`}
+                              title={
+                                camp.isFeatured
+                                  ? "Bỏ gắn nhãn nổi bật"
+                                  : "Gắn nhãn chiến dịch nổi bật"
+                              }
+                            >
+                              <Star
+                                className={`size-3.5 ${
+                                  camp.isFeatured
+                                    ? "fill-amber-500 text-amber-500"
+                                    : ""
+                                }`}
+                              />
+                            </button>
+
+                            {/* Extend Deadline */}
+                            {(camp.status === "LIVE" ||
+                              camp.status === "PRE_LAUNCH") && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExtendTargetCampaign(camp);
+                                  setExtendDays(14);
+                                  setExtendReason("");
+                                }}
+                                className="grid size-8 place-items-center rounded-lg border border-line bg-white text-ink-muted hover:border-forest hover:text-forest transition"
+                                title="Gia hạn thời gian chiến dịch"
+                              >
+                                <CalendarPlus className="size-3.5" />
+                              </button>
+                            )}
+
+                            {/* Force Close / End Early */}
+                            {camp.status === "LIVE" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCloseTargetCampaign(camp);
+                                  setCloseFinalStatus(
+                                    (camp.pledgedAmount || 0) >=
+                                      (camp.goalAmount || 0)
+                                      ? "SUCCESSFUL"
+                                      : "FAILED",
+                                  );
+                                  setCloseReason("");
+                                }}
+                                className="grid size-8 place-items-center rounded-lg border border-line bg-white text-ink-muted hover:border-amber-500 hover:text-amber-700 transition"
+                                title="Đóng / Kết thúc sớm chiến dịch"
+                              >
+                                <Flag className="size-3.5" />
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => setSelectedCampaign(camp)}
@@ -638,6 +954,19 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                               ) : (
                                 <Ban className="size-3.5" />
                               )}
+                            </button>
+
+                            {/* Delete Campaign */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteTargetCampaign(camp);
+                                setDeleteReason("");
+                              }}
+                              className="grid size-8 place-items-center rounded-lg border border-line bg-white text-ink-muted hover:border-red-300 hover:text-red-600 transition"
+                              title="Xóa chiến dịch"
+                            >
+                              <Trash2 className="size-3.5" />
                             </button>
                           </div>
                         </td>
@@ -932,11 +1261,83 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-line">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-line">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={busy === selectedCampaign.id}
+                  onClick={() => handleToggleFeatured(selectedCampaign)}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition ${
+                    selectedCampaign.isFeatured
+                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      : "border-line bg-white text-ink-soft hover:border-amber-300 hover:text-amber-700"
+                  }`}
+                >
+                  <Star
+                    className={`size-3.5 ${
+                      selectedCampaign.isFeatured
+                        ? "fill-amber-500 text-amber-500"
+                        : ""
+                    }`}
+                  />
+                  <span>
+                    {selectedCampaign.isFeatured ? "Bỏ nổi bật" : "Gắn nổi bật"}
+                  </span>
+                </button>
+
+                {(selectedCampaign.status === "LIVE" ||
+                  selectedCampaign.status === "PRE_LAUNCH") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtendTargetCampaign(selectedCampaign);
+                      setExtendDays(14);
+                      setExtendReason("");
+                    }}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-bold text-ink-soft hover:border-forest hover:text-forest transition"
+                  >
+                    <CalendarPlus className="size-3.5" />
+                    <span>Gia hạn</span>
+                  </button>
+                )}
+
+                {selectedCampaign.status === "LIVE" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCloseTargetCampaign(selectedCampaign);
+                      setCloseFinalStatus(
+                        (selectedCampaign.pledgedAmount || 0) >=
+                          (selectedCampaign.goalAmount || 0)
+                          ? "SUCCESSFUL"
+                          : "FAILED",
+                      );
+                      setCloseReason("");
+                    }}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-bold text-ink-soft hover:border-amber-500 hover:text-amber-700 transition"
+                  >
+                    <Flag className="size-3.5" />
+                    <span>Đóng sớm</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteTargetCampaign(selectedCampaign);
+                    setDeleteReason("");
+                  }}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-bold text-ink-soft hover:border-red-300 hover:text-red-600 transition"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span>Xóa</span>
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setSelectedCampaign(null)}
-                className="button-ghost min-h-10 px-4 text-xs font-bold"
+                className="button-ghost min-h-9 px-4 text-xs font-bold"
               >
                 Đóng
               </button>
@@ -1032,6 +1433,374 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                     : "Xác nhận tạm khóa"}
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Modal 5: Extend Campaign Deadline ──────────────── */}
+      {extendTargetCampaign && (
+        <Modal
+          open
+          size="sm"
+          title="Gia hạn thời gian chiến dịch"
+          description={extendTargetCampaign.title}
+          onClose={() => setExtendTargetCampaign(null)}
+          locked={busy === extendTargetCampaign.id}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="rounded-xl border border-line bg-[#faf9f5] p-3 space-y-1">
+              <div className="flex justify-between text-ink-muted">
+                <span>Thời hạn hiện tại:</span>
+                <strong className="text-ink">
+                  {extendTargetCampaign.durationDays || 30} ngày
+                </strong>
+              </div>
+              <div className="flex justify-between text-ink-muted">
+                <span>Số ngày còn lại:</span>
+                <strong className="text-forest">
+                  {extendTargetCampaign.daysLeft || 0} ngày
+                </strong>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-ink mb-1.5">
+                Chọn số ngày gia hạn thêm:
+              </label>
+              <div className="flex items-center gap-1.5 mb-2.5">
+                {[7, 14, 30, 45].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setExtendDays(d)}
+                    className={`flex-1 rounded-lg border py-1.5 text-xs font-bold transition ${
+                      extendDays === d
+                        ? "border-forest bg-forest text-white shadow-xs"
+                        : "border-line bg-white text-ink-soft hover:bg-stone-50"
+                    }`}
+                  >
+                    +{d} ngày
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={extendDays}
+                  onChange={(e) =>
+                    setExtendDays(Math.max(1, parseInt(e.target.value) || 1))
+                  }
+                  className="w-full rounded-xl border border-line bg-white px-3 py-2 text-xs text-ink outline-none focus:border-forest"
+                  placeholder="Nhập số ngày tùy chỉnh..."
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted">
+                  ngày
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-ink mb-1.5">
+                Lý do gia hạn (Ghi vào nhật ký kiểm toán):
+              </label>
+              <select
+                onChange={(e) => setExtendReason(e.target.value)}
+                className="w-full rounded-xl border border-line bg-[#fbfbfa] p-2.5 text-xs text-ink outline-none mb-2"
+              >
+                <option value="">-- Chọn lý do mẫu hoặc tự nhập --</option>
+                <option value="Yêu cầu gia hạn từ chủ dự án do cập nhật phiên bản sản phẩm mẫu">
+                  Chủ dự án yêu cầu do nâng cấp mẫu
+                </option>
+                <option value="Sàn phê duyệt bổ sung thời gian tương tác với cộng đồng">
+                  Tạo điều kiện tiếp cận thêm backer
+                </option>
+                <option value="Bù đắp thời gian gián đoạn do sự cố kỹ thuật hoặc xác minh giấy tờ">
+                  Bù đắp thời gian gián đoạn kỹ thuật
+                </option>
+              </select>
+              <textarea
+                rows={2}
+                value={extendReason}
+                onChange={(e) => setExtendReason(e.target.value)}
+                placeholder="Nhập chi tiết lý do gia hạn thời hạn..."
+                className="w-full rounded-xl border border-line p-2.5 text-xs text-ink outline-none focus:border-forest"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-line">
+              <button
+                type="button"
+                disabled={busy === extendTargetCampaign.id}
+                onClick={() => setExtendTargetCampaign(null)}
+                className="button-ghost min-h-10 px-4 text-xs font-bold"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={busy === extendTargetCampaign.id}
+                onClick={handleExecuteExtendDeadline}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-forest px-4 text-xs font-extrabold text-white transition hover:bg-[#142d25] shadow-xs"
+              >
+                {busy === extendTargetCampaign.id ? (
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                ) : (
+                  <CalendarPlus className="size-3.5 text-lime" />
+                )}
+                <span>
+                  {busy === extendTargetCampaign.id
+                    ? "Đang lưu…"
+                    : `Xác nhận gia hạn (+${extendDays} ngày)`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Modal 6: Force Close / End Early ─────────────────── */}
+      {closeTargetCampaign && (
+        <Modal
+          open
+          size="sm"
+          title="Kết thúc sớm chiến dịch"
+          description={closeTargetCampaign.title}
+          onClose={() => setCloseTargetCampaign(null)}
+          locked={busy === closeTargetCampaign.id}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-900 leading-relaxed">
+              <p className="font-bold flex items-center gap-1.5 text-amber-950 mb-1">
+                <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+                Lưu ý kết thúc sớm:
+              </p>
+              Chiến dịch sẽ lập tức đóng lại, không cho phép nhận thêm cam kết ủng
+              hộ mới và chuyển sang trạng thái phân định kết quả cuối cùng.
+            </div>
+
+            <div className="rounded-xl border border-line bg-[#faf9f5] p-3 space-y-1">
+              <div className="flex justify-between text-ink-muted">
+                <span>Mục tiêu gọi vốn:</span>
+                <strong className="text-ink">
+                  {formatVnd(closeTargetCampaign.goalAmount || 0, true)}
+                </strong>
+              </div>
+              <div className="flex justify-between text-ink-muted">
+                <span>Đã huy động được:</span>
+                <strong className="text-forest">
+                  {formatVnd(closeTargetCampaign.pledgedAmount || 0, true)}
+                </strong>
+              </div>
+              <div className="flex justify-between text-ink-muted">
+                <span>Số người ủng hộ:</span>
+                <strong className="text-ink">
+                  {closeTargetCampaign.backerCount || 0} backer
+                </strong>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-ink mb-1.5">
+                Trạng thái kết thúc dự án:
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCloseFinalStatus("SUCCESSFUL")}
+                  className={`flex flex-col items-center justify-center rounded-xl border p-3 text-center transition ${
+                    closeFinalStatus === "SUCCESSFUL"
+                      ? "border-teal-500 bg-teal-50/70 text-teal-900 font-bold shadow-xs"
+                      : "border-line bg-white text-ink-soft hover:bg-stone-50"
+                  }`}
+                >
+                  <Check className="size-4 text-teal-600 mb-1" />
+                  <span>Thành công</span>
+                  <span className="text-[10px] text-ink-muted font-normal mt-0.5">
+                    (Đạt mục tiêu)
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCloseFinalStatus("FAILED")}
+                  className={`flex flex-col items-center justify-center rounded-xl border p-3 text-center transition ${
+                    closeFinalStatus === "FAILED"
+                      ? "border-coral bg-red-50 text-red-900 font-bold shadow-xs"
+                      : "border-line bg-white text-ink-soft hover:bg-stone-50"
+                  }`}
+                >
+                  <Ban className="size-4 text-coral mb-1" />
+                  <span>Không thành công</span>
+                  <span className="text-[10px] text-ink-muted font-normal mt-0.5">
+                    (Hoàn tiền backer)
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-ink mb-1.5">
+                Căn cứ / Lý do đóng sớm (Bắt buộc kiểm toán):
+              </label>
+              <textarea
+                rows={3}
+                value={closeReason}
+                onChange={(e) => setCloseReason(e.target.value)}
+                placeholder="Nhập lý do đóng hoặc kết thúc sớm chiến dịch..."
+                className="w-full rounded-xl border border-line p-2.5 text-xs text-ink outline-none focus:border-forest"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-line">
+              <button
+                type="button"
+                disabled={busy === closeTargetCampaign.id}
+                onClick={() => setCloseTargetCampaign(null)}
+                className="button-ghost min-h-10 px-4 text-xs font-bold"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={busy === closeTargetCampaign.id}
+                onClick={handleExecuteCloseEarly}
+                className={`inline-flex min-h-10 items-center gap-1.5 rounded-full px-4 text-xs font-extrabold text-white transition ${
+                  closeFinalStatus === "SUCCESSFUL"
+                    ? "bg-teal-700 hover:bg-teal-800"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {busy === closeTargetCampaign.id ? (
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                ) : (
+                  <Flag className="size-3.5" />
+                )}
+                <span>
+                  {busy === closeTargetCampaign.id
+                    ? "Đang lưu…"
+                    : `Xác nhận đóng (${
+                        closeFinalStatus === "SUCCESSFUL"
+                          ? "Thành công"
+                          : "Thất bại"
+                      })`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Modal 7: Delete Campaign ─────────────────────────── */}
+      {deleteTargetCampaign && (
+        <Modal
+          open
+          size="sm"
+          title="Xóa chiến dịch"
+          description={deleteTargetCampaign.title}
+          onClose={() => setDeleteTargetCampaign(null)}
+          locked={busy === deleteTargetCampaign.id}
+        >
+          <div className="space-y-4 text-xs">
+            {(deleteTargetCampaign.backerCount || 0) > 0 ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900 leading-relaxed">
+                  <div className="flex items-center gap-2 font-bold text-red-950 mb-1">
+                    <ShieldAlert className="size-4 text-red-600 shrink-0" />
+                    Không thể xóa chiến dịch đã có người ủng hộ
+                  </div>
+                  Chiến dịch này đã ghi nhận{" "}
+                  <strong>{deleteTargetCampaign.backerCount} người ủng hộ</strong>{" "}
+                  với số tiền huy động{" "}
+                  <strong>
+                    {formatVnd(deleteTargetCampaign.pledgedAmount || 0, true)}
+                  </strong>
+                  . Nhằm bảo vệ quyền lợi tài chính, hóa đơn và lịch sử giao
+                  dịch của nhà đầu tư, hệ thống không cho phép xóa vĩnh viễn.
+                </div>
+                <p className="text-ink-muted">
+                  Bạn có thể chọn <strong>Tạm khóa (Suspend)</strong> hoặc{" "}
+                  <strong>Kết thúc sớm (Close)</strong> chiến dịch thay thế.
+                </p>
+                <div className="flex justify-end pt-2 border-t border-line">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetCampaign(null)}
+                    className="button-ghost min-h-10 px-4 text-xs font-bold"
+                  >
+                    Đã hiểu & Đóng lại
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-red-900 leading-relaxed">
+                  <div className="flex items-center gap-2 font-bold text-red-950 mb-1">
+                    <AlertTriangle className="size-4 text-red-600 shrink-0" />
+                    Cảnh báo thao tác xóa vĩnh viễn
+                  </div>
+                  Hành động này sẽ xóa hoàn toàn chiến dịch khỏi hệ thống cơ sở
+                  dữ liệu (bao gồm nội dung, hình ảnh, gói quà và cập nhật). Thao
+                  tác này <strong className="underline">KHÔNG THỂ hoàn tác</strong>.
+                </div>
+
+                <div>
+                  <label className="block font-bold text-ink mb-1.5">
+                    Lý do xóa chiến dịch (Bắt buộc kiểm toán):
+                  </label>
+                  <select
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    className="w-full rounded-xl border border-line bg-[#fbfbfa] p-2.5 text-xs text-ink outline-none mb-2"
+                  >
+                    <option value="">-- Chọn lý do mẫu hoặc tự nhập --</option>
+                    <option value="Dự án rác / spam nội dung do người dùng thử nghiệm">
+                      Dự án rác / spam nội dung
+                    </option>
+                    <option value="Chủ dự án yêu cầu hủy bỏ trước khi phát sinh người ủng hộ">
+                      Chủ dự án yêu cầu hủy bỏ (0 backer)
+                    </option>
+                    <option value="Vi phạm nghiêm trọng điều khoản sử dụng và pháp luật">
+                      Vi phạm nghiêm trọng điều khoản dịch vụ
+                    </option>
+                  </select>
+                  <textarea
+                    rows={2}
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="Nhập chi tiết căn cứ xóa chiến dịch..."
+                    className="w-full rounded-xl border border-line p-2.5 text-xs text-ink outline-none focus:border-forest"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-line">
+                  <button
+                    type="button"
+                    disabled={busy === deleteTargetCampaign.id}
+                    onClick={() => setDeleteTargetCampaign(null)}
+                    className="button-ghost min-h-10 px-4 text-xs font-bold"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy === deleteTargetCampaign.id}
+                    onClick={handleExecuteDeleteCampaign}
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-red-600 px-4 text-xs font-extrabold text-white transition hover:bg-red-700 shadow-xs"
+                  >
+                    {busy === deleteTargetCampaign.id ? (
+                      <LoaderCircle className="size-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    <span>
+                      {busy === deleteTargetCampaign.id
+                        ? "Đang xóa…"
+                        : "Xác nhận xóa vĩnh viễn"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </Modal>
       )}

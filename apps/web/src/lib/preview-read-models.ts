@@ -185,7 +185,46 @@ export function applyOperationsPreviewState(
       state?.taskStatuses?.[task.id] ??
       task.status,
   }));
-  const team = (data.team || []).map((member) => ({
+
+  const removedIds = new Set(platform?.removedMemberIds || []);
+  const baseTeam = (data.team || []).filter(
+    (m) => !removedIds.has(m.id) && !removedIds.has((m as any).userId),
+  );
+
+  const extraInvited = (platform?.invitedMembers || [])
+    .filter((m) => m.campaignId === data.campaignId && !removedIds.has(m.id))
+    .map((m) => ({
+      id: m.id,
+      userId: m.userId || m.id,
+      name: m.name,
+      email: m.email,
+      initials:
+        m.name
+          .split(" ")
+          .slice(-2)
+          .map((p) => p[0])
+          .join("")
+          .toUpperCase() || "TV",
+      role: m.role || "Cộng tác viên",
+      permissions: m.permissions || [
+        [
+          m.canPostUpdates ? "Đăng bài cập nhật" : null,
+          m.canReplyComments ? "Trả lời bình luận" : null,
+          m.canViewAiDashboard ? "Xem phân tích AI" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Cộng tác viên",
+      ],
+      canPostUpdates: m.canPostUpdates,
+      canReplyComments: m.canReplyComments,
+      canViewAiDashboard: m.canViewAiDashboard,
+      openTasks: 0,
+      lastSeen: "Vừa xong",
+    }));
+
+  const combinedTeam = [...baseTeam, ...extraInvited];
+
+  const team = combinedTeam.map((member) => ({
     ...member,
     permissions:
       platform?.collaboratorPermissions?.[
@@ -378,13 +417,19 @@ export function applyAdminPreviewState(
       openAlerts: Math.max(0, data.metrics.openAlerts - clearedInSession),
     },
     reviewQueue: processedReviews,
-    campaigns: (data.campaigns || []).map((campaign) => ({
-      ...campaign,
-      status:
-        state?.campaignStatuses?.[campaign.id] ??
-        platform?.campaignStatuses?.[campaign.id] ??
-        campaign.status,
-    })),
+    campaigns: (data.campaigns || [])
+      .filter((c) => !state?.deletedCampaignIds?.includes(c.id))
+      .map((campaign) => ({
+        ...campaign,
+        isFeatured:
+          state?.featuredCampaigns?.[campaign.id] ??
+          campaign.isFeatured ??
+          false,
+        status:
+          state?.campaignStatuses?.[campaign.id] ??
+          platform?.campaignStatuses?.[campaign.id] ??
+          campaign.status,
+      })),
     alerts,
     users: [
       ...(state?.createdUsers ?? []),
@@ -413,7 +458,7 @@ export function applyAdminPreviewState(
       managedCampaign: {
         ...data.operations.managedCampaign,
         status:
-          state?.campaignStatuses?.[data.operations.managedCampaign.id] ??
+          (state?.campaignStatuses?.[data.operations.managedCampaign.id] as any) ??
           data.operations.managedCampaign.status,
       },
     },

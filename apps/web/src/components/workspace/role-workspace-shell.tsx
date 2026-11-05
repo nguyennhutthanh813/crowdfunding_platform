@@ -54,13 +54,10 @@ const navigation: Record<UserRole, WorkspaceNavItem[]> = {
     { href: "/dashboard?tab=settings", label: "Tùy chọn", note: "Thông báo & riêng tư", icon: Settings },
   ],
   CREATOR: [
-    { href: "/creator", label: "Chiến dịch của tôi", note: "Danh mục & nhịp vận hành", icon: LayoutDashboard },
-    { href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=overview", label: "Vận hành ORBIT One", note: "Chiến dịch đang chọn", icon: FolderKanban },
-    { href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=content", label: "Nội dung & nhóm", note: "Thành viên", icon: Users },
-    { href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community", label: "Cộng đồng", note: "Cập nhật & phản hồi", icon: MessageSquareText },
-    { href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=fulfillment", label: "Giao quà", note: "Đơn & đối soát", icon: Gift },
-    { href: "/creator/ai", label: "Dự báo chiến dịch", note: "AI có giải thích", icon: Bot },
+    { href: "/creator", label: "Chiến dịch của tôi", note: "Danh mục & tiến độ", icon: LayoutDashboard },
+    { href: "/creator/ai", label: "Trợ lý AI & Dự báo", note: "Phân tích số liệu & gợi ý", icon: Bot },
     { href: "/creator/campaigns/new", label: "Chiến dịch mới", note: "Tạo bản nháp", icon: Plus },
+    { href: "/creator/guidelines", label: "Quy chuẩn duyệt dự án", note: "Tiêu chí & chính sách", icon: BookHeart },
   ],
   COLLABORATOR: [
     { href: "/collaborator", label: "Việc hôm nay", note: "Được giao cho bạn", icon: ClipboardCheck },
@@ -123,7 +120,7 @@ function creatorSnapshotForLocation(
     : undefined;
 
   const totalCount =
-    snapshot.scopeCount ?? snapshot.creatorCampaigns?.length ?? 1;
+    snapshot.scopeCount ?? snapshot.creatorCampaigns?.length ?? 0;
   const liveCount =
     snapshot.creatorCampaigns?.filter((c) => c.status === "LIVE").length ?? 0;
 

@@ -5,6 +5,7 @@ import {
   Check,
   Coins,
   Copy,
+  ExternalLink,
   Eye,
   FolderHeart,
   History,
@@ -62,6 +63,8 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
   >(null);
   const [selectedRoleToToggle, setSelectedRoleToToggle] = useState<string>("");
   const [roleReason, setRoleReason] = useState("");
+  const [selectedCollaboratorCampaignId, setSelectedCollaboratorCampaignId] =
+    useState("");
 
   const [resetTargetUser, setResetTargetUser] = useState<
     (typeof users)[number] | null
@@ -136,6 +139,37 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
 
     return result;
   }, [users, query, roleFilter, statusFilter, sortBy]);
+
+  // Derived campaigns for the currently viewed user
+  const userOwnedCampaigns = useMemo(() => {
+    if (!selectedUser) return [];
+    if (selectedUser.campaigns && selectedUser.campaigns.length > 0) {
+      return selectedUser.campaigns;
+    }
+    const matched = (data.campaigns || []).filter(
+      (c) =>
+        c.creator?.id === selectedUser.id ||
+        (c as any).creatorId === selectedUser.id,
+    );
+    return matched.map((c) => ({
+      id: c.id,
+      title: c.title,
+      slug: c.slug,
+      status: c.status,
+      goalAmount: c.goalAmount,
+      pledgedAmount: c.pledgedAmount,
+      backerCount: c.backerCount,
+      createdAt: c.launchDate,
+      memberRole: "Chủ dự án",
+    }));
+  }, [selectedUser, data.campaigns]);
+
+  const userCollaboratedCampaigns = useMemo(() => {
+    if (!selectedUser) return [];
+    return (selectedUser.campaignMembers || []).filter(
+      (m) => m.role === "Cộng tác viên" || (m as any).role === "COLLABORATOR",
+    );
+  }, [selectedUser]);
 
   // Handlers
   const handleToggleStatus = async () => {
@@ -268,6 +302,155 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
         adminRequestError(
           error,
           "Chưa thể cập nhật vai trò người dùng. Vui lòng thử lại.",
+        ),
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleAssignCollaborator = async (
+    targetUser: (typeof users)[number],
+    campaignId: string,
+  ) => {
+    if (!targetUser || !campaignId) return;
+    const selectedCamp = data.campaigns?.find((c) => c.id === campaignId);
+    const campaignTitle = selectedCamp?.title || "Dự án gây quỹ";
+    const reason =
+      roleReason.trim() ||
+      `Quản trị viên phân quyền cộng tác viên cho dự án "${campaignTitle}"`;
+
+    setBusy(targetUser.id);
+    setNotice(null);
+
+    try {
+      await callAdminAction("ASSIGN_CAMPAIGN_COLLABORATOR", {
+        userId: targetUser.id,
+        campaignId,
+        reason,
+      });
+
+      const newMembership = {
+        role: "Cộng tác viên",
+        campaignId,
+        campaignTitle,
+        campaignSlug: selectedCamp?.slug || "",
+        campaignStatus: selectedCamp?.status || "LIVE",
+        joinedAt: "Vừa xong",
+      };
+
+      const updatedUsers = users.map((u) => {
+        if (u.id === targetUser.id) {
+          const mod = {
+            id: `mod_${Date.now()}`,
+            action: `GÁN CỘNG TÁC VIÊN: ${campaignTitle.toUpperCase()}`,
+            reason,
+            createdAt: "Vừa xong",
+            adminName: "Bạn (Quản trị viên)",
+          };
+          const existingMembers = u.campaignMembers || [];
+          const filtered = existingMembers.filter(
+            (m) => m.campaignId !== campaignId,
+          );
+          return {
+            ...u,
+            campaignMembers: [newMembership, ...filtered],
+            moderationActions: [mod, ...(u.moderationActions ?? [])],
+          };
+        }
+        return u;
+      });
+
+      setUsers(updatedUsers);
+      const updatedTarget =
+        updatedUsers.find((u) => u.id === targetUser.id) ?? null;
+      if (roleTargetUser?.id === targetUser.id) {
+        setRoleTargetUser(updatedTarget);
+      }
+      if (selectedUser?.id === targetUser.id) {
+        setSelectedUser(updatedTarget);
+      }
+
+      setNotice(
+        `Đã gán vai trò Cộng tác viên dự án "${campaignTitle}" cho ${targetUser.name}.`,
+      );
+      setSelectedCollaboratorCampaignId("");
+      setRoleReason("");
+    } catch (error) {
+      setNotice(
+        adminRequestError(
+          error,
+          "Chưa thể gán vai trò cộng tác viên dự án. Vui lòng thử lại.",
+        ),
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleRemoveCollaborator = async (
+    targetUser: (typeof users)[number],
+    campaignId: string,
+  ) => {
+    if (!targetUser || !campaignId) return;
+    const targetMember = targetUser.campaignMembers?.find(
+      (m) => m.campaignId === campaignId,
+    );
+    const campaignTitle = targetMember?.campaignTitle || "Dự án gây quỹ";
+    const reason =
+      roleReason.trim() ||
+      `Thu hồi vai trò cộng tác viên dự án "${campaignTitle}"`;
+
+    setBusy(targetUser.id);
+    setNotice(null);
+
+    try {
+      await callAdminAction("REMOVE_CAMPAIGN_COLLABORATOR", {
+        userId: targetUser.id,
+        campaignId,
+        reason,
+      });
+
+      const updatedUsers = users.map((u) => {
+        if (u.id === targetUser.id) {
+          const mod = {
+            id: `mod_${Date.now()}`,
+            action: `THU HỒI CỘNG TÁC VIÊN: ${campaignTitle.toUpperCase()}`,
+            reason,
+            createdAt: "Vừa xong",
+            adminName: "Bạn (Quản trị viên)",
+          };
+          const existingMembers = u.campaignMembers || [];
+          return {
+            ...u,
+            campaignMembers: existingMembers.filter(
+              (m) => m.campaignId !== campaignId,
+            ),
+            moderationActions: [mod, ...(u.moderationActions ?? [])],
+          };
+        }
+        return u;
+      });
+
+      setUsers(updatedUsers);
+      const updatedTarget =
+        updatedUsers.find((u) => u.id === targetUser.id) ?? null;
+      if (roleTargetUser?.id === targetUser.id) {
+        setRoleTargetUser(updatedTarget);
+      }
+      if (selectedUser?.id === targetUser.id) {
+        setSelectedUser(updatedTarget);
+      }
+
+      setNotice(
+        `Đã thu hồi vai trò Cộng tác viên dự án "${campaignTitle}" của ${targetUser.name}.`,
+      );
+      setRoleReason("");
+    } catch (error) {
+      setNotice(
+        adminRequestError(
+          error,
+          "Chưa thể thu hồi vai trò cộng tác viên dự án. Vui lòng thử lại.",
         ),
       );
     } finally {
@@ -1047,12 +1230,12 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                 { id: "overview", label: "Tổng quan & Liên hệ", icon: Eye },
                 {
                   id: "roles",
-                  label: `Vai trò (${selectedUser.roles.length})`,
+                  label: `Vai trò (${selectedUser.roles.length + userCollaboratedCampaigns.length})`,
                   icon: Shield,
                 },
                 {
                   id: "campaigns",
-                  label: `Chiến dịch (${selectedUser.campaigns?.length ?? selectedUser.campaignCount ?? 0})`,
+                  label: `Chiến dịch (${userOwnedCampaigns.length + userCollaboratedCampaigns.length})`,
                   icon: FolderHeart,
                 },
                 {
@@ -1165,13 +1348,18 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
             )}
 
             {detailTab === "roles" && (
-              <div className="space-y-4 text-xs">
-                <p className="text-ink-muted">
-                  Quản trị viên có thể thêm hoặc thu hồi quyền truy cập của người
-                  dùng. Mọi thay đổi đều được ghi vết phục vụ kiểm toán an toàn.
-                </p>
+              <div className="space-y-5 text-xs">
+                <div>
+                  <h4 className="font-bold text-ink text-sm">
+                    Vai trò toàn hệ thống (Global Roles)
+                  </h4>
+                  <p className="text-ink-muted text-[11px] mt-0.5">
+                    Áp dụng trên toàn bộ nền tảng. Quản trị viên có thể cấp hoặc
+                    thu hồi quyền quản trị, chủ dự án và người ủng hộ.
+                  </p>
+                </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {[
                     {
                       id: "Quản trị viên",
@@ -1191,37 +1379,31 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                       desc: "Khám phá dự án, đặt gói cam kết giữ tiền và bình luận trao đổi.",
                       color: "border-blue-200 bg-blue-50/40 text-blue-900",
                     },
-                    {
-                      id: "Cộng tác viên",
-                      name: "Cộng tác viên (COLLABORATOR)",
-                      desc: "Hỗ trợ trả lời cộng đồng và quản lý vận chuyển theo lời mời của chủ dự án.",
-                      color: "border-amber-200 bg-amber-50/40 text-amber-900",
-                    },
                   ].map((roleItem) => {
                     const active = selectedUser.roles.includes(roleItem.id);
                     return (
                       <div
                         key={roleItem.id}
-                        className={`rounded-xl border p-4 transition ${roleItem.color}`}
+                        className={`rounded-xl border p-3.5 transition flex flex-col justify-between ${roleItem.color}`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-extrabold text-sm">
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-extrabold text-xs">
                               {roleItem.name}
                             </p>
-                            <p className="mt-1 text-[11px] leading-4 text-ink-muted">
-                              {roleItem.desc}
-                            </p>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                                active
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-stone-200 text-stone-600"
+                              }`}
+                            >
+                              {active ? "ĐÃ CẤP" : "CHƯA CÓ"}
+                            </span>
                           </div>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                              active
-                                ? "bg-emerald-600 text-white"
-                                : "bg-stone-200 text-stone-600"
-                            }`}
-                          >
-                            {active ? "ĐÃ CẤP" : "CHƯA CÓ"}
-                          </span>
+                          <p className="mt-1.5 text-[11px] leading-4 text-ink-muted">
+                            {roleItem.desc}
+                          </p>
                         </div>
                         <div className="mt-3 pt-3 border-t border-line/60 flex justify-end">
                           <button
@@ -1231,7 +1413,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                               setRoleTargetUser(selectedUser);
                               setSelectedRoleToToggle(roleItem.id);
                             }}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
                               active
                                 ? "border border-red-300 text-red-700 hover:bg-red-50"
                                 : "bg-forest text-white hover:bg-[#142d25]"
@@ -1244,32 +1426,236 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                     );
                   })}
                 </div>
+
+                {/* Section: Project Collaborator */}
+                <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Users className="size-4 text-amber-800" />
+                      <h4 className="font-extrabold text-sm text-amber-950">
+                        Quyền Cộng tác viên theo dự án (COLLABORATOR)
+                      </h4>
+                    </div>
+                    <p className="mt-1 text-[11px] text-amber-900 leading-relaxed">
+                      Quyền Cộng tác viên <strong>không gán chung toàn sàn</strong> mà phải gán theo từng dự án cụ thể. Người được gán có quyền trả lời bình luận, hỗ trợ cập nhật tiến độ chiến dịch và xem tiến độ đóng gói phần thưởng.
+                    </p>
+                  </div>
+
+                  {/* List of projects user collaborates on */}
+                  <div className="space-y-2 pt-1">
+                    <p className="font-bold text-xs text-ink">
+                      Dự án đang làm cộng tác viên ({userCollaboratedCampaigns.length}):
+                    </p>
+                    {userCollaboratedCampaigns.length > 0 ? (
+                      <div className="space-y-2">
+                        {userCollaboratedCampaigns.map((cm) => (
+                          <div
+                            key={cm.campaignId}
+                            className="flex items-center justify-between rounded-lg border border-amber-300/60 bg-white p-3 shadow-xs"
+                          >
+                            <div>
+                              <a
+                                href={`/campaigns/${cm.campaignSlug || cm.campaignId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-bold text-ink hover:text-forest transition inline-flex items-center gap-1"
+                              >
+                                {cm.campaignTitle}
+                                <ExternalLink className="size-3 text-ink-muted" />
+                              </a>
+                              <p className="text-[11px] text-ink-muted mt-0.5">
+                                Trạng thái:{" "}
+                                <span className="font-semibold text-ink-soft">
+                                  {cm.campaignStatus}
+                                </span>{" "}
+                                · Tham gia: {cm.joinedAt}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={busy === selectedUser.id}
+                              onClick={() =>
+                                handleRemoveCollaborator(
+                                  selectedUser,
+                                  cm.campaignId,
+                                )
+                              }
+                              className="rounded-lg border border-red-300 px-2.5 py-1 text-[11px] font-bold text-red-700 hover:bg-red-50 transition"
+                            >
+                              Gỡ quyền khỏi dự án
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-ink-muted italic bg-white/70 rounded-lg p-2.5 border border-dashed border-amber-300/60">
+                        Người dùng này hiện chưa tham gia làm cộng tác viên của dự án nào.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Form to assign to a project */}
+                  <div className="pt-2 border-t border-amber-200/80">
+                    <label className="block font-bold text-xs text-amber-950 mb-1.5">
+                      Gán người dùng làm cộng tác viên cho dự án mới:
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        value={selectedCollaboratorCampaignId}
+                        onChange={(e) =>
+                          setSelectedCollaboratorCampaignId(e.target.value)
+                        }
+                        className="flex-1 rounded-lg border border-amber-300 bg-white p-2 text-xs text-ink outline-none focus:border-forest"
+                      >
+                        <option value="">
+                          -- Chọn chiến dịch cần phân quyền cộng tác viên --
+                        </option>
+                        {(data.campaigns || [])
+                          .filter(
+                            (c) =>
+                              c.creator?.id !== selectedUser.id &&
+                              (c as any).creatorId !== selectedUser.id &&
+                              !userCollaboratedCampaigns.some(
+                                (m) => m.campaignId === c.id,
+                              ),
+                          )
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.title} ({c.status})
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={
+                          !selectedCollaboratorCampaignId ||
+                          busy === selectedUser.id
+                        }
+                        onClick={() =>
+                          handleAssignCollaborator(
+                            selectedUser,
+                            selectedCollaboratorCampaignId,
+                          )
+                        }
+                        className="rounded-lg bg-forest px-3.5 py-2 text-xs font-bold text-white hover:bg-[#142d25] transition disabled:opacity-50"
+                      >
+                        {busy === selectedUser.id
+                          ? "Đang lưu..."
+                          : "+ Gán vào dự án"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
             {detailTab === "campaigns" && (
-              <div className="space-y-3 text-xs">
-                {selectedUser.campaigns && selectedUser.campaigns.length > 0 ? (
-                  selectedUser.campaigns.map((camp) => (
-                    <div
-                      key={camp.id}
-                      className="flex items-center justify-between rounded-xl border border-line bg-stone-50/50 p-3.5"
-                    >
-                      <div>
-                        <p className="font-bold text-ink">{camp.title}</p>
-                        <p className="text-[11px] text-ink-muted mt-0.5">
-                          Mục tiêu: {formatVnd(camp.goalAmount)} · Đã gây quỹ:{" "}
-                          <strong className="text-forest">
-                            {formatVnd(camp.pledgedAmount)}
-                          </strong>{" "}
-                          ({camp.backerCount} người ủng hộ)
-                        </p>
+              <div className="space-y-4 text-xs">
+                {userOwnedCampaigns.length > 0 ||
+                userCollaboratedCampaigns.length > 0 ? (
+                  <>
+                    {userOwnedCampaigns.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-ink">
+                            Chiến dịch do người dùng làm Chủ dự án (
+                            {userOwnedCampaigns.length})
+                          </p>
+                          <span className="text-[10px] bg-coral/10 text-coral-dark font-extrabold px-2 py-0.5 rounded-full">
+                            Chủ sở hữu
+                          </span>
+                        </div>
+                        <div className="space-y-2.5">
+                          {userOwnedCampaigns.map((camp) => (
+                            <div
+                              key={camp.id}
+                              className="flex items-center justify-between rounded-xl border border-line bg-stone-50/50 p-3.5 hover:border-forest/40 transition"
+                            >
+                              <div className="space-y-1">
+                                <a
+                                  href={`/campaigns/${camp.slug || camp.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-bold text-ink hover:text-forest transition inline-flex items-center gap-1.5"
+                                >
+                                  <span>{camp.title}</span>
+                                  <ExternalLink className="size-3 text-ink-muted" />
+                                </a>
+                                <p className="text-[11px] text-ink-muted">
+                                  Mục tiêu: {formatVnd(camp.goalAmount)} · Đã gây quỹ:{" "}
+                                  <strong className="text-forest font-bold">
+                                    {formatVnd(camp.pledgedAmount)}
+                                  </strong>{" "}
+                                  ({camp.backerCount} người ủng hộ) · Khởi tạo:{" "}
+                                  {camp.createdAt}
+                                </p>
+                              </div>
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                  camp.status === "LIVE"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : camp.status === "IN_REVIEW"
+                                      ? "bg-amber-100 text-amber-800"
+                                      : camp.status === "SUCCESSFUL"
+                                        ? "bg-teal-100 text-teal-800"
+                                        : "bg-stone-200 text-stone-700"
+                                }`}
+                              >
+                                {camp.status === "LIVE"
+                                  ? "Đang gây quỹ"
+                                  : camp.status === "IN_REVIEW"
+                                    ? "Chờ duyệt"
+                                    : camp.status === "DRAFT"
+                                      ? "Bản nháp"
+                                      : camp.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <span className="rounded-full bg-stone-200 px-2.5 py-1 text-[10px] font-bold text-ink-soft">
-                        {camp.status}
-                      </span>
-                    </div>
-                  ))
+                    )}
+
+                    {userCollaboratedCampaigns.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-line/60">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-ink">
+                            Dự án tham gia với vai trò Cộng tác viên (
+                            {userCollaboratedCampaigns.length})
+                          </p>
+                          <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full">
+                            Cộng tác viên
+                          </span>
+                        </div>
+                        <div className="space-y-2.5">
+                          {userCollaboratedCampaigns.map((cm) => (
+                            <div
+                              key={cm.campaignId}
+                              className="flex items-center justify-between rounded-xl border border-amber-200/70 bg-amber-50/30 p-3.5"
+                            >
+                              <div className="space-y-1">
+                                <a
+                                  href={`/campaigns/${cm.campaignSlug || cm.campaignId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-bold text-ink hover:text-forest transition inline-flex items-center gap-1.5"
+                                >
+                                  <span>{cm.campaignTitle}</span>
+                                  <ExternalLink className="size-3 text-ink-muted" />
+                                </a>
+                                <p className="text-[11px] text-ink-muted">
+                                  Vai trò: <strong>Cộng tác viên dự án</strong> · Tham gia:{" "}
+                                  {cm.joinedAt}
+                                </p>
+                              </div>
+                              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                                {cm.campaignStatus}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="py-8 text-center text-ink-muted">
                     <FolderHeart className="mx-auto size-6 text-stone-300" />
@@ -1277,7 +1663,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                       Chưa có chiến dịch nào
                     </p>
                     <p className="text-xs">
-                      Người dùng này chưa phát động dự án gây quỹ nào.
+                      Người dùng này chưa phát động hoặc tham gia dự án gây quỹ nào.
                     </p>
                   </div>
                 )}
@@ -1472,6 +1858,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
             </p>
 
             <div className="space-y-2">
+              <p className="font-bold text-ink">Vai trò toàn hệ thống:</p>
               {[
                 {
                   id: "Quản trị viên",
@@ -1487,11 +1874,6 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                   id: "Người ủng hộ",
                   label: "Người ủng hộ (BACKER)",
                   badge: "bg-blue-50 text-blue-700",
-                },
-                {
-                  id: "Cộng tác viên",
-                  label: "Cộng tác viên (COLLABORATOR)",
-                  badge: "bg-amber-50 text-amber-700",
                 },
               ].map((roleOption) => {
                 const hasRole = roleTargetUser.roles.includes(roleOption.id);
@@ -1526,6 +1908,106 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Project Collaborator Section in Fast Modal */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 space-y-2.5">
+              <div className="flex items-center gap-1.5 text-amber-950">
+                <Users className="size-4" />
+                <span className="font-bold text-xs">
+                  Cộng tác viên dự án (COLLABORATOR)
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-900 leading-relaxed">
+                Quyền Cộng tác viên được phân quyền theo <strong>dự án cụ thể</strong> (không áp dụng chung).
+              </p>
+
+              {/* Current Collaborator Projects */}
+              {roleTargetUser.campaignMembers &&
+              roleTargetUser.campaignMembers.length > 0 ? (
+                <div className="space-y-1.5 pt-1">
+                  <p className="font-semibold text-[11px] text-ink">
+                    Dự án đang làm cộng tác viên:
+                  </p>
+                  <div className="space-y-1.5">
+                    {roleTargetUser.campaignMembers.map((cm) => (
+                      <div
+                        key={cm.campaignId}
+                        className="flex items-center justify-between rounded-lg border border-amber-300 bg-white px-2.5 py-1.5"
+                      >
+                        <span className="font-semibold text-ink truncate max-w-[200px]" title={cm.campaignTitle}>
+                          {cm.campaignTitle}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={busy === roleTargetUser.id}
+                          onClick={() =>
+                            handleRemoveCollaborator(
+                              roleTargetUser,
+                              cm.campaignId,
+                            )
+                          }
+                          className="text-[10px] font-bold text-red-700 hover:underline ml-2"
+                        >
+                          Gỡ quyền
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-ink-muted italic">
+                  Chưa làm cộng tác viên dự án nào.
+                </p>
+              )}
+
+              {/* Add Collaborator Form */}
+              <div className="pt-2 border-t border-amber-200">
+                <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                  Gán vào dự án:
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedCollaboratorCampaignId}
+                    onChange={(e) =>
+                      setSelectedCollaboratorCampaignId(e.target.value)
+                    }
+                    className="flex-1 rounded-lg border border-amber-300 bg-white p-1.5 text-xs text-ink outline-none"
+                  >
+                    <option value="">-- Chọn dự án --</option>
+                    {(data.campaigns || [])
+                      .filter(
+                        (c) =>
+                          c.creator?.id !== roleTargetUser.id &&
+                          (c as any).creatorId !== roleTargetUser.id &&
+                          !roleTargetUser.campaignMembers?.some(
+                            (m) => m.campaignId === c.id,
+                          ),
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={
+                      !selectedCollaboratorCampaignId ||
+                      busy === roleTargetUser.id
+                    }
+                    onClick={() =>
+                      handleAssignCollaborator(
+                        roleTargetUser,
+                        selectedCollaboratorCampaignId,
+                      )
+                    }
+                    className="rounded-lg bg-forest px-3 py-1.5 text-xs font-bold text-white hover:bg-[#142d25] disabled:opacity-50"
+                  >
+                    + Gán
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div>

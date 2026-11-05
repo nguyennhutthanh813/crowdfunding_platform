@@ -35,6 +35,11 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
         findUnique: jest.fn(),
         findMany: jest.fn(),
       },
+      userRole: {
+        upsert: jest.fn(),
+        findUnique: jest.fn(),
+        delete: jest.fn(),
+      },
       campaignMember: {
         create: jest.fn(),
         delete: jest.fn(),

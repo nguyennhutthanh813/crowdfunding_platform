@@ -302,6 +302,18 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
         service.deleteComment('comment-1', mockOtherUserId),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('should forbid campaign creator from deleting comments by other users', async () => {
+      prisma.comment.findUnique.mockResolvedValue({
+        id: 'comment-1',
+        authorId: mockBackerId,
+      });
+      prisma.userRole.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.deleteComment('comment-1', mockCreatorId),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('COM-05: Like Comment', () => {
@@ -319,6 +331,24 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
         expect.objectContaining({
           where: { id: 'comment-1' },
           data: { likeCount: { increment: 1 } },
+        }),
+      );
+    });
+
+    it('should decrement like count when unliking comment', async () => {
+      prisma.comment.findUnique.mockResolvedValue({ id: 'comment-1', likeCount: 6 });
+      prisma.comment.update.mockResolvedValue({
+        id: 'comment-1',
+        likeCount: 5,
+        author: { id: mockBackerId, displayName: 'Backer' },
+      });
+
+      const result = await service.likeComment('comment-1', mockBackerId, true);
+      expect(result.likeCount).toBe(5);
+      expect(prisma.comment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'comment-1' },
+          data: { likeCount: { decrement: 1 } },
         }),
       );
     });

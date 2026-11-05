@@ -177,7 +177,7 @@ export function getDefaultNotifications(role: UserRole = "CREATOR"): Notificatio
           "Hồ sơ chiến dịch của bạn đang được ban quản trị xét duyệt tính minh bạch trong vòng 24h làm việc.",
         minutesAgo: 10,
         read: true,
-        link: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=overview",
+        link: "/creator",
       },
       {
         id: "n-c2",
@@ -187,7 +187,7 @@ export function getDefaultNotifications(role: UserRole = "CREATOR"): Notificatio
           "Thành viên Hoàng Nam vừa gửi câu hỏi về thời gian giao hàng dự kiến.",
         minutesAgo: 45,
         read: true,
-        link: "/projects/orbit-one-ca-phe-thong-minh?tab=comments",
+        link: "/creator",
       },
       {
         id: "n-c3",
@@ -197,7 +197,7 @@ export function getDefaultNotifications(role: UserRole = "CREATOR"): Notificatio
           "Một người ủng hộ vừa đăng ký gói quà tặng trị giá 500.000 đ.",
         minutesAgo: 120,
         read: true,
-        link: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=fulfillment",
+        link: "/creator",
       },
       {
         id: "n-c4",

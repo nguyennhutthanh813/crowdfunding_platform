@@ -75,6 +75,58 @@ function validate(value: unknown) {
 export async function GET() {
   const cookieStore = await cookies();
   const session = decodeSession(cookieStore.get(SESSION_COOKIE_NAME)?.value);
+
+  if (!session) {
+    return NextResponse.json({ data: null });
+  }
+
+  // Nếu người dùng đăng nhập bằng token thật từ backend NestJS, đối chiếu và đồng bộ roles mới nhất từ database
+  if (
+    session.tokens?.accessToken &&
+    !session.tokens.accessToken.startsWith("session_")
+  ) {
+    const apiUrl =
+      process.env.API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      "http://localhost:3001/api";
+
+    try {
+      const meRes = await fetch(`${apiUrl}/users/me`, {
+        headers: {
+          Authorization: `Bearer ${session.tokens.accessToken}`,
+        },
+        signal: AbortSignal.timeout(2000),
+      });
+
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        const serverRoles: UserRole[] = Array.isArray(meData.roles)
+          ? meData.roles.map((r: any) => (typeof r === "string" ? r : r.role))
+          : [];
+
+        if (serverRoles.length > 0) {
+          const currentRoles = session.user.roles || [];
+          const hasDiff =
+            serverRoles.length !== currentRoles.length ||
+            serverRoles.some((r) => !currentRoles.includes(r));
+
+          if (hasDiff) {
+            session.user.roles = serverRoles;
+            if (!serverRoles.includes(session.user.activeRole)) {
+              session.user.activeRole = serverRoles.includes("CREATOR")
+                ? "CREATOR"
+                : (serverRoles[0] || "BACKER");
+            }
+            const response = NextResponse.json({ data: session });
+            return writePreviewSessionCookie(response, session) ?? response;
+          }
+        }
+      }
+    } catch {
+      // Bỏ qua lỗi mạng/timeout để không làm gián đoạn phiên hoạt động
+    }
+  }
+
   return NextResponse.json({ data: session });
 }
 

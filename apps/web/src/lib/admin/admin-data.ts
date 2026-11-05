@@ -31,6 +31,31 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     baseData.campaigns = realCampaigns;
   }
 
+  // Cross-link user campaigns if any user missing detailed campaigns array
+  if (baseData.campaigns && baseData.campaigns.length > 0) {
+    for (const u of baseData.users) {
+      if (!u.campaigns || u.campaigns.length === 0) {
+        const owned = baseData.campaigns.filter(
+          (c) => c.creator?.id === u.id || (c as any).creatorId === u.id,
+        );
+        if (owned.length > 0) {
+          u.campaigns = owned.map((c) => ({
+            id: c.id,
+            title: c.title,
+            slug: c.slug,
+            status: c.status,
+            goalAmount: c.goalAmount,
+            pledgedAmount: c.pledgedAmount,
+            backerCount: c.backerCount,
+            createdAt: c.launchDate,
+            memberRole: "Chủ dự án",
+          }));
+          u.campaignCount = u.campaigns.length;
+        }
+      }
+    }
+  }
+
   return applyAdminPreviewState(baseData, session, platformState);
 }
 

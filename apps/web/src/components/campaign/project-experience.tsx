@@ -5,8 +5,6 @@ import {
   BadgeCheck,
   Check,
   ChevronDown,
-  CircleDashed,
-  Clock3,
   Edit2,
   Eye,
   EyeOff,
@@ -25,10 +23,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { NotifyButton } from "@/components/notify-button";
 import { Modal } from "@/components/ui/modal";
+import { StoryMarkdown } from "./story-markdown";
 import type {
   CampaignComment,
   CampaignDetail,
@@ -91,175 +90,96 @@ function getCommentBadge(role: UserRole): CommentBadge {
 }
 
 function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
+  const hasHeroVideo = Boolean(campaign.videoUrl);
+  const mainImageSrc = campaign.visual.imageSrc;
+  const mainImageAlt = campaign.visual.imageAlt || campaign.title;
+
+  const additionalImages = (campaign.gallery ?? []).filter(
+    (g) => g.mediaType === "IMAGE" && g.url !== mainImageSrc,
+  );
+
   return (
     <div>
       <h2 className="sr-only">Câu chuyện và kế hoạch dự án</h2>
-      <p className="font-display text-2xl font-extrabold leading-snug tracking-[-0.035em] sm:text-3xl">
-        {campaign.story.lead}
-      </p>
-      <div className="mt-7 space-y-5 text-[15px] leading-8 text-ink-soft">
-        {campaign.story.paragraphs.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
-      </div>
-      <div className="mt-10 grid gap-3 sm:grid-cols-3">
-        {campaign.story.highlights.map((item) => (
-          <div
-            key={item.title}
-            className="rounded-2xl border border-line bg-[#faf9f3] p-5"
-          >
-            <p className="font-display text-2xl font-extrabold text-coral-dark">
-              {item.title}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-ink-soft">
-              {item.description}
-            </p>
+
+      {/* 1. Ảnh bìa dự án nổi bật nếu Hero hiển thị Video */}
+      {hasHeroVideo && mainImageSrc && (
+        <figure className="mb-9 overflow-hidden rounded-[20px] border border-line bg-canvas-soft shadow-xs">
+          <img
+            src={mainImageSrc}
+            alt={mainImageAlt}
+            className="aspect-[16/10] w-full object-cover transition duration-300 hover:scale-[1.01]"
+          />
+          {mainImageAlt && (
+            <figcaption className="border-t border-line/60 bg-[#faf9f3] px-4 py-2.5 text-center text-xs text-ink-muted">
+              {mainImageAlt}
+            </figcaption>
+          )}
+        </figure>
+      )}
+
+      {/* 2. Đoạn mở đầu nổi bật (Lead) */}
+      {campaign.story.lead && (
+        <p className="font-display text-2xl font-extrabold leading-snug tracking-[-0.035em] sm:text-3xl">
+          {campaign.story.lead}
+        </p>
+      )}
+
+      {/* 3. Nội dung câu chuyện Markdown phong phú */}
+      <div className="mt-8">
+        {campaign.storyMarkdown ? (
+          <StoryMarkdown content={campaign.storyMarkdown} />
+        ) : (
+          <div className="space-y-5 text-[15px] leading-8 text-ink-soft">
+            {campaign.story.paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
-      <div className="mt-12">
-        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-          <div>
-            <p className="eyebrow text-coral">Kế hoạch sử dụng vốn</p>
-            <h3 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
-              Mỗi khoản tiền sẽ đi vào đâu?
-            </h3>
+      {/* 4. Thư viện hình ảnh thực tế / Lifestyle Gallery */}
+      {additionalImages.length > 0 && (
+        <div className="mt-12">
+          <p className="eyebrow text-coral">Thư viện ảnh sản phẩm</p>
+          <h3 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
+            Chi tiết góc nhìn & Thử nghiệm thực tế
+          </h3>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {additionalImages.map((img, idx) => (
+              <figure
+                key={img.url || idx}
+                className="group overflow-hidden rounded-[18px] border border-line bg-canvas-soft shadow-xs"
+              >
+                <img
+                  src={img.url}
+                  alt={img.altText || `Hình ảnh chi tiết ${idx + 1}`}
+                  className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
+                  loading="lazy"
+                />
+                {img.altText && (
+                  <figcaption className="border-t border-line/60 bg-white p-3 text-xs text-ink-muted">
+                    {img.altText}
+                  </figcaption>
+                )}
+              </figure>
+            ))}
           </div>
-          <p className="text-xs text-ink-muted">
-            Tổng dự kiến {formatVnd(campaign.goalAmount)}
+        </div>
+      )}
+
+      {/* Rủi ro và thách thức */}
+      {campaign.story.risks && (
+        <div className="mt-12 rounded-[18px] bg-forest p-6 text-white sm:p-8">
+          <ShieldCheck className="size-6 text-lime" />
+          <h3 className="mt-4 font-display text-xl font-extrabold">
+            Rủi ro và thách thức
+          </h3>
+          <p className="mt-3 text-sm leading-7 text-white/70">
+            {campaign.story.risks}
           </p>
         </div>
-        <div className="mt-5 space-y-3">
-          {campaign.story.fundingPlan.map((item) => (
-            <div
-              key={item.label}
-              className="grid gap-3 rounded-2xl border border-line bg-white p-4 sm:grid-cols-[minmax(0,1fr)_110px] sm:items-center"
-            >
-              <div className="min-w-0">
-                <div className="flex items-baseline justify-between gap-4">
-                  <p className="text-sm font-bold">{item.label}</p>
-                  <span className="font-display text-lg font-extrabold text-coral-dark sm:hidden">
-                    {item.percent}%
-                  </span>
-                </div>
-                <p className="mt-1.5 text-xs leading-5 text-ink-muted">
-                  {item.detail}
-                </p>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-forest/7">
-                  <div
-                    className="h-full rounded-full bg-coral"
-                    style={{ width: `${item.percent}%` }}
-                  />
-                </div>
-              </div>
-              <div className="hidden text-right sm:block">
-                <p className="font-display text-2xl font-extrabold text-coral-dark">
-                  {item.percent}%
-                </p>
-                <p className="mt-1 text-[10px] text-ink-muted">
-                  {formatVnd(item.amount)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-12">
-        <p className="eyebrow text-coral">Căn cứ để cộng đồng kiểm tra</p>
-        <h3 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
-          Nhóm đã có gì, còn thiếu gì?
-        </h3>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {campaign.story.evidence.map((item) => {
-            const verified = item.status === "VERIFIED";
-            const inProgress = item.status === "IN_PROGRESS";
-            const Icon = verified
-              ? BadgeCheck
-              : inProgress
-                ? Clock3
-                : CircleDashed;
-            const label = verified
-              ? "Đã đối chiếu"
-              : inProgress
-                ? "Đang thực hiện"
-                : "Đã lên kế hoạch";
-            return (
-              <article
-                key={item.label}
-                className="rounded-2xl border border-line bg-[#faf9f3] p-5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <Icon
-                    className={`size-5 shrink-0 ${
-                      verified
-                        ? "text-emerald-600"
-                        : inProgress
-                          ? "text-amber-600"
-                          : "text-ink-muted"
-                    }`}
-                  />
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${
-                      verified
-                        ? "bg-emerald-50 text-emerald-700"
-                        : inProgress
-                          ? "bg-amber-50 text-amber-700"
-                          : "bg-stone-100 text-stone-600"
-                    }`}
-                  >
-                    {label}
-                  </span>
-                </div>
-                <p className="mt-4 text-sm font-bold">{item.label}</p>
-                <p className="mt-2 text-xs leading-5 text-ink-muted">
-                  {item.detail}
-                </p>
-              </article>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-12">
-        <p className="eyebrow text-coral">Lộ trình thực hiện</p>
-        <div className="mt-5 space-y-0">
-          {campaign.story.roadmap.map((item, index) => (
-            <div key={item.period} className="grid grid-cols-[34px_1fr] gap-4">
-              <div className="flex flex-col items-center">
-                <span
-                  className={`grid size-8 place-items-center rounded-full border ${item.status === "done" ? "border-forest bg-forest text-white" : item.status === "now" ? "border-coral bg-coral text-white" : "border-line bg-white text-ink-muted"}`}
-                >
-                  {item.status === "done" ? (
-                    <Check className="size-4" />
-                  ) : (
-                    index + 1
-                  )}
-                </span>
-                {index < campaign.story.roadmap.length - 1 ? (
-                  <span className="h-16 w-px bg-line" />
-                ) : null}
-              </div>
-              <div className="pb-8">
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-ink-muted">
-                  {item.period}
-                </p>
-                <p className="mt-1 font-display font-extrabold">{item.title}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="mt-10 rounded-[18px] bg-forest p-6 text-white sm:p-8">
-        <ShieldCheck className="size-6 text-lime" />
-        <h3 className="mt-4 font-display text-xl font-extrabold">
-          Rủi ro và thách thức
-        </h3>
-        <p className="mt-3 text-sm leading-7 text-white/62">
-          {campaign.story.risks}
-        </p>
-      </div>
+      )}
     </div>
   );
 }
@@ -347,11 +267,17 @@ function RewardsPanel({ campaign }: { campaign: CampaignDetail }) {
             ? "Bạn cũng có thể ủng hộ mà không nhận quà ở bước tiếp theo."
             : "Các gói được giữ lại để cộng đồng đối chiếu sau khi chiến dịch kết thúc."}
       </p>
-      <div className="mt-7 grid gap-4">
-        {campaign.rewards.map((reward) => (
-          <RewardCard key={reward.id} reward={reward} campaign={campaign} />
-        ))}
-      </div>
+      {campaign.rewards && campaign.rewards.length > 0 ? (
+        <div className="mt-7 grid gap-4">
+          {campaign.rewards.map((reward) => (
+            <RewardCard key={reward.id} reward={reward} campaign={campaign} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-7 rounded-2xl border border-dashed border-line bg-canvas-soft p-8 text-center text-sm text-ink-muted">
+          Dự án chưa thiết lập các gói phần thưởng cụ thể. Bạn có thể ủng hộ tự do khi chiến dịch mở gọi vốn.
+        </div>
+      )}
     </div>
   );
 }
@@ -696,6 +622,31 @@ function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
   );
 }
 
+function getLikedCommentIdsFromStorage(userId?: string): Set<string> {
+  if (typeof window === "undefined" || !userId) return new Set();
+  try {
+    const raw = localStorage.getItem(`gop_liked_comments_${userId}`);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function setLikedCommentInStorage(commentId: string, liked: boolean, userId?: string) {
+  if (typeof window === "undefined" || !userId) return;
+  try {
+    const set = getLikedCommentIdsFromStorage(userId);
+    if (liked) {
+      set.add(commentId);
+    } else {
+      set.delete(commentId);
+    }
+    localStorage.setItem(`gop_liked_comments_${userId}`, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
 function CommentItem({
   comment,
   campaignId,
@@ -713,7 +664,13 @@ function CommentItem({
   const router = useRouter();
   const { session } = useAuth();
   const [likes, setLikes] = useState(comment.likes);
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(() => {
+    if (session?.previewState?.likedCommentIds?.includes(comment.id)) return true;
+    if (session?.user?.id) {
+      return getLikedCommentIdsFromStorage(session.user.id).has(comment.id);
+    }
+    return false;
+  });
   const [replying, setReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [replies, setReplies] = useState(comment.replies ?? []);
@@ -724,12 +681,24 @@ function CommentItem({
   const [actionBusy, setActionBusy] = useState<"like" | "reply" | "edit" | "delete" | "hide" | null>(null);
   const [notice, setNotice] = useState("");
 
+  useEffect(() => {
+    setLikes(comment.likes);
+  }, [comment.likes]);
+
+  useEffect(() => {
+    if (session?.previewState?.likedCommentIds?.includes(comment.id)) {
+      setLiked(true);
+    } else if (session?.user?.id) {
+      setLiked(getLikedCommentIdsFromStorage(session.user.id).has(comment.id));
+    }
+  }, [session?.previewState?.likedCommentIds, session?.user?.id, comment.id]);
+
   const isAuthor = Boolean(
     session && (comment.authorId ? comment.authorId === session.user.id : comment.author === session.user.name),
   );
   const isAdmin = Boolean(session && session.user.roles.includes("ADMIN"));
   const canModerate = isCampaignCreator || isAdmin;
-  const canDelete = isAuthor || canModerate;
+  const canDelete = isAuthor || isAdmin;
 
   const requireMember = () => {
     if (!session) {
@@ -741,17 +710,33 @@ function CommentItem({
 
   const toggleLike = async () => {
     if (!requireMember()) return;
+    const nextLiked = !liked;
+    const prevLikes = likes;
+    const nextLikes = nextLiked ? likes + 1 : Math.max(0, likes - 1);
+
+    // Cập nhật giao diện tức thì (Optimistic UI)
+    setLiked(nextLiked);
+    setLikes(nextLikes);
+    if (session?.user?.id) {
+      setLikedCommentInStorage(comment.id, nextLiked, session.user.id);
+    }
     setActionBusy("like");
     setNotice("");
+
     try {
       await saveMemberAction("LIKE_COMMENT", {
         campaignId,
         commentId: comment.id,
+        unlike: !nextLiked,
       });
-      setLiked(true);
-      setLikes((val) => val + 1);
     } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể lưu lượt thích."));
+      // Hoàn tác nếu có lỗi
+      setLiked(!nextLiked);
+      setLikes(prevLikes);
+      if (session?.user?.id) {
+        setLikedCommentInStorage(comment.id, !nextLiked, session.user.id);
+      }
+      setNotice(clientRequestMessage(error, "Chưa thể cập nhật lượt thích."));
     } finally {
       setActionBusy(null);
     }
@@ -920,12 +905,20 @@ function CommentItem({
               type="button"
               disabled={actionBusy === "like"}
               aria-pressed={liked}
-              aria-label={`${liked ? "Đã thích" : "Thích"} bình luận của ${comment.author}. Hiện có ${likes + (liked ? 1 : 0)} lượt thích`}
+              aria-label={`${liked ? "Bỏ thích" : "Thích"} bình luận của ${comment.author}. Hiện có ${likes} lượt thích`}
               onClick={() => void toggleLike()}
-              className={`inline-flex min-h-9 cursor-pointer items-center gap-1.5 hover:text-coral ${liked ? "text-coral-dark" : ""}`}
+              className={`inline-flex min-h-9 cursor-pointer items-center gap-1.5 transition-colors ${
+                liked
+                  ? "text-coral font-bold"
+                  : "text-ink-muted hover:text-coral"
+              }`}
             >
-              <ThumbsUp className="size-3.5" />
-              {likes + (liked ? 1 : 0)}
+              <ThumbsUp
+                className={`size-3.5 transition-transform ${
+                  liked ? "fill-current text-coral scale-110" : ""
+                }`}
+              />
+              <span>{likes}</span>
             </button>
             <button
               type="button"
@@ -1407,61 +1400,93 @@ export function ProjectExperience({
           />
         </div>
         <aside className="hidden lg:block">
-          <div className="sticky top-38 rounded-[18px] border border-line bg-white p-5">
-            <div className="flex items-center gap-2">
-              <Rocket className="size-4 text-coral" />
-              <p className="eyebrow text-coral">
-                {isPreLaunch ? "Gói dự kiến" : "Đồng hành ngay"}
-              </p>
-            </div>
-            <h3 className="mt-4 font-display text-xl font-extrabold">
-              {campaign.rewards[1]?.title ?? campaign.rewards[0].title}
-            </h3>
-            <p className="mt-2 font-display text-2xl font-extrabold text-coral-dark">
-              {formatVnd((campaign.rewards[1] ?? campaign.rewards[0]).amount)}
-            </p>
-            <ul className="mt-4 space-y-2 text-xs text-ink-soft">
-              {(campaign.rewards[1] ?? campaign.rewards[0]).items.map(
-                (item) => (
-                  <li key={item} className="flex gap-2">
-                    <Check className="size-3.5 text-emerald-600" />
-                    {item}
-                  </li>
-                ),
-              )}
-            </ul>
-            <div className="mt-5">
-              {isPreLaunch ? (
-                <NotifyButton campaignId={campaign.id} fullWidth />
-              ) : canPledge ? (
-                <Link
-                  href={`/pledge/${campaign.slug}?reward=${(campaign.rewards[1] ?? campaign.rewards[0]).id}`}
-                  className="button-primary w-full"
-                >
-                  Chọn gói này <ArrowRight className="size-4" />
-                </Link>
-              ) : (
-                <p className="rounded-[12px] bg-forest px-4 py-3 text-center text-xs font-bold text-white">
-                  {campaign.status === "SUCCESSFUL"
-                    ? "Đang thực hiện và giao quà"
-                    : campaign.status === "FAILED"
-                      ? "Đã kết thúc · không thu tiền"
-                      : "Chiến dịch đã kết thúc"}
+          {(() => {
+            const featuredReward = campaign.rewards?.[1] ?? campaign.rewards?.[0];
+            const isDraftOrReview =
+              campaign.status === "DRAFT" ||
+              campaign.status === "IN_REVIEW" ||
+              (campaign.status as string) === "CHANGES_REQUESTED";
+
+            return (
+              <div className="sticky top-38 rounded-[18px] border border-line bg-white p-5">
+                <div className="flex items-center gap-2">
+                  <Rocket className="size-4 text-coral" />
+                  <p className="eyebrow text-coral">
+                    {isPreLaunch ? "Gói dự kiến" : "Đồng hành ngay"}
+                  </p>
+                </div>
+                {featuredReward ? (
+                  <>
+                    <h3 className="mt-4 font-display text-xl font-extrabold">
+                      {featuredReward.title}
+                    </h3>
+                    <p className="mt-2 font-display text-2xl font-extrabold text-coral-dark">
+                      {formatVnd(featuredReward.amount)}
+                    </p>
+                    {featuredReward.items && featuredReward.items.length > 0 && (
+                      <ul className="mt-4 space-y-2 text-xs text-ink-soft">
+                        {featuredReward.items.map((item) => (
+                          <li key={item} className="flex gap-2">
+                            <Check className="size-3.5 text-emerald-600" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <div className="mt-4">
+                    <h3 className="font-display text-xl font-extrabold">
+                      Ủng hộ tùy tâm
+                    </h3>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      Chưa có gói phần thưởng cố định nào.
+                    </p>
+                  </div>
+                )}
+                <div className="mt-5">
+                  {isPreLaunch ? (
+                    <NotifyButton campaignId={campaign.id} fullWidth />
+                  ) : canPledge ? (
+                    <Link
+                      href={
+                        featuredReward
+                          ? `/pledge/${campaign.slug}?reward=${featuredReward.id}`
+                          : `/pledge/${campaign.slug}`
+                      }
+                      className="button-primary w-full"
+                    >
+                      {featuredReward ? "Chọn gói này" : "Ủng hộ dự án"}{" "}
+                      <ArrowRight className="size-4" />
+                    </Link>
+                  ) : (
+                    <p className="rounded-[12px] bg-forest px-4 py-3 text-center text-xs font-bold text-white">
+                      {campaign.status === "SUCCESSFUL"
+                        ? "Đang thực hiện và giao quà"
+                        : campaign.status === "FAILED"
+                          ? "Đã kết thúc · không thu tiền"
+                          : isDraftOrReview
+                            ? "Hồ sơ đang xem trước"
+                            : "Chiến dịch đã kết thúc"}
+                    </p>
+                  )}
+                </div>
+                <p className="mt-3 text-center text-[10px] leading-4 text-ink-muted">
+                  {isPreLaunch
+                    ? "Đăng ký nhắc có thể tắt bất cứ lúc nào."
+                    : canPledge
+                      ? "Bạn có thể kiểm tra lại toàn bộ chi phí trước khi xác nhận."
+                      : campaign.status === "SUCCESSFUL"
+                        ? "Xem tab Cập nhật để theo dõi tiến độ mới nhất."
+                        : campaign.status === "FAILED"
+                          ? "Mọi cam kết đã được hủy theo All-or-Nothing."
+                          : isDraftOrReview
+                            ? "Chiến dịch chưa mở nhận cam kết tài chính công khai."
+                            : "Trang được giữ lại để cộng đồng đối chiếu."}
                 </p>
-              )}
-            </div>
-            <p className="mt-3 text-center text-[10px] leading-4 text-ink-muted">
-              {isPreLaunch
-                ? "Đăng ký nhắc có thể tắt bất cứ lúc nào."
-                : canPledge
-                  ? "Bạn có thể kiểm tra lại toàn bộ chi phí trước khi xác nhận."
-                  : campaign.status === "SUCCESSFUL"
-                    ? "Xem tab Cập nhật để theo dõi tiến độ mới nhất."
-                    : campaign.status === "FAILED"
-                      ? "Mọi cam kết đã được hủy theo All-or-Nothing."
-                      : "Trang được giữ lại để cộng đồng đối chiếu."}
-            </p>
-          </div>
+              </div>
+            );
+          })()}
         </aside>
       </div>
       {isPreLaunch || canPledge ? (
@@ -1472,7 +1497,7 @@ export function ProjectExperience({
                 {isPreLaunch ? "Gói dự kiến từ" : "Gói ủng hộ từ"}
               </p>
               <p className="font-display text-sm font-extrabold">
-                {formatVnd(campaign.rewards[0].amount)}
+                {formatVnd(campaign.rewards?.[0]?.amount ?? campaign.goalAmount)}
               </p>
             </div>
             {isPreLaunch ? (

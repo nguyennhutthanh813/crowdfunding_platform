@@ -8,6 +8,7 @@ const emptyPreviewState: PreviewState = {
   savedCampaignIds: [],
   followedCreatorIds: [],
   notifiedCampaignIds: [],
+  likedCommentIds: [],
   authorizedPledges: [],
   taskStatuses: {},
   fulfillmentStatuses: {},
@@ -44,6 +45,7 @@ function cloneState(state: PreviewState): PreviewState {
     savedCampaignIds: [...(state.savedCampaignIds ?? [])],
     followedCreatorIds: [...(state.followedCreatorIds ?? [])],
     notifiedCampaignIds: [...(state.notifiedCampaignIds ?? [])],
+    likedCommentIds: [...(state.likedCommentIds ?? [])],
     authorizedPledges: [...(state.authorizedPledges ?? [])],
     taskStatuses: { ...(state.taskStatuses ?? {}) },
     fulfillmentStatuses: { ...(state.fulfillmentStatuses ?? {}) },
@@ -88,6 +90,8 @@ export function getEffectivePreviewState(
       current?.followedCreatorIds ?? defaults.followedCreatorIds,
     notifiedCampaignIds:
       current?.notifiedCampaignIds ?? defaults.notifiedCampaignIds,
+    likedCommentIds:
+      current?.likedCommentIds ?? defaults.likedCommentIds ?? [],
     authorizedPledges: current?.authorizedPledges ?? defaults.authorizedPledges,
     taskStatuses: current?.taskStatuses ?? defaults.taskStatuses,
     fulfillmentStatuses:

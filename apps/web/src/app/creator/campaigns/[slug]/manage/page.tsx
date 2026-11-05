@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { ArrowLeft, BadgeCheck, FilePenLine, PackageCheck, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  FilePenLine,
+  PackageCheck,
+  AlertTriangle,
+  UsersRound,
+} from "lucide-react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CreatorCampaignStageWorkspace } from "@/components/creator/creator-campaign-stage-workspace";
@@ -94,9 +101,20 @@ export default async function CreatorCampaignStagePage({
     basePortfolio,
     platformState,
   );
+  const ownedCampaign = portfolio.campaigns.find((item) => item.slug === slug);
+  const isOwnerByPublicDetail = Boolean(
+    session?.user?.id &&
+      (publicDetail?.creator?.id === session.user.id ||
+        (publicDetail as any)?.creatorId === session.user.id),
+  );
+
+  if (!ownedCampaign && !isOwnerByPublicDetail) {
+    notFound();
+  }
+
   const campaign =
-    portfolio.campaigns.find((item) => item.slug === slug) ??
-    (publicDetail
+    ownedCampaign ??
+    (publicDetail && isOwnerByPublicDetail
       ? {
           id: publicDetail.id,
           slug: publicDetail.slug,
@@ -156,8 +174,14 @@ export default async function CreatorCampaignStagePage({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href="/creator" className="button-secondary min-h-11 px-4 text-xs">
+              <Link href="/creator" className="button-secondary min-h-11 px-4 text-xs font-bold">
                 <ArrowLeft className="size-4" /> Danh mục chiến dịch
+              </Link>
+              <Link
+                href={`/creator/campaigns/${campaign.slug}/manage?tab=team`}
+                className="button-secondary min-h-11 px-4 text-xs font-bold"
+              >
+                <UsersRound className="size-4" /> Đội ngũ ({operations.team.length})
               </Link>
               {isSuccessful ? (
                 <Link

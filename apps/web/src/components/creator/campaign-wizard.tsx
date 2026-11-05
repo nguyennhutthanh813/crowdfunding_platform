@@ -1,15 +1,20 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
   Check,
   CircleDollarSign,
+  Edit3,
+  Eye,
   FileText,
   Gift,
+  Image as ImageIcon,
   Info,
   LayoutTemplate,
+  Lightbulb,
   LoaderCircle,
   MapPin,
   PackagePlus,
@@ -17,6 +22,7 @@ import {
   Rocket,
   Save,
   Sparkles,
+  Table,
   Target,
   Trash2,
   Truck,
@@ -28,8 +34,9 @@ import {
 } from "lucide-react";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CampaignVisual } from "@/components/campaign/campaign-visual";
+import { StoryMarkdown } from "@/components/campaign/story-markdown";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatVnd } from "@/lib/format";
 
@@ -56,6 +63,7 @@ interface DraftCampaign {
   goal: string;
   duration: string;
   location: string;
+  imageUrl?: string;
   story: string;
   risks: string;
   shippingFee: string;
@@ -84,10 +92,11 @@ const sampleDraft: DraftCampaign = {
   title: "ORBIT Mini — bộ pha gọn cho góc làm việc",
   blurb:
     "Bản nháp đang hoàn thiện cho mẫu máy nhỏ hơn, ưu tiên dễ vệ sinh và vừa bàn làm việc.",
-  category: "Công nghệ",
+  category: "cong-nghe-sang-tao",
   goal: "360000000",
   duration: "30",
   location: "TP. Hồ Chí Minh",
+  imageUrl: "/images/campaigns/orbit-one.png",
   story:
     "ORBIT Mini bắt đầu từ mong muốn mang trải nghiệm pha ổn định vào những căn bếp có diện tích nhỏ. Bản mẫu hiện tại đã hoàn tất thử nghiệm nhiệt và chúng tôi đang chuẩn bị khuôn vỏ cho lô đầu tiên.",
   risks:
@@ -100,16 +109,27 @@ const sampleDraft: DraftCampaign = {
 const blankDraft: DraftCampaign = {
   title: "",
   blurb: "",
-  category: "Công nghệ",
+  category: "cong-nghe-sang-tao",
   goal: "",
   duration: "30",
   location: "TP. Hồ Chí Minh",
+  imageUrl: "",
   story: "",
   risks: "",
   shippingFee: "45000",
   hasVideo: false,
   videoUrl: "",
 };
+
+function normalizeCategory(cat?: string): string {
+  if (!cat) return "cong-nghe-sang-tao";
+  if (cat === "Công nghệ & Sáng tạo" || cat === "Công nghệ") return "cong-nghe-sang-tao";
+  if (cat === "Nghệ thuật & Xuất bản") return "nghe-thuat-xuat-ban";
+  if (cat === "Thủ công mỹ nghệ") return "thu-cong-my-nghe";
+  if (cat === "Cộng đồng & Xã hội") return "cong-dong-xa-hoi";
+  if (cat === "Ẩm thực & Nông sản") return "am-thuc-nong-san";
+  return cat;
+}
 
 
 const sampleRewards: DraftReward[] = [
@@ -150,32 +170,70 @@ export function CampaignWizard({
   mode = "create",
   campaignId = "cmp_draft",
   campaignSlug,
+  initialDraft,
+  initialRewards,
+  initialAddOns,
+  initialCollaborators,
+  reviewFeedback,
 }: {
   prefillSample?: boolean;
   mode?: "create" | "edit";
   campaignId?: string;
   campaignSlug?: string;
+  initialDraft?: Partial<DraftCampaign>;
+  initialRewards?: DraftReward[];
+  initialAddOns?: DraftAddOn[];
+  initialCollaborators?: DraftCollaborator[];
+  reviewFeedback?: string | null;
 }) {
+  const [activeCampaignId, setActiveCampaignId] = useState(campaignId);
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [attemptedStep, setAttemptedStep] = useState<number | null>(null);
-  const [draft, setDraft] = useState<DraftCampaign>(() => ({
-    ...(prefillSample ? sampleDraft : blankDraft),
-  }));
+  const [draft, setDraft] = useState<DraftCampaign>(() => {
+    const base = prefillSample ? sampleDraft : blankDraft;
+    const initial = initialDraft || {};
+    return {
+      ...base,
+      ...initial,
+      category: normalizeCategory(initial.category || base.category),
+    };
+  });
   const [rewards, setRewards] = useState<DraftReward[]>(() =>
-    prefillSample
-      ? sampleRewards.map((reward) => ({ ...reward }))
-      : [{ id: 1, title: "", amount: "", delivery: "", limit: "" }],
+    initialRewards && initialRewards.length > 0
+      ? initialRewards
+      : prefillSample
+        ? sampleRewards.map((reward) => ({ ...reward }))
+        : [{ id: 1, title: "", amount: "", delivery: "", limit: "" }],
   );
   const [addOns, setAddOns] = useState<DraftAddOn[]>(() =>
-    prefillSample ? sampleAddOns.map((addOn) => ({ ...addOn })) : [],
+    initialAddOns && initialAddOns.length > 0
+      ? initialAddOns
+      : prefillSample
+        ? sampleAddOns.map((addOn) => ({ ...addOn }))
+        : [],
   );
   const [collaborators, setCollaborators] = useState<DraftCollaborator[]>(() =>
-    prefillSample ? sampleCollaborators.map((member) => ({ ...member })) : [],
+    initialCollaborators && initialCollaborators.length > 0
+      ? initialCollaborators
+      : prefillSample
+        ? sampleCollaborators.map((member) => ({ ...member }))
+        : [],
   );
+  const [imageTab, setImageTab] = useState<"upload" | "link">(() =>
+    draft.imageUrl?.startsWith("http") ? "link" : "upload",
+  );
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+
+  const [storyTab, setStoryTab] = useState<"edit" | "preview">("edit");
+  const [storyImageUploading, setStoryImageUploading] = useState(false);
+  const [showStoryGuide, setShowStoryGuide] = useState(false);
+  const storyFileInputRef = useRef<HTMLInputElement>(null);
+
   const [videoTab, setVideoTab] = useState<"upload" | "link">(() =>
     draft.videoUrl?.startsWith("http") ? "link" : "upload",
   );
@@ -184,12 +242,13 @@ export function CampaignWizard({
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   const readiness = useMemo(() => {
-    let score = 35;
+    let score = 30;
     if (draft.title.length >= 30 && draft.title.length <= 70) score += 9;
     if (draft.blurb.length >= 60) score += 7;
     if (Number(draft.goal) > 0) score += 7;
     if (Number(draft.duration) >= 15 && Number(draft.duration) <= 60)
       score += 7;
+    if (draft.imageUrl) score += 5;
     if (draft.story.length >= 180) score += 9;
     if (draft.risks.length >= 80) score += 7;
     if (draft.hasVideo) score += 4;
@@ -354,23 +413,148 @@ export function CampaignWizard({
     setUploadedFileName(null);
     setVideoUploadError(null);
   };
+
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setImageUploadError("Kích thước ảnh tối đa là 10MB.");
+      return;
+    }
+
+    setImageUploading(true);
+    setImageUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/v1/upload/image", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Không thể tải lên hình ảnh.");
+      }
+
+      updateDraft("imageUrl", data.imageUrl || data.url);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tải ảnh.";
+      setImageUploadError(message);
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    updateDraft("imageUrl", "");
+    setImageUploadError(null);
+  };
+
+  const handleStoryImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Kích thước ảnh tối đa là 10MB.");
+      return;
+    }
+
+    setStoryImageUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/v1/upload/image", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Không thể tải lên hình ảnh.");
+      }
+
+      const uploadedUrl = data.imageUrl || data.url;
+      const altText = file.name.replace(/\.[^/.]+$/, "");
+      const snippet = `\n\n![${altText}](${uploadedUrl})\n*Hình: ${altText}*\n\n`;
+      updateDraft("story", (draft.story || "") + snippet);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tải ảnh.";
+      alert(message);
+    } finally {
+      setStoryImageUploading(false);
+      if (storyFileInputRef.current) storyFileInputRef.current.value = "";
+    }
+  };
+
+  const insertStoryTemplate = () => {
+    const template = `## 1. Vì sao chúng tôi khởi động dự án này?
+Chia sẻ lý do, câu chuyện cá nhân hoặc vấn đề thực tế mà bạn muốn giải quyết. Người ủng hộ tài trợ vì niềm tin vào con người và ý nghĩa thực tế của dự án.
+
+> "Mục tiêu của chúng tôi không chỉ là tạo ra một sản phẩm tốt, mà là mang lại trải nghiệm trọn vẹn nhất cho cộng đồng."
+
+## 2. Thiết kế & Tính năng nổi bật
+Trình bày các ưu điểm, thông số kỹ thuật và những gì làm cho sản phẩm của bạn khác biệt trên thị trường.
+
+- **Vật liệu cao cấp:** Chọn lọc tỉ mỉ, thân thiện môi trường và có độ bền vượt trội.
+- **Thiết kế tối giản:** Tinh tế, vừa vặn không gian sống và dễ dàng bảo dưỡng.
+- **Trải nghiệm tối ưu:** Đã qua hơn 50 lần thử nghiệm thực tế với người dùng.
+
+### Bảng thông số kỹ thuật
+
+| Thông số | Chi tiết |
+|---|---|
+| Kích thước | Tiêu chuẩn nhỏ gọn |
+| Trọng lượng | Nhẹ, dễ mang theo |
+| Bảo hành | 12 tháng chính hãng |
+
+## 3. Quy trình sản xuất & Đội ngũ thực hiện
+Minh bạch nguồn gốc vật liệu, các xưởng gia công đối tác và kinh nghiệm của các thành viên nòng cốt.
+
+## 4. Kế hoạch bàn giao & Cam kết
+Lộ trình chi tiết từ khi kết thúc gọi vốn, sản xuất hàng loạt, kiểm định chất lượng đến khi đóng gói và giao tận tay bạn.`;
+
+    if (
+      !draft.story.trim() ||
+      window.confirm("Bạn có muốn chèn khung câu chuyện mẫu? Nội dung hiện tại sẽ được thay thế bằng cấu trúc chuẩn.")
+    ) {
+      updateDraft("story", template);
+    }
+  };
   const saveDraft = async () => {
     setSaving(true);
     setSaveNotice("");
     try {
-      await clientRequest("/api/v1/creator/operations", {
-        method: "POST",
-        body: JSON.stringify({
-          action: "SAVE_DRAFT",
-          payload: {
-            campaignId,
-            draft,
-            rewards,
-            addOns,
-            collaborators,
-          },
-        }),
-      });
+      const res = await clientRequest<{ data?: { campaignId?: string } }>(
+        "/api/v1/creator/operations",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "SAVE_DRAFT",
+            payload: {
+              campaignId: activeCampaignId,
+              draft,
+              rewards,
+              addOns,
+              collaborators,
+            },
+          }),
+        },
+      );
+      if (res?.data?.campaignId) {
+        setActiveCampaignId(res.data.campaignId);
+      }
       setSaveNotice("Đã lưu bản nháp vừa xong");
     } catch (error) {
       setSaveNotice(clientRequestMessage(error, "Chưa thể lưu bản nháp"));
@@ -386,23 +570,30 @@ export function CampaignWizard({
     setSaving(true);
     setSubmitError(null);
     try {
-      await clientRequest("/api/v1/creator/operations", {
-        method: "POST",
-        body: JSON.stringify({
-          action: "SUBMIT_REVIEW",
-          payload: {
-            campaignId,
-            title: draft.title.trim(),
-            category: draft.category,
-            rewardCount: rewards.length,
-            addOnCount: addOns.length,
-            readiness,
-            draft,
-            rewards,
-            addOns,
-          },
-        }),
-      });
+      const res = await clientRequest<{ data?: { campaignId?: string } }>(
+        "/api/v1/creator/operations",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "SUBMIT_REVIEW",
+            payload: {
+              campaignId: activeCampaignId,
+              title: draft.title.trim(),
+              category: draft.category,
+              rewardCount: rewards.length,
+              addOnCount: addOns.length,
+              readiness,
+              draft,
+              rewards,
+              addOns,
+              collaborators,
+            },
+          }),
+        },
+      );
+      if (res?.data?.campaignId) {
+        setActiveCampaignId(res.data.campaignId);
+      }
       setSaving(false);
       setSubmitted(true);
     } catch (error) {
@@ -538,6 +729,25 @@ export function CampaignWizard({
       </div>
 
       <div className="container-shell py-7">
+        {reviewFeedback && (
+          <div className="mb-6 flex items-start gap-3.5 rounded-2xl border border-red-300 bg-red-50/95 p-4 text-ink shadow-sm">
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-red-600 text-white shadow-xs">
+              <AlertTriangle className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-sm font-extrabold text-red-950">
+                Ban quản trị yêu cầu chỉnh sửa hồ sơ
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-red-900 font-medium italic">
+                &quot;{reviewFeedback}&quot;
+              </p>
+              <p className="mt-1.5 text-[11px] text-red-800/80">
+                Vui lòng cập nhật các thông tin theo yêu cầu trên, sau đó chuyển sang bước 5 để gửi xét duyệt lại.
+              </p>
+            </div>
+          </div>
+        )}
+
         <ol className="grid grid-cols-5 gap-2">
           {wizardSteps.map((item, index) => {
             const Icon = item.icon;
@@ -608,7 +818,8 @@ export function CampaignWizard({
                     <span className={inputLabel}>Mô tả ngắn</span>
                     <textarea
                       name="campaign-blurb"
-                      className="input-field mt-2 min-h-24 resize-y"
+                      rows={3}
+                      className="input-field mt-2 min-h-[110px] resize-y"
                       value={draft.blurb}
                       onChange={(event) =>
                         updateDraft("blurb", event.target.value)
@@ -636,11 +847,11 @@ export function CampaignWizard({
                         updateDraft("category", event.target.value)
                       }
                     >
-                      <option>Công nghệ</option>
-                      <option>Thiết kế</option>
-                      <option>Trò chơi</option>
-                      <option>Âm nhạc</option>
-                      <option>Đời sống xanh</option>
+                      <option value="cong-nghe-sang-tao">Công nghệ & Sáng tạo</option>
+                      <option value="nghe-thuat-xuat-ban">Nghệ thuật & Xuất bản</option>
+                      <option value="thu-cong-my-nghe">Thủ công mỹ nghệ</option>
+                      <option value="cong-dong-xa-hoi">Cộng đồng & Xã hội</option>
+                      <option value="am-thuc-nong-san">Ẩm thực & Nông sản</option>
                     </select>
                   </label>
                   <label>
@@ -718,33 +929,441 @@ export function CampaignWizard({
                   Cho cộng đồng thấy kế hoạch thật
                 </h2>
                 <div className="mt-7 space-y-5">
-                  <label>
-                    <span className={inputLabel}>Câu chuyện dự án</span>
-                    <textarea
-                      name="project-story"
-                      className="input-field mt-2 min-h-56 resize-y leading-7"
-                      value={draft.story}
-                      onChange={(event) =>
-                        updateDraft("story", event.target.value)
-                      }
-                      required
-                      aria-invalid={
-                        showStepErrors && draft.story.trim().length < 100
-                      }
-                      aria-describedby={
-                        showStepErrors ? "campaign-step-errors" : undefined
-                      }
+                  {/* Khối Ảnh bìa dự án (Khuyến nghị) */}
+                  <div className="rounded-2xl border border-line bg-[#faf9f5] p-4 sm:p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-forest text-lime">
+                          <ImageIcon className="size-5" />
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-ink">Ảnh bìa chiến dịch</p>
+                            <span className="rounded-full bg-coral/10 px-2 py-0.5 text-[10px] font-bold text-coral">
+                              Khuyến nghị
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-ink-muted">
+                            Hình ảnh đại diện chính của chiến dịch, hiển thị trên trang khám phá và phần mở đầu câu chuyện.
+                          </p>
+                        </div>
+                      </div>
+                      {draft.imageUrl ? (
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="inline-flex items-center gap-1.5 self-start rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="size-3.5" /> Gỡ bỏ ảnh
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {/* Mode Tabs: Tải tệp từ máy tính vs Dán liên kết */}
+                    <div className="mt-4 flex gap-2 border-b border-line pb-3">
+                      <button
+                        type="button"
+                        onClick={() => setImageTab("upload")}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          imageTab === "upload"
+                            ? "bg-forest text-white shadow-sm"
+                            : "border border-line bg-white text-ink-muted hover:text-ink"
+                        }`}
+                      >
+                        <Upload className="size-3.5" /> Tải ảnh từ máy tính
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImageTab("link")}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          imageTab === "link"
+                            ? "bg-forest text-white shadow-sm"
+                            : "border border-line bg-white text-ink-muted hover:text-ink"
+                        }`}
+                      >
+                        Dán liên kết ảnh ngoài
+                      </button>
+                    </div>
+
+                    {/* Upload tab */}
+                    {imageTab === "upload" ? (
+                      <div className="mt-4">
+                        {draft.imageUrl && draft.imageUrl.startsWith("/uploads/") ? (
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex items-center gap-2">
+                                <BadgeCheck className="size-5 shrink-0 text-emerald-600" />
+                                <div>
+                                  <p className="text-xs font-bold text-emerald-950">
+                                    Đã tải ảnh lên máy chủ thành công
+                                  </p>
+                                  <p className="text-[11px] text-emerald-700">
+                                    {draft.imageUrl.split("/").pop()}
+                                  </p>
+                                </div>
+                              </div>
+                              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-semibold hover:bg-forest/5">
+                                Thay đổi ảnh khác
+                                <input
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/webp,image/gif"
+                                  className="hidden"
+                                  disabled={imageUploading}
+                                  onChange={handleImageUpload}
+                                />
+                              </label>
+                            </div>
+                            <img
+                              src={draft.imageUrl}
+                              alt="Ảnh bìa đã tải"
+                              className="mt-3 aspect-video max-h-56 w-full rounded-lg object-cover shadow"
+                            />
+                          </div>
+                        ) : (
+                          <div>
+                            <label
+                              className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${
+                                imageUploading
+                                  ? "border-amber-300 bg-amber-50/50"
+                                  : "border-forest/20 bg-white hover:border-forest/40 hover:bg-forest/5"
+                              }`}
+                            >
+                              {imageUploading ? (
+                                <div className="flex flex-col items-center gap-2">
+                                  <LoaderCircle className="size-8 animate-spin text-forest" />
+                                  <p className="text-xs font-bold text-forest">
+                                    Đang tải và lưu hình ảnh vào thư mục máy chủ...
+                                  </p>
+                                  <p className="text-[10px] text-ink-muted">Vui lòng đợi giây lát</p>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="grid size-12 place-items-center rounded-full bg-forest/8 text-forest">
+                                    <Upload className="size-6" />
+                                  </div>
+                                  <p className="text-xs font-bold text-ink">
+                                    Bấm vào đây để chọn ảnh bìa từ máy tính của bạn
+                                  </p>
+                                  <p className="text-[11px] text-ink-muted">
+                                    Hỗ trợ định dạng PNG, JPG, WebP · Kích thước khuyến nghị 1600x1000px · Tối đa 10MB
+                                  </p>
+                                </div>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp,image/gif"
+                                className="hidden"
+                                disabled={imageUploading}
+                                onChange={handleImageUpload}
+                              />
+                            </label>
+                            {imageUploadError ? (
+                              <p className="mt-2 text-xs font-semibold text-red-600">
+                                {imageUploadError}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Link tab */
+                      <div className="mt-4 space-y-3">
+                        <label className="block">
+                          <span className={inputLabel}>Đường dẫn ảnh bìa (URL)</span>
+                          <input
+                            name="campaign-image-url"
+                            type="url"
+                            className="input-field mt-1.5 bg-white"
+                            placeholder="https://images.unsplash.com/... hoặc link ảnh bất kỳ"
+                            value={
+                              draft.imageUrl && !draft.imageUrl.startsWith("/uploads/")
+                                ? draft.imageUrl
+                                : ""
+                            }
+                            onChange={(event) => {
+                              updateDraft("imageUrl", event.target.value);
+                            }}
+                          />
+                        </label>
+                        {draft.imageUrl && !draft.imageUrl.startsWith("/uploads/") ? (
+                          <div className="rounded-xl border border-line bg-white p-3">
+                            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                              <BadgeCheck className="size-4" /> Đã ghi nhận đường dẫn ảnh bìa
+                            </p>
+                            <img
+                              src={draft.imageUrl}
+                              alt="Ảnh bìa xem trước"
+                              className="mt-2 aspect-video max-h-56 w-full rounded-lg object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = "none";
+                              }}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Story Textarea with Rich Toolbar & Live Preview */}
+                  <div>
+                    {/* Input file ẩn cho upload ảnh câu chuyện */}
+                    <input
+                      ref={storyFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleStoryImageUpload}
                     />
-                    <span className="mt-1 block text-[10px] text-ink-muted">
-                      {storyWordCount} từ · nên có vấn đề, giải pháp, bản mẫu và
-                      kế hoạch dùng vốn.
+
+                    {/* Thanh tiêu đề và chuyển đổi tab Soạn thảo / Xem trước */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={inputLabel}>Câu chuyện dự án (Markdown)</span>
+                        <span className="rounded-full bg-forest/5 px-2 py-0.5 text-[11px] font-semibold text-ink-soft">
+                          {storyWordCount} từ
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowStoryGuide((prev) => !prev)}
+                          className="flex items-center gap-1 rounded-lg border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-forest/5"
+                        >
+                          <Lightbulb className="size-3.5 text-amber-500" />
+                          {showStoryGuide ? "Đóng hướng dẫn" : "💡 Hướng dẫn viết"}
+                        </button>
+
+                        <div className="flex rounded-lg border border-line bg-[#f0eee6] p-0.5 text-xs font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => setStoryTab("edit")}
+                            className={`flex items-center gap-1.5 rounded-md px-3 py-1 transition-all ${
+                              storyTab === "edit"
+                                ? "bg-white text-ink shadow-sm"
+                                : "text-ink-soft hover:text-ink"
+                            }`}
+                          >
+                            <Edit3 className="size-3.5" />
+                            Soạn thảo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStoryTab("preview")}
+                            className={`flex items-center gap-1.5 rounded-md px-3 py-1 transition-all ${
+                              storyTab === "preview"
+                                ? "bg-white text-coral-dark shadow-sm"
+                                : "text-ink-soft hover:text-ink"
+                            }`}
+                          >
+                            <Eye className="size-3.5" />
+                            Xem trước
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hộp hướng dẫn viết câu chuyện (Collapsible) */}
+                    {showStoryGuide && (
+                      <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 sm:p-5 text-xs text-ink-soft">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-amber-950 flex items-center gap-1.5 text-sm">
+                              <Sparkles className="size-4 text-amber-600" />
+                              Cấu trúc câu chuyện thu hút người ủng hộ
+                            </h4>
+                            <p className="mt-1 text-amber-900/80">
+                              Một câu chuyện chi tiết, nhiều hình ảnh minh họa chân thực giúp tỷ lệ gọi vốn thành công tăng gấp 3 lần:
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={insertStoryTemplate}
+                            className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white shadow-sm hover:bg-amber-700"
+                          >
+                            + Chèn mẫu chuẩn
+                          </button>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 pt-2 border-t border-amber-200/60">
+                          <div className="rounded-xl bg-white/80 p-3">
+                            <p className="font-bold text-ink">1. Ý tưởng & Động lực ra đời</p>
+                            <p className="mt-0.5 text-ink-muted">Chia sẻ câu chuyện thật, vấn đề bạn gặp phải và động lực tạo ra sản phẩm.</p>
+                          </div>
+                          <div className="rounded-xl bg-white/80 p-3">
+                            <p className="font-bold text-ink">2. Tính năng & Ảnh sản phẩm</p>
+                            <p className="mt-0.5 text-ink-muted">Chèn ảnh nguyên mẫu thực tế (dùng nút <strong>+ Tải ảnh</strong>), nêu điểm độc đáo.</p>
+                          </div>
+                          <div className="rounded-xl bg-white/80 p-3">
+                            <p className="font-bold text-ink">3. Đội ngũ & Xưởng gia công</p>
+                            <p className="mt-0.5 text-ink-muted">Minh bạch quy trình sản xuất, tay nghề thợ để tạo dựng lòng tin.</p>
+                          </div>
+                          <div className="rounded-xl bg-white/80 p-3">
+                            <p className="font-bold text-ink">4. Lịch trình giao quà</p>
+                            <p className="mt-0.5 text-ink-muted">Liệt kê các mốc tiến độ cụ thể từng tháng để người ủng hộ yên tâm theo dõi.</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-amber-900 border-t border-amber-200/60 pt-2 font-mono">
+                          <span><code># Tiêu đề lớn</code></span>
+                          <span><code>## Tiêu đề con</code></span>
+                          <span><code>**In đậm**</code></span>
+                          <span><code>&gt; Trích dẫn</code></span>
+                          <span><code>- Danh sách</code></span>
+                          <span><code>![Tên ảnh](đường_dẫn)</code></span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Thanh công cụ định dạng Markdown nhanh */}
+                    {storyTab === "edit" && (
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 rounded-xl border border-line bg-[#faf9f5] p-2">
+                        <span className="text-[11px] font-bold text-ink-muted px-1">Chèn nhanh:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const snippet = "\n\n## Tiêu đề phần mới\n\nNội dung chi tiết...";
+                            updateDraft("story", (draft.story || "") + snippet);
+                          }}
+                          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink hover:bg-forest/5"
+                        >
+                          + Tiêu đề lớn
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const snippet = "\n\n### Điểm nổi bật\n\nNội dung mô tả...";
+                            updateDraft("story", (draft.story || "") + snippet);
+                          }}
+                          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink hover:bg-forest/5"
+                        >
+                          + Mục nhỏ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const snippet = " **nội dung in đậm** ";
+                            updateDraft("story", (draft.story || "") + snippet);
+                          }}
+                          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-bold text-ink hover:bg-forest/5"
+                        >
+                          B
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const snippet = '\n\n> "Trích dẫn thông điệp truyền cảm hứng..."\n\n';
+                            updateDraft("story", (draft.story || "") + snippet);
+                          }}
+                          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink hover:bg-forest/5"
+                        >
+                          + Trích dẫn
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const snippet = "\n\n- Đặc điểm nổi bật 1\n- Đặc điểm nổi bật 2\n- Đặc điểm nổi bật 3\n\n";
+                            updateDraft("story", (draft.story || "") + snippet);
+                          }}
+                          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink hover:bg-forest/5"
+                        >
+                          + Danh sách
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tableSnippet = "\n\n| Thông số | Chi tiết |\n|---|---|\n| Kích thước | Tiêu chuẩn gọn nhẹ |\n| Trọng lượng | 450g |\n| Bảo hành | 12 tháng |\n\n";
+                            updateDraft("story", (draft.story || "") + tableSnippet);
+                          }}
+                          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink hover:bg-forest/5 flex items-center gap-1"
+                        >
+                          <Table className="size-3" />
+                          + Bảng thông số
+                        </button>
+
+                        <div className="h-4 w-px bg-line mx-1" />
+
+                        {/* Nút tải ảnh trực tiếp từ máy */}
+                        <button
+                          type="button"
+                          disabled={storyImageUploading}
+                          onClick={() => storyFileInputRef.current?.click()}
+                          className="rounded-md border border-coral bg-coral/10 px-2.5 py-1 text-xs font-bold text-coral-dark hover:bg-coral/20 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                        >
+                          {storyImageUploading ? (
+                            <>
+                              <LoaderCircle className="size-3 animate-spin" /> Đang tải ảnh...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="size-3 text-coral" /> + Tải ảnh từ máy
+                            </>
+                          )}
+                        </button>
+
+                        {/* Nút dán link ảnh */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = window.prompt("Nhập đường dẫn hình ảnh (URL):", "https://images.unsplash.com/...");
+                            if (url) {
+                              const snippet = `\n\n![Ảnh minh họa](${url.trim()})\n*Hình: Ảnh minh họa*\n\n`;
+                              updateDraft("story", (draft.story || "") + snippet);
+                            }
+                          }}
+                          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-forest/5"
+                        >
+                          + Link ảnh ngoài
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Vùng soạn thảo hoặc Xem trước */}
+                    {storyTab === "edit" ? (
+                      <textarea
+                        name="project-story"
+                        rows={18}
+                        className="input-field mt-2 min-h-[460px] h-[520px] resize-y font-mono text-sm leading-relaxed p-4 bg-white focus:bg-white shadow-inner"
+                        placeholder="Hãy kể câu chuyện truyền cảm hứng về dự án của bạn..."
+                        value={draft.story}
+                        onChange={(event) =>
+                          updateDraft("story", event.target.value)
+                        }
+                        required
+                        aria-invalid={
+                          showStepErrors && draft.story.trim().length < 100
+                        }
+                        aria-describedby={
+                          showStepErrors ? "campaign-step-errors" : undefined
+                        }
+                      />
+                    ) : (
+                      <div className="mt-2 min-h-[460px] max-h-[700px] overflow-y-auto rounded-2xl border border-line bg-white p-6 sm:p-8 shadow-inner">
+                        {draft.story?.trim() ? (
+                          <StoryMarkdown content={draft.story} />
+                        ) : (
+                          <div className="grid min-h-[300px] place-items-center text-center text-ink-muted">
+                            <div>
+                              <Edit3 className="mx-auto size-8 opacity-40 mb-2" />
+                              <p className="text-sm font-medium">Chưa có nội dung câu chuyện.</p>
+                              <p className="mt-1 text-xs">Hãy chuyển sang tab "Soạn thảo" để bắt đầu viết hoặc chèn mẫu có sẵn.</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <span className="mt-1.5 block text-[11px] text-ink-muted">
+                      {storyWordCount} từ · Hỗ trợ đầy đủ định dạng Markdown, tiêu đề, danh sách, bảng biểu và hình ảnh minh họa.
                     </span>
-                  </label>
+                  </div>
+
                   <label>
                     <span className={inputLabel}>Rủi ro và thách thức</span>
                     <textarea
                       name="project-risks"
-                      className="input-field mt-2 min-h-32 resize-y leading-7"
+                      rows={6}
+                      className="input-field mt-2 min-h-[160px] resize-y leading-7"
                       value={draft.risks}
                       onChange={(event) =>
                         updateDraft("risks", event.target.value)
@@ -1368,9 +1987,10 @@ export function CampaignWizard({
                           : "DỰ ÁN MỚI"
                       }
                       imageSrc={
-                        draft.title.toLowerCase().includes("orbit")
+                        draft.imageUrl ||
+                        (draft.title.toLowerCase().includes("orbit")
                           ? "/images/campaigns/orbit-one.png"
-                          : undefined
+                          : undefined)
                       }
                       imageAlt="Bản xem trước hình ảnh chiến dịch"
                       className="aspect-[16/8]"

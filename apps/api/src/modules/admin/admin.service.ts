@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationArgs, buildPaginatedResponse } from '../../common/helpers';
@@ -70,6 +75,48 @@ export class AdminService {
               fraudAlertsSubject: true,
             },
           },
+          campaigns: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              status: true,
+              goalAmount: true,
+              createdAt: true,
+              pledges: {
+                select: {
+                  totalAmount: true,
+                },
+              },
+              _count: {
+                select: {
+                  pledges: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+          campaignMembers: {
+            select: {
+              role: true,
+              joinedAt: true,
+              campaign: {
+                select: {
+                  id: true,
+                  title: true,
+                  slug: true,
+                  status: true,
+                  goalAmount: true,
+                  _count: {
+                    select: {
+                      pledges: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: { joinedAt: 'desc' },
+          },
         },
       }),
       this.prisma.user.count({ where }),
@@ -108,6 +155,11 @@ export class AdminService {
             status: true,
             goalAmount: true,
             createdAt: true,
+            pledges: {
+              select: {
+                totalAmount: true,
+              },
+            },
             _count: {
               select: {
                 pledges: true,
@@ -115,7 +167,28 @@ export class AdminService {
             },
           },
           orderBy: { createdAt: 'desc' },
-          take: 10,
+          take: 20,
+        },
+        campaignMembers: {
+          select: {
+            role: true,
+            joinedAt: true,
+            campaign: {
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+                status: true,
+                goalAmount: true,
+                _count: {
+                  select: {
+                    pledges: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'desc' },
         },
         pledges: {
           select: {
@@ -350,6 +423,102 @@ export class AdminService {
     } catch {
       throw new NotFoundException('Role not found');
     }
+  }
+
+  async assignCollaborator(
+    userId: string,
+    campaignId: string,
+    adminId: string,
+    reason?: string,
+  ) {
+    const [user, campaign] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, displayName: true },
+      }),
+      this.prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { id: true, title: true, slug: true, status: true, creatorId: true },
+      }),
+    ]);
+
+    if (!user) throw new NotFoundException('User not found');
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    if (campaign.creatorId === userId) {
+      throw new ConflictException('Người dùng đã là chủ sở hữu chiến dịch này');
+    }
+
+    const member = await this.prisma.campaignMember.upsert({
+      where: { campaignId_userId: { campaignId, userId } },
+      create: {
+        campaignId,
+        userId,
+        role: 'COLLABORATOR',
+        invitedBy: adminId,
+        canPostUpdates: true,
+        canReplyComments: true,
+        canViewAiDashboard: true,
+      },
+      update: {
+        role: 'COLLABORATOR',
+      },
+      include: {
+        campaign: {
+          select: { id: true, title: true, slug: true, status: true },
+        },
+      },
+    });
+
+    await this.prisma.moderationAction.create({
+      data: {
+        adminId,
+        targetType: 'USER',
+        targetId: userId,
+        action: 'ASSIGN_CAMPAIGN_COLLABORATOR',
+        reason: reason || `Gán quyền Cộng tác viên cho chiến dịch "${campaign.title}"`,
+        metadata: { campaignId, campaignTitle: campaign.title },
+      },
+    });
+
+    return member;
+  }
+
+  async removeCollaborator(
+    userId: string,
+    campaignId: string,
+    adminId: string,
+    reason?: string,
+  ) {
+    const member = await this.prisma.campaignMember.findUnique({
+      where: { campaignId_userId: { campaignId, userId } },
+      include: { campaign: { select: { title: true } } },
+    });
+
+    if (!member) {
+      throw new NotFoundException('Không tìm thấy tư cách cộng tác viên của người dùng tại chiến dịch này');
+    }
+
+    if (member.role === 'OWNER') {
+      throw new ConflictException('Không thể gỡ bỏ chủ sở hữu chiến dịch');
+    }
+
+    await this.prisma.campaignMember.delete({
+      where: { campaignId_userId: { campaignId, userId } },
+    });
+
+    await this.prisma.moderationAction.create({
+      data: {
+        adminId,
+        targetType: 'USER',
+        targetId: userId,
+        action: 'REMOVE_CAMPAIGN_COLLABORATOR',
+        reason: reason || `Thu hồi quyền Cộng tác viên chiến dịch "${member.campaign.title}"`,
+        metadata: { campaignId, campaignTitle: member.campaign.title },
+      },
+    });
+
+    return { message: 'Collaborator removed successfully' };
   }
 
   // ─── Campaign Review ───────────────────────────────────
@@ -621,6 +790,223 @@ export class AdminService {
     }
 
     return updated;
+  }
+
+  async toggleCampaignFeatured(
+    campaignId: string,
+    isFeatured: boolean,
+    adminId: string,
+    reason?: string,
+  ) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { id: true, title: true, isFeatured: true },
+    });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    const updated = await this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: { isFeatured },
+      select: { id: true, title: true, isFeatured: true, status: true },
+    });
+
+    await this.prisma.moderationAction.create({
+      data: {
+        adminId,
+        targetType: 'CAMPAIGN',
+        targetId: campaignId,
+        action: isFeatured ? 'FEATURE_CAMPAIGN' : 'UNFEATURE_CAMPAIGN',
+        reason:
+          reason ||
+          (isFeatured
+            ? `Gắn nhãn nổi bật cho chiến dịch "${campaign.title}"`
+            : `Bỏ nhãn nổi bật của chiến dịch "${campaign.title}"`),
+        metadata: { isFeatured },
+      },
+    });
+
+    return updated;
+  }
+
+  async extendCampaignDeadline(
+    campaignId: string,
+    additionalDays: number | undefined,
+    newEndsAt: string | undefined,
+    adminId: string,
+    reason?: string,
+  ) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        endsAt: true,
+        durationDays: true,
+        startsAt: true,
+      },
+    });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    let targetEndsAt: Date;
+    let newDurationDays = campaign.durationDays;
+
+    if (newEndsAt) {
+      targetEndsAt = new Date(newEndsAt);
+    } else {
+      const daysToAdd = additionalDays || 14;
+      const baseDate =
+        campaign.endsAt && campaign.endsAt > new Date()
+          ? new Date(campaign.endsAt)
+          : new Date();
+      targetEndsAt = new Date(
+        baseDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000,
+      );
+      newDurationDays += daysToAdd;
+    }
+
+    const updated = await this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: {
+        endsAt: targetEndsAt,
+        durationDays: newDurationDays,
+      },
+      select: {
+        id: true,
+        title: true,
+        endsAt: true,
+        durationDays: true,
+        status: true,
+      },
+    });
+
+    await this.prisma.moderationAction.create({
+      data: {
+        adminId,
+        targetType: 'CAMPAIGN',
+        targetId: campaignId,
+        action: 'EXTEND_CAMPAIGN_DEADLINE',
+        reason:
+          reason ||
+          `Gia hạn thời gian kết thúc đến ${targetEndsAt.toLocaleDateString('vi-VN')}`,
+        metadata: {
+          previousEndsAt: campaign.endsAt,
+          newEndsAt: targetEndsAt,
+          additionalDays,
+        },
+      },
+    });
+
+    return updated;
+  }
+
+  async closeCampaignEarly(
+    campaignId: string,
+    finalStatus: 'SUCCESSFUL' | 'FAILED' | undefined,
+    adminId: string,
+    reason?: string,
+  ) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        goalAmount: true,
+        pledges: { select: { totalAmount: true } },
+      },
+    });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    if (campaign.status === 'SUCCESSFUL' || campaign.status === 'FAILED') {
+      throw new ConflictException('Chiến dịch đã kết thúc trước đó.');
+    }
+
+    const totalPledged = campaign.pledges.reduce(
+      (sum, p) => sum + Number(p.totalAmount ?? 0),
+      0,
+    );
+
+    const resolvedStatus: 'SUCCESSFUL' | 'FAILED' =
+      finalStatus ||
+      (totalPledged >= Number(campaign.goalAmount) ? 'SUCCESSFUL' : 'FAILED');
+
+    const updated = await this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: {
+        status: resolvedStatus as any,
+        closedAt: new Date(),
+        statusHistory: {
+          create: {
+            fromStatus: campaign.status,
+            toStatus: resolvedStatus as any,
+            changedBy: adminId,
+            reason:
+              reason ||
+              `Quản trị viên kết thúc sớm chiến dịch với trạng thái ${resolvedStatus}`,
+          },
+        },
+      },
+      select: { id: true, title: true, status: true, closedAt: true },
+    });
+
+    await this.prisma.moderationAction.create({
+      data: {
+        adminId,
+        targetType: 'CAMPAIGN',
+        targetId: campaignId,
+        action: 'CLOSE_CAMPAIGN_EARLY',
+        reason:
+          reason || `Đóng chiến dịch sớm với trạng thái ${resolvedStatus}`,
+        metadata: {
+          previousStatus: campaign.status,
+          finalStatus: resolvedStatus,
+          totalPledged,
+        },
+      },
+    });
+
+    return updated;
+  }
+
+  async deleteCampaignAdmin(
+    campaignId: string,
+    adminId: string,
+    reason?: string,
+  ) {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        _count: { select: { pledges: true } },
+      },
+    });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    if (campaign._count.pledges > 0) {
+      throw new BadRequestException(
+        'Không thể xóa chiến dịch đã có lượt ủng hộ. Vui lòng sử dụng tính năng tạm khóa hoặc đóng sớm chiến dịch.',
+      );
+    }
+
+    await this.prisma.moderationAction.create({
+      data: {
+        adminId,
+        targetType: 'CAMPAIGN',
+        targetId: campaignId,
+        action: 'DELETE_CAMPAIGN',
+        reason: reason || `Quản trị viên xóa chiến dịch "${campaign.title}"`,
+        metadata: { title: campaign.title, status: campaign.status },
+      },
+    });
+
+    await this.prisma.campaign.delete({
+      where: { id: campaignId },
+    });
+
+    return { message: 'Campaign deleted successfully', id: campaignId };
   }
 
   // ─── Fraud Alerts ──────────────────────────────────────

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { CampaignVisual } from "@/components/campaign/campaign-visual";
+import { ProjectHeroMedia } from "@/components/campaign/project-hero-media";
 import { NotifyButton } from "@/components/notify-button";
 import { ProjectActions } from "@/components/campaign/project-actions";
 import { ProjectExperience } from "@/components/campaign/project-experience";
@@ -47,6 +47,10 @@ export default async function ProjectDetailPage({
   const canPledge = campaign.status === "LIVE";
   const isSuccessful = campaign.status === "SUCCESSFUL";
   const isFailed = campaign.status === "FAILED";
+  const isDraftOrReview =
+    campaign.status === "DRAFT" ||
+    campaign.status === "IN_REVIEW" ||
+    (campaign.status as string) === "CHANGES_REQUESTED";
   const launchDate = new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -118,10 +122,11 @@ export default async function ProjectDetailPage({
           </div>
 
           <div className="mt-9 grid gap-6 lg:grid-cols-[1.48fr_0.72fr] lg:items-stretch">
-            <CampaignVisual
-              {...campaign.visual}
+            <ProjectHeroMedia
+              title={campaign.title}
+              videoUrl={campaign.videoUrl}
+              visual={campaign.visual}
               priority
-              className="aspect-[16/10] rounded-[20px] border border-line"
             />
             <aside className="flex flex-col justify-between rounded-[20px] border border-line bg-white p-6 sm:p-7">
               <div>
@@ -182,6 +187,12 @@ export default async function ProjectDetailPage({
                         <strong>Không đạt mục tiêu:</strong> toàn bộ ủy quyền đã
                         được hủy, người ủng hộ không bị thu tiền.
                       </>
+                    ) : isDraftOrReview ? (
+                      <>
+                        <strong>Hồ sơ đang xem trước:</strong> Chiến dịch đang
+                        trong giai đoạn hoàn thiện hồ sơ hoặc thẩm định, chưa mở
+                        nhận cam kết tài chính công khai.
+                      </>
                     ) : (
                       <>
                         <strong>Đã khép lại:</strong> chiến dịch không nhận thêm
@@ -200,6 +211,13 @@ export default async function ProjectDetailPage({
                     className="button-primary w-full"
                   >
                     Chọn gói ủng hộ
+                  </Link>
+                ) : isDraftOrReview ? (
+                  <Link
+                    href={`/creator/campaigns/new?campaign=${campaign.slug}`}
+                    className="button-primary w-full justify-center text-center"
+                  >
+                    Chỉnh sửa hồ sơ chiến dịch
                   </Link>
                 ) : (
                   <p className="rounded-[12px] bg-forest px-5 py-3 text-center text-xs font-bold text-white">

@@ -159,7 +159,6 @@ export class SocialService {
   async deleteComment(commentId: string, userId: string) {
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
-      include: { campaign: { select: { creatorId: true } } },
     });
 
     if (!comment) throw new NotFoundException('Comment not found');
@@ -167,9 +166,8 @@ export class SocialService {
     const isAdmin = await this.prisma.userRole.findUnique({
       where: { userId_role: { userId, role: 'ADMIN' } },
     });
-    const isCreator = comment.campaign.creatorId === userId;
 
-    if (comment.authorId !== userId && !isAdmin && !isCreator) {
+    if (comment.authorId !== userId && !isAdmin) {
       throw new ForbiddenException('You can only delete your own comments');
     }
 
@@ -177,9 +175,19 @@ export class SocialService {
     return { message: 'Comment deleted successfully' };
   }
 
-  async likeComment(commentId: string, _userId: string) {
+  async likeComment(commentId: string, _userId: string, unlike?: boolean) {
     const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
     if (!comment) throw new NotFoundException('Comment not found');
+
+    if (unlike) {
+      return this.prisma.comment.update({
+        where: { id: commentId },
+        data: { likeCount: { decrement: comment.likeCount > 0 ? 1 : 0 } },
+        include: {
+          author: { select: { id: true, displayName: true, avatarUrl: true } },
+        },
+      });
+    }
 
     return this.prisma.comment.update({
       where: { id: commentId },

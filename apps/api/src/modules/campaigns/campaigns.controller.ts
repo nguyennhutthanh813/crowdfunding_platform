@@ -388,6 +388,13 @@ export class CampaignsController {
 
   // ─── Members ───────────────────────────────────────────
 
+  @Get(':id/members')
+  @ApiOperation({ summary: 'Get campaign members' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async getMembers(@Param('id') id: string) {
+    return this.campaignsService.getMembers(id);
+  }
+
   @Post(':id/members')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

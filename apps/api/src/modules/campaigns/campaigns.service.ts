@@ -99,7 +99,30 @@ export class CampaignsService {
       this.prisma.campaign.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    const campaignIds = data.map((c) => c.id);
+    const pledgeSums =
+      campaignIds.length > 0
+        ? await this.prisma.pledge.groupBy({
+            by: ['campaignId'],
+            where: {
+              campaignId: { in: campaignIds },
+              status: { in: ['AUTHORIZED', 'CAPTURED', 'PENDING'] },
+            },
+            _sum: {
+              totalAmount: true,
+            },
+          })
+        : [];
+
+    const pledgeMap = new Map(
+      pledgeSums.map((p) => [p.campaignId, Number(p._sum.totalAmount ?? 0)]),
+    );
+    const enrichedData = data.map((c) => ({
+      ...c,
+      pledgedAmount: pledgeMap.get(c.id) ?? 0,
+    }));
+
+    return buildPaginatedResponse(enrichedData, total, query);
   }
 
   async findById(idOrSlug: string) {
@@ -118,7 +141,7 @@ export class CampaignsService {
         faqs: { orderBy: { sortOrder: 'asc' } },
         updates: { orderBy: { publishedAt: 'desc' } },
         members: {
-          include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
+          include: { user: { select: { id: true, displayName: true, avatarUrl: true, email: true } } },
         },
         _count: { select: { pledges: true, comments: true } },
         reviews: {
@@ -134,7 +157,20 @@ export class CampaignsService {
       throw new NotFoundException('Campaign not found');
     }
 
-    return campaign;
+    const pledgeAggregate = await this.prisma.pledge.aggregate({
+      where: {
+        campaignId: campaign.id,
+        status: { in: ['AUTHORIZED', 'CAPTURED', 'PENDING'] },
+      },
+      _sum: {
+        totalAmount: true,
+      },
+    });
+
+    return {
+      ...campaign,
+      pledgedAmount: Number(pledgeAggregate._sum.totalAmount ?? 0),
+    };
   }
 
   async create(creatorId: string, dto: CreateCampaignDto) {
@@ -174,6 +210,13 @@ export class CampaignsService {
         creator: { select: { id: true, displayName: true, avatarUrl: true } },
         category: { select: { id: true, name: true, slug: true } },
       },
+    });
+
+    // Đảm bảo người dùng có vai trò CREATOR trong hệ thống khi tạo chiến dịch
+    await this.prisma.userRole.upsert({
+      where: { userId_role: { userId: creatorId, role: 'CREATOR' } },
+      create: { userId: creatorId, role: 'CREATOR' },
+      update: {},
     });
 
     return campaign;
@@ -630,19 +673,39 @@ export class CampaignsService {
 
   // ─── Members ───────────────────────────────────────────
 
+  async getMembers(campaignId: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId);
+    let cid = campaignId;
+    if (!isUuid) {
+      const camp = await this.prisma.campaign.findUnique({
+        where: { slug: campaignId },
+        select: { id: true },
+      });
+      if (camp) cid = camp.id;
+    }
+
+    return this.prisma.campaignMember.findMany({
+      where: { campaignId: cid },
+      include: {
+        user: { select: { id: true, displayName: true, avatarUrl: true, email: true } },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+  }
+
   async addMember(campaignId: string, userId: string, dto: AddCampaignMemberDto) {
     await this.ensureOwnership(campaignId, userId);
 
     let targetUserId = dto.userId;
     if (!targetUserId) {
       if (!dto.email) {
-        throw new BadRequestException('Either userId or email must be provided');
+        throw new BadRequestException('Vui lòng cung cấp email tài khoản muốn mời.');
       }
       const user = await this.prisma.user.findUnique({
-        where: { email: dto.email.toLowerCase() },
+        where: { email: dto.email.toLowerCase().trim() },
       });
       if (!user) {
-        throw new NotFoundException('User not found with provided email');
+        throw new NotFoundException(`Không tìm thấy tài khoản nào với email "${dto.email}". Người dùng cần đăng ký tài khoản trước khi tham gia.`);
       }
       targetUserId = user.id;
     }
@@ -652,7 +715,7 @@ export class CampaignsService {
       where: { campaignId_userId: { campaignId, userId: targetUserId } },
     });
     if (existing) {
-      throw new BadRequestException('User is already a member of this campaign');
+      throw new BadRequestException('Người dùng này đã là thành viên trong dự án.');
     }
 
     return this.prisma.campaignMember.create({
@@ -679,7 +742,7 @@ export class CampaignsService {
     });
 
     if (!member) {
-      throw new NotFoundException('Member not found');
+      throw new NotFoundException('Không tìm thấy thành viên trong dự án này');
     }
 
     if (member.role === 'OWNER') {

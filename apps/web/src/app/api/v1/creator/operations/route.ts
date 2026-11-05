@@ -25,6 +25,8 @@ const allowedActions = new Set([
   "UPDATE_COLLABORATOR_PERMISSIONS",
   "UPDATE_FULFILLMENT",
   "UPDATE_TASK_STATUS",
+  "INVITE_MEMBER",
+  "REMOVE_MEMBER",
 ]);
 
 const ownerOnlyActions = new Set([
@@ -33,6 +35,8 @@ const ownerOnlyActions = new Set([
   "LAUNCH",
   "UPDATE_COLLABORATOR_PERMISSIONS",
   "UPDATE_FULFILLMENT",
+  "INVITE_MEMBER",
+  "REMOVE_MEMBER",
 ]);
 
 function apiError(status: number, code: string, message: string) {
@@ -269,6 +273,125 @@ export async function POST(request: Request) {
   const previewState = getEffectivePreviewState(access.session!);
   let persisted = false;
   let platformPersisted = false;
+
+  if (action === "INVITE_MEMBER") {
+    const email =
+      typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+    if (!email || !email.includes("@")) {
+      return apiError(
+        422,
+        "INVALID_EMAIL",
+        "Vui lòng nhập địa chỉ email hợp lệ của cộng tác viên.",
+      );
+    }
+
+    let createdMemberData: any = null;
+    try {
+      const backendRes = await fetchBackendWithAuth(
+        `/campaigns/${encodeURIComponent(campaignId)}/members`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            email,
+            role: "COLLABORATOR",
+            canPostUpdates: Boolean(payload.canPostUpdates ?? true),
+            canReplyComments: Boolean(payload.canReplyComments ?? true),
+            canViewAiDashboard: Boolean(payload.canViewAiDashboard ?? true),
+          }),
+        },
+        access.session,
+      );
+
+      if (backendRes.response.ok) {
+        createdMemberData = await backendRes.response.json().catch(() => null);
+      } else {
+        const errJson = await backendRes.response.json().catch(() => ({}));
+        return apiError(
+          backendRes.response.status,
+          "INVITE_MEMBER_FAILED",
+          errJson.message || "Không thể mời cộng tác viên. Vui lòng kiểm tra lại email.",
+        );
+      }
+    } catch (e: any) {
+      console.warn("Backend invite member failed, saving to platform preview:", e);
+    }
+
+    const memberName =
+      createdMemberData?.user?.displayName || email.split("@")[0];
+    const newMemberId =
+      createdMemberData?.id || `collab_${crypto.randomUUID().slice(0, 8)}`;
+    const newMemberUserId =
+      createdMemberData?.userId || createdMemberData?.user?.id || newMemberId;
+
+    const newInvitedMember = {
+      id: newMemberId,
+      campaignId,
+      userId: newMemberUserId,
+      name: memberName,
+      email,
+      role: "Cộng tác viên",
+      permissions: [
+        [
+          payload.canPostUpdates ?? true ? "Đăng bài cập nhật" : null,
+          payload.canReplyComments ?? true ? "Trả lời bình luận" : null,
+          payload.canViewAiDashboard ?? true ? "Xem phân tích AI" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Cộng tác viên",
+      ],
+      canPostUpdates: Boolean(payload.canPostUpdates ?? true),
+      canReplyComments: Boolean(payload.canReplyComments ?? true),
+      canViewAiDashboard: Boolean(payload.canViewAiDashboard ?? true),
+    };
+
+    platformState.invitedMembers = [
+      ...(platformState.invitedMembers || []).filter(
+        (m) => m.campaignId !== campaignId || m.email !== email,
+      ),
+      newInvitedMember,
+    ];
+    platformState.removedMemberIds = (
+      platformState.removedMemberIds || []
+    ).filter((id) => id !== newMemberId && id !== newMemberUserId);
+    platformPersisted = true;
+    persisted = true;
+  }
+
+  if (action === "REMOVE_MEMBER") {
+    const memberId = String(payload.memberId || payload.userId || "");
+    if (!memberId) {
+      return apiError(422, "MEMBER_ID_REQUIRED", "Mã thành viên không hợp lệ.");
+    }
+
+    try {
+      const backendRes = await fetchBackendWithAuth(
+        `/campaigns/${encodeURIComponent(campaignId)}/members/${encodeURIComponent(memberId)}`,
+        {
+          method: "DELETE",
+        },
+        access.session,
+      );
+      if (!backendRes.response.ok && backendRes.response.status !== 404) {
+        const errJson = await backendRes.response.json().catch(() => ({}));
+        return apiError(
+          backendRes.response.status,
+          "REMOVE_MEMBER_FAILED",
+          errJson.message || "Không thể xóa cộng tác viên.",
+        );
+      }
+    } catch (e: any) {
+      console.warn("Backend remove member failed, recording in preview state:", e);
+    }
+
+    platformState.removedMemberIds = Array.from(
+      new Set([...(platformState.removedMemberIds || []), memberId]),
+    );
+    platformState.invitedMembers = (platformState.invitedMembers || []).filter(
+      (m) => m.id !== memberId && m.userId !== memberId,
+    );
+    platformPersisted = true;
+    persisted = true;
+  }
 
   if (action === "UPDATE_TASK_STATUS") {
     const taskId = payload.taskId as string;

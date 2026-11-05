@@ -18,8 +18,14 @@ const allowedActions = new Set([
   "UPDATE_PLATFORM_FEE",
   "SET_USER_STATUS",
   "SET_CAMPAIGN_STATUS",
+  "TOGGLE_CAMPAIGN_FEATURED",
+  "EXTEND_CAMPAIGN_DEADLINE",
+  "CLOSE_CAMPAIGN_EARLY",
+  "DELETE_CAMPAIGN",
   "ASSIGN_USER_ROLE",
   "REMOVE_USER_ROLE",
+  "ASSIGN_CAMPAIGN_COLLABORATOR",
+  "REMOVE_CAMPAIGN_COLLABORATOR",
   "CREATE_USER",
   "RESET_USER_PASSWORD",
 ]);
@@ -189,6 +195,32 @@ export async function POST(request: Request) {
     }
   }
 
+  if (action === "ASSIGN_CAMPAIGN_COLLABORATOR") {
+    const userId = typeof payload.userId === "string" ? payload.userId : "";
+    const campaignId =
+      typeof payload.campaignId === "string" ? payload.campaignId : "";
+    if (!userId || !campaignId) {
+      return apiError(
+        422,
+        "COLLABORATOR_DATA_INVALID",
+        "Cần chọn tài khoản và dự án cụ thể để gán vai trò cộng tác viên.",
+      );
+    }
+  }
+
+  if (action === "REMOVE_CAMPAIGN_COLLABORATOR") {
+    const userId = typeof payload.userId === "string" ? payload.userId : "";
+    const campaignId =
+      typeof payload.campaignId === "string" ? payload.campaignId : "";
+    if (!userId || !campaignId) {
+      return apiError(
+        422,
+        "COLLABORATOR_DATA_INVALID",
+        "Cần chọn tài khoản và dự án cụ thể để thu hồi vai trò cộng tác viên.",
+      );
+    }
+  }
+
   if (action === "CREATE_USER") {
     const name = typeof payload.name === "string" ? payload.name.trim() : "";
     const email =
@@ -243,6 +275,47 @@ export async function POST(request: Request) {
         "CAMPAIGN_STATUS_INVALID",
         "Cần chọn trạng thái và nêu căn cứ xử lý chiến dịch.",
       );
+    }
+  }
+
+  if (action === "TOGGLE_CAMPAIGN_FEATURED") {
+    const campaignId =
+      typeof payload.campaignId === "string" ? payload.campaignId : "";
+    if (!campaignId) {
+      return apiError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy chiến dịch.");
+    }
+  }
+
+  if (action === "EXTEND_CAMPAIGN_DEADLINE") {
+    const campaignId =
+      typeof payload.campaignId === "string" ? payload.campaignId : "";
+    const additionalDays = payload.additionalDays;
+    const newEndsAt = payload.newEndsAt;
+    if (!campaignId) {
+      return apiError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy chiến dịch.");
+    }
+    if (typeof additionalDays !== "number" && typeof newEndsAt !== "string") {
+      return apiError(
+        422,
+        "EXTEND_DATA_INVALID",
+        "Vui lòng cung cấp số ngày gia hạn thêm hoặc ngày kết thúc mới.",
+      );
+    }
+  }
+
+  if (action === "CLOSE_CAMPAIGN_EARLY") {
+    const campaignId =
+      typeof payload.campaignId === "string" ? payload.campaignId : "";
+    if (!campaignId) {
+      return apiError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy chiến dịch.");
+    }
+  }
+
+  if (action === "DELETE_CAMPAIGN") {
+    const campaignId =
+      typeof payload.campaignId === "string" ? payload.campaignId : "";
+    if (!campaignId) {
+      return apiError(404, "CAMPAIGN_NOT_FOUND", "Không tìm thấy chiến dịch.");
     }
   }
 
@@ -326,6 +399,8 @@ export async function POST(request: Request) {
     action === "SET_USER_STATUS" ||
     action === "ASSIGN_USER_ROLE" ||
     action === "REMOVE_USER_ROLE" ||
+    action === "ASSIGN_CAMPAIGN_COLLABORATOR" ||
+    action === "REMOVE_CAMPAIGN_COLLABORATOR" ||
     action === "CREATE_USER" ||
     action === "RESET_USER_PASSWORD"
   ) {
@@ -411,6 +486,46 @@ export async function POST(request: Request) {
         {
           id: `mod_${crypto.randomUUID().slice(0, 8)}`,
           action: `THU HỒI QUYỀN ${role.toUpperCase()}`,
+          reason,
+          createdAt: "Vừa xong",
+          adminName: access.session?.user.name ?? "Quản trị viên",
+        },
+        ...userMods,
+      ],
+    };
+  }
+
+  if (action === "ASSIGN_CAMPAIGN_COLLABORATOR") {
+    const userId = payload.userId as string;
+    const reason =
+      (payload.reason as string) || "Gán vai trò cộng tác viên dự án từ quản trị viên";
+    const userMods = previewState.userModerations?.[userId] ?? [];
+    previewState.userModerations = {
+      ...(previewState.userModerations ?? {}),
+      [userId]: [
+        {
+          id: `mod_${crypto.randomUUID().slice(0, 8)}`,
+          action: "GÁN CỘNG TÁC VIÊN DỰ ÁN",
+          reason,
+          createdAt: "Vừa xong",
+          adminName: access.session?.user.name ?? "Quản trị viên",
+        },
+        ...userMods,
+      ],
+    };
+  }
+
+  if (action === "REMOVE_CAMPAIGN_COLLABORATOR") {
+    const userId = payload.userId as string;
+    const reason =
+      (payload.reason as string) || "Thu hồi vai trò cộng tác viên dự án từ quản trị viên";
+    const userMods = previewState.userModerations?.[userId] ?? [];
+    previewState.userModerations = {
+      ...(previewState.userModerations ?? {}),
+      [userId]: [
+        {
+          id: `mod_${crypto.randomUUID().slice(0, 8)}`,
+          action: "THU HỒI CỘNG TÁC VIÊN DỰ ÁN",
           reason,
           createdAt: "Vừa xong",
           adminName: access.session?.user.name ?? "Quản trị viên",
@@ -514,6 +629,121 @@ export async function POST(request: Request) {
         );
       } catch (e) {
         console.warn("Backend campaign status update failed:", e);
+      }
+    }
+  }
+
+  if (action === "TOGGLE_CAMPAIGN_FEATURED") {
+    const campaignId = payload.campaignId as string;
+    const isFeatured = Boolean(payload.isFeatured);
+    const reason = (payload.reason as string) || undefined;
+    previewState.featuredCampaigns = {
+      ...(previewState.featuredCampaigns ?? {}),
+      [campaignId]: isFeatured,
+    };
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        campaignId,
+      );
+    if (isUuid) {
+      try {
+        await fetchBackendWithAuth(
+          `/admin/campaigns/${encodeURIComponent(campaignId)}/featured`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ isFeatured, reason }),
+          },
+          access.session,
+        );
+      } catch (e) {
+        console.warn("Backend toggle campaign featured failed:", e);
+      }
+    }
+  }
+
+  if (action === "EXTEND_CAMPAIGN_DEADLINE") {
+    const campaignId = payload.campaignId as string;
+    const additionalDays =
+      typeof payload.additionalDays === "number"
+        ? payload.additionalDays
+        : undefined;
+    const newEndsAt =
+      typeof payload.newEndsAt === "string" ? payload.newEndsAt : undefined;
+    const reason = (payload.reason as string) || undefined;
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        campaignId,
+      );
+    if (isUuid) {
+      try {
+        await fetchBackendWithAuth(
+          `/admin/campaigns/${encodeURIComponent(campaignId)}/extend-deadline`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ additionalDays, newEndsAt, reason }),
+          },
+          access.session,
+        );
+      } catch (e) {
+        console.warn("Backend extend campaign deadline failed:", e);
+      }
+    }
+  }
+
+  if (action === "CLOSE_CAMPAIGN_EARLY") {
+    const campaignId = payload.campaignId as string;
+    const finalStatus =
+      (payload.finalStatus as "SUCCESSFUL" | "FAILED") || undefined;
+    const reason = (payload.reason as string) || undefined;
+    if (finalStatus) {
+      previewState.campaignStatuses = {
+        ...(previewState.campaignStatuses ?? {}),
+        [campaignId]: finalStatus,
+      };
+    }
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        campaignId,
+      );
+    if (isUuid) {
+      try {
+        await fetchBackendWithAuth(
+          `/admin/campaigns/${encodeURIComponent(campaignId)}/close`,
+          {
+            method: "POST",
+            body: JSON.stringify({ finalStatus, reason }),
+          },
+          access.session,
+        );
+      } catch (e) {
+        console.warn("Backend close campaign early failed:", e);
+      }
+    }
+  }
+
+  if (action === "DELETE_CAMPAIGN") {
+    const campaignId = payload.campaignId as string;
+    const reason = (payload.reason as string) || undefined;
+    previewState.deletedCampaignIds = [
+      ...(previewState.deletedCampaignIds ?? []),
+      campaignId,
+    ];
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        campaignId,
+      );
+    if (isUuid) {
+      try {
+        const query = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+        await fetchBackendWithAuth(
+          `/admin/campaigns/${encodeURIComponent(campaignId)}${query}`,
+          {
+            method: "DELETE",
+          },
+          access.session,
+        );
+      } catch (e) {
+        console.warn("Backend delete campaign failed:", e);
       }
     }
   }

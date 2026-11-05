@@ -29,6 +29,10 @@ import {
   AdminUserQueryDto,
   CreateUserAdminDto,
   ResetPasswordAdminDto,
+  AssignCollaboratorDto,
+  ToggleCampaignFeaturedDto,
+  ExtendCampaignDeadlineDto,
+  CloseCampaignDto,
 } from './dto';
 
 @ApiTags('admin')
@@ -110,6 +114,31 @@ export class AdminController {
     return this.adminService.removeRole(id, role, adminId);
   }
 
+  @Post('users/:id/collaborator')
+  @ApiOperation({ summary: 'Assign user as collaborator to a specific campaign (admin only)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  async assignCollaborator(
+    @Param('id') id: string,
+    @Body() dto: AssignCollaboratorDto,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.assignCollaborator(id, dto.campaignId, adminId, dto.reason);
+  }
+
+  @Delete('users/:id/collaborator/:campaignId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove user as collaborator from a campaign (admin only)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiParam({ name: 'campaignId', description: 'Campaign UUID' })
+  async removeCollaborator(
+    @Param('id') id: string,
+    @Param('campaignId') campaignId: string,
+    @CurrentUser('id') adminId: string,
+    @Query('reason') reason?: string,
+  ) {
+    return this.adminService.removeCollaborator(id, campaignId, adminId, reason);
+  }
+
   // ─── Campaign Review ───────────────────────────────────
 
   @Get('campaigns/review-queue')
@@ -145,6 +174,57 @@ export class AdminController {
     @Body() body: { status: string; reason?: string },
   ) {
     return this.adminService.updateCampaignStatus(id, body.status, body.reason, adminId);
+  }
+
+  @Patch('campaigns/:id/featured')
+  @ApiOperation({ summary: 'Toggle campaign featured/staff pick badge (admin only)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async toggleCampaignFeatured(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: ToggleCampaignFeaturedDto,
+  ) {
+    return this.adminService.toggleCampaignFeatured(id, dto.isFeatured, adminId, dto.reason);
+  }
+
+  @Patch('campaigns/:id/extend-deadline')
+  @ApiOperation({ summary: 'Extend campaign deadline (admin only)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async extendCampaignDeadline(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: ExtendCampaignDeadlineDto,
+  ) {
+    return this.adminService.extendCampaignDeadline(
+      id,
+      dto.additionalDays,
+      dto.newEndsAt,
+      adminId,
+      dto.reason,
+    );
+  }
+
+  @Post('campaigns/:id/close')
+  @ApiOperation({ summary: 'Force close campaign early with SUCCESSFUL or FAILED (admin only)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async closeCampaignEarly(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: CloseCampaignDto,
+  ) {
+    return this.adminService.closeCampaignEarly(id, dto.finalStatus, adminId, dto.reason);
+  }
+
+  @Delete('campaigns/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete campaign permanently if no pledges exist (admin only)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async deleteCampaign(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Query('reason') reason?: string,
+  ) {
+    return this.adminService.deleteCampaignAdmin(id, adminId, reason);
   }
 
   // ─── Fraud Alerts ──────────────────────────────────────

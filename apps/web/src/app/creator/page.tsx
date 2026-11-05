@@ -52,34 +52,22 @@ export default async function CreatorPage() {
     platformState,
   );
 
-  const activeCampaignSlug =
+  const activeCampaign =
     portfolioWithReviewState.campaigns.find(
       (c) => c.id === portfolioWithReviewState.activeCampaignId,
-    )?.slug ?? portfolioWithReviewState.campaigns[0]?.slug;
+    ) ??
+    portfolioWithReviewState.campaigns[0] ??
+    null;
 
-  const [campaigns, baseOperations] = await Promise.all([
-    api.listCampaigns(),
-    activeCampaignSlug
-      ? api.getCampaignOperations(activeCampaignSlug).catch(() => null)
-      : null,
-  ]);
-
-  const campaign =
-    (activeCampaignSlug
-      ? campaigns.find((item) => item.slug === activeCampaignSlug)
-      : null) ??
-    (portfolioWithReviewState.campaigns.length > 0
-      ? campaigns.find(
-          (item) => item.id === portfolioWithReviewState.campaigns[0].id,
-        ) ?? portfolioWithReviewState.campaigns[0]
-      : null) ??
-    campaigns[0];
+  const baseOperations = activeCampaign?.slug
+    ? await api.getCampaignOperations(activeCampaign.slug).catch(() => null)
+    : null;
 
   const operations = applyOperationsPreviewState(
     baseOperations,
     session,
     platformState,
-    campaign,
+    activeCampaign ?? undefined,
   );
 
   const portfolio = {
@@ -98,12 +86,25 @@ export default async function CreatorPage() {
   };
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
 
-  const draftReview = platformState.submittedReviews.find(
-    (review) =>
-      (campaign && review.campaignId === campaign.id) ||
-      (campaign &&
-        review.title.toLowerCase().trim() ===
-          campaign.title.toLowerCase().trim()),
+  if (!activeCampaign || portfolio.campaigns.length === 0) {
+    return (
+      <CreatorOnboarding
+        givenName={givenName}
+      />
+    );
+  }
+
+  // Tìm chiến dịch của chính user này cần chỉnh sửa hoặc có phản hồi từ ban quản trị
+  const campaignWithReviewFeedback = portfolio.campaigns.find(
+    (c) => c.reviewStatus === "NEEDS_CHANGES" || Boolean(c.reviewFeedback),
+  );
+
+  const draftReview = platformState.submittedReviews.find((review) =>
+    portfolio.campaigns.some(
+      (c) =>
+        c.id === review.campaignId ||
+        c.title.toLowerCase().trim() === review.title.toLowerCase().trim(),
+    ),
   );
   const draftDecision = draftReview
     ? platformState.reviewDecisions[draftReview.id]
@@ -111,24 +112,32 @@ export default async function CreatorPage() {
   const draftFeedback = draftReview
     ? platformState.reviewFeedback[draftReview.id]
     : undefined;
-  const reviewLabel =
-    draftDecision === "APPROVED"
-      ? "Đã được duyệt"
-      : draftDecision === "CHANGES"
-        ? "Cần chỉnh sửa"
-        : draftDecision === "REJECTED"
-          ? "Đã bị từ chối"
-          : "Đang chờ duyệt";
 
-  if (!campaign || portfolio.campaigns.length === 0) {
-    return (
-      <CreatorOnboarding
-        givenName={givenName}
-        submittedTitle={draftReview?.title}
-        reviewStatus={draftReview ? reviewLabel : undefined}
-      />
-    );
-  }
+  const alertCampaign =
+    campaignWithReviewFeedback ??
+    (draftReview
+      ? portfolio.campaigns.find(
+          (c) =>
+            c.id === draftReview.campaignId ||
+            c.title.toLowerCase().trim() ===
+              draftReview.title.toLowerCase().trim(),
+        )
+      : null);
+
+  const showAlert = Boolean(
+    alertCampaign &&
+      (alertCampaign.reviewFeedback ||
+        alertCampaign.reviewStatus === "NEEDS_CHANGES" ||
+        draftFeedback ||
+        draftDecision === "CHANGES"),
+  );
+
+  const alertFeedback =
+    alertCampaign?.reviewFeedback ||
+    draftFeedback ||
+    "Hồ sơ cần cập nhật thêm một số thông tin trước khi mở gọi vốn chính thức.";
+  const alertTitle = alertCampaign?.title || draftReview?.title || "chiến dịch";
+  const alertSlug = alertCampaign?.slug || activeCampaign.slug;
 
   const openTasks = operations.tasks.filter((task) => task.status !== "DONE");
 
@@ -158,8 +167,8 @@ export default async function CreatorPage() {
       </div>
 
       <div className="container-shell min-w-0 pt-7">
-        {/* Admin Review Feedback Alert if feedback is present */}
-        {draftReview && (draftFeedback || draftDecision === "CHANGES") ? (
+        {/* Admin Review Feedback Alert if feedback is present for this creator's campaign */}
+        {showAlert ? (
           <article className="mb-6 flex items-start justify-between gap-4 rounded-[18px] border border-amber-300 bg-amber-50/90 p-5 sm:items-center sm:p-6">
             <div className="flex items-start gap-3">
               <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-amber-600 text-white">
@@ -168,20 +177,19 @@ export default async function CreatorPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-extrabold text-amber-950">
-                    Phản hồi từ ban quản trị cho {draftReview.title}
+                    Phản hồi từ ban quản trị cho {alertTitle}
                   </p>
                   <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-900">
-                    {reviewLabel.toUpperCase()}
+                    CẦN CHỈNH SỬA
                   </span>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-amber-900/90">
-                  {draftFeedback ||
-                    "Hồ sơ cần cập nhật thêm một số thông tin trước khi mở gọi vốn chính thức."}
+                  {alertFeedback}
                 </p>
               </div>
             </div>
             <Link
-              href={`/creator/campaigns/new?campaign=${campaign.slug}`}
+              href={`/creator/campaigns/new?campaign=${alertSlug}`}
               className="button-secondary min-h-10 shrink-0 px-4 text-xs font-bold"
             >
               Chỉnh sửa hồ sơ <ArrowRight className="size-4" />
