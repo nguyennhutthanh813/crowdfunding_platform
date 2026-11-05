@@ -16,6 +16,8 @@ const allowed: Record<string, RegExp[]> = {
     /^campaigns\/categories$/,
     /^campaigns\/creator\/my$/,
     /^campaigns\/collaborator\/my$/,
+    /^social\/comments$/,
+    /^notifications$/,
     new RegExp(`^campaigns\/(${id}|${slug})$`),
     new RegExp(`^campaigns\/${id}\/manage$`),
     new RegExp(`^campaigns\/${id}\/updates$`),
@@ -26,18 +28,20 @@ const allowed: Record<string, RegExp[]> = {
   POST: [
     /^campaigns$/,
     /^pledges$/,
+    /^social\/comments$/,
     new RegExp(
       `^campaigns\/${id}\/(rewards|media|shipping-options|submit|launch|updates|members)$`,
     ),
     new RegExp(`^admin\/campaigns\/${id}\/review$`),
   ],
+  PATCH: [new RegExp(`^notifications\/${id}\/read$`)],
 };
 
-async function forward(request: Request, context: Context, method: 'GET' | 'POST') {
+async function forward(request: Request, context: Context, method: 'GET' | 'POST' | 'PATCH') {
   const path = (await context.params).path.join('/');
   if (!allowed[method].some((pattern) => pattern.test(path)))
     return backendError(404, 'Đường dẫn chưa được nối với backend.');
-  if (method === 'POST' && !sameOriginWrite(request))
+  if (method !== 'GET' && !sameOriginWrite(request))
     return backendError(403, 'Yêu cầu không cùng nguồn với trang web.');
   const privatePath =
     (path === 'campaigns' && method === 'POST') ||
@@ -45,7 +49,9 @@ async function forward(request: Request, context: Context, method: 'GET' | 'POST
     path.startsWith('campaigns/collaborator/') ||
     path.endsWith('/manage') ||
     path.startsWith('pledges') ||
+    path.startsWith('notifications') ||
     path.startsWith('admin/') ||
+    (path === 'social/comments' && method === 'POST') ||
     (method === 'POST' && path !== 'campaigns');
   let body: unknown;
   if (method === 'POST') {
@@ -70,4 +76,7 @@ export async function GET(request: Request, context: Context) {
 }
 export async function POST(request: Request, context: Context) {
   return forward(request, context, 'POST');
+}
+export async function PATCH(request: Request, context: Context) {
+  return forward(request, context, 'PATCH');
 }

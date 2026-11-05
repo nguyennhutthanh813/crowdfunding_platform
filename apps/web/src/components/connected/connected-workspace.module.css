@@ -755,6 +755,133 @@
   color: #64776c;
   line-height: 1.5;
 }
+.notificationPanel {
+  margin: 16px 28px 0;
+  padding: 0 16px;
+  border: 1px solid #dce4db;
+  border-radius: 10px;
+  background: #f8faf7;
+}
+.notificationPanel summary {
+  min-height: 48px;
+  padding: 14px 0;
+  color: #294b3c;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.notificationPanel .textButton {
+  min-height: 40px;
+}
+.notificationList {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 15px;
+}
+.notificationList article {
+  padding: 11px 13px;
+  border: 1px solid #dce4db;
+  border-radius: 8px;
+  background: #fff;
+}
+.notificationList article.unread {
+  border-color: #adc7b2;
+  background: #eef6ee;
+}
+.notificationList strong,
+.notificationList small {
+  display: block;
+}
+.notificationList strong {
+  font-size: 12px;
+}
+.notificationList p,
+.notificationEmpty {
+  margin: 5px 0;
+  color: #51695b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.notificationList small {
+  color: #667a6d;
+  font-size: 11px;
+}
+.notificationActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.discussion {
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid #dce4db;
+  border-radius: 10px;
+  background: #f8faf7;
+}
+.discussionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+}
+.discussion h4 {
+  margin: 0;
+  font-size: 16px;
+}
+.discussionHead p {
+  margin: 5px 0 0;
+  color: #64776c;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.commentList {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+.commentItem {
+  padding: 14px;
+  border: 1px solid #dce4db;
+  border-radius: 8px;
+  background: #fff;
+}
+.commentItem p {
+  margin: 8px 0;
+  color: #2a473a;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.commentReply {
+  margin: 10px 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: #f2f7f0;
+}
+.commentMeta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+.commentMeta time {
+  color: #64776c;
+  font-size: 11px;
+}
+.inlineError,
+.inlineSuccess {
+  margin: 10px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.inlineError {
+  color: #a43737;
+}
+.inlineSuccess {
+  color: #286143;
+}
 @media (max-width: 1050px) {
   .intro {
     grid-template-columns: minmax(0, 1fr);
@@ -853,5 +980,11 @@
   .signIn {
     margin: 18px;
     padding: 18px;
+  }
+  .notificationPanel {
+    margin: 14px 18px 0;
+  }
+  .discussion {
+    padding: 15px;
   }
 }

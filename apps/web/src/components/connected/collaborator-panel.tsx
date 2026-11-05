@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { CampaignDetail, CampaignList, Label, readableStory } from './shared';
 import type { Campaign } from './types';
 import styles from './connected-workspace.module.css';
@@ -12,6 +12,7 @@ export function CollaboratorPanel({
   userId,
   onOpen,
   onAction,
+  discussion,
 }: {
   campaigns: Campaign[];
   selected: Campaign | null;
@@ -19,6 +20,7 @@ export function CollaboratorPanel({
   userId: string;
   onOpen: (campaign: Campaign) => void;
   onAction: (path: string, body: unknown, message: string, campaignId?: string) => Promise<boolean>;
+  discussion?: ReactNode;
 }) {
   const member = selected?.members?.find((item) => item.userId === userId);
   function publish(event: FormEvent<HTMLFormElement>) {
@@ -97,6 +99,7 @@ export function CollaboratorPanel({
                 </p>
               )}
             </section>
+            {discussion}
           </>
         ) : (
           <div className={styles.prompt}>Chọn chiến dịch để xem tiến độ và quyền của bạn.</div>

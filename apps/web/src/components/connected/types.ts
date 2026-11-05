@@ -34,7 +34,7 @@ export type Campaign = {
     publishedAt: string;
     author?: { displayName: string };
   }[];
-  members?: { userId: string; role: string; canPostUpdates: boolean }[];
+  members?: { userId: string; role: string; canPostUpdates: boolean; canReplyComments: boolean }[];
   statusHistory?: {
     id: string;
     fromStatus: string | null;
@@ -61,6 +61,22 @@ export type ReviewItem = {
   story: string;
   risks: string;
   checks: { label: string; status: string; detail: string }[];
+};
+export type Comment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  badge: string;
+  author: { id: string; displayName: string };
+  replies: Omit<Comment, 'replies'>[];
+};
+export type Notification = {
+  id: string;
+  title: string;
+  body: string;
+  actionUrl: string | null;
+  createdAt: string;
+  readAt: string | null;
 };
 
 export const money = (amount: number) => new Intl.NumberFormat('vi-VN').format(amount) + ' đ';

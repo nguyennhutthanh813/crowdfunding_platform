@@ -9,6 +9,7 @@
 - Sửa backend: chặn chủ dự án tự cam kết, dùng `pledgedAt` thay cho cột không tồn tại `createdAt` khi liệt kê cam kết, nhận ảnh nội bộ `/images/campaigns/...`, bổ sung tác giả cập nhật và lịch sử trạng thái cho màn quản lý. Trình duyệt 390 px lúc đầu tràn ngang; đã đổi cột lưới và đo `scrollWidth=clientWidth=390` sau sửa.
 - Tài liệu chạy và Compose PostgreSQL riêng ở `docs/du-lieu-dung-chung.md`. Phần thanh toán vẫn chưa có provider; `PENDING` không phải tiền đã nhận. Màn AI, bình luận/tin nhắn và quản trị khác vẫn ở nguồn demo cũ. Lint web, type-check, build Next 50 trang, build API và 83 test backend đã qua; lint API có 35 warning cũ về `any`/import. Sau build API, browser đọc được tên Gia Huy trong tiến độ và ba mốc trạng thái ở màn Creator. Compose mới chưa được chạy trên máy này.
 - Tách component trang dùng chung thành phần đăng nhập/khung trang, phần hiển thị chung và bốn panel theo vai trò. Sau khi tách, lint, type-check và build 50 trang web qua; Chromium 390 px mở trang, đổi sang Chủ dự án và đọc danh sách có Bếp Mây, không có lỗi hiển thị hoặc tràn ngang.
+- Nối tiếp hỏi đáp và thông báo: Minh Anh hỏi về mẫu nắp Bếp Mây; Linh thấy thông báo, đánh dấu đã đọc, mở dự án và trả lời; Minh Anh nhận thông báo phản hồi. Backend thêm kiểm trạng thái chiến dịch công khai và `updateId` cùng chiến dịch trước khi lưu bình luận; danh sách công khai không trả bình luận của nháp. Sau build lại hai ứng dụng: API trả 404 khi gửi câu hỏi vào nháp, 400 khi dùng update của ORBIT One cho Bếp Mây, danh sách nháp 0 dòng; Bếp Mây đọc lại 1 câu hỏi/1 câu trả lời. Chromium 390 px không tràn ngang, console không lỗi. API 86/86 test, lint 0 lỗi/34 warning; web lint, type-check và build 50 trang qua.
 
 ## Checkpoint dọn source 03/11/2026
 
@@ -382,7 +383,7 @@ Mốc này được ghi trước phần thông báo trong app ở trên; các c�
 ## Việc kế tiếp theo thứ tự
 
 1. Tạo migration PostgreSQL có thể rà và rollback; đối chiếu schema Prisma với các quan hệ đang dùng trước khi chuyển dữ liệu từ demo sang backend.
-2. Nối lần lượt các màn cũ với API theo từng nghiệp vụ: bình luận, thông báo, tin nhắn, quản trị vận hành. Mỗi màn cần thử quyền, ghi và đọc lại giữa các vai trò; không trộn ID `cmp_*` với UUID.
+2. Nối tiếp tin nhắn, theo dõi và quản trị vận hành; sau đó chuyển các màn bình luận/thông báo cũ sang contract PostgreSQL đã thử ở trang dùng chung. Mỗi màn cần thử quyền, ghi và đọc lại giữa các vai trò; không trộn ID `cmp_*` với UUID.
 3. Bổ sung kiểm thử tích hợp trên database trống cho luồng chủ dự án tạo nhiều chiến dịch, duyệt, mời thành viên và cam kết. Kiểm Compose phát triển trên máy có Docker.
 4. Nối thanh toán sandbox cùng webhook trước khi gọi cam kết là đã thu tiền; sau đó đánh giá ba phần AI theo đề bài bằng dữ liệu thử có nguồn.
 5. Khi triển khai bản kết nối thật, cấu hình backend HTTPS và PostgreSQL riêng, rồi kiểm lại quyền, giao diện và các quy trình trên URL đã triển khai.

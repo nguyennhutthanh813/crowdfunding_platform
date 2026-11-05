@@ -5,13 +5,15 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { CommentBadge } from '@prisma/client';
+import { CommentBadge, type Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationArgs, buildPaginatedResponse } from '../../common/helpers';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { CommentQueryDto } from './dto/comment-query.dto';
 import { ModerateCommentDto } from './dto/moderate-comment.dto';
+
+const publicCommentStatuses = ['PRE_LAUNCH', 'LIVE', 'SUCCESSFUL', 'FAILED'] as const;
 
 @Injectable()
 export class SocialService {
@@ -76,27 +78,54 @@ export class SocialService {
 
   async createComment(userId: string, dto: CreateCommentDto) {
     const campaignId = await this.resolveCampaignId(dto.campaignId);
+    const campaignStatus = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { status: true },
+    });
+    if (
+      !campaignStatus ||
+      !publicCommentStatuses.some((status) => status === campaignStatus.status)
+    ) {
+      throw new NotFoundException('Chiến dịch chưa mở phần bình luận');
+    }
 
     let parentAuthorId: string | null = null;
+    let updateId = dto.updateId;
     if (dto.parentCommentId) {
       const parentComment = await this.prisma.comment.findUnique({
         where: { id: dto.parentCommentId },
-        select: { id: true, campaignId: true, authorId: true },
+        select: { id: true, campaignId: true, authorId: true, updateId: true, isHidden: true },
       });
-      if (!parentComment) {
-        throw new NotFoundException('Parent comment not found');
+      if (!parentComment || parentComment.isHidden) {
+        throw new NotFoundException('Không tìm thấy bình luận cần trả lời');
       }
       if (parentComment.campaignId !== campaignId) {
-        throw new BadRequestException('Parent comment belongs to a different campaign');
+        throw new BadRequestException('Bình luận cần trả lời thuộc chiến dịch khác');
       }
+      if (dto.updateId && dto.updateId !== parentComment.updateId) {
+        throw new BadRequestException('Bình luận và bản cập nhật không thuộc cùng nội dung');
+      }
+      updateId = parentComment.updateId ?? undefined;
       const member = await this.prisma.campaignMember.findUnique({
         where: { campaignId_userId: { campaignId, userId } },
         select: { role: true, canReplyComments: true },
       });
       if (member?.role === 'COLLABORATOR' && !member.canReplyComments) {
-        throw new ForbiddenException('Bạn chưa được cấp quyền trả lời bình luận trong chiến dịch này');
+        throw new ForbiddenException(
+          'Bạn chưa được cấp quyền trả lời bình luận trong chiến dịch này',
+        );
       }
       parentAuthorId = parentComment.authorId;
+    }
+
+    if (updateId) {
+      const update = await this.prisma.campaignUpdate.findUnique({
+        where: { id: updateId },
+        select: { campaignId: true, publishedAt: true },
+      });
+      if (!update || update.campaignId !== campaignId || !update.publishedAt) {
+        throw new BadRequestException('Bản cập nhật không thuộc chiến dịch đang bình luận');
+      }
     }
 
     const badge = await this.determineCommentBadge(userId, campaignId);
@@ -104,7 +133,7 @@ export class SocialService {
     const comment = await this.prisma.comment.create({
       data: {
         campaignId,
-        updateId: dto.updateId,
+        updateId,
         authorId: userId,
         parentCommentId: dto.parentCommentId,
         body: dto.body,
@@ -123,25 +152,29 @@ export class SocialService {
 
     if (campaign) {
       if (dto.parentCommentId && parentAuthorId && parentAuthorId !== userId) {
-        await this.prisma.notification.create({
-          data: {
-            userId: parentAuthorId,
-            type: 'COMMENT_REPLY',
-            title: `${comment.author.displayName} đã trả lời bình luận của bạn`,
-            body: dto.body.slice(0, 120),
-            actionUrl: `/projects/${campaign.slug}?tab=comments`,
-          },
-        }).catch(() => null);
+        await this.prisma.notification
+          .create({
+            data: {
+              userId: parentAuthorId,
+              type: 'COMMENT_REPLY',
+              title: `${comment.author.displayName} đã trả lời bình luận của bạn`,
+              body: dto.body.slice(0, 120),
+              actionUrl: `/projects/${campaign.slug}?tab=comments`,
+            },
+          })
+          .catch(() => null);
       } else if (!dto.parentCommentId && campaign.creatorId !== userId) {
-        await this.prisma.notification.create({
-          data: {
-            userId: campaign.creatorId,
-            type: 'NEW_COMMENT',
-            title: `Bình luận mới trên chiến dịch "${campaign.title}"`,
-            body: `${comment.author.displayName}: ${dto.body.slice(0, 120)}`,
-            actionUrl: `/projects/${campaign.slug}?tab=comments`,
-          },
-        }).catch(() => null);
+        await this.prisma.notification
+          .create({
+            data: {
+              userId: campaign.creatorId,
+              type: 'NEW_COMMENT',
+              title: `Bình luận mới trên chiến dịch "${campaign.title}"`,
+              body: `${comment.author.displayName}: ${dto.body.slice(0, 120)}`,
+              actionUrl: `/projects/${campaign.slug}?tab=comments`,
+            },
+          })
+          .catch(() => null);
       }
     }
 
@@ -151,8 +184,9 @@ export class SocialService {
   async updateComment(commentId: string, userId: string, dto: UpdateCommentDto) {
     const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
 
-    if (!comment) throw new NotFoundException('Comment not found');
-    if (comment.authorId !== userId) throw new ForbiddenException('You can only edit your own comments');
+    if (!comment) throw new NotFoundException('Không tìm thấy bình luận');
+    if (comment.authorId !== userId)
+      throw new ForbiddenException('Bạn chỉ có thể sửa bình luận của mình');
 
     return this.prisma.comment.update({
       where: { id: commentId },
@@ -169,7 +203,7 @@ export class SocialService {
       include: { campaign: { select: { creatorId: true } } },
     });
 
-    if (!comment) throw new NotFoundException('Comment not found');
+    if (!comment) throw new NotFoundException('Không tìm thấy bình luận');
 
     const isAdmin = await this.prisma.userRole.findUnique({
       where: { userId_role: { userId, role: 'ADMIN' } },
@@ -177,16 +211,16 @@ export class SocialService {
     const isCreator = comment.campaign.creatorId === userId;
 
     if (comment.authorId !== userId && !isAdmin && !isCreator) {
-      throw new ForbiddenException('You can only delete your own comments');
+      throw new ForbiddenException('Bạn không có quyền xóa bình luận này');
     }
 
     await this.prisma.comment.delete({ where: { id: commentId } });
-    return { message: 'Comment deleted successfully' };
+    return { message: 'Đã xóa bình luận' };
   }
 
   async likeComment(commentId: string, _userId: string) {
     const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
-    if (!comment) throw new NotFoundException('Comment not found');
+    if (!comment) throw new NotFoundException('Không tìm thấy bình luận');
 
     return this.prisma.comment.update({
       where: { id: commentId },
@@ -203,7 +237,7 @@ export class SocialService {
       include: { campaign: { select: { id: true, creatorId: true } } },
     });
 
-    if (!comment) throw new NotFoundException('Comment not found');
+    if (!comment) throw new NotFoundException('Không tìm thấy bình luận');
 
     const isAdmin = await this.prisma.userRole.findUnique({
       where: { userId_role: { userId, role: 'ADMIN' } },
@@ -228,16 +262,18 @@ export class SocialService {
     });
 
     if (isAdmin) {
-      await this.prisma.moderationAction.create({
-        data: {
-          adminId: userId,
-          targetType: 'COMMENT',
-          targetId: commentId,
-          action: isHidden ? 'HIDE_COMMENT' : 'UNHIDE_COMMENT',
-          reason: dto.reason || (isHidden ? 'Ẩn bình luận vi phạm' : 'Bỏ ẩn bình luận'),
-          metadata: { campaignId: comment.campaignId },
-        },
-      }).catch(() => null);
+      await this.prisma.moderationAction
+        .create({
+          data: {
+            adminId: userId,
+            targetType: 'COMMENT',
+            targetId: commentId,
+            action: isHidden ? 'HIDE_COMMENT' : 'UNHIDE_COMMENT',
+            reason: dto.reason || (isHidden ? 'Ẩn bình luận vi phạm' : 'Bỏ ẩn bình luận'),
+            metadata: { campaignId: comment.campaignId },
+          },
+        })
+        .catch(() => null);
     }
 
     return updated;
@@ -246,7 +282,10 @@ export class SocialService {
   async findComments(query: CommentQueryDto) {
     const { skip, take, orderBy } = buildPaginationArgs(query);
 
-    const where: any = { isHidden: false };
+    const where: Prisma.CommentWhereInput = {
+      isHidden: false,
+      campaign: { status: { in: [...publicCommentStatuses] } },
+    };
     if (query.campaignId) {
       where.campaignId = await this.resolveCampaignId(query.campaignId);
     }
@@ -254,7 +293,7 @@ export class SocialService {
     if (query.parentCommentId !== undefined) {
       where.parentCommentId = query.parentCommentId;
     } else {
-      where.parentCommentId = null; // Top-level comments
+      where.parentCommentId = null; // Danh sách câu hỏi gốc, câu trả lời lấy qua replies.
     }
 
     const [data, total] = await Promise.all([
@@ -311,14 +350,16 @@ export class SocialService {
       const saved = await this.prisma.savedCampaign.create({
         data: { userId, campaignId },
       });
-      await this.prisma.interactionEvent.create({
-        data: {
-          userId,
-          campaignId,
-          eventType: 'SAVE',
-          source: 'web',
-        },
-      }).catch(() => null);
+      await this.prisma.interactionEvent
+        .create({
+          data: {
+            userId,
+            campaignId,
+            eventType: 'SAVE',
+            source: 'web',
+          },
+        })
+        .catch(() => null);
       return saved;
     } catch {
       throw new ConflictException('Campaign already saved');
@@ -331,14 +372,16 @@ export class SocialService {
       await this.prisma.savedCampaign.delete({
         where: { userId_campaignId: { userId, campaignId } },
       });
-      await this.prisma.interactionEvent.create({
-        data: {
-          userId,
-          campaignId,
-          eventType: 'UNSAVE',
-          source: 'web',
-        },
-      }).catch(() => null);
+      await this.prisma.interactionEvent
+        .create({
+          data: {
+            userId,
+            campaignId,
+            eventType: 'UNSAVE',
+            source: 'web',
+          },
+        })
+        .catch(() => null);
       return { message: 'Campaign unsaved' };
     } catch {
       throw new NotFoundException('Saved campaign not found');
@@ -352,7 +395,12 @@ export class SocialService {
       include: {
         campaign: {
           select: {
-            id: true, title: true, slug: true, blurb: true, status: true, goalAmount: true,
+            id: true,
+            title: true,
+            slug: true,
+            blurb: true,
+            status: true,
+            goalAmount: true,
             creator: { select: { id: true, displayName: true, avatarUrl: true } },
           },
         },
@@ -398,14 +446,16 @@ export class SocialService {
       const sub = await this.prisma.prelaunchSubscription.create({
         data: { userId, campaignId, notifyEmail: notifyEmail ?? true },
       });
-      await this.prisma.interactionEvent.create({
-        data: {
-          userId,
-          campaignId,
-          eventType: 'NOTIFY_PRELAUNCH',
-          source: 'web',
-        },
-      }).catch(() => null);
+      await this.prisma.interactionEvent
+        .create({
+          data: {
+            userId,
+            campaignId,
+            eventType: 'NOTIFY_PRELAUNCH',
+            source: 'web',
+          },
+        })
+        .catch(() => null);
       return sub;
     } catch {
       throw new ConflictException('Already subscribed');
@@ -424,4 +474,3 @@ export class SocialService {
     }
   }
 }
-

@@ -143,10 +143,12 @@ export function CampaignBrowser({
   campaigns,
   selected,
   onOpen,
+  discussion,
 }: {
   campaigns: Campaign[];
   selected: Campaign | null;
   onOpen: (campaign: Campaign) => void;
+  discussion?: ReactNode;
 }) {
   return (
     <div className={styles.columns}>
@@ -161,7 +163,10 @@ export function CampaignBrowser({
       </div>
       <div>
         {selected ? (
-          <CampaignDetail campaign={selected} />
+          <>
+            <CampaignDetail campaign={selected} />
+            {discussion}
+          </>
         ) : (
           <div className={styles.prompt}>
             Chọn một chiến dịch để xem câu chuyện, gói ủng hộ và người thực hiện.

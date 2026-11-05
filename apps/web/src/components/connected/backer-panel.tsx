@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { CampaignDetail, CampaignList, Label } from './shared';
 import { money, statusLabel, type Campaign, type Pledge } from './types';
 import styles from './connected-workspace.module.css';
@@ -12,6 +12,7 @@ export function BackerPanel({
   busy,
   onOpen,
   onAction,
+  discussion,
 }: {
   campaigns: Campaign[];
   pledges: Pledge[];
@@ -19,6 +20,7 @@ export function BackerPanel({
   busy: boolean;
   onOpen: (campaign: Campaign) => void;
   onAction: (path: string, body: unknown, message: string) => Promise<boolean>;
+  discussion?: ReactNode;
 }) {
   return (
     <>
@@ -43,6 +45,7 @@ export function BackerPanel({
                 alreadyPledged={pledges.some((pledge) => pledge.campaign.slug === selected.slug)}
                 onAction={onAction}
               />
+              {discussion}
             </>
           ) : (
             <div className={styles.prompt}>

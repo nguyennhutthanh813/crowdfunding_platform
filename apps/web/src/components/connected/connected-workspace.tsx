@@ -9,6 +9,8 @@ import { AdminPanel } from './admin-panel';
 import { BackerPanel } from './backer-panel';
 import { CollaboratorPanel } from './collaborator-panel';
 import { CreatorPanel } from './creator-panel';
+import { DiscussionPanel } from './discussion-panel';
+import { NotificationPanel } from './notification-panel';
 import { CampaignBrowser, Label } from './shared';
 import { type Campaign, type Category, type Pledge, type ReviewItem, type User } from './types';
 import styles from './connected-workspace.module.css';
@@ -208,6 +210,18 @@ export function ConnectedWorkspace() {
     }
   }
 
+  async function openNotificationCampaign(slug: string) {
+    changeView('public');
+    setLoading(true);
+    try {
+      setSelected(await connectedRequest<Campaign>(`campaigns/${slug}`));
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function act(path: string, body: unknown, message: string, campaignId?: string) {
     setBusy(true);
     setError('');
@@ -232,6 +246,15 @@ export function ConnectedWorkspace() {
 
   const requiredRole = views.find((item) => item.key === view)?.role;
   const allowed = !requiredRole || user?.roles.includes(requiredRole);
+  const member = selected?.members?.find((item) => item.userId === user?.id);
+  const discussion = selected ? (
+    <DiscussionPanel
+      key={`discussion-${selected.id}`}
+      campaignId={selected.id}
+      user={user}
+      allowReply={member?.role !== 'COLLABORATOR' || member.canReplyComments}
+    />
+  ) : null;
 
   return (
     <div className={`${styles.root} ${styles[view]}`}>
@@ -333,6 +356,13 @@ export function ConnectedWorkspace() {
                 <RefreshCw size={16} /> Tải lại
               </button>
             </div>
+            {user && (
+              <NotificationPanel
+                key={user.id}
+                userId={user.id}
+                onOpenCampaign={openNotificationCampaign}
+              />
+            )}
             {error && (
               <div className={styles.error} role="alert">
                 {error}
@@ -363,6 +393,7 @@ export function ConnectedWorkspace() {
                 campaigns={publicCampaigns}
                 selected={selected}
                 onOpen={openCampaign}
+                discussion={discussion}
               />
             )}
 
@@ -374,6 +405,7 @@ export function ConnectedWorkspace() {
                 busy={busy}
                 onOpen={openCampaign}
                 onAction={act}
+                discussion={discussion}
               />
             )}
 
@@ -395,6 +427,7 @@ export function ConnectedWorkspace() {
                 busy={busy}
                 onOpen={openCampaign}
                 onAction={act}
+                discussion={discussion}
               />
             )}
 
@@ -406,6 +439,7 @@ export function ConnectedWorkspace() {
                 userId={user?.id ?? ''}
                 onOpen={openCampaign}
                 onAction={act}
+                discussion={discussion}
               />
             )}
           </section>

@@ -28,6 +28,9 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
       },
+      campaignUpdate: {
+        findUnique: jest.fn(),
+      },
       campaignMember: {
         findUnique: jest.fn(),
       },
@@ -51,10 +54,7 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        SocialService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [SocialService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<SocialService>(SocialService);
@@ -64,6 +64,7 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
     it('should create a top-level comment and return it with author', async () => {
       prisma.campaign.findUnique.mockResolvedValue({
         id: mockCampaignId,
+        status: 'LIVE',
         creatorId: mockCreatorId,
         title: 'Bàn phím cơ Việt Nam',
         slug: 'ban-phim-co',
@@ -115,17 +116,24 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
 
   describe('COM-02: Nested Replies', () => {
     it('không cho cộng tác viên trả lời khi quyền của chiến dịch đã tắt', async () => {
-      prisma.campaign.findUnique.mockResolvedValue({ id: mockCampaignId });
+      prisma.campaign.findUnique.mockResolvedValue({ id: mockCampaignId, status: 'LIVE' });
       prisma.comment.findUnique.mockResolvedValue({
-        id: 'parent-comment-uuid', campaignId: mockCampaignId, authorId: mockBackerId,
-      });
-      prisma.campaignMember.findUnique.mockResolvedValue({ role: 'COLLABORATOR', canReplyComments: false });
-
-      await expect(service.createComment(mockOtherUserId, {
+        id: 'parent-comment-uuid',
         campaignId: mockCampaignId,
-        parentCommentId: 'parent-comment-uuid',
-        body: 'Nhóm sẽ cập nhật sau.',
-      })).rejects.toThrow(ForbiddenException);
+        authorId: mockBackerId,
+      });
+      prisma.campaignMember.findUnique.mockResolvedValue({
+        role: 'COLLABORATOR',
+        canReplyComments: false,
+      });
+
+      await expect(
+        service.createComment(mockOtherUserId, {
+          campaignId: mockCampaignId,
+          parentCommentId: 'parent-comment-uuid',
+          body: 'Nhóm sẽ cập nhật sau.',
+        }),
+      ).rejects.toThrow(ForbiddenException);
       expect(prisma.comment.create).not.toHaveBeenCalled();
     });
 
@@ -133,6 +141,7 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
       const parentCommentId = 'parent-comment-uuid';
       prisma.campaign.findUnique.mockResolvedValue({
         id: mockCampaignId,
+        status: 'LIVE',
         creatorId: mockCreatorId,
         title: 'Bàn phím cơ',
         slug: 'ban-phim-co',
@@ -186,6 +195,7 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
     it('should throw BadRequestException if parent comment is from different campaign', async () => {
       prisma.campaign.findUnique.mockResolvedValue({
         id: mockCampaignId,
+        status: 'LIVE',
         creatorId: mockCreatorId,
       });
       prisma.comment.findUnique.mockResolvedValue({
@@ -207,13 +217,65 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
   describe('Tra đúng khóa chiến dịch', () => {
     it('không ghép một mã demo gần giống với chiến dịch khác', async () => {
       prisma.campaign.findUnique.mockResolvedValue(null);
-      await expect(service.createComment(mockBackerId, {
-        campaignId: 'cmp_orbit', body: 'Cho mình hỏi thêm về sản phẩm.',
-      })).rejects.toThrow(NotFoundException);
+      await expect(
+        service.createComment(mockBackerId, {
+          campaignId: 'cmp_orbit',
+          body: 'Cho mình hỏi thêm về sản phẩm.',
+        }),
+      ).rejects.toThrow(NotFoundException);
       expect(prisma.campaign.findUnique).toHaveBeenCalledWith({
-        where: { slug: 'cmp_orbit' }, select: { id: true },
+        where: { slug: 'cmp_orbit' },
+        select: { id: true },
       });
       expect(prisma.comment.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Bình luận chỉ gắn với nội dung công khai', () => {
+    it('không nhận câu hỏi trên hồ sơ còn là bản nháp', async () => {
+      prisma.campaign.findUnique.mockResolvedValue({ id: mockCampaignId, status: 'DRAFT' });
+
+      await expect(
+        service.createComment(mockBackerId, {
+          campaignId: mockCampaignId,
+          body: 'Nhóm dự kiến giao khi nào?',
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.comment.create).not.toHaveBeenCalled();
+    });
+
+    it('không nhận bình luận cho cập nhật thuộc chiến dịch khác', async () => {
+      prisma.campaign.findUnique.mockResolvedValue({ id: mockCampaignId, status: 'LIVE' });
+      prisma.campaignUpdate.findUnique.mockResolvedValue({
+        campaignId: '99999999-9999-9999-9999-999999999999',
+        publishedAt: new Date(),
+      });
+
+      await expect(
+        service.createComment(mockBackerId, {
+          campaignId: mockCampaignId,
+          updateId: '88888888-8888-8888-8888-888888888888',
+          body: 'Cho mình hỏi thêm về tiến độ.',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.comment.create).not.toHaveBeenCalled();
+    });
+
+    it('danh sách công khai chỉ lấy bình luận của chiến dịch đã mở', async () => {
+      prisma.campaign.findUnique.mockResolvedValue({ id: mockCampaignId });
+      prisma.comment.findMany.mockResolvedValue([]);
+      prisma.comment.count.mockResolvedValue(0);
+
+      await service.findComments({ campaignId: mockCampaignId });
+
+      expect(prisma.comment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            campaignId: mockCampaignId,
+            campaign: { status: { in: ['PRE_LAUNCH', 'LIVE', 'SUCCESSFUL', 'FAILED'] } },
+          }),
+        }),
+      );
     });
   });
 
@@ -302,7 +364,7 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
       prisma.comment.delete.mockResolvedValue({});
 
       const result = await service.deleteComment('comment-1', mockBackerId);
-      expect(result.message).toBe('Comment deleted successfully');
+      expect(result.message).toBe('Đã xóa bình luận');
     });
 
     it('should allow admin to delete comment', async () => {
@@ -315,7 +377,7 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
       prisma.comment.delete.mockResolvedValue({});
 
       const result = await service.deleteComment('comment-1', mockAdminId);
-      expect(result.message).toBe('Comment deleted successfully');
+      expect(result.message).toBe('Đã xóa bình luận');
     });
 
     it('should forbid other user from deleting comment', async () => {
@@ -326,9 +388,9 @@ describe('SocialService - Section 7: Social, Comments & Badges', () => {
       });
       prisma.userRole.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.deleteComment('comment-1', mockOtherUserId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.deleteComment('comment-1', mockOtherUserId)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 

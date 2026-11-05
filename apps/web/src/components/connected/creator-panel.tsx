@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { CampaignDetail, CampaignList, Label } from './shared';
 import { statusLabel, type Campaign, type Category } from './types';
 import styles from './connected-workspace.module.css';
@@ -12,6 +12,7 @@ export function CreatorPanel({
   busy,
   onOpen,
   onAction,
+  discussion,
 }: {
   categories: Category[];
   campaigns: Campaign[];
@@ -19,6 +20,7 @@ export function CreatorPanel({
   busy: boolean;
   onOpen: (campaign: Campaign) => void;
   onAction: (path: string, body: unknown, message: string, campaignId?: string) => Promise<boolean>;
+  discussion?: ReactNode;
 }) {
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,6 +63,7 @@ export function CreatorPanel({
             <>
               <CampaignDetail campaign={selected} />
               <CreatorActions campaign={selected} busy={busy} onAction={onAction} />
+              {discussion}
             </>
           ) : (
             <div className={styles.prompt}>Chọn dự án để bổ sung gói ủng hộ, ảnh và gửi duyệt.</div>
