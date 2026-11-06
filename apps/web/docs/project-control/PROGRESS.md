@@ -1,6 +1,12 @@
 # Tiến độ thực hiện
 
-**Cập nhật gần nhất:** 05/11/2026, nối luồng PostgreSQL đầu tiên qua Next.js và NestJS.
+**Cập nhật gần nhất:** 06/11/2026, cập nhật bộ điều phối UI/UX dùng được với Kimi Code.
+
+## Checkpoint bộ skill giao diện 06/11/2026
+
+- Đối chiếu tài liệu Agent Skills, Claude Code và Kimi Code cùng repo gốc của Anthropic, Vercel, NextLevelBuilder, Impeccable và Google Stitch. Thêm bản đồ chọn skill ngoài vào `agent-skills/skills/ui-ux-director/references/design-skill-map.md`; `ui-ux-director` chỉ gọi nguồn bổ trợ khi đúng vấn đề và có cài thật.
+- `agent-skills/install.ps1` thêm `-Target Kimi`/`All`, giữ nghĩa cũ của `Both`, chép cả file tham khảo trong thư mục skill. UI UX Pro Max, Impeccable và Stitch mới là nguồn tham khảo, chưa được cài tự động.
+- Script `-Target All` đã chạy cho ba vị trí trên máy; hash của `SKILL.md` và file tham khảo khớp source ở cả ba. `-Target Kimi` với `KIMI_CODE_HOME` cũng tìm đúng thư mục. Validator của `skill-creator` đạt cho source và ba bản cài, PowerShell parse và `git diff --check` đạt. Bản xuất tiến độ đồng bộ bằng `node scripts/sync-project-docs.mjs --write` rồi kiểm lại; lệnh `pnpm docs:sync` bị wrapper yêu cầu cài lại `node_modules` nên không dùng cho lượt tài liệu này. Đây là kiểm file trên đĩa, chưa kiểm loader Kimi trong phiên Kimi thật, chưa sửa giao diện hay dữ liệu của web.
 
 ## Checkpoint dữ liệu dùng chung 05/11/2026
 

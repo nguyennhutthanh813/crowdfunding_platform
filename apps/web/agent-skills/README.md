@@ -31,7 +31,7 @@ Các skill Next.js/Vercel, React, PostgreSQL và đo LCP đã có qua plugin ho�
 
 Các nguồn đã xem nhưng **chưa cài**: [Trail of Bits supply-chain-risk-auditor](https://github.com/trailofbits/skills/blob/main/plugins/supply-chain-risk-auditor/skills/supply-chain-risk-auditor/SKILL.md) chưa đọc `pnpm-lock.yaml` của dự án; [Playwright Interactive](https://github.com/openai/skills/blob/main/skills/.curated/playwright-interactive/SKILL.md) trùng phần kiểm browser đang có và yêu cầu thêm runtime; bộ [Superpowers TDD](https://github.com/obra/superpowers/tree/main/skills/test-driven-development) ép test trước mọi thay đổi, quá cứng với các sửa UI nhỏ. Góp giữ cách kiểm theo rủi ro ở `gop-acceptance-audit`. Skill [Hugging Face](https://github.com/huggingface/skills) cho job model/Hub sẽ hợp hơn khi nhóm đã có model chạy thật. Không cài thêm một bộ UI lớn chỉ để tăng số skill.
 
-Cài lại trên máy có Codex và Python, cần mạng để tải năm skill bên ngoài (từ thư mục `crowdfunding-ai-platform`):
+Cài lại trên máy có Codex và Python, cần mạng để tải năm skill bên ngoài (từ `apps/web` trong repo GitHub hoặc thư mục web độc lập khi mang sang máy khác):
 
 ```powershell
 .\agent-skills\install-codex-project.ps1
@@ -41,9 +41,9 @@ Script cài skill của nhóm từ source trong repo, rồi tải năm skill tr�
 
 Ví dụ: “Dùng `$gop-project-director` hoàn thiện luồng Creator gửi duyệt → Admin yêu cầu sửa → Creator gửi lại. Truy cùng campaign ID từ SQLite qua API tới hai giao diện, rồi kiểm bằng browser.”
 
-## Bộ UI/UX cho Codex và Claude Code
+## Bộ UI/UX cho Codex, Claude Code và Kimi Code
 
-Điểm vào là **`ui-ux-director`**. Skill này chọn phần việc cần làm thay vì buộc mọi yêu cầu đi qua cả tám skill. Dùng `$ui-ux-director` trong Codex hoặc `/ui-ux-director` trong Claude Code khi muốn làm nhiều màn, nhiều vai trò hay một luồng hoàn chỉnh. Một việc nhỏ như sửa thông báo lỗi có thể gọi `ui-vietnamese-content` trực tiếp.
+Điểm vào là **`ui-ux-director`**. Skill này chọn phần việc cần làm thay vì buộc mọi yêu cầu đi qua cả tám skill. Dùng `$ui-ux-director` trong Codex, `/ui-ux-director` trong Claude Code hoặc `/skill:ui-ux-director` trong Kimi Code khi muốn làm nhiều màn, nhiều vai trò hay một luồng hoàn chỉnh. Một việc nhỏ như sửa thông báo lỗi có thể gọi `ui-vietnamese-content` trực tiếp.
 
 | Skill | Chịu trách nhiệm |
 | --- | --- |
@@ -56,15 +56,35 @@ Ví dụ: “Dùng `$gop-project-director` hoàn thiện luồng Creator gửi d
 | `ui-accessibility-check` | Bàn phím, focus, chữ lớn, vùng chạm và màn nhỏ. |
 | `ui-browser-proof` | Chạy browser, đối chiếu hành vi và báo cáo test. |
 
+### Nguồn thiết kế bổ trợ đã rà 06/11/2026
+
+[Bản đồ skill thiết kế](skills/ui-ux-director/references/design-skill-map.md) ghi nguồn gốc, mục đích và điều kiện dùng của các bộ sau. Chọn **một nguồn bổ trợ cho vấn đề đang có**; không cài cả kho rồi trộn nhiều hướng thiết kế vào một màn.
+
+| Nguồn | Việc hợp với Góp | Tình trạng trong bộ cài của nhóm |
+| --- | --- | --- |
+| [Anthropic frontend-design](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/frontend-design) | Tìm hướng thị giác cho màn mới hoặc đợt đổi nhận diện. | Đã cài riêng trong Codex ở lượt trước; Claude Code có plugin chính thức nhưng script của nhóm không tự cài plugin. |
+| [NextLevelBuilder UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | Tra phương án màu, chữ và mẫu bố cục khi thiếu ý tưởng. Repo gốc có hướng dẫn cho Claude, Codex và Kimi. | Đã nghiên cứu, chưa cài; nhiều quy tắc chung dễ trùng bộ nhóm. |
+| [Impeccable](https://github.com/pbakaus/impeccable) | Phản biện hoặc làm gọn một trang đã chạy; có `critique`/`audit`. | Đã nghiên cứu, chưa cài; installer/hook riêng cần xem trước khi dùng. |
+| [Vercel agent-skills](https://github.com/vercel-labs/agent-skills) | `web-design-guidelines` soát form, focus, ảnh, mobile; `react-best-practices` soát code React/Next.js. | Đã có trên máy phát triển qua các lượt cài trước; máy khác cần cài/kiểm tra riêng. |
+| [Google Stitch skills](https://github.com/google-labs-code/stitch-skills) | Đưa code hoặc màn sang Stitch để chỉnh thiết kế khi có Stitch MCP. | Chưa cài, không áp cho web local nếu không dùng Stitch. |
+
+Không thấy một bộ skill UI **chính thức riêng của Kimi** trong tài liệu Kimi Code đã đọc. Kimi Code nạp `SKILL.md` theo chuẩn chung, nên dùng bộ UI của nhóm hoặc một skill cộng đồng có hỗ trợ Kimi. Đây là kết luận theo những nguồn đã xem, không phải khẳng định không tồn tại skill khác.
+
 ## Cài trên Windows
 
-Từ thư mục `crowdfunding-ai-platform`, chạy:
+Từ `apps/web` trong repo GitHub hoặc thư mục web độc lập khi mang sang máy khác, chạy:
 
 ```powershell
 .\agent-skills\install.ps1 -Target Both
 ```
 
-Script chép tám skill UI, `gop-code-voice` và `gop-git-workflow` tới `~/.codex/skills` và `~/.claude/skills`; bốn skill Góp điều phối, sửa lỗi, kiểm định và đánh giá AI chỉ được chép sang Codex. Nếu chạy lại mà file đích đã được sửa riêng, script giữ một bản `SKILL.before-ui-suite.md` trước khi đồng bộ. Source ở đây là bản để nhóm lưu cùng dự án và mang sang máy khác. Mở cuộc trò chuyện mới để hai ứng dụng nạp danh sách skill mới. Năm skill bên ngoài ở đầu tài liệu được cài thêm bằng `install-codex-project.ps1`.
+`-Target Both` vẫn cài cho Codex và Claude Code như trước. Dùng `-Target Kimi` để cài cho Kimi Code, hoặc `-Target All` cho cả ba. Kimi nhận skill tại `$KIMI_CODE_HOME/skills` nếu có biến môi trường này; mặc định là `~/.kimi-code/skills`. Script chép tám skill UI, `gop-code-voice` và `gop-git-workflow` tới các agent được chọn; bốn skill Góp điều phối, sửa lỗi, kiểm định và đánh giá AI vẫn chỉ được chép sang Codex. File tham khảo nằm cạnh skill cũng được chép. Khi file đích khác source, script lưu bản `*.before-ui-suite.md` ở lượt ghi đè đầu tiên. Mở phiên agent mới để kiểm tra skill được nạp. Năm skill bên ngoài ở đầu tài liệu được cài thêm bằng `install-codex-project.ps1` nếu cần.
+
+```powershell
+.\agent-skills\install.ps1 -Target All
+```
+
+Bộ cài này **không tự cài** UI UX Pro Max, Impeccable, Stitch MCP hay plugin Anthropic. Các phần đó có phụ thuộc, phiên bản và cách cấp quyền riêng; khi cần, chọn đúng một nguồn, đọc repo gốc và giấy phép rồi cài theo tài liệu nguồn.
 
 Tên cũ `ui-ux-claude-code` trong Codex được giữ làm lối gọi tương thích và chuyển sang `ui-ux-director`; bản cũ được sao lưu trước khi thay. Không cài tên này cho Claude Code vì quy tắc đặt tên skill của Claude không nhận tên chứa `claude`.
 

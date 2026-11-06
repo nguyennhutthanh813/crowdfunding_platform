@@ -21,6 +21,17 @@ Skill này là điểm vào cho công việc UI/UX có nhiều phần liên quan
 
 Đọc `SKILL.md` của specialist chỉ khi phần đó thực sự nằm trong yêu cầu. Nếu môi trường không hỗ trợ gọi skill khác tự động, mở file skill tương ứng và làm theo. Có thể giao khảo sát độc lập song song khi công cụ hỗ trợ, nhưng mỗi file chỉ có một người chịu trách nhiệm sửa.
 
+## Khi cần góc nhìn thiết kế bên ngoài
+
+Đọc [bản đồ skill thiết kế](references/design-skill-map.md) khi cần chọn thêm một skill ngoài bộ của nhóm hoặc chuyển việc giữa Codex, Claude Code và Kimi Code. Kiểm tra skill và công cụ có thật trong phiên đang dùng trước khi gọi. Một lượt chỉ lấy phần bổ trợ đúng chỗ thiếu:
+
+- **Định hướng trang mới hoặc sửa nhận diện:** bắt đầu với `ui-visual-direction`; có thể tham khảo `frontend-design` của Anthropic. Kho ý tưởng của UI UX Pro Max chỉ dùng khi cần so vài phương án màu/chữ/bố cục.
+- **Trang đã có nhưng nhìn rối:** chọn một màn và một vấn đề cụ thể để nhận phản biện từ Impeccable nếu đã cài, sau đó sửa bằng skill của nhóm. Không lấy điểm chấm tự động làm bằng chứng người dùng đã hiểu.
+- **Rà chất lượng code UI:** dùng `web-design-guidelines` cho form, focus, điều hướng; dùng `react-best-practices` khi thay React/Next.js có rủi ro hiệu năng. Kết luận vẫn cần `ui-browser-proof` trên bản chạy.
+- **Chuyển thiết kế qua Stitch:** chỉ dùng skill Stitch khi dự án có kết nối Stitch và người dùng thật sự muốn làm việc trên đó.
+
+Các tên ngoài bộ là tùy chọn, không mặc nhiên được cài hay có quyền chạy. Không chép nguyên style gợi ý vào Góp khi nó làm khó đọc tiếng Việt, lẫn vai trò hoặc lệch luồng chiến dịch.
+
 ## Mạch làm việc
 
 1. Đọc yêu cầu người dùng, tài liệu đề bài và code hiện có; phân biệt điều quan sát được với giả định. Chọn 1–3 luồng ưu tiên theo tác động, bắt đầu từ hành vi sai hoặc màn còn thiếu.
