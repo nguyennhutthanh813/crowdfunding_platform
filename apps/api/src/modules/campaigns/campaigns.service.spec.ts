@@ -94,6 +94,7 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
       },
       notification: {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
       },
     };
 

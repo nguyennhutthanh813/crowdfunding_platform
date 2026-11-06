@@ -9,6 +9,7 @@ import {
   Plus,
 } from "lucide-react";
 import Link from "next/link";
+import { CollaboratorInvitationsBanner, type PendingInvitationItem } from "@/components/creator/collaborator-invitations-banner";
 import { CreatorCampaignsWorkspace } from "@/components/creator/creator-campaigns-workspace";
 import { CreatorOnboarding } from "@/components/creator/creator-onboarding";
 import { api } from "@/lib/api";
@@ -86,11 +87,66 @@ export default async function CreatorPage() {
   };
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
 
+  const rawPendingInvites = await api
+    .getMyPendingInvitations(session?.tokens?.accessToken)
+    .catch(() => []);
+
+  const pendingInvitationsList: PendingInvitationItem[] = (
+    rawPendingInvites || []
+  ).map((item: any) => ({
+    id: item.id || item.campaignId,
+    campaignId: item.campaignId,
+    campaignTitle: item.campaign?.title || "Chiến dịch gây quỹ",
+    campaignSlug: item.campaign?.slug || "",
+    inviterName:
+      item.campaign?.creator?.displayName ||
+      item.campaign?.creator?.name ||
+      "Chủ dự án",
+    canPostUpdates: item.canPostUpdates ?? true,
+    canReplyComments: item.canReplyComments ?? true,
+    canViewAiDashboard: item.canViewAiDashboard ?? true,
+    createdAt: item.createdAt,
+  }));
+
+  // Hợp nhất lời mời xem trước nếu tài khoản hiện tại khớp email/id
+  if (session?.user && Array.isArray(platformState.invitedMembers)) {
+    const userEmail = session.user.email?.toLowerCase();
+    const userId = session.user.id;
+    const previewPending = platformState.invitedMembers.filter(
+      (m) =>
+        m.status === "PENDING" &&
+        (m.email?.toLowerCase() === userEmail || m.userId === userId) &&
+        !pendingInvitationsList.some((p) => p.campaignId === m.campaignId),
+    );
+
+    for (const prev of previewPending) {
+      pendingInvitationsList.push({
+        id: prev.id,
+        campaignId: prev.campaignId,
+        campaignTitle: "Chiến dịch cộng tác",
+        campaignSlug: prev.campaignId,
+        inviterName: "Chủ dự án",
+        canPostUpdates: prev.canPostUpdates ?? true,
+        canReplyComments: prev.canReplyComments ?? true,
+        canViewAiDashboard: prev.canViewAiDashboard ?? true,
+      });
+    }
+  }
+
   if (!activeCampaign || portfolio.campaigns.length === 0) {
     return (
-      <CreatorOnboarding
-        givenName={givenName}
-      />
+      <div className="relative">
+        {pendingInvitationsList.length > 0 && (
+          <div className="container-shell pt-6">
+            <CollaboratorInvitationsBanner
+              initialInvitations={pendingInvitationsList}
+            />
+          </div>
+        )}
+        <CreatorOnboarding
+          givenName={givenName}
+        />
+      </div>
     );
   }
 
@@ -167,6 +223,11 @@ export default async function CreatorPage() {
       </div>
 
       <div className="container-shell min-w-0 pt-7">
+        {/* Collaborator Invitations Banner */}
+        <CollaboratorInvitationsBanner
+          initialInvitations={pendingInvitationsList}
+        />
+
         {/* Admin Review Feedback Alert if feedback is present for this creator's campaign */}
         {showAlert ? (
           <article className="mb-6 flex items-start justify-between gap-4 rounded-[18px] border border-amber-300 bg-amber-50/90 p-5 sm:items-center sm:p-6">

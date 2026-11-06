@@ -61,6 +61,17 @@ export class CommunicationController {
     return this.communicationService.findMessageById(id, userId);
   }
 
+  @Patch('messages/:id/read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark a message as read' })
+  @ApiParam({ name: 'id', description: 'Message UUID' })
+  async markMessageRead(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.communicationService.findMessageById(id, userId);
+  }
+
   // ─── Notifications ─────────────────────────────────────
 
   @Get('notifications')

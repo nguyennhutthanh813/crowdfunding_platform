@@ -30,6 +30,11 @@ export async function GET() {
 
   const mappedCampaigns = campaigns.map((c: any) => {
     const card = transformCampaignCard(c);
+    const isOwner = Boolean(
+      access.session?.user?.id &&
+        (c.creatorId === access.session.user.id ||
+          c.creator?.id === access.session.user.id),
+    );
     let nextAction: CreatorCampaignNextAction = "OPERATE";
     let nextActionLabel = "Vận hành chiến dịch";
     let nextActionDetail =
@@ -37,13 +42,25 @@ export async function GET() {
 
     if (c.status === "DRAFT") {
       nextAction = "CONTINUE_DRAFT";
-      nextActionLabel = "Hoàn thiện bản nháp";
-      nextActionDetail =
-        "Bổ sung gói quà, mô tả câu chuyện và gửi xét duyệt.";
+      nextActionLabel = isOwner ? "Hoàn thiện bản nháp" : "Bản nháp đang làm";
+      nextActionDetail = isOwner
+        ? "Bổ sung gói quà, mô tả câu chuyện và gửi xét duyệt."
+        : "Chủ dự án đang hoàn thiện nội dung hồ sơ.";
     } else if (c.status === "IN_REVIEW") {
       nextAction = "FOLLOW_REVIEW";
       nextActionLabel = "Theo dõi hàng chờ duyệt";
       nextActionDetail = "Hồ sơ đang được ban quản trị xem xét trong 24 giờ.";
+    } else if (c.status === "PRE_LAUNCH") {
+      nextAction = isOwner ? "LAUNCH" : "WAIT_LAUNCH";
+      nextActionLabel = isOwner ? "Mở gọi vốn" : "Chờ chủ dự án mở gọi vốn";
+      nextActionDetail = isOwner
+        ? "Chiến dịch đã được ban quản trị phê duyệt. Bạn có thể mở gọi vốn bất cứ lúc nào."
+        : "Chiến dịch đã được ban quản trị phê duyệt. Đang chờ chủ dự án chính thức mở gọi vốn.";
+    } else if (c.status === "LIVE") {
+      nextAction = "OPERATE";
+      nextActionLabel = "Vận hành chiến dịch";
+      nextActionDetail =
+        "Theo dõi số người ủng hộ và đăng bài viết cập nhật tiến độ.";
     } else if (c.status === "SUCCESSFUL") {
       nextAction = "FULFILL";
       nextActionLabel = "Chuẩn bị giao quà";
@@ -59,7 +76,7 @@ export async function GET() {
       category: card.category,
       location: card.location,
       status: card.status,
-      ownership: "OWNER" as const,
+      ownership: (isOwner ? "OWNER" : "COLLABORATOR") as "OWNER" | "COLLABORATOR",
       goalAmount: card.goalAmount,
       pledgedAmount: card.pledgedAmount,
       backerCount: card.backerCount,

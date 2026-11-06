@@ -48,6 +48,8 @@ export interface CampaignCardData {
   tags: string[];
   isFeatured?: boolean;
   durationDays?: number;
+  endsAt?: string;
+  closedAt?: string;
   videoUrl?: string;
   recommendationReason?: string;
   predictionScore?: number;
@@ -61,7 +63,12 @@ export interface CampaignCardData {
 }
 
 export type CreatorCampaignNextAction =
-  "OPERATE" | "FULFILL" | "CONTINUE_DRAFT" | "FOLLOW_REVIEW";
+  | "OPERATE"
+  | "FULFILL"
+  | "CONTINUE_DRAFT"
+  | "FOLLOW_REVIEW"
+  | "LAUNCH"
+  | "WAIT_LAUNCH";
 
 export interface CreatorPortfolioCampaign {
   id: string;
@@ -73,7 +80,7 @@ export interface CreatorPortfolioCampaign {
   status: CampaignStatus;
   reviewStatus?: "NEEDS_CHANGES" | "PENDING" | "APPROVED" | "REJECTED";
   reviewFeedback?: string;
-  ownership: "OWNER";
+  ownership: "OWNER" | "COLLABORATOR";
   goalAmount: number;
   pledgedAmount: number;
   backerCount: number;
@@ -84,6 +91,8 @@ export interface CreatorPortfolioCampaign {
   nextAction: CreatorCampaignNextAction;
   nextActionLabel: string;
   nextActionDetail: string;
+  endsAt?: string;
+  closedAt?: string;
   visual?: CampaignCardData["visual"];
 }
 
@@ -247,6 +256,7 @@ export interface UserDashboardData {
   messages: Array<{
     id: string;
     campaignId: string;
+    campaignTitle?: string;
     senderId: string;
     recipientId: string;
     sender: string;
@@ -255,16 +265,31 @@ export interface UserDashboardData {
     preview: string;
     sentAt: string;
     unread: boolean;
+    replies?: Array<{
+      id: string;
+      senderId: string;
+      senderName: string;
+      body: string;
+      sentAt: string;
+    }>;
   }>;
   sentMessages: Array<{
     id: string;
     campaignId: string;
+    campaignTitle?: string;
     senderId: string;
     recipientId: string;
     recipient: string;
     subject: string;
     body: string;
     sentAt: string;
+    replies?: Array<{
+      id: string;
+      senderId: string;
+      senderName: string;
+      body: string;
+      sentAt: string;
+    }>;
   }>;
   activities: Array<{
     id: string;
@@ -431,6 +456,7 @@ export interface CampaignOperationsData {
     canViewAiDashboard?: boolean;
     openTasks: number;
     lastSeen: string;
+    status?: "PENDING" | "ACCEPTED" | string;
   }>;
   handoffs: Array<{
     id: string;
@@ -440,7 +466,13 @@ export interface CampaignOperationsData {
     at: string;
     note: string;
   }>;
-  updateHistory: Array<{ title: string; when: string }>;
+  updateHistory: Array<{
+    id?: string;
+    title: string;
+    when: string;
+    excerpt?: string;
+    commentCount?: number;
+  }>;
   communityMessages: Array<{
     id: string;
     campaignId: string;
@@ -517,6 +549,8 @@ export interface ReviewQueueItem {
   location?: string;
   goalAmount?: number;
   durationDays?: number;
+  endsAt?: string;
+  closedAt?: string;
   videoUrl?: string;
   imageUrl?: string;
   creator: string;
@@ -645,6 +679,10 @@ export interface AuthorizePledgeInput {
   campaignId: string;
   rewardId: string | null;
   addOnIds: string[];
+  addOns?: Array<{
+    addOnId: string;
+    quantity: number;
+  }>;
   bonusAmount: number;
   address: {
     fullName: string;
@@ -794,15 +832,18 @@ export interface CampaignFilters {
 export interface PlatformApi {
   listCampaigns(filters?: CampaignFilters): Promise<CampaignCardData[]>;
   getCampaignBySlug(slug: string): Promise<CampaignDetail | null>;
-  getUserDashboard(): Promise<UserDashboardData>;
+  getUserDashboard(token?: string): Promise<UserDashboardData>;
   getCreatorPortfolio(
     userId?: string,
     token?: string,
     user?: { name?: string; id?: string; email?: string; initials?: string },
   ): Promise<CreatorPortfolioData>;
-  getCreatorAiDashboard(): Promise<CreatorAiDashboardData>;
+  getCreatorAiDashboard(campaignId?: string): Promise<CreatorAiDashboardData>;
   getCreatorAssistantData(): Promise<CreatorAssistantData>;
-  getCampaignOperations(slug: string): Promise<CampaignOperationsData>;
+  getCampaignOperations(
+    slug: string,
+    token?: string,
+  ): Promise<CampaignOperationsData>;
   getAdminDashboard(): Promise<AdminDashboardData>;
   authorizePledge(input: AuthorizePledgeInput): Promise<AuthorizePledgeResult>;
   createSession(input: SessionInput): Promise<SessionResult>;

@@ -275,6 +275,7 @@ model CampaignMember {
   campaignId         String             @map("campaign_id") @db.Uuid
   userId             String             @map("user_id") @db.Uuid
   role               CampaignMemberRole
+  status             String             @default("ACCEPTED") @db.VarChar(20) // PENDING, ACCEPTED, DECLINED
   canPostUpdates     Boolean            @default(true) @map("can_post_updates")
   canReplyComments   Boolean            @default(true) @map("can_reply_comments")
   canViewAiDashboard Boolean            @default(true) @map("can_view_ai_dashboard")

@@ -39,5 +39,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return Response.json(await api.getCreatorAiDashboard());
+  return Response.json(await api.getCreatorAiDashboard(campaignId || undefined));
 }

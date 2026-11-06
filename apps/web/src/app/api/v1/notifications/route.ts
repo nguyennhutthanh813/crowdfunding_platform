@@ -88,7 +88,9 @@ export async function GET() {
                   ? "pledge"
                   : item.type === "COMMENT"
                     ? "comment"
-                    : "system",
+                    : item.type === "COLLABORATOR_INVITED"
+                      ? "invitation"
+                      : "system",
             title: item.title,
             message: item.body,
             time: formatRelativeTime(item.createdAt),
@@ -178,6 +180,34 @@ export async function GET() {
           read: cookieReadIds.has(notifId),
           link: id ? `/creator/campaigns/${id}/manage` : "/creator",
         });
+      }
+    }
+
+    // Synthesize notifications for invited members if current user is invited
+    if (session?.user && Array.isArray(platformState.invitedMembers)) {
+      const userEmail = session.user.email?.toLowerCase();
+      const userId = session.user.id;
+      const myPendingInvites = platformState.invitedMembers.filter(
+        (m) =>
+          m.status === "PENDING" &&
+          (m.email?.toLowerCase() === userEmail || m.userId === userId),
+      );
+
+      for (const invite of myPendingInvites) {
+        const notifId = `invite-notif-${invite.campaignId}-${invite.email}`;
+        const exists = notifications.some((n) => n.id === notifId);
+        if (!exists) {
+          notifications.unshift({
+            id: notifId,
+            type: "invitation",
+            title: "Lời mời cộng tác dự án",
+            message: `Bạn được mời tham gia cộng tác quản trị dự án. Vui lòng phản hồi để kích hoạt quyền.`,
+            time: "Vừa xong",
+            createdAt: new Date().toISOString(),
+            read: cookieReadIds.has(notifId),
+            link: "/creator?tab=invitations",
+          });
+        }
       }
     }
   }

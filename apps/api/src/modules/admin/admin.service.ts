@@ -950,6 +950,34 @@ export class AdminService {
       select: { id: true, title: true, status: true, closedAt: true },
     });
 
+    // Cập nhật trạng thái các cam kết (Pledges) và tạo bản ghi Fulfillment nếu thành công
+    if (resolvedStatus === 'SUCCESSFUL') {
+      await this.prisma.pledge.updateMany({
+        where: { campaignId, status: { in: ['AUTHORIZED', 'PENDING'] } },
+        data: { status: 'CAPTURED' },
+      });
+
+      const eligiblePledges = await this.prisma.pledge.findMany({
+        where: { campaignId, fulfillment: null },
+        select: { id: true },
+      });
+      for (const p of eligiblePledges) {
+        await this.prisma.fulfillment
+          .create({
+            data: {
+              pledgeId: p.id,
+              status: 'PENDING',
+            },
+          })
+          .catch(() => null);
+      }
+    } else if (resolvedStatus === 'FAILED') {
+      await this.prisma.pledge.updateMany({
+        where: { campaignId, status: { in: ['AUTHORIZED', 'PENDING'] } },
+        data: { status: 'CANCELED' },
+      });
+    }
+
     await this.prisma.moderationAction.create({
       data: {
         adminId,

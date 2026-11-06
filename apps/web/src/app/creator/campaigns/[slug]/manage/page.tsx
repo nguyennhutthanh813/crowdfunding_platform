@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CreatorPortfolioCampaign } from "@/lib/api/contracts";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -6,6 +7,7 @@ import {
   PackageCheck,
   AlertTriangle,
   UsersRound,
+  Sparkles,
 } from "lucide-react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -93,7 +95,7 @@ export default async function CreatorCampaignStagePage({
           }
         : undefined,
     ),
-    api.getCampaignOperations(slug).catch(() => null),
+    api.getCampaignOperations(slug, session?.tokens?.accessToken).catch(() => null),
     api.getCampaignBySlug(slug).catch(() => null),
   ]);
 
@@ -107,14 +109,18 @@ export default async function CreatorCampaignStagePage({
       (publicDetail?.creator?.id === session.user.id ||
         (publicDetail as any)?.creatorId === session.user.id),
   );
+  const isMemberByPublicDetail = Boolean(
+    session?.user?.id &&
+      publicDetail?.team?.some((m: any) => (m.userId || m.id) === session.user.id),
+  );
 
-  if (!ownedCampaign && !isOwnerByPublicDetail) {
+  if (!ownedCampaign && !isOwnerByPublicDetail && !isMemberByPublicDetail) {
     notFound();
   }
 
-  const campaign =
+  const campaign: CreatorPortfolioCampaign | null =
     ownedCampaign ??
-    (publicDetail && isOwnerByPublicDetail
+    (publicDetail && (isOwnerByPublicDetail || isMemberByPublicDetail)
       ? {
           id: publicDetail.id,
           slug: publicDetail.slug,
@@ -122,18 +128,24 @@ export default async function CreatorCampaignStagePage({
           blurb: publicDetail.blurb,
           category: publicDetail.category,
           location: publicDetail.location,
-          status: publicDetail.status,
-          ownership: "OWNER" as const,
+          status:
+            (publicDetail && platformState.campaignStatuses[publicDetail.id]) ||
+            publicDetail.status,
+          ownership: (isOwnerByPublicDetail ? "OWNER" : "COLLABORATOR") as "OWNER" | "COLLABORATOR",
           goalAmount: publicDetail.goalAmount,
           pledgedAmount: publicDetail.pledgedAmount,
           backerCount: publicDetail.backerCount,
           daysLeft: publicDetail.daysLeft,
+          endsAt: publicDetail.endsAt,
+          closedAt: (publicDetail as any).closedAt,
           teamSize: 1,
           openTaskCount: 0,
           fundingTrend: [],
-          nextAction: "OPERATE" as const,
-          nextActionLabel: "Vận hành",
-          nextActionDetail: "",
+          reviewStatus: undefined,
+          reviewFeedback: undefined,
+          nextAction: publicDetail.status === "PRE_LAUNCH" ? (isOwnerByPublicDetail ? ("LAUNCH" as const) : ("WAIT_LAUNCH" as const)) : ("OPERATE" as const),
+          nextActionLabel: publicDetail.status === "PRE_LAUNCH" ? (isOwnerByPublicDetail ? "Mở gọi vốn" : "Chờ chủ dự án mở gọi vốn") : "Vận hành",
+          nextActionDetail: publicDetail.status === "PRE_LAUNCH" ? (isOwnerByPublicDetail ? "Chiến dịch đã được ban quản trị phê duyệt. Bạn có thể mở gọi vốn bất cứ lúc nào." : "Chiến dịch đã được ban quản trị phê duyệt. Đang chờ chủ dự án chính thức mở gọi vốn.") : "",
         }
       : null);
 
@@ -148,7 +160,8 @@ export default async function CreatorCampaignStagePage({
   const isNeedsChanges =
     campaign.reviewStatus === "NEEDS_CHANGES" ||
     Boolean(campaign.reviewFeedback);
-  const copy = stageCopy[campaign.status];
+  const copy =
+    stageCopy[campaign.status as keyof typeof stageCopy] || stageCopy.LIVE;
   const isSuccessful = campaign.status === "SUCCESSFUL";
   const editHref = `/creator/campaigns/new?campaign=${campaign.slug}`;
 
@@ -183,6 +196,12 @@ export default async function CreatorCampaignStagePage({
               >
                 <UsersRound className="size-4" /> Đội ngũ ({operations.team.length})
               </Link>
+              <Link
+                href={`/creator/ai?campaignId=${encodeURIComponent(campaign.id)}`}
+                className="button-secondary min-h-11 px-4 text-xs font-bold"
+              >
+                <Sparkles className="size-4 text-emerald-600" /> Dự báo AI
+              </Link>
               {isSuccessful ? (
                 <Link
                   href={`/creator/campaigns/${campaign.slug}/manage?tab=fulfillment`}
@@ -190,7 +209,7 @@ export default async function CreatorCampaignStagePage({
                 >
                   <PackageCheck className="size-4" /> Mở giao quà
                 </Link>
-              ) : (
+              ) : campaign.ownership === "OWNER" ? (
                 <Link
                   href={editHref}
                   className={`button-primary min-h-11 px-4 text-xs ${
@@ -200,7 +219,7 @@ export default async function CreatorCampaignStagePage({
                   <FilePenLine className="size-4" />{" "}
                   {isNeedsChanges ? "Sửa hồ sơ theo yêu cầu" : "Chỉnh sửa hồ sơ"}
                 </Link>
-              )}
+              ) : null}
             </div>
           </div>
 

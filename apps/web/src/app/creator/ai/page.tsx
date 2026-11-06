@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import {
   BrainCircuit,
-  ChevronDown,
   Eye,
   FolderKanban,
   Plus,
@@ -10,6 +9,7 @@ import {
 import Link from "next/link";
 import { CampaignContentAssistant } from "@/components/creator/campaign-content-assistant";
 import { CreatorAiDashboard } from "@/components/creator/creator-ai-dashboard";
+import { CampaignAiSelector } from "@/components/creator/campaign-ai-selector";
 import { api } from "@/lib/api";
 import { CampaignAccessNotice } from "@/components/auth/campaign-access-notice";
 import { resolveCampaignAccess } from "@/lib/auth/campaign-access";
@@ -19,26 +19,52 @@ import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cooki
 export const metadata: Metadata = {
   title: "Dự báo chiến dịch",
   description:
-    "Dự báo khả năng đạt mục tiêu, yếu tố ảnh hưởng và mức quan tâm trước khi mở gọi vốn.",
+    "Dự báo khả năng đạt mục tiêu, phân tích yếu tố SHAP và mức quan tâm của cộng đồng trước khi mở gọi vốn.",
 };
 
-export default async function CreatorAiPage() {
-  const [session, platform] = await Promise.all([
+export default async function CreatorAiPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ campaignId?: string; slug?: string }>;
+}) {
+  const [session, platform, resolvedParams] = await Promise.all([
     getServerSession(),
     getServerPlatformPreviewState(),
+    searchParams,
   ]);
-  if (
-    !session ||
-    !resolveCampaignAccess("cmp_orbit", session, platform).canViewAi
-  ) {
+
+  if (!session) {
     return (
-      <CampaignAccessNotice message="Dự báo mẫu hiện thuộc ORBIT One. Chỉ chủ dự án và thành viên được cấp quyền xem mới mở được." />
+      <CampaignAccessNotice message="Vui lòng đăng nhập tài khoản Nhà sáng tạo hoặc Cộng tác viên để xem phân tích dự báo." />
     );
   }
+
+  // Fetch all campaigns for campaign switcher
+  const allCampaigns = await api.listCampaigns();
+
+  // Determine requested campaign
+  const requestedIdOrSlug =
+    resolvedParams?.campaignId || resolvedParams?.slug || allCampaigns[0]?.id;
+
+  const selectedCampaign =
+    allCampaigns.find(
+      (c) => c.id === requestedIdOrSlug || c.slug === requestedIdOrSlug,
+    ) || allCampaigns[0];
+
+  const targetCampaignId = selectedCampaign?.id || "cmp_orbit";
+
+  const access = resolveCampaignAccess(targetCampaignId, session, platform);
+  if (!access.canViewAi && !session.user?.roles?.includes("CREATOR")) {
+    return (
+      <CampaignAccessNotice message="Bạn chưa được cấp quyền xem dự báo của chiến dịch này." />
+    );
+  }
+
   const [data, assistant] = await Promise.all([
-    api.getCreatorAiDashboard(),
+    api.getCreatorAiDashboard(selectedCampaign?.id || selectedCampaign?.slug),
     api.getCreatorAssistantData(),
   ]);
+
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
       <div className="border-b border-forest/10 bg-[#e5ebe5] py-8 sm:py-10">
@@ -46,15 +72,13 @@ export default async function CreatorAiPage() {
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
               <span className="eyebrow text-[#526827]">
-                <BrainCircuit className="size-4" /> Dữ liệu chiến dịch
+                <BrainCircuit className="size-4" /> Mô hình XGBoost & SHAP Attribution
               </span>
               <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
-                Chiến dịch đang kể điều gì qua dữ liệu?
+                Dự báo xác suất & Phân rã yếu tố ảnh hưởng
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-                Đây là bộ dự báo minh họa cho ORBIT One, chưa chạy mô hình AI
-                thật. Các xác suất và chỉ số không phải kết quả đánh giá của
-                nhóm.
+                Hệ thống trích xuất đặc trưng thực tế từ cơ sở dữ liệu chiến dịch (mục tiêu vốn, mẫu thử, gói quà, tương tác pre-launch) để tính toán điểm số và gợi ý cải thiện theo thời gian thực.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -71,7 +95,7 @@ export default async function CreatorAiPage() {
                 <Eye className="size-4" /> Xem trang dự án
               </Link>
               <Link
-                href="/creator/campaigns/orbit-one-ca-phe-thong-minh/manage"
+                href={`/creator/campaigns/${data.campaign.slug}/manage`}
                 className="button-secondary min-h-11 px-4 text-xs"
               >
                 <FolderKanban className="size-4" /> Vận hành
@@ -84,15 +108,17 @@ export default async function CreatorAiPage() {
               </Link>
             </div>
           </div>
-          <div className="mt-7 flex max-w-xl items-center justify-between rounded-[12px] border border-line bg-white px-4 py-3">
-            <div>
-              <p className="text-[10px] font-bold text-ink-muted">
-                Đang phân tích
-              </p>
-              <p className="mt-1 text-sm font-bold">{data.campaign.title}</p>
-            </div>
-            <ChevronDown className="size-4 text-ink-muted" />
-          </div>
+
+          {/* Interactive Campaign Switcher */}
+          <CampaignAiSelector
+            campaigns={allCampaigns.map((c) => ({
+              id: c.id,
+              slug: c.slug,
+              title: c.title,
+              status: c.status,
+            }))}
+            currentId={data.campaign.id}
+          />
         </div>
       </div>
       <CreatorAiDashboard data={data} />

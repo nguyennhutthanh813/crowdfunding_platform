@@ -61,6 +61,16 @@ const fulfillmentLabels: Record<FulfillmentStatus, string> = {
   DELIVERED: "Đã giao",
 };
 
+const ALLOWED_FULFILLMENT_TRANSITIONS: Record<
+  FulfillmentStatus,
+  FulfillmentStatus[]
+> = {
+  PENDING: ["PENDING", "PREPARING"],
+  PREPARING: ["PREPARING", "SHIPPED", "PENDING"],
+  SHIPPED: ["SHIPPED", "DELIVERED"],
+  DELIVERED: ["DELIVERED"],
+};
+
 async function callCreatorOperation(
   action: string,
   payload: Record<string, unknown>,
@@ -1282,34 +1292,39 @@ export function CreatorCampaignOperations({
                       <td className="px-5 py-4 text-ink-muted">{order.city}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
-                          <select
-                            name={`fulfillment-status-${order.id}`}
-                            aria-label={`Trạng thái ${order.id}`}
-                            disabled={busy === `order-${order.id}`}
-                            value={order.status}
-                            onChange={(event) =>
-                              updateFulfillment(
-                                order.id,
-                                event.target.value as FulfillmentStatus,
-                              )
-                            }
-                            className="rounded-xl border border-line bg-white px-3 py-2 text-[10px] font-bold outline-none focus:border-coral"
-                          >
-                            {(
-                              Object.keys(
-                                fulfillmentLabels,
-                              ) as FulfillmentStatus[]
-                            ).map((status) => (
-                              <option key={status} value={status}>
-                                {fulfillmentLabels[status]}
-                              </option>
-                            ))}
-                          </select>
+                          {order.status === "DELIVERED" ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-700">
+                              <Check className="size-3.5 text-emerald-600" />
+                              Đã giao
+                            </span>
+                          ) : (
+                            <select
+                              name={`fulfillment-status-${order.id}`}
+                              aria-label={`Trạng thái ${order.id}`}
+                              disabled={busy === `order-${order.id}`}
+                              value={order.status}
+                              onChange={(event) =>
+                                updateFulfillment(
+                                  order.id,
+                                  event.target.value as FulfillmentStatus,
+                                )
+                              }
+                              className="rounded-xl border border-line bg-white px-3 py-2 text-[10px] font-bold outline-none focus:border-coral"
+                            >
+                              {(
+                                ALLOWED_FULFILLMENT_TRANSITIONS[order.status] ?? [
+                                  order.status,
+                                ]
+                              ).map((status) => (
+                                <option key={status} value={status}>
+                                  {fulfillmentLabels[status]}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                           {busy === `order-${order.id}` ? (
                             <LoaderCircle className="size-4 animate-spin text-coral" />
-                          ) : order.status === "DELIVERED" ? (
-                            <Check className="size-4 text-emerald-600" />
-                          ) : (
+                          ) : order.status === "DELIVERED" ? null : (
                             <Clock3 className="size-4 text-ink-muted" />
                           )}
                         </div>

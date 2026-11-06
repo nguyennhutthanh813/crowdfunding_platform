@@ -15,15 +15,54 @@ export function applyCreatorPortfolioPreviewState(
   if (!platform) return data;
 
   const campaigns = data.campaigns.map((campaign) => {
-    const launchedStatus = platform.campaignStatuses[campaign.id];
+    const isRealDbCampaign =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        campaign.id,
+      );
+    const isOwner = campaign.ownership === "OWNER";
+
+    // Đối với chiến dịch thực trong database, trạng thái từ PostgreSQL là chân thực nhất.
+    // Tránh việc cookie preview đè trạng thái PRE_LAUNCH thành LIVE khi chưa mở gọi vốn thực tế.
+    const statusOverride = platform.campaignStatuses[campaign.id];
+    const isClosedSuccessful =
+      campaign.status === "SUCCESSFUL" || statusOverride === "SUCCESSFUL";
+    const isClosedFailed =
+      campaign.status === "FAILED" || statusOverride === "FAILED";
+
+    if (isClosedSuccessful) {
+      return {
+        ...campaign,
+        status: "SUCCESSFUL" as const,
+        nextAction: "OPERATE" as const,
+        nextActionLabel: "Giao nhận phần thưởng",
+        nextActionDetail: "Quản lý đơn cam kết và cập nhật trạng thái vận chuyển.",
+      };
+    }
+
+    if (isClosedFailed) {
+      return {
+        ...campaign,
+        status: "FAILED" as const,
+        nextAction: "OPERATE" as const,
+        nextActionLabel: "Chiến dịch đã đóng",
+        nextActionDetail: "Chiến dịch không đạt mục tiêu gọi vốn.",
+      };
+    }
+
+    const launchedStatus = isRealDbCampaign
+      ? campaign.status === "LIVE"
+        ? "LIVE"
+        : undefined
+      : platform.campaignStatuses[campaign.id];
+
     if (launchedStatus === "LIVE") {
       return {
         ...campaign,
         status: "LIVE" as const,
         nextAction: "OPERATE" as const,
-        nextActionLabel: "Mở trung tâm vận hành",
+        nextActionLabel: "Vận hành chiến dịch",
         nextActionDetail:
-          "Chiến dịch vừa được công bố; theo dõi cam kết và phản hồi đầu tiên.",
+          "Theo dõi số người ủng hộ và đăng bài viết cập nhật tiến độ.",
       };
     }
 
@@ -59,15 +98,20 @@ export function applyCreatorPortfolioPreviewState(
       };
     }
 
-    if (decision === "APPROVED" || campaign.reviewStatus === "APPROVED") {
+    if (
+      decision === "APPROVED" ||
+      campaign.reviewStatus === "APPROVED" ||
+      campaign.status === "PRE_LAUNCH"
+    ) {
       return {
         ...campaign,
         status: "PRE_LAUNCH" as const,
         reviewStatus: "APPROVED" as const,
-        nextAction: "OPERATE" as const,
-        nextActionLabel: "Chuẩn bị mở gọi vốn",
-        nextActionDetail:
-          "Hồ sơ đã duyệt; kiểm tra trang công khai trước khi công bố.",
+        nextAction: isOwner ? ("LAUNCH" as const) : ("WAIT_LAUNCH" as const),
+        nextActionLabel: isOwner ? "Mở gọi vốn" : "Chờ chủ dự án mở gọi vốn",
+        nextActionDetail: isOwner
+          ? "Chiến dịch đã được ban quản trị phê duyệt. Bạn có thể mở gọi vốn bất cứ lúc nào."
+          : "Chiến dịch đã được ban quản trị phê duyệt. Đang chờ chủ dự án chính thức mở gọi vốn.",
       };
     }
 
@@ -218,6 +262,7 @@ export function applyOperationsPreviewState(
       canPostUpdates: m.canPostUpdates,
       canReplyComments: m.canReplyComments,
       canViewAiDashboard: m.canViewAiDashboard,
+      status: m.status || "PENDING",
       openTasks: 0,
       lastSeen: "Vừa xong",
     }));

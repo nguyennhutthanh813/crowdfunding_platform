@@ -36,7 +36,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     for (const u of baseData.users) {
       if (!u.campaigns || u.campaigns.length === 0) {
         const owned = baseData.campaigns.filter(
-          (c) => c.creator?.id === u.id || (c as any).creatorId === u.id,
+          (c) =>
+            c.creator?.id === u.id ||
+            (c as any).creatorId === u.id ||
+            (Boolean(c.creator?.name && u.name) &&
+              c.creator.name.trim().toLowerCase() ===
+                u.name.trim().toLowerCase()),
         );
         if (owned.length > 0) {
           u.campaigns = owned.map((c) => ({

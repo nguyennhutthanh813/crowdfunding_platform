@@ -10,6 +10,7 @@ import {
   CircleUserRound,
   Clock3,
   FolderHeart,
+  Gift,
   GitFork,
   LayoutDashboard,
   Mail,
@@ -33,7 +34,7 @@ import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RoleConnectionPanel } from "@/components/workspace/role-connection-panel";
 import { useQueryTab } from "@/hooks/use-query-tab";
-import type { BackedProject, UserDashboardData } from "@/lib/api";
+import type { BackedProject, CampaignCardData, UserDashboardData } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatVnd } from "@/lib/format";
 
@@ -107,12 +108,14 @@ function DashboardEmptyState({
   detail,
   actionLabel,
   actionHref,
+  onAction,
 }: {
   icon: LucideIcon;
   title: string;
   detail: string;
   actionLabel: string;
-  actionHref: string;
+  actionHref?: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="mt-6 rounded-[18px] border border-dashed border-forest/18 bg-[#fafbf7] px-5 py-10 text-center sm:px-8">
@@ -123,12 +126,22 @@ function DashboardEmptyState({
       <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-ink-muted">
         {detail}
       </p>
-      <Link
-        href={actionHref}
-        className="button-dark mt-5 min-h-11 px-4 text-xs"
-      >
-        {actionLabel} <ArrowRight className="size-3.5" />
-      </Link>
+      {onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="button-dark mt-5 min-h-11 px-4 text-xs cursor-pointer"
+        >
+          {actionLabel} <ArrowRight className="size-3.5" />
+        </button>
+      ) : actionHref ? (
+        <Link
+          href={actionHref}
+          className="button-dark mt-5 min-h-11 px-4 text-xs"
+        >
+          {actionLabel} <ArrowRight className="size-3.5" />
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -205,161 +218,122 @@ function AttentionRail({ data }: { data: UserDashboardData }) {
   );
 }
 
-function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
-  const summarize = (statuses: BackedProject["paymentStatus"][]) => {
-    const matched = projects.filter((item) => statuses.includes(item.paymentStatus));
-
-    return {
-      count: matched.length,
-      amount: matched.reduce((total, item) => total + item.amount, 0),
-    };
-  };
-
-  const authorized = summarize(["AUTHORIZED"]);
-  const captured = summarize(["CAPTURED"]);
-  const canceled = summarize(["CANCELED"]);
-  const failed = summarize(["FAILED"]);
+function PledgeOverviewCards({ projects }: { projects: BackedProject[] }) {
+  const authorized = projects.filter((item) => item.paymentStatus === "AUTHORIZED");
+  const captured = projects.filter((item) => item.paymentStatus === "CAPTURED");
+  const delivered = projects.filter((item) => item.fulfillmentStatus === "DELIVERED");
+  const totalAmount = projects.reduce((sum, item) => sum + item.amount, 0);
 
   return (
-    <section
-      aria-labelledby="pledge-lifecycle-title"
-      className="mt-6 overflow-hidden rounded-[20px] border border-forest/15 bg-forest text-white"
-    >
-      <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="p-5 sm:p-6">
-          <p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#d8e2c6]">
-            <ShieldCheck className="size-4" /> Dòng tiền cam kết
-          </p>
-          <h3
-            id="pledge-lifecycle-title"
-            className="mt-3 max-w-sm font-display text-xl font-extrabold leading-snug"
-          >
-            Một khoản ủng hộ chỉ đi theo một trong hai kết quả.
-          </h3>
-          <p className="mt-2 max-w-md text-xs leading-6 text-white/70">
-            Góp áp dụng All-or-Nothing: khi dự án còn chạy, ngân hàng mới giữ
-            hạn mức. Nền tảng chưa thu tiền của bạn.
-          </p>
-
-          <div className="mt-5 rounded-2xl border border-white/15 bg-white/[0.07] p-4">
-            <div className="flex items-start gap-3">
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#dce7c8] text-forest">
-                <Clock3 className="size-4" />
-              </span>
-              <div>
-                <p className="text-xs font-extrabold">Đang chạy · chưa thu</p>
-                <p className="mt-1 text-[11px] text-white/65">
-                  {authorized.count} cam kết · {formatVnd(authorized.amount)}
-                </p>
-              </div>
-            </div>
+    <div className="mt-5 space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* Card 1: Tổng tiền cam kết */}
+        <div className="flex flex-col justify-between rounded-2xl border border-line bg-[#fafaf7] p-4 transition-all hover:border-forest/30">
+          <div className="flex items-center justify-between text-xs font-bold text-ink-muted">
+            <span>Tổng tiền đã ủng hộ</span>
+            <span className="grid size-7 place-items-center rounded-lg border border-line bg-white text-forest">
+              <FolderHeart className="size-3.5" />
+            </span>
+          </div>
+          <div className="mt-2">
+            <p className="font-display text-2xl font-black text-ink">
+              {formatVnd(totalAmount)}
+            </p>
+            <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">
+              {projects.length} chiến dịch đã tham gia
+            </p>
           </div>
         </div>
 
-        <div className="border-t border-white/10 bg-[#f7f4ec] p-5 text-ink lg:border-l lg:border-t-0 sm:p-6">
-          <div className="flex items-start gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#e9eddf] text-forest">
-              <GitFork className="size-4" />
+        {/* Card 2: Đang giữ hạn mức */}
+        <div className="flex flex-col justify-between rounded-2xl border border-line bg-[#fafaf7] p-4 transition-all hover:border-amber-300">
+          <div className="flex items-center justify-between text-xs font-bold text-ink-muted">
+            <span>Đang giữ hạn mức</span>
+            <span className="grid size-7 place-items-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700">
+              <Clock3 className="size-3.5" />
             </span>
-            <div>
-              <p className="text-xs font-extrabold">Khi chiến dịch kết thúc</p>
-              <p className="mt-1 text-[11px] leading-5 text-ink-muted">
-                Hệ thống đối chiếu số tiền thực tế với mục tiêu đã công bố.
-              </p>
-            </div>
           </div>
-
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-emerald-700/15 bg-white p-4">
-              <dt className="flex items-center gap-2 text-xs font-extrabold text-emerald-800">
-                <CheckCircle2 className="size-4" /> Đạt mục tiêu
-              </dt>
-              <dd className="mt-3 font-display text-lg font-extrabold">
-                {formatVnd(captured.amount)}
-              </dd>
-              <dd className="mt-1 text-[10px] font-bold text-ink-muted">
-                {captured.count} khoản đã thu tiền
-              </dd>
-              <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
-                Tiền được thu, sau đó chủ dự án chuẩn bị và giao quà.
-              </dd>
-            </div>
-
-            <div className="rounded-2xl border border-stone-300 bg-white p-4">
-              <dt className="flex items-center gap-2 text-xs font-extrabold text-stone-700">
-                <XCircle className="size-4" /> Không đạt mục tiêu
-              </dt>
-              <dd className="mt-3 font-display text-lg font-extrabold">
-                {formatVnd(canceled.amount)}
-              </dd>
-              <dd className="mt-1 text-[10px] font-bold text-ink-muted">
-                {canceled.count} khoản đã hủy giữ tiền
-              </dd>
-              <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
-                Không thu tiền và cũng không tạo đơn giao quà.
-              </dd>
-            </div>
-          </dl>
-
-          {failed.count ? (
-            <p className="mt-3 rounded-xl border border-amber-700/15 bg-[#fff8e8] px-3 py-2 text-[10px] font-semibold leading-5 text-amber-900">
-              Có {failed.count} khoản thanh toán cần kiểm tra lại, tổng cộng {" "}
-              {formatVnd(failed.amount)}. Đây là lỗi thanh toán, không phải kết
-              quả gọi vốn của dự án.
+          <div className="mt-2">
+            <p className="font-display text-2xl font-black text-amber-900">
+              {formatVnd(authorized.reduce((sum, item) => sum + item.amount, 0))}
             </p>
-          ) : null}
-          <p className="mt-3 text-[9px] font-semibold text-ink-muted">
-            Số liệu được tính từ các cam kết đang hiển thị bên dưới.
-          </p>
+            <p className="mt-0.5 text-[11px] font-semibold text-amber-700/80">
+              {authorized.length} cam kết · Chưa trừ tiền
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Phần thưởng đã nhận */}
+        <div className="flex flex-col justify-between rounded-2xl border border-line bg-[#fafaf7] p-4 transition-all hover:border-emerald-300">
+          <div className="flex items-center justify-between text-xs font-bold text-ink-muted">
+            <span>Phần thưởng đã nhận</span>
+            <span className="grid size-7 place-items-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700">
+              <CheckCircle2 className="size-3.5" />
+            </span>
+          </div>
+          <div className="mt-2">
+            <p className="font-display text-2xl font-black text-emerald-900">
+              {delivered.length} phần quà
+            </p>
+            <p className="mt-0.5 text-[11px] font-semibold text-emerald-700/80">
+              {captured.length} khoản đã thu tiền thành công
+            </p>
+          </div>
         </div>
       </div>
-    </section>
-  );
-}
 
-function FulfillmentState({ status }: { status: BackedProject["fulfillmentStatus"] }) {
-  const states: Record<
-    BackedProject["fulfillmentStatus"],
-    { label: string; icon: LucideIcon; className: string }
-  > = {
-    PENDING: {
-      label: "Chờ kết quả",
-      icon: Clock3,
-      className: "text-amber-700",
-    },
-    PREPARING: {
-      label: "Đang chuẩn bị",
-      icon: PackageCheck,
-      className: "text-emerald-700",
-    },
-    SHIPPED: {
-      label: "Đã bàn giao vận chuyển",
-      icon: Truck,
-      className: "text-sky-700",
-    },
-    DELIVERED: {
-      label: "Đã giao",
-      icon: CheckCircle2,
-      className: "text-emerald-700",
-    },
-    NOT_APPLICABLE: {
-      label: "Không áp dụng",
-      icon: XCircle,
-      className: "text-stone-500",
-    },
-  };
-  const state = states[status];
-  const Icon = state.icon;
-
-  return (
-    <div className="flex items-center gap-2 text-xs text-ink-soft">
-      <Icon className={`size-4 shrink-0 ${state.className}`} />
-      <span>
-        Gói quà: <strong>{state.label}</strong>
-      </span>
+      <div className="flex items-center gap-2 rounded-xl border border-line/70 bg-[#f7f6f1] px-3.5 py-2 text-[11px] text-ink-muted">
+        <ShieldCheck className="size-3.5 shrink-0 text-forest" />
+        <span>
+          Cơ chế <strong>All-or-Nothing</strong>: Ngân hàng chỉ giữ hạn mức tạm thời; tiền chỉ chính thức được thu khi chiến dịch cán mốc mục tiêu.
+        </span>
+      </div>
     </div>
   );
 }
+
+function FulfillmentBadge({ status }: { status: BackedProject["fulfillmentStatus"] }) {
+  if (status === "DELIVERED") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+        <CheckCircle2 className="size-3 text-emerald-600" />
+        Đã giao quà
+      </span>
+    );
+  }
+  if (status === "SHIPPED") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-700">
+        <Truck className="size-3 text-sky-600" />
+        Đang giao
+      </span>
+    );
+  }
+  if (status === "PREPARING") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+        <PackageCheck className="size-3 text-amber-600" />
+        Đang chuẩn bị
+      </span>
+    );
+  }
+  if (status === "NOT_APPLICABLE") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-stone-500">
+        <XCircle className="size-3 text-stone-400" />
+        Không quà
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-stone-600">
+      <Clock3 className="size-3 text-stone-500" />
+      Chờ kết quả
+    </span>
+  );
+}
+
+type BackedFilter = "ALL" | "IN_PROGRESS" | "DELIVERED";
 
 function BackedPanel({
   data,
@@ -368,90 +342,166 @@ function BackedPanel({
   data: UserDashboardData;
   onOpenMessages: () => void;
 }) {
+  const [filter, setFilter] = useState<BackedFilter>("ALL");
+
+  const filteredProjects = data.backedProjects.filter((item) => {
+    if (filter === "IN_PROGRESS") {
+      return item.fulfillmentStatus !== "DELIVERED";
+    }
+    if (filter === "DELIVERED") {
+      return item.fulfillmentStatus === "DELIVERED";
+    }
+    return true;
+  });
+
+  const inProgressCount = data.backedProjects.filter(
+    (item) => item.fulfillmentStatus !== "DELIVERED",
+  ).length;
+  const deliveredCount = data.backedProjects.filter(
+    (item) => item.fulfillmentStatus === "DELIVERED",
+  ).length;
+
   return (
     <div>
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <h2 className="font-display text-2xl font-extrabold">
+          <h2 className="font-display text-2xl font-extrabold text-ink">
             Các dự án đã ủng hộ
           </h2>
-          <p className="mt-2 text-sm text-ink-muted">
-            Mỗi khoản đều ghi rõ đã thu, đang chờ kết quả hay đã hủy.
+          <p className="mt-1 text-xs text-ink-muted">
+            Theo dõi tiến trình thanh toán, cập nhật từ chủ dự án và hành trình nhận quà.
           </p>
         </div>
-        <span className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink-soft">
-          {data.backedProjects.length} cam kết gần đây
-        </span>
+
+        {data.backedProjects.length ? (
+          <div className="flex items-center gap-1.5 rounded-xl border border-line bg-[#f8f8f5] p-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setFilter("ALL")}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${filter === "ALL" ? "bg-white text-ink font-bold shadow-2xs" : "text-ink-muted hover:text-ink"}`}
+            >
+              Tất cả ({data.backedProjects.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("IN_PROGRESS")}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${filter === "IN_PROGRESS" ? "bg-white text-ink font-bold shadow-2xs" : "text-ink-muted hover:text-ink"}`}
+            >
+              Đang chờ / Đang giao ({inProgressCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("DELIVERED")}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${filter === "DELIVERED" ? "bg-white text-ink font-bold shadow-2xs" : "text-ink-muted hover:text-ink"}`}
+            >
+              Đã nhận quà ({deliveredCount})
+            </button>
+          </div>
+        ) : null}
       </div>
+
       {data.backedProjects.length ? (
         <>
-          <PledgeLifecycleGuide projects={data.backedProjects} />
+          <PledgeOverviewCards projects={data.backedProjects} />
           <div className="mt-5 space-y-4">
-            {data.backedProjects.map((item, index) => (
+            {filteredProjects.map((item, index) => (
               <article
                 key={item.pledgeId}
-                className="overflow-hidden rounded-[18px] border border-line bg-white"
+                className="overflow-hidden rounded-2xl border border-line bg-white shadow-2xs transition-shadow hover:shadow-xs"
               >
-                <div className="grid sm:grid-cols-[190px_1fr]">
-                  <CampaignVisual
-                    {...item.campaign.visual}
-                    compact
-                    priority={index === 0}
-                    className="min-h-44 sm:min-h-full"
-                  />
-                  <div className="p-5 sm:p-6">
-                    <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-                      <div>
-                        <StatusBadge status={item.paymentStatus} />
-                        <Link
-                          href={`/projects/${item.campaign.slug}`}
-                          className="mt-3 block font-display text-lg font-extrabold leading-snug hover:text-coral-dark"
-                        >
-                          {item.campaign.title}
-                        </Link>
-                        <p className="mt-2 text-xs text-ink-muted">
-                          {item.rewardTitle}
-                        </p>
-                        <p className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-ink-muted">
-                          <ReceiptText className="size-3.5" /> {item.referenceCode}
-                          <span aria-hidden="true">·</span>
-                          {new Intl.DateTimeFormat("vi-VN", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          }).format(new Date(item.pledgedAt))}
-                        </p>
-                      </div>
-                      <p className="font-display text-xl font-extrabold text-coral-dark">
+                {/* Header bar of the card */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 bg-[#fafaf7] px-5 py-3 text-xs">
+                  <div className="flex items-center gap-2 text-ink-muted">
+                    <ReceiptText className="size-3.5 text-forest shrink-0" />
+                    <span className="font-mono font-bold text-ink">
+                      {item.referenceCode || item.pledgeId.slice(0, 8).toUpperCase()}
+                    </span>
+                    <span aria-hidden="true" className="text-line">•</span>
+                    <span>
+                      {new Intl.DateTimeFormat("vi-VN", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }).format(new Date(item.pledgedAt))}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={item.paymentStatus} />
+                    <FulfillmentBadge status={item.fulfillmentStatus} />
+                  </div>
+                </div>
+
+                {/* Main body of the card */}
+                <div className="p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    {/* Visual Thumbnail */}
+                    <div className="h-24 w-full shrink-0 overflow-hidden rounded-xl border border-line bg-stone-100 sm:w-36">
+                      <CampaignVisual
+                        {...item.campaign.visual}
+                        compact
+                        priority={index === 0}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+
+                    {/* Campaign & Reward info */}
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/projects/${item.campaign.slug}`}
+                        className="font-display text-base font-extrabold leading-snug text-ink transition-colors hover:text-coral-dark"
+                      >
+                        {item.campaign.title}
+                      </Link>
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-soft">
+                        <Gift className="size-3.5 shrink-0 text-coral" />
+                        <span>Gói quà: <strong className="text-ink">{item.rewardTitle}</strong></span>
+                      </p>
+                    </div>
+
+                    {/* Amount pledged */}
+                    <div className="border-t border-line/60 pt-3 text-left sm:border-0 sm:pt-0 sm:text-right shrink-0">
+                      <p className="text-[11px] font-semibold text-ink-muted">Số tiền cam kết</p>
+                      <p className="mt-0.5 font-display text-xl font-black text-ink">
                         {formatVnd(item.amount)}
                       </p>
                     </div>
-                    <div className="mt-5 grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
-                      <FulfillmentState status={item.fulfillmentStatus} />
-                      <div className="flex flex-wrap gap-2 sm:justify-end">
-                        <button
-                          type="button"
-                          onClick={onOpenMessages}
-                          className="inline-flex min-h-11 items-center gap-1.5 px-1 text-xs font-bold text-ink-soft hover:text-coral-dark"
-                        >
-                          <MessageSquare className="size-3.5" /> Nhắn chủ dự án
-                        </button>
-                        <Link
-                          href={`/projects/${item.campaign.slug}`}
-                          className="inline-flex min-h-11 items-center gap-1.5 px-1 text-xs font-bold text-coral-dark"
-                        >
-                          Chi tiết <ArrowRight className="size-3.5" />
-                        </Link>
+                  </div>
+
+                  {/* Footer status message & action buttons */}
+                  <div className="mt-4 flex flex-col justify-between gap-3 border-t border-line/70 pt-3.5 sm:flex-row sm:items-center">
+                    {item.fulfillmentStatus === "DELIVERED" ? (
+                      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                        <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                        <span>Đơn hàng đã được giao thành công đến bạn ({item.nextStepAt})</span>
                       </div>
-                    </div>
-                    <div className="mt-4 border-l-2 border-[#d29b66] bg-[#fff8f0] px-3 py-2.5">
-                      <p className="text-[10px] font-bold text-ink">Mốc kế tiếp</p>
-                      <p className="mt-1 text-[11px] leading-5 text-ink-soft">
-                        {item.nextStep}
-                      </p>
-                      <p className="mt-1 text-[9px] font-semibold text-ink-muted">
-                        {item.nextStepAt}
-                      </p>
+                    ) : item.fulfillmentStatus === "SHIPPED" ? (
+                      <div className="flex items-center gap-2 text-xs font-semibold text-sky-700">
+                        <Truck className="size-4 shrink-0 text-sky-600" />
+                        <span>Đang giao: {item.nextStep} ({item.nextStepAt})</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-xs text-ink-muted">
+                        <Clock3 className="size-4 shrink-0 text-stone-400" />
+                        <span>Tiến độ: <span className="font-semibold text-ink-soft">{item.nextStep}</span> ({item.nextStepAt})</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={onOpenMessages}
+                        className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-bold text-ink-soft shadow-2xs transition-colors hover:border-coral/40 hover:text-coral-dark"
+                      >
+                        <MessageSquare className="size-3.5" />
+                        Nhắn chủ dự án
+                      </button>
+                      <Link
+                        href={`/projects/${item.campaign.slug}`}
+                        className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-forest px-3 text-xs font-bold text-lime shadow-2xs transition-colors hover:bg-forest/90"
+                      >
+                        Chi tiết <ArrowRight className="size-3.5" />
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -658,48 +708,118 @@ function FollowingPanel({ data }: { data: UserDashboardData }) {
 
 function MessagesPanel({
   data,
+  campaigns = [],
   composeOpen,
   onComposeOpenChange,
 }: {
   data: UserDashboardData;
+  campaigns?: CampaignCardData[];
   composeOpen: boolean;
   onComposeOpenChange: (open: boolean) => void;
 }) {
   const { session } = useAuth();
-  const recipients = [
-    ...new Map(
-      data.backedProjects.map((item) => {
-        const recipient = {
-          key: `${item.campaign.id}:${item.campaign.creator.id}`,
-          campaignId: item.campaign.id,
-          campaignTitle: item.campaign.title,
-          userId: item.campaign.creator.id,
-          name: item.campaign.creator.name,
-        };
-        return [recipient.key, recipient] as const;
-      }),
-    ).values(),
-  ];
+  const [subTab, setSubTab] = useState<"inbox" | "sent">("inbox");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [syncNotice, setSyncNotice] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replying, setReplying] = useState(false);
+
+  // Xây dựng danh sách người nhận phong phú
+  const recipientsMap = new Map<
+    string,
+    {
+      key: string;
+      campaignId: string;
+      campaignTitle: string;
+      userId: string;
+      name: string;
+    }
+  >();
+
+  // 1. Dự án đã ủng hộ
+  for (const item of data.backedProjects) {
+    if (item.campaign?.id && item.campaign.creator?.id) {
+      recipientsMap.set(`${item.campaign.id}:${item.campaign.creator.id}`, {
+        key: `${item.campaign.id}:${item.campaign.creator.id}`,
+        campaignId: item.campaign.id,
+        campaignTitle: item.campaign.title,
+        userId: item.campaign.creator.id,
+        name: item.campaign.creator.name,
+      });
+    }
+  }
+
+  // 2. Dự án đã lưu
+  for (const item of data.savedProjects) {
+    if (item.id && item.creator?.id) {
+      recipientsMap.set(`${item.id}:${item.creator.id}`, {
+        key: `${item.id}:${item.creator.id}`,
+        campaignId: item.id,
+        campaignTitle: item.title,
+        userId: item.creator.id,
+        name: item.creator.name,
+      });
+    }
+  }
+
+  // 3. Toàn bộ dự án hệ thống
+  for (const item of campaigns) {
+    if (item.id && item.creator?.id) {
+      recipientsMap.set(`${item.id}:${item.creator.id}`, {
+        key: `${item.id}:${item.creator.id}`,
+        campaignId: item.id,
+        campaignTitle: item.title,
+        userId: item.creator.id,
+        name: item.creator.name,
+      });
+    }
+  }
+
+  // 4. Những người đã gửi thư cho bạn
+  for (const item of data.messages) {
+    if (item.campaignId && item.senderId) {
+      recipientsMap.set(`${item.campaignId}:${item.senderId}`, {
+        key: `${item.campaignId}:${item.senderId}`,
+        campaignId: item.campaignId,
+        campaignTitle: item.campaignTitle || "Chiến dịch liên quan",
+        userId: item.senderId,
+        name: item.sender,
+      });
+    }
+  }
+
+  const recipients = Array.from(recipientsMap.values());
+
   const [draftMessage, setDraftMessage] = useState({
     recipientKey: recipients[0]?.key ?? "",
     subject: "",
     body: "",
   });
+
   const [sentMessages, setSentMessages] = useState<
     Array<{
       id: string;
       campaignId: string;
+      campaignTitle?: string;
       senderId: string;
       recipientId: string;
       recipient: string;
       subject: string;
       body: string;
       sentAt: string;
+      replies?: Array<{
+        id: string;
+        senderId: string;
+        senderName: string;
+        body: string;
+        sentAt: string;
+      }>;
     }>
   >(() => data.sentMessages);
+
+  const [inboxMessages, setInboxMessages] = useState(() => data.messages);
+
   const [readIds, setReadIds] = useState(
     () =>
       new Set(
@@ -719,16 +839,18 @@ function MessagesPanel({
         next.delete(messageId);
         return next;
       });
-      setSyncNotice(clientRequestMessage(error, "Chưa thể đánh dấu đã đọc. Bạn thử lại sau nhé."));
+      setSyncNotice(
+        clientRequestMessage(error, "Chưa thể đánh dấu đã đọc. Bạn thử lại sau nhé."),
+      );
     });
   };
 
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!draftMessage.subject.trim() || !draftMessage.body.trim()) return;
-    const recipient = recipients.find(
-      (item) => item.key === draftMessage.recipientKey,
-    );
+    const recipient =
+      recipients.find((item) => item.key === draftMessage.recipientKey) ??
+      recipients[0];
     if (!recipient) {
       setSyncNotice("Chưa xác định được dự án nhận tin nhắn.");
       return;
@@ -739,88 +861,160 @@ function MessagesPanel({
       await updateDashboard("SEND_MESSAGE", {
         campaignId: recipient.campaignId,
         recipientUserId: recipient.userId,
-        subject: draftMessage.subject,
-        body: draftMessage.body,
+        subject: draftMessage.subject.trim(),
+        body: draftMessage.body.trim(),
       });
       setSentMessages((current) => [
         {
           id: `sent-${Date.now()}`,
           campaignId: recipient.campaignId,
+          campaignTitle: recipient.campaignTitle,
           senderId: session?.user.id ?? "preview-backer",
           recipientId: recipient.userId,
           recipient: recipient.name,
           subject: draftMessage.subject.trim(),
           body: draftMessage.body.trim(),
           sentAt: "Vừa xong",
+          replies: [],
         },
         ...current,
       ]);
-      setDraftMessage((current) => ({
-        ...current,
+      setDraftMessage({
+        recipientKey: recipients[0]?.key ?? "",
         subject: "",
         body: "",
-      }));
+      });
       onComposeOpenChange(false);
-      setSyncNotice("Tin nhắn đã được gửi đến chủ dự án.");
+      setSubTab("sent");
+      setSyncNotice("Tin nhắn đã được gửi thành công đến chủ dự án.");
     } catch (error) {
-      setSyncNotice(clientRequestMessage(error, "Chưa thể gửi tin nhắn. Nội dung của bạn vẫn được giữ lại."));
+      setSyncNotice(
+        clientRequestMessage(error, "Chưa thể gửi tin nhắn. Nội dung của bạn vẫn được giữ lại."),
+      );
     } finally {
       setSending(false);
     }
   };
 
-  if (!recipients.length) {
-    return (
-      <div>
-        <h2 className="font-display text-2xl font-extrabold">Hộp thư</h2>
-        <p className="mt-2 text-sm text-ink-muted">
-          Tin nhắn với các nhóm dự án sẽ được lưu tại đây.
-        </p>
-        <DashboardEmptyState
-          icon={Mail}
-          title="Hộp thư đang trống"
-          detail="Sau khi ủng hộ hoặc theo dõi một dự án, bạn có thể trao đổi trực tiếp với nhóm thực hiện từ trang chiến dịch."
-          actionLabel="Xem dự án đang gọi vốn"
-          actionHref="/discover?status=LIVE"
-        />
-      </div>
-    );
-  }
+  const handleSendReply = async (parentMessage: any) => {
+    if (!replyText.trim()) return;
+    setReplying(true);
+    try {
+      const recipientId =
+        parentMessage.senderId === session?.user.id
+          ? parentMessage.recipientId
+          : parentMessage.senderId;
+
+      await updateDashboard("SEND_MESSAGE", {
+        campaignId: parentMessage.campaignId,
+        recipientUserId: recipientId,
+        parentMessageId: parentMessage.id,
+        subject: `Re: ${parentMessage.subject}`,
+        body: replyText.trim(),
+      });
+
+      const newReply = {
+        id: `reply-${Date.now()}`,
+        senderId: session?.user.id || "",
+        senderName: session?.user.name || "Bạn",
+        body: replyText.trim(),
+        sentAt: "Vừa xong",
+      };
+
+      setInboxMessages((current) =>
+        current.map((item) =>
+          item.id === parentMessage.id
+            ? { ...item, replies: [...(item.replies || []), newReply] }
+            : item,
+        ),
+      );
+      setSentMessages((current) =>
+        current.map((item) =>
+          item.id === parentMessage.id
+            ? { ...item, replies: [...(item.replies || []), newReply] }
+            : item,
+        ),
+      );
+
+      setReplyText("");
+      setSyncNotice("Đã gửi phản hồi thành công.");
+    } catch (err) {
+      setSyncNotice(
+        clientRequestMessage(err, "Chưa thể gửi phản hồi. Vui lòng thử lại."),
+      );
+    } finally {
+      setReplying(false);
+    }
+  };
+
+  const unreadCount = inboxMessages.filter((item) => !readIds.has(item.id)).length;
 
   return (
     <div>
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h2 className="font-display text-2xl font-extrabold">Hộp thư</h2>
-          <p className="mt-2 text-sm text-ink-muted">
-            Tin nhắn từ những dự án bạn đã ủng hộ hoặc đang theo dõi.
+          <h2 className="font-display text-2xl font-extrabold text-ink">Hộp thư</h2>
+          <p className="mt-1 text-xs text-ink-muted">
+            Trao đổi trực tiếp với các nhóm dự án bạn đã ủng hộ hoặc đang quan tâm.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-coral px-2.5 py-1 text-[10px] font-bold text-white">
-            {data.messages.filter((item) => !readIds.has(item.id)).length} chưa
-            đọc
-          </span>
+          <div className="flex items-center gap-1 rounded-xl border border-line bg-[#f8f8f5] p-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setSubTab("inbox")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors cursor-pointer ${
+                subTab === "inbox"
+                  ? "bg-white text-ink font-bold shadow-2xs"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              <Mail className="size-3.5" />
+              <span>Hộp thư đến</span>
+              {unreadCount > 0 ? (
+                <span className="rounded-full bg-coral px-1.5 py-0.2 text-[9px] font-black text-white">
+                  {unreadCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubTab("sent")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors cursor-pointer ${
+                subTab === "sent"
+                  ? "bg-white text-ink font-bold shadow-2xs"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              <Send className="size-3.5" />
+              <span>Đã gửi ({sentMessages.length})</span>
+            </button>
+          </div>
           <button
             type="button"
             aria-expanded={composeOpen}
             onClick={() => onComposeOpenChange(!composeOpen)}
-            className="button-dark min-h-11 px-4 text-xs"
+            className="button-dark min-h-10 px-3.5 text-xs font-bold cursor-pointer"
           >
-            <MessageSquare className="size-4" /> Soạn tin
+            <MessageSquare className="size-3.5" /> Soạn tin
           </button>
         </div>
       </div>
+
       <p
-        className={`mt-3 min-h-5 text-xs ${syncNotice.startsWith("Chưa") ? "text-red-600" : "text-ink-muted"}`}
+        className={`mt-2 min-h-5 text-xs ${
+          syncNotice.startsWith("Chưa") ? "text-red-600" : "text-emerald-700"
+        }`}
         role={syncNotice.startsWith("Chưa") ? "alert" : "status"}
       >
         {syncNotice}
       </p>
+
+      {/* Modal Soạn tin */}
       <Modal
         open={composeOpen}
         title="Soạn tin cho nhóm dự án"
-        description="Tin nhắn được gắn với đúng chiến dịch và tài khoản người gửi để nhóm dự án có thể tra lại lịch sử."
+        description="Tin nhắn được gắn với dự án và tài khoản người gửi để nhóm dự án có thể tra lại lịch sử."
         onClose={() => onComposeOpenChange(false)}
         locked={sending}
       >
@@ -830,10 +1024,10 @@ function MessagesPanel({
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
-              <span className="text-xs font-bold text-ink-soft">Gửi đến</span>
+              <span className="text-xs font-bold text-ink-soft">Gửi đến dự án</span>
               <select
                 name="message-recipient"
-                value={draftMessage.recipientKey}
+                value={draftMessage.recipientKey || (recipients[0]?.key ?? "")}
                 onChange={(event) =>
                   setDraftMessage((current) => ({
                     ...current,
@@ -842,11 +1036,15 @@ function MessagesPanel({
                 }
                 className="input-field mt-2"
               >
-                {recipients.map((recipient) => (
-                  <option key={recipient.key} value={recipient.key}>
-                    {recipient.campaignTitle} · {recipient.name}
-                  </option>
-                ))}
+                {recipients.length > 0 ? (
+                  recipients.map((recipient) => (
+                    <option key={recipient.key} value={recipient.key}>
+                      {recipient.campaignTitle} · {recipient.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Chưa có dự án nào</option>
+                )}
               </select>
             </label>
             <label>
@@ -861,13 +1059,13 @@ function MessagesPanel({
                   }))
                 }
                 className="input-field mt-2"
-                placeholder="Ví dụ: Hỏi về thời gian giao quà"
+                placeholder="Ví dụ: Hỏi về chất liệu hoặc thời gian giao quà"
                 maxLength={180}
               />
             </label>
           </div>
           <label className="mt-4 block">
-            <span className="text-xs font-bold text-ink-soft">Nội dung</span>
+            <span className="text-xs font-bold text-ink-soft">Nội dung câu hỏi / trao đổi</span>
             <textarea
               name="message-body"
               value={draftMessage.body}
@@ -878,11 +1076,11 @@ function MessagesPanel({
                 }))
               }
               className="input-field mt-2 min-h-28 resize-y"
-              placeholder="Viết nội dung bạn muốn trao đổi với nhóm dự án…"
+              placeholder="Viết nội dung bạn muốn trao đổi chi tiết với nhóm dự án…"
               maxLength={4000}
             />
             <span className="mt-1.5 flex justify-between gap-4 text-[10px] text-ink-muted">
-              <span>Viết chi tiết để nhóm dự án phản hồi chính xác.</span>
+              <span>Nhóm dự án sẽ nhận được thông báo và phản hồi qua hộp thư này.</span>
               <span>{draftMessage.body.length}/4000</span>
             </span>
           </label>
@@ -890,7 +1088,7 @@ function MessagesPanel({
             <button
               type="button"
               onClick={() => onComposeOpenChange(false)}
-              className="button-ghost min-h-11 px-4 text-xs"
+              className="button-ghost min-h-11 px-4 text-xs cursor-pointer"
             >
               Hủy
             </button>
@@ -901,7 +1099,7 @@ function MessagesPanel({
                 !draftMessage.subject.trim() ||
                 !draftMessage.body.trim()
               }
-              className="button-primary min-h-11 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              className="button-primary min-h-11 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
               <Send className="size-4" />
               {sending ? "Đang gửi…" : "Gửi tin nhắn"}
@@ -909,80 +1107,192 @@ function MessagesPanel({
           </div>
         </form>
       </Modal>
-      {sentMessages.length ? (
-        <div className="mt-5 space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
-            Vừa gửi
-          </p>
-          {sentMessages.map((message) => (
-            <article
-              key={message.id}
-              className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-bold">Đến {message.recipient}</p>
-                <span className="text-[10px] text-emerald-700">
-                  {message.sentAt}
-                </span>
-              </div>
-              <p className="mt-2 text-sm font-semibold">{message.subject}</p>
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-muted">
-                {message.body}
-              </p>
-            </article>
-          ))}
-        </div>
-      ) : null}
-      {data.messages.length ? (
-        <div className="mt-6 divide-y divide-line overflow-hidden rounded-[22px] border border-line bg-white">
-          {data.messages.map((message) => (
-            <button
-              key={message.id}
-              type="button"
-              aria-expanded={selectedId === message.id}
-              onClick={() => openMessage(message.id)}
-              className={`flex w-full cursor-pointer gap-4 p-4 text-left hover:bg-[#fafaf6] ${!readIds.has(message.id) ? "bg-[#fffaf6]" : ""}`}
-            >
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e9eddf] text-xs font-bold">
-                {message.initials}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="truncate font-display text-sm font-extrabold">
-                    {message.sender}
-                  </p>
-                  <span className="shrink-0 text-[10px] text-ink-muted">
+
+      {/* Tab Nội dung: Hộp thư đến */}
+      {subTab === "inbox" ? (
+        inboxMessages.length ? (
+          <div className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white shadow-2xs">
+            {inboxMessages.map((message) => {
+              const isSelected = selectedId === message.id;
+              const isUnread = !readIds.has(message.id);
+
+              return (
+                <div
+                  key={message.id}
+                  className={`transition-colors ${
+                    isUnread ? "bg-[#fffaf4]" : "hover:bg-[#fafaf6]"
+                  }`}
+                >
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openMessage(message.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        openMessage(message.id);
+                      }
+                    }}
+                    className="flex w-full cursor-pointer gap-4 p-4.5 text-left"
+                  >
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-forest/10 font-bold text-forest text-xs">
+                      {message.initials || "DA"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-display text-sm font-extrabold text-ink">
+                            {message.sender}
+                          </p>
+                          {message.campaignTitle ? (
+                            <span className="rounded-md border border-line bg-stone-100/70 px-2 py-0.5 text-[10px] font-semibold text-ink-muted">
+                              {message.campaignTitle}
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="text-[10px] font-medium text-ink-muted">
+                          {message.sentAt}
+                        </span>
+                      </div>
+                      <p className="mt-1 font-semibold text-xs text-ink">
+                        {message.subject}
+                      </p>
+                      <p
+                        className={`mt-1 text-xs text-ink-muted ${
+                          isSelected ? "whitespace-pre-wrap leading-relaxed text-ink-soft" : "line-clamp-2"
+                        }`}
+                      >
+                        {message.preview}
+                      </p>
+                    </div>
+                    {isUnread ? (
+                      <span className="mt-2 size-2 shrink-0 rounded-full bg-coral" />
+                    ) : null}
+                  </div>
+
+                  {/* Khi tin nhắn được mở: Hiển thị thread hội thoại + Form Trả lời */}
+                  {isSelected ? (
+                    <div className="border-t border-line/70 bg-[#faf9f5] p-4.5 pl-14">
+                      {message.replies && message.replies.length > 0 ? (
+                        <div className="mb-4 space-y-2.5">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                            Các phản hồi trong cuộc trò chuyện
+                          </p>
+                          {message.replies.map((reply: any) => (
+                            <div
+                              key={reply.id}
+                              className="rounded-xl border border-line bg-white p-3 text-xs"
+                            >
+                              <div className="flex items-center justify-between text-[11px] font-bold text-ink-muted">
+                                <span>{reply.senderName}</span>
+                                <span>{reply.sentAt}</span>
+                              </div>
+                              <p className="mt-1 text-ink-soft leading-relaxed whitespace-pre-wrap">
+                                {reply.body}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {/* Form phản hồi trực tiếp */}
+                      <div className="mt-3">
+                        <label className="block text-xs font-bold text-ink-soft">
+                          Gửi phản hồi nhanh cho {message.sender}
+                        </label>
+                        <div className="mt-2 flex gap-2">
+                          <textarea
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder="Nhập nội dung phản hồi của bạn…"
+                            rows={2}
+                            className="input-field min-h-16 flex-1 text-xs resize-y"
+                          />
+                          <button
+                            type="button"
+                            disabled={replying || !replyText.trim()}
+                            onClick={() => handleSendReply(message)}
+                            className="button-primary self-end px-3.5 py-2 text-xs font-bold disabled:opacity-40 cursor-pointer"
+                          >
+                            <Send className="size-3.5" />
+                            {replying ? "Đang gửi…" : "Gửi"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <DashboardEmptyState
+            icon={Mail}
+            title="Chưa có tin nhắn đến"
+            detail="Khi chủ dự án gửi cập nhật riêng hoặc phản hồi câu hỏi của bạn, tin nhắn sẽ xuất hiện tại đây."
+            actionLabel="Soạn tin nhắn mới"
+            onAction={() => onComposeOpenChange(true)}
+          />
+        )
+      ) : (
+        /* Tab Nội dung: Thư đã gửi */
+        sentMessages.length ? (
+          <div className="mt-4 space-y-3">
+            {sentMessages.map((message) => (
+              <article
+                key={message.id}
+                className="overflow-hidden rounded-2xl border border-line bg-white p-4.5 shadow-2xs"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-bold text-ink">Gửi đến: {message.recipient}</span>
+                    {message.campaignTitle ? (
+                      <span className="rounded-md border border-line bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-ink-muted">
+                        {message.campaignTitle}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="text-[10px] font-medium text-ink-muted">
                     {message.sentAt}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-xs font-semibold text-ink-soft">
-                  {message.subject}
+                <p className="mt-2 text-sm font-bold text-ink">{message.subject}</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-soft whitespace-pre-wrap">
+                  {message.body}
                 </p>
-                <p
-                  className={`mt-1 text-xs text-ink-muted ${selectedId === message.id ? "whitespace-normal leading-5" : "truncate"}`}
-                >
-                  {message.preview}
-                </p>
-                {selectedId === message.id ? (
-                  <p className="mt-3 text-[10px] font-bold text-coral-dark">
-                    Tin nhắn đã được đánh dấu là đã đọc.
-                  </p>
+
+                {message.replies && message.replies.length > 0 ? (
+                  <div className="mt-3 space-y-2 border-t border-line/70 pt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      Phản hồi từ chủ dự án:
+                    </p>
+                    {message.replies.map((reply: any) => (
+                      <div
+                        key={reply.id}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs"
+                      >
+                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800">
+                          <span>{reply.senderName}</span>
+                          <span>{reply.sentAt}</span>
+                        </div>
+                        <p className="mt-1 text-emerald-950 leading-relaxed whitespace-pre-wrap">
+                          {reply.body}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 ) : null}
-              </div>
-              {!readIds.has(message.id) ? (
-                <span className="mt-2 size-2 shrink-0 rounded-full bg-coral" />
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-6 rounded-[22px] border border-dashed border-line bg-white p-7 text-center">
-          <Mail className="mx-auto size-5 text-ink-muted" />
-          <p className="mt-3 text-sm font-bold">Chưa có thư đến</p>
-          <p className="mt-1 text-xs leading-5 text-ink-muted">
-            Bạn vẫn có thể chủ động nhắn cho nhóm dự án bằng nút Soạn tin.
-          </p>
-        </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <DashboardEmptyState
+            icon={Send}
+            title="Chưa có thư đã gửi"
+            detail="Bạn có thể chủ động liên hệ với bất kỳ chủ dự án nào để hỏi về quà tặng, tiến độ hoặc thắc mắc trước khi ủng hộ."
+            actionLabel="Soạn tin nhắn ngay"
+            onAction={() => onComposeOpenChange(true)}
+          />
+        )
       )}
     </div>
   );
@@ -1118,12 +1428,14 @@ function SettingsPanel() {
 function DashboardContent({
   tab,
   data,
+  campaigns = [],
   onOpenMessages,
   messageComposerOpen,
   onMessageComposerOpenChange,
 }: {
   tab: DashboardTab;
   data: UserDashboardData;
+  campaigns?: CampaignCardData[];
   onOpenMessages: () => void;
   messageComposerOpen: boolean;
   onMessageComposerOpenChange: (open: boolean) => void;
@@ -1137,6 +1449,7 @@ function DashboardContent({
     return (
       <MessagesPanel
         data={data}
+        campaigns={campaigns}
         composeOpen={messageComposerOpen}
         onComposeOpenChange={onMessageComposerOpenChange}
       />
@@ -1148,9 +1461,11 @@ function DashboardContent({
 export function BackerDashboard({
   data,
   friendlyName,
+  campaigns = [],
 }: {
   data: UserDashboardData;
   friendlyName: string;
+  campaigns?: CampaignCardData[];
 }) {
   const [tab, setTab] = useQueryTab<DashboardTab>(dashboardTabIds, "backed");
   const [messageComposerOpen, setMessageComposerOpen] = useState(false);
@@ -1233,6 +1548,7 @@ export function BackerDashboard({
               <DashboardContent
                 tab={panelTab}
                 data={data}
+                campaigns={campaigns}
                 messageComposerOpen={messageComposerOpen}
                 onMessageComposerOpenChange={setMessageComposerOpen}
                 onOpenMessages={() => {

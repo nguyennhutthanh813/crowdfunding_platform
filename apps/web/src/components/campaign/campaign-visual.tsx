@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Coffee,
   Dice5,
@@ -7,6 +9,7 @@ import {
   Leaf,
 } from 'lucide-react';
 import Image from 'next/image';
+import { useState } from 'react';
 
 export type CampaignMotif = 'coffee' | 'game' | 'light' | 'health' | 'music' | 'eco';
 export type CampaignPalette = 'ember' | 'mint' | 'indigo' | 'sun' | 'rose' | 'ocean';
@@ -66,18 +69,38 @@ export function CampaignVisual({
   priority = false,
 }: CampaignVisualProps) {
   const Icon = icons[motif];
-  const safeSrc = isSafeImageSrc(imageSrc) ? imageSrc : null;
+  const [hasError, setHasError] = useState(false);
+
+  let safeSrc = isSafeImageSrc(imageSrc) ? imageSrc?.trim() : null;
+  if (
+    safeSrc &&
+    !safeSrc.startsWith('http://') &&
+    !safeSrc.startsWith('https://') &&
+    !safeSrc.startsWith('data:') &&
+    !safeSrc.startsWith('/')
+  ) {
+    safeSrc = '/' + safeSrc;
+  }
+
+  const showImage = Boolean(safeSrc && !hasError);
+
   return (
     <div
       className={`relative isolate overflow-hidden bg-gradient-to-br ${palettes[palette]} ${className}`}
       role="group"
       aria-label={`Hình ảnh dự án ${label}`}
     >
-      {safeSrc ? (
+      {showImage && safeSrc ? (
         <Image
           src={safeSrc}
           alt={imageAlt ?? `Hình ảnh dự án ${label}`}
           fill
+          unoptimized={
+            safeSrc.startsWith('/uploads/') ||
+            safeSrc.startsWith('data:') ||
+            safeSrc.startsWith('/images/')
+          }
+          onError={() => setHasError(true)}
           loading={priority ? 'eager' : 'lazy'}
           fetchPriority={priority ? 'high' : 'auto'}
           sizes={

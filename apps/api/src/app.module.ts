@@ -12,6 +12,7 @@ import { SocialModule } from './modules/social/social.module';
 import { CommunicationModule } from './modules/communication/communication.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AdminModule } from './modules/admin/admin.module';
     CommunicationModule,
     AnalyticsModule,
     AdminModule,
+    AiModule,
   ],
 })
 export class AppModule {}

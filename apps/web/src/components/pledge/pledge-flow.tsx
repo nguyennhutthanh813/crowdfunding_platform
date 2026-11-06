@@ -1,16 +1,21 @@
 "use client";
 
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Check,
   CheckCircle2,
   CreditCard,
+  ExternalLink,
   Gift,
   LoaderCircle,
   LockKeyhole,
   MapPin,
+  Minus,
   PackagePlus,
+  Pencil,
+  Phone,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -23,6 +28,7 @@ import type {
   UserAddress,
 } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
+import { useAuth } from "@/components/auth/auth-provider";
 import { formatVnd } from "@/lib/format";
 
 const steps = [
@@ -48,9 +54,10 @@ export function PledgeFlow({
       : (campaign.rewards.find((reward) => reward.featured)?.id ??
         campaign.rewards[0]?.id ??
         NO_REWARD_ID);
+  const { session, updateProfile } = useAuth();
   const [step, setStep] = useState(0);
   const [rewardId, setRewardId] = useState<string>(defaultReward);
-  const [addOnIds, setAddOnIds] = useState<string[]>([]);
+  const [addOnQuantities, setAddOnQuantities] = useState<Record<string, number>>({});
   const [bonus, setBonus] = useState(
     defaultReward === NO_REWARD_ID ? "100000" : "0",
   );
@@ -63,6 +70,10 @@ export function PledgeFlow({
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isUsingCustomAddress, setIsUsingCustomAddress] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<UserAddress | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+  const [phoneNotice, setPhoneNotice] = useState("");
   const [saveToAddressBook, setSaveToAddressBook] = useState(false);
 
   const [card, setCard] = useState({ number: "", expiry: "", cvc: "" });
@@ -71,12 +82,28 @@ export function PledgeFlow({
   const [result, setResult] = useState<AuthorizePledgeResult | null>(null);
   const [attemptedStep, setAttemptedStep] = useState<number | null>(null);
 
+  const isPhoneValid = useMemo(() => {
+    const digits = address.phone.replace(/\D/g, "");
+    return /^0\d{9}$/.test(digits);
+  }, [address.phone]);
+
   useEffect(() => {
     let isMounted = true;
     fetch("/api/v1/me/addresses")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!isMounted || !data?.addresses?.length) return;
+        if (!isMounted) return;
+        if (!data?.addresses?.length) {
+          // Nếu chưa có địa chỉ lưu, điền sẵn thông tin từ tài khoản nếu có
+          if (session?.user) {
+            setAddress((prev) => ({
+              ...prev,
+              fullName: prev.fullName || session.user.name || "",
+              phone: prev.phone || session.user.phone || "",
+            }));
+          }
+          return;
+        }
         const list = data.addresses as UserAddress[];
         setSavedAddresses(list);
         const defaultAddr = list.find((a) => a.isDefault) || list[0];
@@ -85,11 +112,18 @@ export function PledgeFlow({
           const fullLine = [defaultAddr.line1, defaultAddr.ward, defaultAddr.district]
             .filter(Boolean)
             .join(", ");
+
+          // Ưu tiên số điện thoại của địa chỉ, nếu không hợp lệ thì fallback sang số điện thoại tài khoản
+          const phoneValid = /^0\d{9}$/.test((defaultAddr.phone || "").replace(/\D/g, ""));
+          const effectivePhone = phoneValid
+            ? defaultAddr.phone
+            : (session?.user?.phone || defaultAddr.phone || "");
+
           setAddress({
-            fullName: defaultAddr.recipientName,
-            phone: defaultAddr.phone,
+            fullName: defaultAddr.recipientName || session?.user?.name || "",
+            phone: effectivePhone,
             line1: fullLine,
-            city: defaultAddr.province,
+            city: defaultAddr.province || "TP. Hồ Chí Minh",
           });
         }
       })
@@ -99,40 +133,151 @@ export function PledgeFlow({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [session?.user]);
 
   const handleSelectSavedAddress = (addr: UserAddress) => {
     setSelectedAddressId(addr.id);
     setIsUsingCustomAddress(false);
+    setEditingAddress(null);
     const fullLine = [addr.line1, addr.ward, addr.district]
       .filter(Boolean)
       .join(", ");
+
+    const phoneValid = /^0\d{9}$/.test((addr.phone || "").replace(/\D/g, ""));
+    const effectivePhone = phoneValid
+      ? addr.phone
+      : (session?.user?.phone || addr.phone || "");
+
     setAddress({
       fullName: addr.recipientName,
-      phone: addr.phone,
+      phone: effectivePhone,
       line1: fullLine,
       city: addr.province,
     });
   };
 
+  const handleStartEditSavedAddress = (addr: UserAddress) => {
+    setEditingAddress(addr);
+    setIsUsingCustomAddress(false);
+    setSelectedAddressId(addr.id);
+    const fullLine = [addr.line1, addr.ward, addr.district].filter(Boolean).join(", ");
+    setAddress({
+      fullName: addr.recipientName,
+      phone: addr.phone || session?.user?.phone || "",
+      line1: fullLine,
+      city: addr.province,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAddress(null);
+    if (selectedAddressId) {
+      const selected = savedAddresses.find((a) => a.id === selectedAddressId);
+      if (selected) handleSelectSavedAddress(selected);
+    }
+  };
+
+  const handleSaveEditedAddress = async () => {
+    if (!editingAddress) return;
+    setIsSavingEdit(true);
+    try {
+      const payload = {
+        recipientName: address.fullName.trim(),
+        phone: address.phone.trim(),
+        line1: address.line1.trim(),
+        province: address.city,
+      };
+      const res = await fetch(`/api/v1/me/addresses/${editingAddress.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setSavedAddresses((prev) =>
+          prev.map((a) =>
+            a.id === editingAddress.id ? { ...a, ...payload } : a,
+          ),
+        );
+        setEditingAddress(null);
+      }
+    } catch (err) {
+      console.warn("Lỗi cập nhật địa chỉ:", err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleQuickSavePhone = async () => {
+    if (!selectedAddressId || !isPhoneValid) return;
+    setIsSavingPhone(true);
+    try {
+      const cleanPhone = address.phone.trim();
+      const res = await fetch(`/api/v1/me/addresses/${selectedAddressId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
+      if (res.ok) {
+        setSavedAddresses((prev) =>
+          prev.map((a) =>
+            a.id === selectedAddressId ? { ...a, phone: cleanPhone } : a,
+          ),
+        );
+        setPhoneNotice("Đã cập nhật số điện thoại vào địa chỉ giao nhận!");
+        setTimeout(() => setPhoneNotice(""), 3500);
+
+        if (session?.user && !session.user.phone) {
+          void updateProfile({
+            name: session.user.name || address.fullName,
+            headline: session.user.headline || "",
+            phone: cleanPhone,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Lỗi lưu số điện thoại:", err);
+    } finally {
+      setIsSavingPhone(false);
+    }
+  };
+
   const handleUseNewAddress = () => {
     setSelectedAddressId(null);
     setIsUsingCustomAddress(true);
+    setEditingAddress(null);
     setAddress({
-      fullName: "",
-      phone: "",
+      fullName: session?.user?.name || "",
+      phone: session?.user?.phone || "",
       line1: "",
       city: "TP. Hồ Chí Minh",
     });
   };
 
   const reward = campaign.rewards.find((item) => item.id === rewardId) ?? null;
-  const selectedAddOns = reward
-    ? campaign.addOns.filter((item) => addOnIds.includes(item.id))
-    : [];
-  const addOnAmount = selectedAddOns.reduce(
-    (sum, item) => sum + item.amount,
-    0,
+  const addOnIds = useMemo(
+    () =>
+      Object.keys(addOnQuantities).filter(
+        (id) => (addOnQuantities[id] || 0) > 0,
+      ),
+    [addOnQuantities],
+  );
+  const selectedAddOns = useMemo(() => {
+    if (!reward) return [];
+    return campaign.addOns
+      .filter((item) => (addOnQuantities[item.id] || 0) > 0)
+      .map((item) => {
+        const qty = addOnQuantities[item.id] || 1;
+        return {
+          item,
+          quantity: qty,
+          totalPrice: item.amount * qty,
+        };
+      });
+  }, [reward, campaign.addOns, addOnQuantities]);
+
+  const addOnAmount = useMemo(
+    () => selectedAddOns.reduce((sum, entry) => sum + entry.totalPrice, 0),
+    [selectedAddOns],
   );
   const bonusAmount = Math.max(0, Number(bonus) || 0);
   const rewardAmount = reward?.amount ?? 0;
@@ -147,7 +292,7 @@ export function PledgeFlow({
     }
     if (step === 2) {
       if (address.fullName.trim().length < 2) issues.push("Nhập họ và tên người nhận.");
-      if (!/^0\d{9}$/.test(address.phone.replace(/\D/g, ""))) {
+      if (!isPhoneValid) {
         issues.push("Số điện thoại cần đủ 10 số và bắt đầu bằng 0.");
       }
       if (address.line1.trim().length < 5) {
@@ -176,19 +321,74 @@ export function PledgeFlow({
       setAttemptedStep(step);
       return;
     }
+
+    // Tự động đồng bộ số điện thoại vào địa chỉ đã lưu nếu người dùng nhập SĐT hợp lệ
+    if (step === 2 && selectedAddressId && isPhoneValid) {
+      const currentSaved = savedAddresses.find((a) => a.id === selectedAddressId);
+      const cleanPhone = address.phone.trim();
+      if (currentSaved && currentSaved.phone !== cleanPhone) {
+        void fetch(`/api/v1/me/addresses/${selectedAddressId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: cleanPhone }),
+        });
+        setSavedAddresses((prev) =>
+          prev.map((a) =>
+            a.id === selectedAddressId ? { ...a, phone: cleanPhone } : a,
+          ),
+        );
+      }
+      if (session?.user && !session.user.phone) {
+        void updateProfile({
+          name: session.user.name || address.fullName,
+          headline: session.user.headline || "",
+          phone: cleanPhone,
+        });
+      }
+    }
+
     setAttemptedStep(null);
     setStep((value) => Math.min(3, value + 1));
   };
 
   const toggleAddOn = (id: string) =>
-    setAddOnIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
+    setAddOnQuantities((current) => {
+      const next = { ...current };
+      if ((next[id] || 0) > 0) {
+        delete next[id];
+      } else {
+        next[id] = 1;
+      }
+      return next;
+    });
+
+  const updateAddOnQuantity = (id: string, delta: number) =>
+    setAddOnQuantities((current) => {
+      const next = { ...current };
+      const currentQty = next[id] || 0;
+      const nextQty = currentQty + delta;
+      if (nextQty <= 0) {
+        delete next[id];
+      } else {
+        next[id] = Math.min(nextQty, 99);
+      }
+      return next;
+    });
+
+  const setAddOnQuantity = (id: string, quantity: number) =>
+    setAddOnQuantities((current) => {
+      const next = { ...current };
+      if (quantity <= 0) {
+        delete next[id];
+      } else {
+        next[id] = Math.min(Math.floor(quantity), 99);
+      }
+      return next;
+    });
+
   const selectNoReward = () => {
     setRewardId(NO_REWARD_ID);
-    setAddOnIds([]);
+    setAddOnQuantities({});
     if (bonusAmount < 50_000) setBonus("100000");
   };
 
@@ -228,8 +428,15 @@ export function PledgeFlow({
             campaignId: campaign.id,
             rewardId: reward?.id ?? null,
             addOnIds: reward ? addOnIds : [],
+            addOns: reward
+              ? selectedAddOns.map(({ item, quantity }) => ({
+                  addOnId: item.id,
+                  quantity,
+                }))
+              : [],
             bonusAmount,
             address,
+            addressId: !isUsingCustomAddress ? selectedAddressId : undefined,
           }),
         },
       );
@@ -420,11 +627,17 @@ export function PledgeFlow({
               {reward ? (
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   {campaign.addOns.map((item) => {
-                    const checked = addOnIds.includes(item.id);
+                    const quantity = addOnQuantities[item.id] || 0;
+                    const checked = quantity > 0;
                     return (
-                      <label
+                      <div
                         key={item.id}
-                        className={`cursor-pointer rounded-[12px] border p-4 ${checked ? "border-coral bg-[#fff8f4]" : "border-line"}`}
+                        onClick={() => toggleAddOn(item.id)}
+                        className={`group relative flex flex-col justify-between rounded-[14px] border p-4 transition-all cursor-pointer select-none ${
+                          checked
+                            ? "border-coral bg-[#fff8f4] shadow-xs ring-1 ring-coral/20"
+                            : "border-line bg-white hover:border-coral/40 hover:bg-neutral-50/50"
+                        }`}
                       >
                         <div className="flex items-start gap-3">
                           <input
@@ -432,21 +645,83 @@ export function PledgeFlow({
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleAddOn(item.id)}
-                            className="mt-1 size-4 accent-[#f36545]"
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1 size-4 accent-[#f36545] cursor-pointer shrink-0"
                           />
-                          <div>
-                            <p className="font-display text-sm font-extrabold">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-display text-sm font-extrabold text-ink leading-tight">
                               {item.title}
                             </p>
-                            <p className="mt-1 text-xs leading-5 text-ink-muted">
+                            <p className="mt-1.5 text-xs leading-5 text-ink-muted">
                               {item.description}
                             </p>
-                            <p className="mt-3 text-sm font-bold text-coral-dark">
+                            <p className="mt-2.5 text-sm font-extrabold text-coral-dark">
                               + {formatVnd(item.amount)}
                             </p>
                           </div>
                         </div>
-                      </label>
+
+                        {checked && (
+                          <div
+                            className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-coral/20 pt-3"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="text-xs font-bold text-ink-soft">
+                              Số lượng:
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center rounded-lg border border-line bg-white shadow-xs">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateAddOnQuantity(item.id, -1);
+                                  }}
+                                  className="flex size-7 items-center justify-center text-xs font-bold text-ink-soft hover:bg-surface-raised hover:text-ink rounded-l-lg transition-colors cursor-pointer"
+                                  aria-label={quantity === 1 ? "Bỏ chọn phụ kiện này" : "Giảm số lượng"}
+                                  title={quantity === 1 ? "Bỏ chọn phụ kiện này" : "Giảm 1"}
+                                >
+                                  <Minus className="size-3.5" />
+                                </button>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={99}
+                                  value={quantity}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const raw = e.target.value.replace(/\D/g, "");
+                                    if (raw) {
+                                      const val = parseInt(raw, 10);
+                                      if (val > 0) setAddOnQuantity(item.id, val);
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-7 w-11 border-x border-line text-center text-xs font-bold text-ink outline-none focus:bg-[#fff5ee]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateAddOnQuantity(item.id, 1);
+                                  }}
+                                  disabled={quantity >= 99}
+                                  className="flex size-7 items-center justify-center text-xs font-bold text-ink-soft hover:bg-surface-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-30 rounded-r-lg transition-colors cursor-pointer"
+                                  aria-label="Tăng số lượng"
+                                  title="Tăng 1"
+                                >
+                                  <Plus className="size-3.5" />
+                                </button>
+                              </div>
+                              {quantity > 1 && (
+                                <span className="text-xs font-extrabold text-coral-dark">
+                                  = {formatVnd(item.amount * quantity)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -486,29 +761,47 @@ export function PledgeFlow({
 
           {step === 2 ? (
             <div>
-              <p className="eyebrow text-coral">Bước 3</p>
-              <h2 className="mt-2 font-display text-2xl font-extrabold">
-                Địa chỉ giao nhận phần thưởng
-              </h2>
-              <p className="mt-2 text-sm text-ink-muted">
-                Hiện Góp hỗ trợ giao quà đến các địa chỉ tại Việt Nam.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="eyebrow text-coral">Bước 3</p>
+                  <h2 className="mt-2 font-display text-2xl font-extrabold">
+                    Địa chỉ giao nhận phần thưởng
+                  </h2>
+                  <p className="mt-2 text-sm text-ink-muted">
+                    Hiện Góp hỗ trợ giao quà đến các địa chỉ tại Việt Nam.
+                  </p>
+                </div>
+                {savedAddresses.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <a
+                      href="/account?tab=addresses"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-ink-muted hover:text-ink hover:underline"
+                      title="Mở quản lý sổ địa chỉ trong tab mới"
+                    >
+                      <span>Quản lý sổ địa chỉ</span>
+                      <ExternalLink className="size-3" />
+                    </a>
+                    {!isUsingCustomAddress && !editingAddress && (
+                      <button
+                        type="button"
+                        onClick={handleUseNewAddress}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-coral-dark hover:underline cursor-pointer"
+                      >
+                        <Plus className="size-3.5" /> Giao đến địa chỉ mới khác
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Lựa chọn Sổ địa chỉ đã lưu */}
-              {savedAddresses.length > 0 && !isUsingCustomAddress && (
+              {savedAddresses.length > 0 && !isUsingCustomAddress && !editingAddress && (
                 <div className="mt-6 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-ink-soft">
-                      Chọn địa chỉ nhận hàng đã lưu
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleUseNewAddress}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-coral-dark hover:underline"
-                    >
-                      <Plus className="size-3.5" /> Giao đến địa chỉ mới khác
-                    </button>
-                  </div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-ink-soft">
+                    Chọn địa chỉ nhận hàng đã lưu
+                  </span>
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     {savedAddresses.map((addr) => {
@@ -521,46 +814,230 @@ export function PledgeFlow({
                         .filter(Boolean)
                         .join(", ");
                       const selected = selectedAddressId === addr.id;
+                      const addrPhoneValid = /^0\d{9}$/.test((addr.phone || "").replace(/\D/g, ""));
                       return (
                         <div
                           key={addr.id}
                           onClick={() => handleSelectSavedAddress(addr)}
-                          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                          className={`group cursor-pointer rounded-2xl border p-4 transition-all relative ${
                             selected
                               ? "border-forest bg-[#f6f8f1] ring-2 ring-forest/20 shadow-sm"
                               : "border-line bg-white hover:border-forest/30"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-sm font-bold text-ink">
                                   {addr.recipientName}
                                 </span>
                                 <span className="text-xs text-ink-muted">|</span>
-                                <span className="text-xs font-medium text-ink-soft">
-                                  {addr.phone}
+                                <span
+                                  className={`text-xs font-medium ${
+                                    addrPhoneValid
+                                      ? "text-ink-soft"
+                                      : "rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-800"
+                                  }`}
+                                >
+                                  {addr.phone ? addr.phone : "Chưa có SĐT"}
                                 </span>
                               </div>
                               <p className="mt-1.5 text-xs leading-relaxed text-ink-muted line-clamp-2">
                                 {fullLine}
                               </p>
                             </div>
-                            {addr.isDefault && (
-                              <span className="shrink-0 rounded-full bg-forest px-2 py-0.5 text-[9px] font-bold text-lime">
-                                Mặc định
-                              </span>
-                            )}
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {addr.isDefault && (
+                                <span className="rounded-full bg-forest px-2 py-0.5 text-[9px] font-bold text-lime">
+                                  Mặc định
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartEditSavedAddress(addr);
+                                }}
+                                className="rounded-lg p-1.5 text-ink-muted hover:bg-neutral-200/70 hover:text-ink transition-colors cursor-pointer"
+                                title="Chỉnh sửa địa chỉ này"
+                              >
+                                <Pencil className="size-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
+
+                  {/* Inline bổ sung số điện thoại nếu địa chỉ đang chọn chưa có SĐT hợp lệ */}
+                  {!isPhoneValid && (
+                    <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 transition-all">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-amber-900">
+                            {address.phone?.trim()
+                              ? `Số điện thoại của địa chỉ này ("${address.phone}") chưa đúng định dạng`
+                              : "Địa chỉ này chưa có số điện thoại nhận hàng"}
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                            Đơn vị vận chuyển cần số điện thoại đủ 10 chữ số (bắt đầu bằng 0) để liên hệ khi phát hàng. Bạn có thể bổ sung trực tiếp ngay tại đây:
+                          </p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <div className="relative">
+                              <Phone className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-muted" />
+                              <input
+                                type="tel"
+                                placeholder="Ví dụ: 0912 345 678"
+                                value={address.phone}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setAddress((prev) => ({ ...prev, phone: val }));
+                                }}
+                                className="h-9 w-60 rounded-xl border border-amber-300 bg-white pl-8 pr-3 text-xs font-medium text-ink focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                                autoFocus
+                              />
+                            </div>
+                            {selectedAddressId && (
+                              <button
+                                type="button"
+                                onClick={() => void handleQuickSavePhone()}
+                                disabled={!isPhoneValid || isSavingPhone}
+                                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-forest px-3.5 text-xs font-bold text-lime hover:bg-forest/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                              >
+                                <Check className="size-3.5" />
+                                {isSavingPhone ? "Đang lưu..." : "Cập nhật vào địa chỉ này"}
+                              </button>
+                            )}
+                          </div>
+                          {phoneNotice && (
+                            <p className="mt-2 text-xs font-bold text-emerald-700 flex items-center gap-1">
+                              <Check className="size-3.5" /> {phoneNotice}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Form chỉnh sửa địa chỉ đã lưu */}
+              {editingAddress && (
+                <div className="mt-6 space-y-4 rounded-2xl border border-forest/30 bg-[#f8f9f4] p-5 sm:p-6 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-line/60 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Pencil className="size-4 text-forest" />
+                      <span className="text-sm font-bold text-ink">
+                        Chỉnh sửa địa chỉ nhận hàng
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="text-xs font-semibold text-ink-muted hover:text-ink cursor-pointer"
+                    >
+                      Hủy bỏ
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="sm:col-span-1">
+                      <span className="text-xs font-bold text-ink-soft">
+                        Họ và tên người nhận <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        value={address.fullName}
+                        onChange={(event) =>
+                          setAddress({ ...address, fullName: event.target.value })
+                        }
+                        className="input-field mt-1.5"
+                        placeholder="Nguyễn Văn A"
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span className="text-xs font-bold text-ink-soft">
+                        Số điện thoại <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        type="tel"
+                        value={address.phone}
+                        onChange={(event) =>
+                          setAddress({ ...address, phone: event.target.value })
+                        }
+                        className="input-field mt-1.5"
+                        placeholder="0912 345 678"
+                        required
+                      />
+                    </label>
+                    <label className="sm:col-span-2">
+                      <span className="text-xs font-bold text-ink-soft">
+                        Địa chỉ chi tiết (Số nhà, tên đường, phường/xã){" "}
+                        <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        value={address.line1}
+                        onChange={(event) =>
+                          setAddress({ ...address, line1: event.target.value })
+                        }
+                        className="input-field mt-1.5"
+                        placeholder="Số 123 Đường Lê Lợi, Phường Bến Nghé"
+                        required
+                      />
+                    </label>
+                    <label className="sm:col-span-2">
+                      <span className="text-xs font-bold text-ink-soft">
+                        Tỉnh / Thành phố <span className="text-red-500">*</span>
+                      </span>
+                      <select
+                        value={address.city}
+                        onChange={(event) =>
+                          setAddress({ ...address, city: event.target.value })
+                        }
+                        className="input-field mt-1.5 cursor-pointer"
+                        required
+                      >
+                        <option>TP. Hồ Chí Minh</option>
+                        <option>Hà Nội</option>
+                        <option>Đà Nẵng</option>
+                        <option>Hải Phòng</option>
+                        <option>Cần Thơ</option>
+                        <option>Bình Dương</option>
+                        <option>Đồng Nai</option>
+                        <option>Bà Rịa - Vũng Tàu</option>
+                        <option>Quảng Ninh</option>
+                        <option>Khánh Hòa</option>
+                        <option>Lâm Đồng</option>
+                        <option>Thừa Thiên Huế</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-line/60">
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="rounded-xl border border-line px-4 py-2 text-xs font-bold text-ink hover:bg-white cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveEditedAddress()}
+                      disabled={isSavingEdit || !isPhoneValid || address.fullName.trim().length < 2 || address.line1.trim().length < 5}
+                      className="rounded-xl bg-forest px-4 py-2 text-xs font-bold text-lime hover:bg-forest/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      {isSavingEdit ? "Đang lưu..." : "Lưu thay đổi"}
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* Form nhập địa chỉ mới (hiển thị khi chưa có địa chỉ lưu hoặc bấm thêm mới) */}
-              {(isUsingCustomAddress || savedAddresses.length === 0) && (
+              {(isUsingCustomAddress || savedAddresses.length === 0) && !editingAddress && (
                 <div className="mt-6 space-y-4 rounded-2xl border border-line bg-[#f8f9f4] p-5 sm:p-6">
                   <div className="flex items-center justify-between border-b border-line/60 pb-2">
                     <span className="text-sm font-bold text-ink">
@@ -575,7 +1052,7 @@ export function PledgeFlow({
                             savedAddresses[0];
                           if (defaultAddr) handleSelectSavedAddress(defaultAddr);
                         }}
-                        className="text-xs font-semibold text-ink-muted hover:text-ink"
+                        className="text-xs font-semibold text-ink-muted hover:text-ink cursor-pointer"
                       >
                         Quay lại chọn từ danh sách địa chỉ
                       </button>
@@ -902,10 +1379,24 @@ export function PledgeFlow({
                 {reward ? formatVnd(reward.amount) : "—"}
               </dd>
             </div>
-            {selectedAddOns.map((item) => (
-              <div key={item.id} className="flex justify-between gap-4">
-                <dt className="text-ink-muted">{item.title}</dt>
-                <dd className="font-bold">{formatVnd(item.amount)}</dd>
+            {selectedAddOns.map(({ item, quantity, totalPrice }) => (
+              <div key={item.id} className="flex items-start justify-between gap-4">
+                <dt className="text-ink-muted">
+                  <span>{item.title}</span>
+                  {quantity > 1 && (
+                    <span className="ml-1.5 inline-flex items-center rounded-sm bg-[#ffeae3] px-1.5 py-0.5 text-[10px] font-bold text-coral-dark">
+                      × {quantity}
+                    </span>
+                  )}
+                </dt>
+                <dd className="shrink-0 text-right font-bold">
+                  <div>{formatVnd(totalPrice)}</div>
+                  {quantity > 1 && (
+                    <div className="text-[10px] font-normal text-ink-muted">
+                      {formatVnd(item.amount)}/món
+                    </div>
+                  )}
+                </dd>
               </div>
             ))}
             <div className="flex justify-between gap-4">

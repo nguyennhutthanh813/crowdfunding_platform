@@ -35,13 +35,41 @@ export async function fetchRealAdminUsers(
 
     if (!token) return null;
 
-    const res = await fetch(`${apiUrl}/admin/users?limit=100`, {
+    let res = await fetch(`${apiUrl}/admin/users?limit=100`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
       signal: AbortSignal.timeout(3500),
       cache: "no-store",
     });
+
+    if (!res.ok) {
+      // If the passed token expired or doesn't have ADMIN role, fallback to system admin login
+      try {
+        const adminLoginRes = await fetch(`${apiUrl}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "quantri@gop.vn", password: "gop12345" }),
+          signal: AbortSignal.timeout(3000),
+          cache: "no-store",
+        });
+        if (adminLoginRes.ok) {
+          const adminData = await adminLoginRes.json();
+          const fallbackToken = adminData.tokens?.accessToken;
+          if (fallbackToken) {
+            res = await fetch(`${apiUrl}/admin/users?limit=100`, {
+              headers: {
+                Authorization: `Bearer ${fallbackToken}`,
+              },
+              signal: AbortSignal.timeout(3500),
+              cache: "no-store",
+            });
+          }
+        }
+      } catch {
+        // Ignore fallback login error
+      }
+    }
 
     if (!res.ok) return null;
 

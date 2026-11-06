@@ -42,7 +42,10 @@ export interface PlatformPreviewState {
   reviewDecisions: Record<string, "APPROVED" | "CHANGES" | "REJECTED">;
   reviewFeedback: Record<string, string>;
   reviewTimestamps?: Record<string, string>;
-  campaignStatuses: Record<string, "LIVE" | "SUSPENDED">;
+  campaignStatuses: Record<
+    string,
+    "LIVE" | "SUSPENDED" | "SUCCESSFUL" | "FAILED"
+  >;
   messages: SharedPlatformMessage[];
   invitedMembers?: Array<{
     id: string;
@@ -55,6 +58,7 @@ export interface PlatformPreviewState {
     canPostUpdates: boolean;
     canReplyComments: boolean;
     canViewAiDashboard: boolean;
+    status?: "PENDING" | "ACCEPTED";
   }>;
   removedMemberIds?: string[];
 }

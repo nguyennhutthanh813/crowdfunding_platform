@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationArgs, buildPaginatedResponse } from '../../common/helpers';
 import { UpdateFulfillmentDto } from './dto/update-fulfillment.dto';
@@ -82,7 +82,14 @@ export class FulfillmentService {
       where: { id },
       include: {
         pledge: {
-          select: { campaign: { select: { creatorId: true } } },
+          select: {
+            campaign: {
+              select: {
+                creatorId: true,
+                members: { where: { userId, status: 'ACCEPTED' } },
+              },
+            },
+          },
         },
       },
     });
@@ -91,8 +98,48 @@ export class FulfillmentService {
       throw new NotFoundException('Fulfillment not found');
     }
 
-    if (fulfillment.pledge.campaign.creatorId !== userId) {
-      throw new ForbiddenException('Only the campaign creator can update fulfillment');
+    const isCreator = fulfillment.pledge.campaign.creatorId === userId;
+    const isMember = (fulfillment.pledge.campaign.members?.length ?? 0) > 0;
+    const isAdmin = Boolean(
+      await this.prisma.userRole.findFirst({
+        where: { userId, role: 'ADMIN' },
+      }),
+    );
+
+    if (!isCreator && !isMember && !isAdmin) {
+      throw new ForbiddenException(
+        'Only the campaign creator or team members can update fulfillment',
+      );
+    }
+
+    if (dto.status && dto.status !== fulfillment.status) {
+      if (fulfillment.status === 'DELIVERED' && !isAdmin) {
+        throw new BadRequestException(
+          'Đơn hàng đã được giao thành công (DELIVERED). Đây là trạng thái hoàn tất, không thể thay đổi hoặc hoàn tác về các bước trước.',
+        );
+      }
+      if (fulfillment.status === 'CANCELED' && !isAdmin) {
+        throw new BadRequestException(
+          'Đơn hàng đã bị hủy (CANCELED), không thể thay đổi trạng thái.',
+        );
+      }
+
+      const allowedTransitions: Record<string, string[]> = {
+        PENDING: ['PREPARING', 'CANCELED'],
+        SURVEY_SENT: ['ADDRESS_CONFIRMED', 'PREPARING', 'CANCELED'],
+        ADDRESS_CONFIRMED: ['PREPARING', 'CANCELED'],
+        PREPARING: ['SHIPPED', 'PENDING', 'CANCELED'],
+        SHIPPED: ['DELIVERED', 'CANCELED'],
+        DELIVERED: [],
+        CANCELED: [],
+      };
+
+      const allowed = allowedTransitions[fulfillment.status] ?? [];
+      if (!isAdmin && !allowed.includes(dto.status)) {
+        throw new BadRequestException(
+          `Không thể chuyển trạng thái giao hàng từ "${fulfillment.status}" sang "${dto.status}". Vui lòng thực hiện tuần tiến theo đúng quy trình giao nhận.`,
+        );
+      }
     }
 
     const data: any = { status: dto.status };

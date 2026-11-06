@@ -2,6 +2,7 @@ import type {
   AdminDashboardData,
   AuthorizePledgeInput,
   AuthorizePledgeResult,
+  BackedProject,
   CampaignCardData,
   CampaignComment,
   CampaignDetail,
@@ -101,27 +102,44 @@ function getMotifAndPalette(
   return { motif: "coffee", palette: "ember", label: "Sáng tạo Việt" };
 }
 
-function isValidImageUrl(url?: string | null): boolean {
-  if (!url || typeof url !== "string") return false;
-  const clean = url.trim().toLowerCase();
+export function normalizeImageUrl(url?: string | null): string | null {
+  if (!url || typeof url !== "string") return null;
+  let clean = url.trim();
+  if (!clean) return null;
+  const lower = clean.toLowerCase();
   if (
-    clean.includes("youtube.com") ||
-    clean.includes("youtu.be") ||
-    clean.includes("vimeo.com") ||
-    clean.endsWith(".mp4") ||
-    clean.endsWith(".webm")
+    lower.includes("youtube.com") ||
+    lower.includes("youtu.be") ||
+    lower.includes("vimeo.com") ||
+    lower.endsWith(".mp4") ||
+    lower.endsWith(".webm") ||
+    lower.endsWith(".ogg")
   ) {
-    return false;
+    return null;
   }
   if (
-    clean.startsWith("/") ||
-    clean.startsWith("data:image/") ||
     clean.startsWith("http://") ||
-    clean.startsWith("https://")
+    clean.startsWith("https://") ||
+    clean.startsWith("data:image/")
   ) {
-    return true;
+    return clean;
   }
-  return false;
+  if (!clean.startsWith("/")) {
+    clean = "/" + clean;
+  }
+  return clean;
+}
+
+export function isValidImageUrl(url?: string | null): boolean {
+  return normalizeImageUrl(url) !== null;
+}
+
+export function extractYouTubeId(url?: string | null): string | null {
+  if (!url || typeof url !== "string") return null;
+  const match = url.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/))([\w-]{11})/i,
+  );
+  return match ? match[1] : null;
 }
 
 function getDefaultImageForSlug(slug: string): string {
@@ -161,12 +179,13 @@ export function transformCampaignCard(raw: any): CampaignCardData {
 
   const imageMedia = raw.media?.find(
     (m: any) =>
-      (m.mediaType === "IMAGE" || !m.mediaType) && isValidImageUrl(m.url),
+      (String(m.mediaType || "").toUpperCase() === "IMAGE" || !m.mediaType) &&
+      isValidImageUrl(m.url),
   );
 
   const videoMedia = raw.media?.find(
     (m: any) =>
-      m.mediaType === "VIDEO" ||
+      String(m.mediaType || "").toUpperCase() === "VIDEO" ||
       (typeof m.url === "string" &&
         (m.url.includes("youtu") ||
           m.url.includes("vimeo") ||
@@ -177,9 +196,15 @@ export function transformCampaignCard(raw: any): CampaignCardData {
     (videoMedia?.url ? String(videoMedia.url) : null) ||
     (raw.videoUrl ? String(raw.videoUrl) : undefined);
 
+  const ytId = extractYouTubeId(videoUrl);
+  const ytThumbnail = ytId
+    ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+    : null;
+
   const mediaUrl =
-    (imageMedia && isValidImageUrl(imageMedia.url) ? imageMedia.url : null) ||
-    (isValidImageUrl(raw.imageUrl) ? raw.imageUrl : null) ||
+    normalizeImageUrl(imageMedia?.url) ||
+    normalizeImageUrl(raw.imageUrl) ||
+    ytThumbnail ||
     getDefaultImageForSlug(raw.slug);
 
   return {
@@ -207,9 +232,15 @@ export function transformCampaignCard(raw: any): CampaignCardData {
       location: raw.location ?? "Việt Nam",
       bio: raw.creator?.bio ?? "",
       verified: true,
-      followers: raw.creator?.followers ?? 12,
-      launchedProjects: raw.creator?.launchedProjects ?? 1,
-      backedProjects: raw.creator?.backedProjects ?? 3,
+      followers: Number(
+        raw.creator?.followers ?? raw.creator?._count?.followers ?? 0,
+      ),
+      launchedProjects: Number(
+        raw.creator?.launchedProjects ?? raw.creator?._count?.campaigns ?? 1,
+      ),
+      backedProjects: Number(
+        raw.creator?.backedProjects ?? raw.creator?._count?.pledges ?? 0,
+      ),
     },
     tags: [categoryName, raw.location ?? "Việt Nam"],
     isFeatured: Boolean(raw.isFeatured),
@@ -299,6 +330,7 @@ export function transformCampaignDetail(
     name: m.user?.displayName ?? "Thành viên",
     email: m.user?.email ?? "",
     role: m.role === "OWNER" ? "Chủ dự án" : "Cộng tác viên",
+    status: m.status || (m.role === "OWNER" ? "ACCEPTED" : "PENDING"),
     initials: getInitials(m.user?.displayName ?? "TV"),
     canPostUpdates: m.canPostUpdates ?? true,
     canReplyComments: m.canReplyComments ?? true,
@@ -553,8 +585,152 @@ export class HttpPlatformApi implements PlatformApi {
     }
   }
 
-  async getUserDashboard(): Promise<UserDashboardData> {
+  async getUserDashboard(token?: string): Promise<UserDashboardData> {
     const campaigns = await this.listCampaigns();
+
+    let backedProjects: BackedProject[] = [];
+    if (token) {
+      try {
+        const res = await request<{ data: any[] } | any[]>(
+          `${this.baseUrl}/pledges/me?limit=50`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        backedProjects = list.map((p: any) => {
+          const card = transformCampaignCard(p.campaign);
+          const fulStatus =
+            p.fulfillment?.status ||
+            (p.status === "CAPTURED" ? "PREPARING" : "PENDING");
+          let nextStep =
+            "Chờ chiến dịch kết thúc; hiện chưa có khoản tiền nào bị thu.";
+          if (fulStatus === "DELIVERED") {
+            nextStep = "Đơn hàng đã được giao thành công đến bạn.";
+          } else if (fulStatus === "SHIPPED") {
+            nextStep = p.fulfillment?.trackingCode
+              ? `Đơn hàng đang được giao (${p.fulfillment.carrier || "Đơn vị vận chuyển"}: ${p.fulfillment.trackingCode}).`
+              : "Đơn hàng đã được bàn giao cho đơn vị vận chuyển.";
+          } else if (fulStatus === "PREPARING") {
+            nextStep = "Chủ dự án đang chuẩn bị và đóng gói phần thưởng.";
+          } else if (p.status === "CAPTURED") {
+            nextStep =
+              "Chiến dịch gọi vốn thành công! Tiền đã được thu và đang chuẩn bị giao quà.";
+          } else if (p.status === "CANCELED") {
+            nextStep =
+              "Chiến dịch không đạt mục tiêu, hạn mức giữ tiền đã được hủy hoàn toàn.";
+          }
+
+          return {
+            pledgeId: p.id,
+            fulfillmentId: p.fulfillment?.id,
+            referenceCode: p.id.slice(0, 8).toUpperCase(),
+            campaign: card,
+            amount: Number(
+              p.totalAmount ??
+                (BigInt(p.rewardAmount || 0) +
+                  BigInt(p.addOnAmount || 0) +
+                  BigInt(p.shippingAmount || 0) +
+                  BigInt(p.bonusAmount || 0)),
+            ),
+            paymentStatus: p.status as any,
+            fulfillmentStatus: fulStatus as any,
+            rewardTitle: p.rewardTier?.title || "Ủng hộ không nhận quà",
+            pledgedAt: p.pledgedAt,
+            nextStep,
+            nextStepAt: p.fulfillment?.updatedAt
+              ? new Date(p.fulfillment.updatedAt).toLocaleDateString("vi-VN")
+              : "Cập nhật từ hệ thống",
+          };
+        });
+      } catch (err) {
+        console.warn("getUserDashboard: could not fetch my pledges:", err);
+      }
+    }
+
+    let messages: any[] = [];
+    let sentMessages: any[] = [];
+    if (token) {
+      try {
+        const msgRes = await request<{ data: any[] } | any[]>(
+          `${this.baseUrl}/messages?limit=100`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const msgList = Array.isArray(msgRes) ? msgRes : (msgRes as any)?.data || [];
+
+        let myUserId = "";
+        try {
+          const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+          myUserId = payload.sub || payload.id || "";
+        } catch {}
+
+        for (const m of msgList) {
+          const isSender = myUserId ? m.senderId === myUserId : false;
+          const formattedDate = m.createdAt
+            ? new Date(m.createdAt).toLocaleDateString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "Vừa xong";
+
+          const mappedReplies = (m.replies || []).map((r: any) => ({
+            id: r.id,
+            senderId: r.senderId,
+            senderName: r.sender?.displayName || "Người dùng",
+            body: r.body,
+            sentAt: r.createdAt
+              ? new Date(r.createdAt).toLocaleDateString("vi-VN", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "Vừa xong",
+          }));
+
+          if (isSender) {
+            sentMessages.push({
+              id: m.id,
+              campaignId: m.campaignId || "",
+              campaignTitle: m.campaign?.title || "",
+              senderId: m.senderId,
+              recipientId: m.recipientId,
+              recipient: m.recipient?.displayName || "Chủ dự án",
+              subject: m.subject,
+              body: m.body,
+              sentAt: formattedDate,
+              replies: mappedReplies,
+            });
+          } else {
+            messages.push({
+              id: m.id,
+              campaignId: m.campaignId || "",
+              campaignTitle: m.campaign?.title || "",
+              senderId: m.senderId,
+              recipientId: m.recipientId,
+              sender: m.sender?.displayName || "Người gửi",
+              initials: (m.sender?.displayName || "U")
+                .split(" ")
+                .filter(Boolean)
+                .map((w: string) => w[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase(),
+              subject: m.subject,
+              preview: m.body,
+              sentAt: formattedDate,
+              unread: !m.readAt,
+              replies: mappedReplies,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("getUserDashboard: could not fetch messages:", err);
+      }
+    }
+
     return {
       user: {
         name: "Phạm Minh Anh",
@@ -562,13 +738,13 @@ export class HttpPlatformApi implements PlatformApi {
         memberSince: "Tháng 03/2025",
       },
       stats: {
-        backed: 1,
+        backed: backedProjects.length,
         saved: campaigns.length >= 2 ? 2 : campaigns.length,
         following: 1,
-        messages: 0,
+        messages: messages.filter((m) => m.unread).length,
       },
       attentionItems: [],
-      backedProjects: [],
+      backedProjects,
       savedProjects: campaigns.slice(0, 2),
       following: [
         {
@@ -578,8 +754,8 @@ export class HttpPlatformApi implements PlatformApi {
           projects: 1,
         },
       ],
-      messages: [],
-      sentMessages: [],
+      messages,
+      sentMessages,
       activities: [
         {
           id: "act_init",
@@ -661,6 +837,10 @@ export class HttpPlatformApi implements PlatformApi {
 
     const mappedCampaigns = campaigns.map((c: any) => {
       const card = transformCampaignCard(c);
+      const isOwner = Boolean(
+        effectiveUserId &&
+          (c.creatorId === effectiveUserId || c.creator?.id === effectiveUserId),
+      );
       let nextAction: CreatorCampaignNextAction = "OPERATE";
       let nextActionLabel = "Vận hành chiến dịch";
       let nextActionDetail =
@@ -680,13 +860,25 @@ export class HttpPlatformApi implements PlatformApi {
           "Ban quản trị yêu cầu bổ sung thông tin. Vui lòng chỉnh sửa và gửi lại xét duyệt.";
       } else if (c.status === "DRAFT") {
         nextAction = "CONTINUE_DRAFT";
-        nextActionLabel = "Hoàn thiện bản nháp";
-        nextActionDetail =
-          "Bổ sung gói quà, mô tả câu chuyện và gửi xét duyệt.";
+        nextActionLabel = isOwner ? "Hoàn thiện bản nháp" : "Bản nháp đang làm";
+        nextActionDetail = isOwner
+          ? "Bổ sung gói quà, mô tả câu chuyện và gửi xét duyệt."
+          : "Chủ dự án đang hoàn thiện nội dung hồ sơ.";
       } else if (c.status === "IN_REVIEW") {
         nextAction = "FOLLOW_REVIEW";
         nextActionLabel = "Theo dõi hàng chờ duyệt";
         nextActionDetail = "Hồ sơ đang được ban quản trị xem xét trong 24 giờ.";
+      } else if (c.status === "PRE_LAUNCH") {
+        nextAction = isOwner ? "LAUNCH" : "WAIT_LAUNCH";
+        nextActionLabel = isOwner ? "Mở gọi vốn" : "Chờ chủ dự án mở gọi vốn";
+        nextActionDetail = isOwner
+          ? "Chiến dịch đã được ban quản trị phê duyệt. Bạn có thể mở gọi vốn bất cứ lúc nào."
+          : "Chiến dịch đã được ban quản trị phê duyệt. Đang chờ chủ dự án chính thức mở gọi vốn.";
+      } else if (c.status === "LIVE") {
+        nextAction = "OPERATE";
+        nextActionLabel = "Vận hành chiến dịch";
+        nextActionDetail =
+          "Theo dõi số người ủng hộ và đăng bài viết cập nhật tiến độ.";
       } else if (c.status === "SUCCESSFUL") {
         nextAction = "FULFILL";
         nextActionLabel = "Chuẩn bị giao quà";
@@ -702,9 +894,11 @@ export class HttpPlatformApi implements PlatformApi {
         category: card.category,
         location: card.location,
         status: card.status,
+        endsAt: c.endsAt || card.endsAt,
+        closedAt: c.closedAt,
         reviewStatus: isNeedsChanges ? ("NEEDS_CHANGES" as const) : undefined,
         reviewFeedback,
-        ownership: "OWNER" as const,
+        ownership: (isOwner ? "OWNER" : "COLLABORATOR") as "OWNER" | "COLLABORATOR",
         goalAmount: card.goalAmount,
         pledgedAmount: card.pledgedAmount,
         backerCount: card.backerCount,
@@ -759,9 +953,36 @@ export class HttpPlatformApi implements PlatformApi {
     };
   }
 
-  async getCreatorAiDashboard(): Promise<CreatorAiDashboardData> {
+  async getMyPendingInvitations(token?: string): Promise<any[]> {
+    if (!token) return [];
+    try {
+      const res = await request<any[] | { data: any[] }>(
+        `${this.baseUrl}/campaigns/my/invitations`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (Array.isArray(res)) return res;
+      if (res && Array.isArray((res as any).data)) return (res as any).data;
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getCreatorAiDashboard(campaignId?: string): Promise<CreatorAiDashboardData> {
+    try {
+      const url = campaignId
+        ? `${this.baseUrl}/ai/campaigns/${encodeURIComponent(campaignId)}/prediction`
+        : `${this.baseUrl}/ai/prediction`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) {
+        return (await res.json()) as CreatorAiDashboardData;
+      }
+    } catch {
+      // Fallback below if backend call fails
+    }
+
     const campaigns = await this.listCampaigns();
-    const campaign = campaigns[0];
+    const campaign = (campaignId ? campaigns.find((c) => c.id === campaignId || c.slug === campaignId) : null) || campaigns[0];
     return {
       campaign: campaign || {
         id: "cmp_orbit",
@@ -947,10 +1168,26 @@ export class HttpPlatformApi implements PlatformApi {
     };
   }
 
-  async getCampaignOperations(slug: string): Promise<CampaignOperationsData> {
+  async getCampaignOperations(
+    slug: string,
+    token?: string,
+  ): Promise<CampaignOperationsData> {
     const detail = await this.getCampaignBySlug(slug);
     if (!detail) {
       throw new Error("CAMPAIGN_OPERATIONS_NOT_FOUND");
+    }
+
+    let realFulfillments: any[] = [];
+    if (token) {
+      try {
+        const res = await request<any[] | { data: any[] }>(
+          `${this.baseUrl}/campaigns/${encodeURIComponent(detail.id)}/fulfillments`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        realFulfillments = Array.isArray(res) ? res : (res as any)?.data || [];
+      } catch (err) {
+        console.warn("getCampaignOperations: could not fetch fulfillments:", err);
+      }
     }
 
     const remaining = Math.max(0, detail.goalAmount - detail.pledgedAmount);
@@ -960,6 +1197,30 @@ export class HttpPlatformApi implements PlatformApi {
       detail.backerCount > 0
         ? Math.round(detail.pledgedAmount / detail.backerCount)
         : 0;
+
+    const orders = realFulfillments.map((f: any) => ({
+      id: f.id,
+      campaignId: detail.id,
+      pledgeId: f.pledgeId,
+      backerId: f.backerId || "",
+      rewardTierId: f.rewardTierId || "",
+      fulfillmentId: f.fulfillmentId || f.id,
+      shippingAddressId: f.shippingAddressId || "",
+      pledgeReference:
+        f.pledgeReference ||
+        f.pledgeId?.slice(0, 8)?.toUpperCase() ||
+        f.id.slice(0, 8).toUpperCase(),
+      backer: f.backer || "Người ủng hộ",
+      reward: f.reward || "Ủng hộ dự án",
+      city: f.city || "Chưa có địa chỉ",
+      amount: f.amount || 0,
+      carrier: f.carrier || null,
+      trackingCode: f.trackingCode || null,
+      status: (f.status as any) || "PENDING",
+    }));
+
+    const addressReadyCount = orders.filter((o) => o.shippingAddressId).length;
+    const surveyPendingCount = Math.max(0, orders.length - addressReadyCount);
 
     return {
       campaignId: detail.id,
@@ -1038,6 +1299,7 @@ export class HttpPlatformApi implements PlatformApi {
               email: m.email || "",
               initials: m.initials,
               role: m.role,
+              status: m.status || (m.role === "Chủ dự án" ? "ACCEPTED" : "PENDING"),
               canPostUpdates: m.canPostUpdates ?? true,
               canReplyComments: m.canReplyComments ?? true,
               canViewAiDashboard: m.canViewAiDashboard ?? true,
@@ -1082,24 +1344,32 @@ export class HttpPlatformApi implements PlatformApi {
         },
       ],
       updateHistory: detail.updates.map((u) => ({
+        id: u.id,
         title: u.title,
         when: u.publishedAt,
+        excerpt: u.excerpt,
+        commentCount: u.commentCount,
       })),
       communityMessages: [],
       reservations: [],
       fulfillment: {
         currentCampaign: {
-          authorizedCount: detail.backerCount,
-          addressReadyCount: detail.backerCount,
-          surveyPendingCount: 0,
+          authorizedCount:
+            orders.length > 0 ? orders.length : detail.backerCount,
+          addressReadyCount:
+            orders.length > 0 ? addressReadyCount : detail.backerCount,
+          surveyPendingCount:
+            orders.length > 0 ? surveyPendingCount : 0,
           unlockLabel: `Sau khi chiến dịch hoàn thành mục tiêu ${new Intl.NumberFormat("vi-VN").format(detail.goalAmount)} đ`,
-          explanation: `${detail.title} đang trong giai đoạn gọi vốn. Cam kết sẽ được thu khi đạt mục tiêu.`,
+          explanation: `${detail.title} đang trong giai đoạn giao quà. Cam kết đã được thu và sẵn sàng giao hàng.`,
         },
         previousCampaign: {
-          title: "Giai đoạn thử nghiệm",
-          successfulAt: "Đã hoàn thành",
+          title: "Đơn hàng cam kết",
+          successfulAt: detail.closedAt
+            ? new Date(detail.closedAt).toLocaleDateString("vi-VN")
+            : "Đã hoàn thành",
           capturedAmount: detail.pledgedAmount,
-          orders: [],
+          orders,
         },
       },
     };
@@ -1214,7 +1484,29 @@ export class HttpPlatformApi implements PlatformApi {
     const rewardAmount = reward ? reward.amount : 0;
     const shippingAmount = reward && reward.amount >= 500_000 ? 35_000 : 0;
     const bonusAmount = input.bonusAmount || 0;
-    const addOnAmount = 0;
+    let addOnAmount = 0;
+    if (
+      campaign &&
+      "addOns" in campaign &&
+      Array.isArray((campaign as CampaignDetail).addOns)
+    ) {
+      const campaignAddOns = (campaign as CampaignDetail).addOns;
+      if (Array.isArray(input.addOns) && input.addOns.length > 0) {
+        for (const item of input.addOns) {
+          const match = campaignAddOns.find((a) => a.id === item.addOnId);
+          if (match) {
+            addOnAmount += match.amount * Math.max(1, Number(item.quantity) || 1);
+          }
+        }
+      } else if (Array.isArray(input.addOnIds) && input.addOnIds.length > 0) {
+        for (const id of input.addOnIds) {
+          const match = campaignAddOns.find((a) => a.id === id);
+          if (match) {
+            addOnAmount += match.amount;
+          }
+        }
+      }
+    }
 
     const totalAmount =
       rewardAmount + addOnAmount + shippingAmount + bonusAmount;

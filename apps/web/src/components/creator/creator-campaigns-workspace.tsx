@@ -13,6 +13,7 @@ import {
   FolderKanban,
   MapPin,
   Plus,
+  Rocket,
   Search,
   UsersRound,
   X,
@@ -63,9 +64,10 @@ function CampaignManagementCard({
     campaign.reviewStatus === "NEEDS_CHANGES" ||
     Boolean(campaign.reviewFeedback);
   const isLive = campaign.status === "LIVE";
+  const isPreLaunch = !isNeedsChanges && campaign.status === "PRE_LAUNCH";
   const isInReview =
     !isNeedsChanges &&
-    ["IN_REVIEW", "PRE_LAUNCH", "APPROVED"].includes(campaign.status);
+    ["IN_REVIEW", "APPROVED"].includes(campaign.status);
   const isDraft = !isNeedsChanges && campaign.status === "DRAFT";
   const isSuccessful = campaign.status === "SUCCESSFUL";
 
@@ -173,6 +175,22 @@ function CampaignManagementCard({
                 </p>
               </div>
             </div>
+          ) : isPreLaunch ? (
+            <div className="flex items-start gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-indigo-100 text-indigo-700">
+                <Rocket className="size-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-indigo-950">
+                  Đã duyệt · Chờ mở gọi vốn
+                </p>
+                <p className="mt-0.5 text-[11px] leading-4 text-indigo-900/80">
+                  {campaign.ownership === "OWNER"
+                    ? "Hồ sơ đã được phê duyệt. Bạn có thể mở gọi vốn bất cứ lúc nào."
+                    : "Hồ sơ đã được phê duyệt. Đang chờ Chủ dự án chính thức mở gọi vốn."}
+                </p>
+              </div>
+            </div>
           ) : isInReview ? (
             <div className="flex items-start gap-2.5">
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-800">
@@ -243,14 +261,20 @@ function CampaignManagementCard({
               href={getManageHref(campaign)}
               className="button-primary flex-1 min-h-10 text-xs font-bold justify-center"
             >
-              <FolderKanban className="size-3.5" />
+              {isPreLaunch && campaign.ownership === "OWNER" ? (
+                <Rocket className="size-3.5" />
+              ) : (
+                <FolderKanban className="size-3.5" />
+              )}
               {isLive
                 ? "Vận hành"
-                : isInReview
-                  ? "Xem hồ sơ"
-                  : isSuccessful
-                    ? "Giao quà"
-                    : "Quản lý"}
+                : isPreLaunch
+                  ? (campaign.ownership === "OWNER" ? "Mở gọi vốn" : "Chi tiết dự án")
+                  : isInReview
+                    ? "Xem hồ sơ"
+                    : isSuccessful
+                      ? "Giao quà"
+                      : "Quản lý"}
             </Link>
           )}
 

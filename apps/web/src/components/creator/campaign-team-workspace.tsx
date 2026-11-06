@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   CheckCircle2,
+  Clock,
   Crown,
   LoaderCircle,
   Mail,
@@ -66,9 +67,14 @@ export function CampaignTeamWorkspace({
   const ownerMembers = team.filter(
     (m) => m.role === "Chủ dự án" || (m as any).role === "OWNER",
   );
-  const collaboratorMembers = team.filter(
-    (m) => m.role !== "Chủ dự án" && (m as any).role !== "OWNER",
+  const activeCollaborators = team.filter(
+    (m) =>
+      m.role !== "Chủ dự án" &&
+      (m as any).role !== "OWNER" &&
+      m.status !== "PENDING",
   );
+  const pendingInvitations = team.filter((m) => m.status === "PENDING");
+  const officialMembers = [...ownerMembers, ...activeCollaborators];
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,11 +99,17 @@ export function CampaignTeamWorkspace({
         canViewAiDashboard,
       });
 
-      const memberData = res?.data;
+      const memberData = res?.data?.member || res?.data;
       const memberName =
-        memberData?.user?.displayName || cleanEmail.split("@")[0];
-      const newId = memberData?.id || `collab_${Date.now()}`;
-      const newUserId = memberData?.userId || memberData?.user?.id || newId;
+        memberData?.user?.displayName ||
+        memberData?.name ||
+        cleanEmail.split("@")[0];
+      const newUserId =
+        memberData?.userId ||
+        memberData?.user?.id ||
+        memberData?.id ||
+        `collab_${Date.now()}`;
+      const newId = newUserId;
 
       const newMember: CampaignOperationsData["team"][number] = {
         id: newId,
@@ -105,6 +117,7 @@ export function CampaignTeamWorkspace({
         memberId: newId,
         name: memberName,
         email: cleanEmail,
+        status: "PENDING",
         initials:
           memberName
             .split(" ")
@@ -126,7 +139,7 @@ export function CampaignTeamWorkspace({
         canReplyComments,
         canViewAiDashboard,
         openTasks: 0,
-        lastSeen: "Vừa xong",
+        lastSeen: "Chờ chấp thuận",
       };
 
       setTeam((prev) => [
@@ -136,7 +149,7 @@ export function CampaignTeamWorkspace({
 
       setNotice({
         tone: "success",
-        message: `Đã cấp quyền cộng tác viên cho tài khoản "${cleanEmail}" thành công!`,
+        message: `Đã gửi lời mời cộng tác tới "${cleanEmail}". Thành viên sẽ chính thức tham gia sau khi chấp thuận lời mời!`,
       });
       setIsInviteOpen(false);
       setInviteEmail("");
@@ -162,17 +175,32 @@ export function CampaignTeamWorkspace({
     setBusy(true);
     setNotice(null);
 
+    const isPending = memberToRemove.status === "PENDING";
+    const targetUserId =
+      memberToRemove.userId || memberToRemove.memberId || memberToRemove.id;
+    const targetEmail = memberToRemove.email;
+
     try {
       await postOperation("REMOVE_MEMBER", {
         campaignId,
-        memberId: memberToRemove.memberId || memberToRemove.id,
-        userId: memberToRemove.userId || memberToRemove.id,
+        memberId: targetUserId,
+        userId: targetUserId,
+        email: targetEmail,
       });
 
-      setTeam((prev) => prev.filter((m) => m.id !== memberToRemove.id));
+      setTeam((prev) =>
+        prev.filter(
+          (m) =>
+            m.id !== memberToRemove.id &&
+            m.userId !== targetUserId &&
+            (!targetEmail || m.email?.toLowerCase() !== targetEmail.toLowerCase()),
+        ),
+      );
       setNotice({
         tone: "success",
-        message: `Đã thu hồi quyền cộng tác viên của "${memberToRemove.name}".`,
+        message: isPending
+          ? `Đã hủy lời mời gửi tới "${memberToRemove.email || memberToRemove.name}".`
+          : `Đã thu hồi quyền cộng tác viên của "${memberToRemove.name}".`,
       });
       setMemberToRemove(null);
     } catch (err) {
@@ -180,7 +208,9 @@ export function CampaignTeamWorkspace({
         tone: "error",
         message: clientRequestMessage(
           err,
-          "Chưa thể thu hồi quyền cộng tác viên. Vui lòng thử lại sau.",
+          isPending
+            ? "Chưa thể hủy lời mời. Vui lòng thử lại sau."
+            : "Chưa thể thu hồi quyền cộng tác viên. Vui lòng thử lại sau.",
         ),
       });
     } finally {
@@ -231,13 +261,13 @@ export function CampaignTeamWorkspace({
               Phân quyền & Cộng tác viên
             </h2>
             <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-6 text-ink-soft">
-              Quản lý các thành viên cùng tham gia vận hành chiến dịch &quot;{campaignTitle}&quot;.
-              Cộng tác viên chỉ có quyền trong phạm vi dự án này và không thể can thiệp
-              vào tài chính, thông tin thụ hưởng hay mục tiêu gọi vốn.
+              {isOwner
+                ? `Quản lý các thành viên cùng tham gia vận hành chiến dịch "${campaignTitle}". Cộng tác viên chỉ có quyền trong phạm vi dự án này và không thể can thiệp vào tài chính, thông tin thụ hưởng hay mục tiêu gọi vốn.`
+                : `Danh sách các thành viên tham gia vận hành chiến dịch "${campaignTitle}". Bạn đang tham gia với tư cách Cộng tác viên. Chỉ Chủ dự án mới có quyền mời hoặc thu hồi quyền của các thành viên khác.`}
             </p>
           </div>
 
-          {isOwner && (
+          {isOwner ? (
             <button
               type="button"
               onClick={() => setIsInviteOpen(true)}
@@ -245,11 +275,16 @@ export function CampaignTeamWorkspace({
             >
               <UserPlus className="size-4" /> Mời cộng tác viên
             </button>
+          ) : (
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-[#fbfbfa] px-3.5 py-2.5 text-xs text-ink-muted self-start">
+              <ShieldCheck className="size-4 text-forest shrink-0" />
+              <span>Chỉ Chủ dự án mới có quyền mời cộng tác viên</span>
+            </div>
           )}
         </div>
 
         {/* Metric summary */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-[14px] bg-[#f2f4eb] p-4">
             <p className="text-xs text-ink-muted">Chủ dự án (Owner)</p>
             <p className="mt-1.5 font-display text-xl font-extrabold text-forest tabular-nums">
@@ -258,14 +293,21 @@ export function CampaignTeamWorkspace({
             <p className="mt-0.5 text-[10px] text-ink-muted">Toàn quyền kiểm soát</p>
           </div>
           <div className="rounded-[14px] bg-[#eef3f7] p-4">
-            <p className="text-xs text-ink-muted">Cộng tác viên (Collaborators)</p>
+            <p className="text-xs text-ink-muted">Cộng tác viên chính thức</p>
             <p className="mt-1.5 font-display text-xl font-extrabold text-[#295b7a] tabular-nums">
-              {collaboratorMembers.length} người
+              {activeCollaborators.length} người
             </p>
-            <p className="mt-0.5 text-[10px] text-ink-muted">Hỗ trợ vận hành</p>
+            <p className="mt-0.5 text-[10px] text-ink-muted">Đã đồng ý tham gia</p>
+          </div>
+          <div className="rounded-[14px] bg-amber-50/70 border border-amber-200/60 p-4">
+            <p className="text-xs text-amber-800">Lời mời đang chờ</p>
+            <p className="mt-1.5 font-display text-xl font-extrabold text-amber-700 tabular-nums">
+              {pendingInvitations.length} lời mời
+            </p>
+            <p className="mt-0.5 text-[10px] text-amber-600/90">Chờ người nhận phản hồi</p>
           </div>
           <div className="col-span-2 sm:col-span-1 rounded-[14px] bg-[#fbfbfa] border border-line p-4">
-            <p className="text-xs text-ink-muted">Chính sách bảo mật</p>
+            <p className="text-xs text-ink-muted">Phạm vi phân quyền</p>
             <p className="mt-1.5 text-xs font-bold text-ink leading-relaxed">
               Theo từng chiến dịch riêng
             </p>
@@ -276,16 +318,127 @@ export function CampaignTeamWorkspace({
         </div>
       </article>
 
+      {/* ── Pending Invitations List ─────────────────────────── */}
+      {pendingInvitations.length > 0 && (
+        <article className="overflow-hidden rounded-[20px] border border-amber-200 bg-amber-50/25 shadow-xs">
+          <div className="flex items-center justify-between border-b border-amber-200/60 bg-amber-50/60 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <Clock className="size-4 text-amber-600" />
+              <h3 className="font-display text-sm font-extrabold text-amber-950">
+                Lời mời đang chờ chấp thuận ({pendingInvitations.length})
+              </h3>
+            </div>
+            <span className="rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+              Chờ người nhận đồng ý
+            </span>
+          </div>
+
+          <div className="divide-y divide-amber-100">
+            {pendingInvitations.map((invitation) => (
+              <div
+                key={invitation.id}
+                className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between transition hover:bg-amber-50/40"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-100 font-display text-xs font-black text-amber-800 ring-1 ring-amber-200">
+                    {invitation.initials || "LM"}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display font-extrabold text-ink text-sm truncate">
+                        {invitation.name}
+                      </p>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300/80 px-2 py-0.5 text-[10px] font-extrabold text-amber-800">
+                        <Clock className="size-3 text-amber-600" />
+                        Chờ chấp thuận
+                      </span>
+                    </div>
+                    {invitation.email && (
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-muted">
+                        <Mail className="size-3" />
+                        <span>{invitation.email}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-bold ${
+                        invitation.canPostUpdates ?? true
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : "border-stone-200 bg-stone-50 text-stone-400 line-through"
+                      }`}
+                      title={
+                        invitation.canPostUpdates ?? true
+                          ? "Sẽ có quyền đăng bài cập nhật"
+                          : "Không có quyền đăng bài"
+                      }
+                    >
+                      <Newspaper className="size-3" />
+                      Đăng cập nhật
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-bold ${
+                        invitation.canReplyComments ?? true
+                          ? "border-blue-200 bg-blue-50 text-blue-800"
+                          : "border-stone-200 bg-stone-50 text-stone-400 line-through"
+                      }`}
+                      title={
+                        invitation.canReplyComments ?? true
+                          ? "Sẽ có quyền trả lời bình luận"
+                          : "Không có quyền trả lời"
+                      }
+                    >
+                      <MessageSquare className="size-3" />
+                      Trả lời bình luận
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-bold ${
+                        invitation.canViewAiDashboard ?? true
+                          ? "border-purple-200 bg-purple-50 text-purple-800"
+                          : "border-stone-200 bg-stone-50 text-stone-400 line-through"
+                      }`}
+                      title={
+                        invitation.canViewAiDashboard ?? true
+                          ? "Sẽ có quyền xem số liệu AI"
+                          : "Không có quyền xem"
+                      }
+                    >
+                      <BarChart3 className="size-3" />
+                      Xem báo cáo AI
+                    </span>
+                  </div>
+
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => setMemberToRemove(invitation)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-50 hover:border-red-300 shadow-xs"
+                      title={`Hủy lời mời gửi tới ${invitation.email || invitation.name}`}
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span>Hủy lời mời</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
+
       {/* ── Team Members List ────────────────────────────────── */}
       <article className="overflow-hidden rounded-[20px] border border-line bg-white shadow-xs">
         <div className="border-b border-line bg-[#fbfbfa] px-5 py-4">
           <h3 className="font-display text-sm font-extrabold text-ink">
-            Danh sách thành viên dự án ({team.length})
+            Thành viên chính thức ({officialMembers.length})
           </h3>
         </div>
 
         <div className="divide-y divide-line">
-          {team.map((member) => {
+          {officialMembers.map((member) => {
             const isMemberOwner =
               member.role === "Chủ dự án" || (member as any).role === "OWNER";
 
@@ -516,13 +669,17 @@ export function CampaignTeamWorkspace({
         </Modal>
       )}
 
-      {/* ── Modal 2: Xác nhận thu hồi quyền ──────────────────── */}
+      {/* ── Modal 2: Xác nhận thu hồi quyền / Hủy lời mời ──── */}
       {memberToRemove && (
         <Modal
           open
           size="sm"
-          title="Thu hồi quyền cộng tác viên"
-          description={memberToRemove.name}
+          title={
+            memberToRemove.status === "PENDING"
+              ? "Hủy lời mời cộng tác viên"
+              : "Thu hồi quyền cộng tác viên"
+          }
+          description={memberToRemove.email || memberToRemove.name}
           onClose={() => !busy && setMemberToRemove(null)}
           locked={busy}
         >
@@ -530,11 +687,23 @@ export function CampaignTeamWorkspace({
             <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-red-900 leading-relaxed">
               <p className="font-bold flex items-center gap-1.5 text-red-950 mb-1">
                 <UserMinus className="size-4 text-red-600 shrink-0" />
-                Xác nhận thu hồi quyền:
+                {memberToRemove.status === "PENDING"
+                  ? "Xác nhận hủy lời mời:"
+                  : "Xác nhận thu hồi quyền:"}
               </p>
-              Bạn có chắc chắn muốn xóa tài khoản <strong>{memberToRemove.name}</strong>{" "}
-              {memberToRemove.email ? `(${memberToRemove.email})` : ""} khỏi danh sách cộng tác viên
-              của chiến dịch &quot;{campaignTitle}&quot;? Người này sẽ không còn quyền đăng bài hay trả lời bình luận trong dự án này nữa.
+              {memberToRemove.status === "PENDING" ? (
+                <>
+                  Bạn có chắc chắn muốn hủy lời mời tham gia dự án gửi tới{" "}
+                  <strong>{memberToRemove.email || memberToRemove.name}</strong>?
+                  Lời mời này sẽ bị vô hiệu hóa và người nhận sẽ không thể sử dụng để tham gia vận hành chiến dịch &quot;{campaignTitle}&quot; nữa.
+                </>
+              ) : (
+                <>
+                  Bạn có chắc chắn muốn xóa tài khoản <strong>{memberToRemove.name}</strong>{" "}
+                  {memberToRemove.email ? `(${memberToRemove.email})` : ""} khỏi danh sách cộng tác viên
+                  của chiến dịch &quot;{campaignTitle}&quot;? Người này sẽ không còn quyền đăng bài hay trả lời bình luận trong dự án này nữa.
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-line">
@@ -557,7 +726,13 @@ export function CampaignTeamWorkspace({
                 ) : (
                   <Trash2 className="size-3.5" />
                 )}
-                <span>{busy ? "Đang xóa…" : "Xác nhận thu hồi"}</span>
+                <span>
+                  {busy
+                    ? "Đang xử lý…"
+                    : memberToRemove.status === "PENDING"
+                      ? "Xác nhận hủy lời mời"
+                      : "Xác nhận thu hồi"}
+                </span>
               </button>
             </div>
           </div>

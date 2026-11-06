@@ -222,6 +222,14 @@ export async function POST(request: Request) {
         "Người được theo dõi hoặc trạng thái chưa hợp lệ.",
       );
 
+    if (access.session?.user?.id === creatorId) {
+      return requestError(
+        400,
+        "CANNOT_FOLLOW_SELF",
+        "Bạn không thể tự theo dõi chính mình.",
+      );
+    }
+
     // Persist to real NestJS PostgreSQL backend if session has token
     try {
       if (following) {

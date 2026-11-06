@@ -54,6 +54,7 @@ export class PledgesService {
     }
 
     // Calculate add-on total
+    const addOnMap = new Map<string, bigint>();
     const addOnItems = dto.addOns ?? [];
     for (const item of addOnItems) {
       const addOn = await this.prisma.addOn.findUnique({
@@ -62,8 +63,27 @@ export class PledgesService {
       if (!addOn || addOn.campaignId !== dto.campaignId) {
         throw new NotFoundException(`Add-on ${item.addOnId} not found`);
       }
+      addOnMap.set(item.addOnId, addOn.amount);
       addOnAmount += addOn.amount * BigInt(item.quantity);
     }
+
+    // Resolve shipping address: if not provided explicitly, fallback to backer's default address
+    let shippingAddressId = dto.shippingAddressId;
+    if (!shippingAddressId && dto.rewardTierId) {
+      const defaultAddr = await this.prisma.address.findFirst({
+        where: { userId: backerId },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      });
+      if (defaultAddr) {
+        shippingAddressId = defaultAddr.id;
+      }
+    }
+
+    const totalAmount =
+      rewardAmount +
+      addOnAmount +
+      shippingAmount +
+      BigInt(dto.bonusAmount ?? 0);
 
     const pledge = await this.prisma.pledge.create({
       data: {
@@ -71,17 +91,18 @@ export class PledgesService {
         backerId,
         rewardTierId: dto.rewardTierId,
         shippingOptionId: dto.shippingOptionId,
-        shippingAddressId: dto.shippingAddressId,
+        shippingAddressId: shippingAddressId || undefined,
         rewardAmount,
         addOnAmount,
         shippingAmount,
         bonusAmount: dto.bonusAmount ?? 0,
+        totalAmount,
         addOns: addOnItems.length > 0 ? {
           createMany: {
             data: addOnItems.map((item) => ({
               addOnId: item.addOnId,
               quantity: item.quantity,
-              unitAmount: BigInt(0), // Will be resolved from add-on price
+              unitAmount: addOnMap.get(item.addOnId) ?? BigInt(0),
             })),
           },
         } : undefined,
@@ -103,15 +124,44 @@ export class PledgesService {
     if (query.status) where.status = query.status;
     if (query.campaignId) where.campaignId = query.campaignId;
 
+    const effectiveOrderBy = query.sortBy
+      ? query.sortBy === 'createdAt'
+        ? { pledgedAt: (query.sortOrder || 'desc') as any }
+        : orderBy
+      : { pledgedAt: 'desc' as const };
+
     const [data, total] = await Promise.all([
       this.prisma.pledge.findMany({
         where,
         skip,
         take,
-        orderBy: orderBy ?? { pledgedAt: 'desc' },
+        orderBy: effectiveOrderBy,
         include: {
-          campaign: { select: { id: true, title: true, slug: true, status: true } },
+          campaign: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              blurb: true,
+              status: true,
+              goalAmount: true,
+              currency: true,
+              durationDays: true,
+              location: true,
+              media: { orderBy: { sortOrder: 'asc' } },
+              creator: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  avatarUrl: true,
+                },
+              },
+              category: { select: { id: true, name: true, slug: true } },
+            },
+          },
           rewardTier: { select: { id: true, title: true, amount: true } },
+          shippingAddress: true,
+          fulfillment: true,
         },
       }),
       this.prisma.pledge.count({ where }),

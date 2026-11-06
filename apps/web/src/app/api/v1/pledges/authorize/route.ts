@@ -12,7 +12,7 @@ function isAuthorizeInput(value: unknown): value is AuthorizePledgeInput {
   return Boolean(
     body.campaignId &&
     (typeof body.rewardId === "string" || body.rewardId === null) &&
-    Array.isArray(body.addOnIds) &&
+    (Array.isArray(body.addOnIds) || Array.isArray(body.addOns)) &&
     typeof body.bonusAmount === "number" &&
     body.address?.fullName &&
     body.address?.phone &&
@@ -46,6 +46,33 @@ export async function POST(request: Request) {
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.campaignId);
       if (isUuid) {
+        const addOnsList =
+          Array.isArray(body.addOns) && body.addOns.length > 0
+            ? body.addOns.map((item) => ({
+                addOnId: item.addOnId,
+                quantity: Math.max(1, Number(item.quantity) || 1),
+              }))
+            : (body.addOnIds || []).map((id) => ({ addOnId: id, quantity: 1 }));
+
+        let shippingAddressId = (body as any).addressId;
+        if (!shippingAddressId && body.address) {
+          try {
+            const addrRes = await fetchBackendWithAuth(
+              "/users/me/addresses",
+              { method: "GET" },
+              access.session,
+            );
+            if (addrRes.response.ok) {
+              const addrs = await addrRes.response.json();
+              const list = Array.isArray(addrs) ? addrs : addrs?.data || [];
+              const def = list.find((a: any) => a.isDefault) || list[0];
+              if (def) shippingAddressId = def.id;
+            }
+          } catch {
+            // ignore address lookup error
+          }
+        }
+
         await fetchBackendWithAuth(
           "/pledges",
           {
@@ -53,8 +80,9 @@ export async function POST(request: Request) {
             body: JSON.stringify({
               campaignId: body.campaignId,
               rewardTierId: body.rewardId || undefined,
+              shippingAddressId: shippingAddressId || undefined,
               bonusAmount: body.bonusAmount || 0,
-              addOns: (body.addOnIds || []).map((id) => ({ addOnId: id, quantity: 1 })),
+              addOns: addOnsList,
             }),
           },
           access.session,

@@ -12,6 +12,7 @@ import {
   FolderKanban,
   MapPin,
   Plus,
+  Rocket,
   Sparkles,
   UsersRound,
   WalletCards,
@@ -52,9 +53,11 @@ function ActiveCampaignCard({
     campaign.daysLeft > 0 ? Math.ceil(remainingAmount / campaign.daysLeft) : 0;
 
   const isLive = campaign.status === "LIVE";
+  const isPreLaunch = campaign.status === "PRE_LAUNCH";
   const isInReview = campaign.status === "IN_REVIEW";
   const isDraft = campaign.status === "DRAFT";
   const isSuccessful = campaign.status === "SUCCESSFUL";
+  const isOwner = campaign.ownership === "OWNER";
 
   const visualProps = campaign.visual ?? {
     motif: "coffee" as const,
@@ -171,6 +174,22 @@ function ActiveCampaignCard({
                     </div>
                   </div>
                 </>
+              ) : isPreLaunch ? (
+                <div className="flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-700">
+                    <Rocket className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-indigo-950">
+                      Đã duyệt · Sẵn sàng mở gọi vốn
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-indigo-900/80">
+                      {isOwner
+                        ? "Hồ sơ dự án đã được ban quản trị phê duyệt. Bạn có thể bấm 'Mở gọi vốn ngay' để kích hoạt chiến dịch và bắt đầu nhận ủng hộ."
+                        : "Hồ sơ dự án đã được ban quản trị phê duyệt. Đang chờ chủ dự án chính thức mở gọi vốn."}
+                    </p>
+                  </div>
+                </div>
               ) : isInReview ? (
                 <div className="flex items-start gap-3">
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-800">
@@ -240,13 +259,13 @@ function ActiveCampaignCard({
                 },
                 {
                   label: "2. Xét duyệt",
-                  done: isLive || isSuccessful,
+                  done: isPreLaunch || isLive || isSuccessful,
                   active: isInReview,
                 },
                 {
                   label: "3. Gọi vốn",
                   done: isSuccessful,
-                  active: isLive,
+                  active: isPreLaunch || isLive,
                 },
                 {
                   label: "4. Giao quà",
@@ -290,18 +309,22 @@ function ActiveCampaignCard({
                 ? "Theo dõi hàng chờ duyệt"
                 : isLive
                   ? "Vận hành chiến dịch"
-                  : isSuccessful
-                    ? "Giao quà & Đối soát"
-                    : "Quản lý hồ sơ"}
+                  : isPreLaunch
+                    ? (isOwner ? "Mở gọi vốn ngay" : "Chi tiết dự án")
+                    : isSuccessful
+                      ? "Giao quà & Đối soát"
+                      : "Quản lý hồ sơ"}
             </Link>
 
-            <Link
-              href={`/creator/campaigns/new?campaign=${campaign.slug}`}
-              className="button-secondary min-h-11 px-4 text-xs font-semibold"
-            >
-              <FilePenLine className="size-4" />
-              Chỉnh sửa nội dung
-            </Link>
+            {isOwner ? (
+              <Link
+                href={`/creator/campaigns/new?campaign=${campaign.slug}`}
+                className="button-secondary min-h-11 px-4 text-xs font-semibold"
+              >
+                <FilePenLine className="size-4" />
+                Chỉnh sửa nội dung
+              </Link>
+            ) : null}
 
             <Link
               href={`/projects/${campaign.slug}`}

@@ -4,11 +4,14 @@ import {
   ArrowRight,
   BadgeCheck,
   Check,
+  CheckCircle2,
   ChevronDown,
   Edit2,
   Eye,
   EyeOff,
   Heart,
+  HelpCircle,
+  LoaderCircle,
   Mail,
   MessageCircle,
   PackageCheck,
@@ -44,7 +47,7 @@ const tabs = [
   { id: "Story", label: "Câu chuyện" },
   { id: "Rewards", label: "Gói ủng hộ" },
   { id: "Creator", label: "Chủ dự án" },
-  { id: "FAQ", label: "Hỏi đáp" },
+  { id: "FAQ", label: "Hỏi đáp (FAQ)" },
   { id: "Updates", label: "Cập nhật" },
   { id: "Comments", label: "Bình luận" },
   { id: "Community", label: "Cộng đồng" },
@@ -293,6 +296,9 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
         )
       : false,
   );
+  const [followersCount, setFollowersCount] = useState(
+    campaign.creator.followers ?? 0,
+  );
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
@@ -310,6 +316,10 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
       router.push(`/auth?next=${encodeURIComponent(pathname)}`);
       return;
     }
+    if (isOwner) {
+      setNotice("Bạn là chủ dự án này nên không thể tự theo dõi chính mình.");
+      return;
+    }
     if (!session.user.roles.includes("BACKER")) {
       router.push("/account?tab=roles");
       return;
@@ -317,16 +327,18 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
     setBusy(true);
     setNotice("");
     try {
+      const nextFollowing = !following;
       const result = await saveMemberAction("SET_CREATOR_FOLLOW", {
         creatorId: campaign.creator.id,
-        following: !following,
+        following: nextFollowing,
       });
       if (result.session) establishSession(result.session);
-      setFollowing((value) => !value);
+      setFollowing(nextFollowing);
+      setFollowersCount((prev) => Math.max(0, prev + (nextFollowing ? 1 : -1)));
       setNotice(
-        following
-          ? "Đã bỏ theo dõi chủ dự án."
-          : "Bạn sẽ nhận cập nhật mới từ chủ dự án này.",
+        nextFollowing
+          ? "Bạn sẽ nhận cập nhật mới từ chủ dự án này."
+          : "Đã bỏ theo dõi chủ dự án.",
       );
     } catch (error) {
       setNotice(clientRequestMessage(error, "Chưa thể lưu theo dõi. Bạn thử lại sau nhé."));
@@ -405,7 +417,7 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
               </span>
               <span>
                 <strong className="text-ink">
-                  {formatNumber(campaign.creator.followers ?? 0)}
+                  {formatNumber(followersCount)}
                 </strong>{" "}
                 người theo dõi
               </span>
@@ -429,7 +441,8 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
             </button>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || isOwner}
+              title={isOwner ? "Bạn là chủ dự án này" : undefined}
               aria-pressed={following}
               onClick={() => void toggleFollowing()}
               className={following ? "button-secondary" : "button-primary"}
@@ -543,30 +556,204 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
 
 function FaqPanel({
   campaign,
-  onAsk,
+  onGoToComments,
 }: {
   campaign: CampaignDetail;
-  onAsk: () => void;
+  onGoToComments: () => void;
 }) {
+  const { session } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [askOpen, setAskOpen] = useState(false);
+  const [questionBody, setQuestionBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleOpenAsk = () => {
+    if (!session) {
+      router.push(`/auth?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    setAskOpen(true);
+    setNotice("");
+    setSubmitted(false);
+  };
+
+  const handleSendQuestion = async () => {
+    const value = questionBody.trim();
+    if (!value || !session) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      await saveMemberAction("ASK_QUESTION", {
+        campaignId: campaign.id,
+        body: value,
+      });
+      setSubmitted(true);
+    } catch (error) {
+      setNotice(
+        clientRequestMessage(error, "Chưa thể gửi câu hỏi. Vui lòng thử lại."),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div>
-      <h2 className="font-display text-2xl font-extrabold">Câu hỏi thường gặp</h2>
-      <div className="mt-6 divide-y divide-line rounded-[18px] border border-line bg-white">
-        {campaign.faqs.map((faq, index) => (
-          <details key={faq.question} className="group p-5" open={index === 0}>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-sm font-extrabold sm:text-base">
-              {faq.question}
-              <ChevronDown className="size-4 shrink-0 transition-transform duration-200 group-open:rotate-180" />
-            </summary>
-            <p className="mt-3 pr-7 text-sm leading-7 text-ink-soft">
-              {faq.answer}
-            </p>
-          </details>
-        ))}
+      <div>
+        <h2 className="font-display text-2xl font-extrabold">
+          Câu hỏi thường gặp (FAQ)
+        </h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          Các câu hỏi và giải đáp chính thức từ Chủ dự án để cộng đồng tham khảo.
+        </p>
       </div>
-      <button type="button" onClick={onAsk} className="button-secondary mt-5">
-        <MessageCircle className="size-4" /> Gửi câu hỏi mới
-      </button>
+
+      {campaign.faqs && campaign.faqs.length > 0 ? (
+        <div className="mt-6 divide-y divide-line rounded-[18px] border border-line bg-white">
+          {campaign.faqs.map((faq, index) => (
+            <details key={faq.question} className="group p-5" open={index === 0}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-sm font-extrabold sm:text-base">
+                {faq.question}
+                <ChevronDown className="size-4 shrink-0 transition-transform duration-200 group-open:rotate-180" />
+              </summary>
+              <p className="mt-3 pr-7 text-sm leading-7 text-ink-soft">
+                {faq.answer}
+              </p>
+            </details>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-[18px] border border-dashed border-line bg-white p-8 text-center">
+          <HelpCircle className="mx-auto size-8 text-ink-muted/50" />
+          <p className="mt-3 font-display text-base font-bold text-ink">
+            Chưa có câu hỏi thường gặp
+          </p>
+          <p className="mt-1 text-xs text-ink-muted">
+            Chủ dự án chưa cập nhật danh sách câu hỏi thường gặp cho chiến dịch này.
+          </p>
+        </div>
+      )}
+
+      {/* Ask Question Card */}
+      <div className="mt-8 rounded-[20px] border border-line bg-[#f8faf6] p-6 sm:p-7">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-display text-base font-extrabold text-ink">
+              Bạn có câu hỏi riêng cho Chủ dự án?
+            </h3>
+            <p className="mt-1 max-w-xl text-xs leading-5 text-ink-muted">
+              Gửi câu hỏi trực tiếp để nhóm dự án giải đáp. Câu hỏi của bạn sẽ được chuyển đến Chủ dự án và hiển thị công khai tại mục Bình luận & Thảo luận.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenAsk}
+            className="button-primary shrink-0 text-xs font-bold"
+          >
+            <MessageCircle className="size-4" /> Đặt câu hỏi cho dự án
+          </button>
+        </div>
+      </div>
+
+      {/* Ask Modal */}
+      <Modal
+        open={askOpen}
+        title="Đặt câu hỏi cho Chủ dự án"
+        description="Câu hỏi của bạn sẽ được gửi tới nhóm dự án và hiển thị công khai tại mục Thảo luận & Bình luận để nhóm phản hồi."
+        onClose={() => {
+          setAskOpen(false);
+          setNotice("");
+          if (submitted) {
+            setSubmitted(false);
+            setQuestionBody("");
+          }
+        }}
+        locked={busy}
+      >
+        {submitted ? (
+          <div className="py-4 text-center">
+            <div className="mx-auto grid size-12 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="size-6" />
+            </div>
+            <p className="mt-3 font-display text-base font-extrabold text-ink">
+              Đã gửi câu hỏi tới Chủ dự án!
+            </p>
+            <p className="mt-1 text-xs leading-5 text-ink-muted">
+              Câu hỏi của bạn đã được gửi thành công. Chủ dự án và nhóm cộng tác sẽ nhận được thông báo và trả lời bạn trong mục Thảo luận & Bình luận.
+            </p>
+            <div className="mt-5 flex justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAskOpen(false);
+                  setSubmitted(false);
+                  setQuestionBody("");
+                  onGoToComments();
+                }}
+                className="button-dark text-xs"
+              >
+                Xem trong mục Bình luận <ArrowRight className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAskOpen(false);
+                  setSubmitted(false);
+                  setQuestionBody("");
+                }}
+                className="button-secondary text-xs"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-[18px] border border-coral/25 bg-[#fffaf6] p-4 sm:p-5">
+            <label
+              htmlFor="faq-ask-question"
+              className="text-xs font-bold text-ink-soft"
+            >
+              Nội dung câu hỏi của bạn
+            </label>
+            <textarea
+              id="faq-ask-question"
+              value={questionBody}
+              onChange={(e) => setQuestionBody(e.target.value)}
+              className="input-field mt-2 min-h-28 resize-y"
+              placeholder="Bạn muốn hỏi điều gì về sản phẩm, tiến độ hoặc gói ủng hộ?..."
+            />
+            {notice ? (
+              <p className="mt-2 text-xs font-medium text-red-600">{notice}</p>
+            ) : null}
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAskOpen(false)}
+                className="button-secondary text-xs"
+                disabled={busy}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSendQuestion}
+                disabled={busy || !questionBody.trim()}
+                className="button-dark text-xs font-bold"
+              >
+                {busy ? (
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                ) : (
+                  <Send className="size-3.5" />
+                )}
+                Gửi câu hỏi
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -1300,7 +1487,7 @@ function TabContent({
   if (tab === "Rewards") return <RewardsPanel campaign={campaign} />;
   if (tab === "Creator") return <CreatorPanel campaign={campaign} />;
   if (tab === "FAQ")
-    return <FaqPanel campaign={campaign} onAsk={onAskQuestion} />;
+    return <FaqPanel campaign={campaign} onGoToComments={onAskQuestion} />;
   if (tab === "Updates") return <UpdatesPanel campaign={campaign} />;
   if (tab === "Comments")
     return <CommentsPanel campaign={campaign} initialIntent={commentIntent} />;

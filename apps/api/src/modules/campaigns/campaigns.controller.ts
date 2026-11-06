@@ -35,7 +35,9 @@ import {
   UpdateCampaignFaqDto,
   CreateCampaignUpdateDto,
   AddCampaignMemberDto,
+  RespondCampaignInvitationDto,
 } from './dto';
+import { CloseCampaignDto } from '../admin/dto';
 
 @ApiTags('campaigns')
 @Controller('campaigns')
@@ -56,6 +58,22 @@ export class CampaignsController {
   @ApiOperation({ summary: 'List campaigns owned or collaborated by current user' })
   async getMyCampaigns(@CurrentUser('id') userId: string) {
     return this.campaignsService.getCreatorCampaigns(userId);
+  }
+
+  @Get('creator/invitations')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List pending collaborator invitations for current user' })
+  async getMyInvitations(@CurrentUser('id') userId: string) {
+    return this.campaignsService.getMyPendingInvitations(userId);
+  }
+
+  @Get('my/invitations')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Alias: List pending collaborator invitations for current user' })
+  async getMyInvitationsAlias(@CurrentUser('id') userId: string) {
+    return this.campaignsService.getMyPendingInvitations(userId);
   }
 
   // ─── Campaign CRUD ─────────────────────────────────────
@@ -348,6 +366,32 @@ export class CampaignsController {
     return this.campaignsService.launch(id, userId);
   }
 
+  @Post(':id/close')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Close campaign early (Creator or Admin)' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID' })
+  async close(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CloseCampaignDto,
+  ) {
+    return this.campaignsService.closeCampaign(id, userId, dto);
+  }
+
+  @Get(':id/fulfillments')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get campaign fulfillments for owner or team members' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID or slug' })
+  async getFulfillments(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.campaignsService.getCampaignFulfillments(id, userId);
+  }
+
   // ─── Public Sub-resources ──────────────────────────────
 
   @Get(':id/updates')
@@ -408,18 +452,32 @@ export class CampaignsController {
     return this.campaignsService.addMember(id, userId, dto);
   }
 
+  @Post(':id/members/respond')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Accept or decline a collaborator invitation' })
+  @ApiParam({ name: 'id', description: 'Campaign UUID or slug' })
+  async respondToInvitation(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: RespondCampaignInvitationDto,
+  ) {
+    return this.campaignsService.respondToInvitation(id, userId, dto.action);
+  }
+
   @Delete(':id/members/:memberId')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove a collaborator' })
   @ApiParam({ name: 'id', description: 'Campaign UUID' })
-  @ApiParam({ name: 'memberId', description: 'Member user UUID' })
+  @ApiParam({ name: 'memberId', description: 'Member user UUID or email' })
   async removeMember(
     @Param('id') id: string,
     @Param('memberId') memberId: string,
     @CurrentUser('id') userId: string,
+    @Query('email') email?: string,
   ) {
-    return this.campaignsService.removeMember(id, memberId, userId);
+    return this.campaignsService.removeMember(id, memberId, userId, email);
   }
 }

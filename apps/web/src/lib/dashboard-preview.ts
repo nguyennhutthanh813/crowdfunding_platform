@@ -42,41 +42,74 @@ export function mergePreviewDashboardState(
     (pledge, index, rows) =>
       rows.findIndex((item) => item.campaignId === pledge.campaignId) === index,
   );
-  const pledgeOverrides = new Map<string, BackedProject>();
   const additions = latestPledges.flatMap((pledge): BackedProject[] => {
-      const campaign = campaigns.find(
-        (item) => item.id === pledge.campaignId,
-      );
-      if (!campaign) return [];
+    const existing = data.backedProjects.find(
+      (item) => item.campaign.id === pledge.campaignId || item.pledgeId === pledge.authorizationId,
+    );
+    if (existing) {
+      return [];
+    }
 
-      const updatedPledge: BackedProject = {
-        pledgeId: pledge.authorizationId,
-        referenceCode: pledge.authorizationId.toUpperCase(),
-        campaign,
-        amount: pledge.totalAmount,
-        paymentStatus: "AUTHORIZED",
-        fulfillmentStatus: "PENDING",
-        rewardTitle: pledge.rewardTitle,
-        pledgedAt: pledge.authorizedAt,
-        nextStep:
-          "Chờ chiến dịch kết thúc; hiện chưa có khoản tiền nào bị thu.",
-        nextStepAt: "Hệ thống sẽ báo khi chiến dịch chốt kết quả",
-      };
-      const existing = data.backedProjects.find(
-        (item) => item.campaign.id === pledge.campaignId,
-      );
-      if (existing) {
-        pledgeOverrides.set(pledge.campaignId, updatedPledge);
-        return [];
-      }
-      return [updatedPledge];
-    });
+    const campaign = campaigns.find(
+      (item) => item.id === pledge.campaignId,
+    );
+    if (!campaign) return [];
+
+    const updatedPledge: BackedProject = {
+      pledgeId: pledge.authorizationId,
+      referenceCode: pledge.authorizationId.slice(0, 8).toUpperCase(),
+      campaign,
+      amount: pledge.totalAmount,
+      paymentStatus: "AUTHORIZED",
+      fulfillmentStatus: "PENDING",
+      rewardTitle: pledge.rewardTitle,
+      pledgedAt: pledge.authorizedAt,
+      nextStep:
+        "Chờ chiến dịch kết thúc; hiện chưa có khoản tiền nào bị thu.",
+      nextStepAt: "Hệ thống sẽ báo khi chiến dịch chốt kết quả",
+    };
+    return [updatedPledge];
+  });
+
   const backedProjects = [
     ...additions,
-    ...data.backedProjects.map(
-      (item) => pledgeOverrides.get(item.campaign.id) ?? item,
-    ),
-  ];
+    ...data.backedProjects,
+  ].map((item) => {
+    const overrideStatus =
+      platform?.fulfillmentStatuses?.[item.pledgeId] ||
+      platform?.fulfillmentStatuses?.[(item as any).fulfillmentId];
+    const fulfillmentStatus = overrideStatus || item.fulfillmentStatus;
+
+    const campaignStatusOverride =
+      platform?.campaignStatuses?.[item.campaign.id];
+    let paymentStatus = item.paymentStatus;
+    if (
+      campaignStatusOverride === "SUCCESSFUL" ||
+      item.campaign.status === "SUCCESSFUL" ||
+      ["PREPARING", "SHIPPED", "DELIVERED"].includes(fulfillmentStatus)
+    ) {
+      paymentStatus = "CAPTURED";
+    }
+
+    let nextStep = item.nextStep;
+    if (fulfillmentStatus === "DELIVERED") {
+      nextStep = "Đơn hàng đã được giao thành công đến bạn.";
+    } else if (fulfillmentStatus === "SHIPPED") {
+      nextStep = "Đơn hàng đã được bàn giao cho đơn vị vận chuyển.";
+    } else if (fulfillmentStatus === "PREPARING") {
+      nextStep = "Chủ dự án đang chuẩn bị và đóng gói phần thưởng.";
+    } else if (paymentStatus === "CAPTURED") {
+      nextStep =
+        "Chiến dịch gọi vốn thành công! Tiền đã được thu và đang chuẩn bị giao quà.";
+    }
+
+    return {
+      ...item,
+      paymentStatus,
+      fulfillmentStatus,
+      nextStep,
+    };
+  });
 
   const savedProjects = (previewState.savedCampaignIds ?? []).flatMap(
     (campaignId) => {
@@ -171,7 +204,7 @@ export function mergePreviewDashboardState(
     messages,
     sentMessages,
     activities: [
-      ...[...pledgeOverrides.values(), ...additions].map((item) => ({
+      ...additions.map((item) => ({
         id: `activity-${item.pledgeId}`,
         title: "Cam kết ủng hộ đã được ghi nhận",
         detail: `${item.rewardTitle} · ${item.amount.toLocaleString("vi-VN")} đ chưa bị thu`,
@@ -216,18 +249,14 @@ export function buildUserDashboard(
   session: SessionResult,
   platform?: PlatformPreviewState,
 ): UserDashboardData {
-  const baseData =
-    session.user.id === "usr_minh_anh" ||
-    session.user.email === "minhanh@example.com"
-      ? {
-          ...sampleData,
-          user: {
-            ...sampleData.user,
-            name: session.user.name,
-            initials: session.user.initials,
-          },
-        }
-      : emptyDashboard(session);
+  const baseData: UserDashboardData = {
+    ...sampleData,
+    user: {
+      ...sampleData.user,
+      name: session.user.name,
+      initials: session.user.initials,
+    },
+  };
 
   return mergePreviewDashboardState(baseData, campaigns, session, platform);
 }

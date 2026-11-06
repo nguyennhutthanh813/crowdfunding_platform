@@ -15,9 +15,9 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const [data, session, campaigns, platformState] = await Promise.all([
-    api.getUserDashboard(),
-    getServerSession(),
+  const session = await getServerSession();
+  const [data, campaigns, platformState] = await Promise.all([
+    api.getUserDashboard(session?.tokens?.accessToken),
     api.listCampaigns(),
     getServerPlatformPreviewState(),
   ]);
@@ -26,5 +26,11 @@ export default async function DashboardPage() {
     : data;
   const friendlyName = getFriendlyName(personalizedData.user.name);
 
-  return <BackerDashboard data={personalizedData} friendlyName={friendlyName} />;
+  return (
+    <BackerDashboard
+      data={personalizedData}
+      friendlyName={friendlyName}
+      campaigns={campaigns}
+    />
+  );
 }

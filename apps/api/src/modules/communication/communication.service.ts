@@ -46,6 +46,16 @@ export class CommunicationService {
       }
     }
 
+    if (!recipientId && dto.parentMessageId) {
+      const parent = await this.prisma.message.findUnique({
+        where: { id: dto.parentMessageId },
+      });
+      if (parent) {
+        recipientId = parent.senderId === senderId ? parent.recipientId : parent.senderId;
+        if (!campaignId && parent.campaignId) campaignId = parent.campaignId;
+      }
+    }
+
     if (!recipientId) {
       throw new BadRequestException('Recipient is required');
     }

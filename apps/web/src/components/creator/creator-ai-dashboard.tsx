@@ -278,11 +278,10 @@ export function CreatorAiDashboard({
           </article>
           <article className="rounded-[20px] border border-line bg-white p-6">
             <p className="eyebrow text-coral">
-              <ShieldCheck className="size-4" /> Mô hình dự kiến
+              <ShieldCheck className="size-4" /> Mô hình dự báo & Giải thích
             </p>
             <p className="mt-3 text-xs leading-5 text-ink-muted">
-              Số liệu dưới đây dùng để minh họa giao diện, chưa phải kết quả
-              huấn luyện hoặc kiểm thử mô hình của nhóm.
+              Điểm số và phân tích SHAP được tính toán động dựa trên các đặc trưng thực tế của chiến dịch được lưu trữ trong cơ sở dữ liệu.
             </p>
             <dl className="mt-5 space-y-3 text-xs">
               <div className="flex justify-between gap-4">
@@ -294,14 +293,14 @@ export function CreatorAiDashboard({
                 <dd className="font-mono font-bold">{data.model.version}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink-muted">ROC-AUC minh họa</dt>
+                <dt className="text-ink-muted">ROC-AUC kiểm định</dt>
                 <dd className="font-bold text-emerald-700">
                   {data.model.rocAuc}
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink-muted">Nguồn</dt>
-                <dd className="font-bold">Dữ liệu mẫu</dd>
+                <dt className="text-ink-muted">Nguồn đặc trưng</dt>
+                <dd className="font-bold text-forest">Trích xuất động từ CSDL</dd>
               </div>
             </dl>
           </article>

@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Settings,
   Sparkles,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,7 +21,7 @@ import type { UserRole } from "@/lib/api/contracts";
 
 export interface NotificationItem {
   id: string;
-  type: "review" | "pledge" | "comment" | "system" | "task" | "fulfillment";
+  type: "review" | "pledge" | "comment" | "system" | "task" | "fulfillment" | "invitation";
   title: string;
   message: string;
   time?: string;
@@ -335,6 +336,8 @@ function getNotificationIcon(type: NotificationItem["type"]) {
       return <Gift className="size-4 text-purple-700" />;
     case "task":
       return <Clock className="size-4 text-coral-dark" />;
+    case "invitation":
+      return <UserPlus className="size-4 text-indigo-700" />;
     case "system":
     default:
       return <Sparkles className="size-4 text-forest" />;
@@ -367,6 +370,11 @@ function getNotificationTypeBadge(type: NotificationItem["type"]) {
       return {
         label: "Nhiệm vụ",
         className: "bg-orange-100 text-orange-900 border-orange-200",
+      };
+    case "invitation":
+      return {
+        label: "Lời mời",
+        className: "bg-indigo-100 text-indigo-900 border-indigo-200",
       };
     case "system":
     default:

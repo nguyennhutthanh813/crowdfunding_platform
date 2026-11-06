@@ -28,6 +28,7 @@ const allowedActions = new Set([
   "REMOVE_CAMPAIGN_COLLABORATOR",
   "CREATE_USER",
   "RESET_USER_PASSWORD",
+  "GET_USER_DETAIL",
 ]);
 
 function apiError(status: number, code: string, message: string) {
@@ -65,6 +66,29 @@ export async function POST(request: Request) {
       "INVALID_ADMIN_ACTION",
       "Thao tác quản trị không hợp lệ.",
     );
+  }
+
+  if (action === "GET_USER_DETAIL") {
+    const userId = typeof payload.userId === "string" ? payload.userId : "";
+    if (!userId) {
+      return apiError(404, "USER_NOT_FOUND", "Không tìm thấy tài khoản.");
+    }
+
+    try {
+      const backendRes = await fetchBackendWithAuth(
+        `/admin/users/${encodeURIComponent(userId)}`,
+        { method: "GET" },
+        access.session,
+      );
+      if (backendRes.response.ok) {
+        const detail = await backendRes.response.json();
+        return NextResponse.json({ ok: true, data: detail });
+      }
+    } catch {
+      // Ignore error and fall through
+    }
+
+    return NextResponse.json({ ok: true, data: null });
   }
 
   if (action === "REVIEW_CAMPAIGN") {
@@ -765,6 +789,7 @@ export async function POST(request: Request) {
   });
   const sessionFailure = writePreviewSessionCookie(response, nextSession);
   if (sessionFailure) return sessionFailure;
+
   if (action === "REVIEW_CAMPAIGN") {
     const platformFailure = writePlatformPreviewCookie(response, platformState);
     if (platformFailure) return platformFailure;

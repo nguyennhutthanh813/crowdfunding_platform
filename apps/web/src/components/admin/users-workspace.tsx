@@ -149,7 +149,10 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
     const matched = (data.campaigns || []).filter(
       (c) =>
         c.creator?.id === selectedUser.id ||
-        (c as any).creatorId === selectedUser.id,
+        (c as any).creatorId === selectedUser.id ||
+        (Boolean(c.creator?.name && selectedUser.name) &&
+          c.creator.name.trim().toLowerCase() ===
+            selectedUser.name.trim().toLowerCase()),
     );
     return matched.map((c) => ({
       id: c.id,
@@ -172,6 +175,126 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
   }, [selectedUser]);
 
   // Handlers
+  const handleOpenUserDetail = async (user: (typeof users)[number]) => {
+    setSelectedUser(user);
+    setDetailTab("overview");
+
+    try {
+      const res: any = await callAdminAction("GET_USER_DETAIL", {
+        userId: user.id,
+      });
+      if (res?.data) {
+        const d = res.data;
+        const roleMap: Record<string, string> = {
+          ADMIN: "Quản trị viên",
+          CREATOR: "Chủ dự án",
+          BACKER: "Người ủng hộ",
+          COLLABORATOR: "Cộng tác viên",
+        };
+        const mappedRoles = Array.isArray(d.roles)
+          ? d.roles.map((r: any) => roleMap[r.role] || r.role)
+          : user.roles;
+        if (!mappedRoles.length) mappedRoles.push("Người ủng hộ");
+
+        const mappedCampaigns = (d.campaigns || []).map((camp: any) => {
+          const pledgedAmount = (camp.pledges || []).reduce(
+            (sum: number, p: any) => sum + Number(p.totalAmount ?? 0),
+            0,
+          );
+          const campDate = camp.createdAt
+            ? new Intl.DateTimeFormat("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }).format(new Date(camp.createdAt))
+            : user.createdAt;
+
+          return {
+            id: camp.id,
+            title: camp.title,
+            slug: camp.slug,
+            status: camp.status,
+            goalAmount: Number(camp.goalAmount ?? 0),
+            pledgedAmount,
+            backerCount: camp._count?.pledges ?? 0,
+            createdAt: campDate,
+            memberRole: "Chủ dự án",
+          };
+        });
+
+        const mappedMemberships = (d.campaignMembers || []).map((cm: any) => {
+          const joinDate = cm.joinedAt
+            ? new Intl.DateTimeFormat("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }).format(new Date(cm.joinedAt))
+            : user.createdAt;
+
+          return {
+            role: cm.role === "COLLABORATOR" ? "Cộng tác viên" : "Chủ sở hữu",
+            campaignId: cm.campaign?.id || cm.campaignId,
+            campaignTitle: cm.campaign?.title || cm.campaignTitle,
+            campaignSlug: cm.campaign?.slug || cm.campaignSlug,
+            campaignStatus: cm.campaign?.status || cm.campaignStatus,
+            joinedAt: joinDate,
+          };
+        });
+
+        const mappedPledges = (d.pledges || []).map((p: any) => ({
+          id: p.id,
+          amount: Number(p.totalAmount ?? 0),
+          status: p.status,
+          pledgedAt: p.pledgedAt
+            ? new Intl.DateTimeFormat("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }).format(new Date(p.pledgedAt))
+            : "Hôm nay",
+          campaignTitle: p.campaign?.title ?? "Chiến dịch gây quỹ",
+          campaignSlug: p.campaign?.slug ?? "",
+        }));
+
+        const mappedMods = (d.moderationActions || []).map((m: any) => ({
+          id: m.id,
+          action: m.action,
+          reason: m.reason || "Thao tác quản trị hệ thống",
+          createdAt: m.createdAt
+            ? new Intl.DateTimeFormat("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }).format(new Date(m.createdAt))
+            : "Vừa xong",
+          adminName: m.admin?.displayName ?? "Ban quản trị",
+        }));
+
+        const updatedUser = {
+          ...user,
+          roles: mappedRoles,
+          campaignCount: mappedCampaigns.length,
+          campaigns: mappedCampaigns,
+          campaignMembers: mappedMemberships,
+          pledges: mappedPledges,
+          pledgeCount: d._count?.pledges ?? mappedPledges.length,
+          moderationActions: mappedMods.length
+            ? mappedMods
+            : user.moderationActions,
+        };
+
+        setSelectedUser((current) =>
+          current?.id === user.id ? updatedUser : current,
+        );
+        setUsers((prev) =>
+          prev.map((u) => (u.id === user.id ? updatedUser : u)),
+        );
+      }
+    } catch {
+      // Keep baseline user data
+    }
+  };
+
   const handleToggleStatus = async () => {
     if (!statusTargetUser) return;
     const nextStatus: "ACTIVE" | "SUSPENDED" =
@@ -886,10 +1009,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setDetailTab("overview");
-                            }}
+                            onClick={() => handleOpenUserDetail(user)}
                             className={`relative grid size-10 shrink-0 place-items-center rounded-xl font-display text-xs font-black shadow-xs transition hover:scale-105 ${
                               isAdmin
                                 ? "bg-purple-100 text-purple-800 border border-purple-200"
@@ -903,10 +1023,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                           <div className="min-w-0">
                             <button
                               type="button"
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setDetailTab("overview");
-                              }}
+                              onClick={() => handleOpenUserDetail(user)}
                               className="text-left font-bold text-ink hover:text-coral transition hover:underline flex items-center gap-1.5"
                             >
                               <span className="truncate">{user.name}</span>
@@ -1033,10 +1150,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                         <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setDetailTab("overview");
-                            }}
+                            onClick={() => handleOpenUserDetail(user)}
                             className="grid size-8 place-items-center rounded-lg border border-line bg-white text-ink-muted hover:border-forest hover:text-forest transition"
                             title="Xem hồ sơ chi tiết"
                           >

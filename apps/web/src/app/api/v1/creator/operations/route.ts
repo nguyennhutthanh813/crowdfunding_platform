@@ -19,6 +19,7 @@ const allowedActions = new Set([
   "SAVE_DRAFT",
   "SUBMIT_REVIEW",
   "LAUNCH",
+  "CLOSE_CAMPAIGN",
   "PUBLISH_UPDATE",
   "REPLY_COMMENT",
   "REPLY_MESSAGE",
@@ -27,12 +28,14 @@ const allowedActions = new Set([
   "UPDATE_TASK_STATUS",
   "INVITE_MEMBER",
   "REMOVE_MEMBER",
+  "RESPOND_INVITATION",
 ]);
 
 const ownerOnlyActions = new Set([
   "SAVE_DRAFT",
   "SUBMIT_REVIEW",
   "LAUNCH",
+  "CLOSE_CAMPAIGN",
   "UPDATE_COLLABORATOR_PERMISSIONS",
   "UPDATE_FULFILLMENT",
   "INVITE_MEMBER",
@@ -97,9 +100,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
-  const access = await requireSession(["CREATOR", "COLLABORATOR"]);
-  if (access.response) return access.response;
-
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -113,6 +113,13 @@ export async function POST(request: Request) {
   if (!allowedActions.has(action)) {
     return apiError(400, "INVALID_ACTION", "Thao tác không hợp lệ.");
   }
+
+  const access = await requireSession(
+    action === "RESPOND_INVITATION"
+      ? ["CREATOR", "COLLABORATOR", "BACKER", "ADMIN"]
+      : ["CREATOR", "COLLABORATOR", "ADMIN"],
+  );
+  if (access.response) return access.response;
 
   let campaignId =
     typeof payload.campaignId === "string" ? payload.campaignId : "";
@@ -140,10 +147,10 @@ export async function POST(request: Request) {
       "Không tìm thấy chiến dịch trong hệ thống.",
     );
   }
-  if (!campaignAccess.canOpenWorkspace) {
+  if (action !== "RESPOND_INVITATION" && !campaignAccess.canOpenWorkspace) {
     return apiError(
       403,
-      "CAMPAIGN_MEMBERSHIP_REQUIRED",
+      "FORBIDDEN_WORKSPACE",
       "Bạn không thuộc nhóm được giao vận hành chiến dịch này.",
     );
   }
@@ -270,9 +277,92 @@ export async function POST(request: Request) {
     }
   }
 
+  if (action === "REPLY_MESSAGE") {
+    const parentMessageId = payload.parentMessageId as string;
+    const recipientUserId = payload.recipientUserId as string;
+    const messageCampaignId = (payload.campaignId as string) || campaignId;
+    const messageBody = typeof payload.body === "string" ? payload.body.trim() : "";
+    const subject = (payload.subject as string) || "Re: Phản hồi từ chủ dự án";
+
+    if (!messageBody) {
+      return apiError(422, "MESSAGE_BODY_REQUIRED", "Nội dung phản hồi không được để trống.");
+    }
+
+    try {
+      await fetchBackendWithAuth(
+        "/messages",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            parentMessageId,
+            recipientId: recipientUserId,
+            campaignId: messageCampaignId,
+            subject,
+            body: messageBody,
+          }),
+        },
+        access.session,
+      );
+    } catch (e) {
+      console.warn("Backend reply message failed:", e);
+    }
+  }
+
   const previewState = getEffectivePreviewState(access.session!);
   let persisted = false;
   let platformPersisted = false;
+  let operationResultData: any = null;
+
+  if (action === "RESPOND_INVITATION") {
+    const inviteAction =
+      typeof payload.action === "string" ? payload.action.toUpperCase() : "";
+    if (inviteAction !== "ACCEPT" && inviteAction !== "DECLINE") {
+      return apiError(
+        422,
+        "INVALID_INVITATION_ACTION",
+        "Hành động phản hồi lời mời không hợp lệ (phải là ACCEPT hoặc DECLINE).",
+      );
+    }
+
+    try {
+      const backendRes = await fetchBackendWithAuth(
+        `/campaigns/${encodeURIComponent(campaignId)}/members/respond`,
+        {
+          method: "POST",
+          body: JSON.stringify({ action: inviteAction }),
+        },
+        access.session,
+      );
+
+      if (!backendRes.response.ok) {
+        const errJson = await backendRes.response.json().catch(() => ({}));
+        return apiError(
+          backendRes.response.status,
+          "RESPOND_INVITATION_FAILED",
+          errJson.message || "Không thể phản hồi lời mời tham gia dự án.",
+        );
+      }
+    } catch (e: any) {
+      console.warn("Backend respond invitation failed:", e);
+    }
+
+    const userEmail = access.session?.user?.email?.toLowerCase();
+    const userId = access.session?.user?.id;
+    if (inviteAction === "ACCEPT") {
+      platformState.invitedMembers = (platformState.invitedMembers || []).map((m: any) => {
+        if (m.campaignId === campaignId && (m.email?.toLowerCase() === userEmail || m.userId === userId)) {
+          return { ...m, status: "ACCEPTED" };
+        }
+        return m;
+      });
+    } else {
+      platformState.invitedMembers = (platformState.invitedMembers || []).filter((m: any) => {
+        return !(m.campaignId === campaignId && (m.email?.toLowerCase() === userEmail || m.userId === userId));
+      });
+    }
+    platformPersisted = true;
+    persisted = true;
+  }
 
   if (action === "INVITE_MEMBER") {
     const email =
@@ -330,6 +420,7 @@ export async function POST(request: Request) {
       name: memberName,
       email,
       role: "Cộng tác viên",
+      status: "PENDING" as const,
       permissions: [
         [
           payload.canPostUpdates ?? true ? "Đăng bài cập nhật" : null,
@@ -342,6 +433,14 @@ export async function POST(request: Request) {
       canPostUpdates: Boolean(payload.canPostUpdates ?? true),
       canReplyComments: Boolean(payload.canReplyComments ?? true),
       canViewAiDashboard: Boolean(payload.canViewAiDashboard ?? true),
+    };
+
+    operationResultData = {
+      ...newInvitedMember,
+      ...(createdMemberData || {}),
+      userId: newMemberUserId,
+      id: newMemberUserId,
+      status: "PENDING",
     };
 
     platformState.invitedMembers = [
@@ -359,13 +458,18 @@ export async function POST(request: Request) {
 
   if (action === "REMOVE_MEMBER") {
     const memberId = String(payload.memberId || payload.userId || "");
-    if (!memberId) {
+    const memberEmail =
+      typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+    if (!memberId && !memberEmail) {
       return apiError(422, "MEMBER_ID_REQUIRED", "Mã thành viên không hợp lệ.");
     }
 
+    const queryParam = memberEmail ? `?email=${encodeURIComponent(memberEmail)}` : "";
+    const memberIdentifier = memberId || memberEmail;
+
     try {
       const backendRes = await fetchBackendWithAuth(
-        `/campaigns/${encodeURIComponent(campaignId)}/members/${encodeURIComponent(memberId)}`,
+        `/campaigns/${encodeURIComponent(campaignId)}/members/${encodeURIComponent(memberIdentifier)}${queryParam}`,
         {
           method: "DELETE",
         },
@@ -373,21 +477,40 @@ export async function POST(request: Request) {
       );
       if (!backendRes.response.ok && backendRes.response.status !== 404) {
         const errJson = await backendRes.response.json().catch(() => ({}));
-        return apiError(
-          backendRes.response.status,
-          "REMOVE_MEMBER_FAILED",
-          errJson.message || "Không thể xóa cộng tác viên.",
-        );
+        // If the member is in preview state or mock ID, do not block preview deletion
+        const isPreviewOrMock =
+          memberId.startsWith("collab_") ||
+          (platformState.invitedMembers || []).some(
+            (m) =>
+              (m.id === memberId ||
+                m.userId === memberId ||
+                (memberEmail && m.email?.toLowerCase() === memberEmail)) &&
+              m.campaignId === campaignId,
+          );
+        if (!isPreviewOrMock) {
+          return apiError(
+            backendRes.response.status,
+            "REMOVE_MEMBER_FAILED",
+            errJson.message || "Không thể xóa cộng tác viên.",
+          );
+        }
       }
     } catch (e: any) {
       console.warn("Backend remove member failed, recording in preview state:", e);
     }
 
     platformState.removedMemberIds = Array.from(
-      new Set([...(platformState.removedMemberIds || []), memberId]),
+      new Set([
+        ...(platformState.removedMemberIds || []),
+        memberId,
+        ...(payload.userId ? [String(payload.userId)] : []),
+      ]),
     );
     platformState.invitedMembers = (platformState.invitedMembers || []).filter(
-      (m) => m.id !== memberId && m.userId !== memberId,
+      (m) =>
+        m.id !== memberId &&
+        m.userId !== memberId &&
+        (!memberEmail || m.email?.toLowerCase() !== memberEmail),
     );
     platformPersisted = true;
     persisted = true;
@@ -437,6 +560,35 @@ export async function POST(request: Request) {
 
   if (action === "UPDATE_FULFILLMENT") {
     const orderId = payload.orderId as string;
+    const status = payload.status as string;
+
+    try {
+      const backendRes = await fetchBackendWithAuth(
+        `/fulfillments/${encodeURIComponent(orderId)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status }),
+        },
+        access.session,
+      );
+
+      if (!backendRes.response.ok) {
+        const errJson = await backendRes.response.json().catch(() => ({}));
+        console.warn(
+          "UPDATE_FULFILLMENT backend update failed:",
+          backendRes.response.status,
+          errJson,
+        );
+        return apiError(
+          backendRes.response.status,
+          "INVALID_FULFILLMENT_TRANSITION",
+          errJson.message || "Không thể cập nhật trạng thái đơn hàng.",
+        );
+      }
+    } catch (err) {
+      console.warn("UPDATE_FULFILLMENT backend update failed:", err);
+    }
+
     previewState.fulfillmentStatuses = {
       ...(previewState.fulfillmentStatuses ?? {}),
       [orderId]: payload.status as
@@ -458,12 +610,66 @@ export async function POST(request: Request) {
   }
 
   if (action === "LAUNCH") {
+    let backendOk = true;
+    try {
+      const backendRes = await fetchBackendWithAuth(
+        `/campaigns/${encodeURIComponent(campaignId)}/launch`,
+        { method: "POST" },
+        access.session,
+      );
+      if (!backendRes.response.ok) {
+        const errJson = await backendRes.response.json().catch(() => ({}));
+        console.warn("Backend launch returned non-OK:", backendRes.response.status, errJson);
+        if (backendRes.response.status === 403) {
+          return apiError(403, "FORBIDDEN", errJson.message || "Chỉ chủ dự án mới có quyền mở gọi vốn.");
+        }
+        if (backendRes.response.status === 400) {
+          return apiError(400, "BAD_REQUEST", errJson.message || "Chiến dịch chưa sẵn sàng để mở gọi vốn.");
+        }
+        backendOk = false;
+      }
+    } catch (e) {
+      console.warn("Failed to call backend launch:", e);
+    }
+
+    if (backendOk) {
+      platformState.campaignStatuses = {
+        ...platformState.campaignStatuses,
+        [campaignId]: "LIVE",
+      };
+      platformPersisted = true;
+    }
+  }
+
+  if (action === "CLOSE_CAMPAIGN") {
+    const finalStatus =
+      (payload.finalStatus as "SUCCESSFUL" | "FAILED") || "SUCCESSFUL";
+    const reason =
+      (payload.reason as string) || "Chủ dự án kết thúc sớm chiến dịch.";
+
+    try {
+      await fetchBackendWithAuth(
+        `/campaigns/${encodeURIComponent(campaignId)}/close`,
+        {
+          method: "POST",
+          body: JSON.stringify({ finalStatus, reason }),
+        },
+        access.session,
+      );
+    } catch (e) {
+      console.warn("Backend close campaign failed:", e);
+    }
+
     platformState.campaignStatuses = {
       ...platformState.campaignStatuses,
-      [campaignId]: "LIVE",
+      [campaignId]: finalStatus,
     };
+
+    persisted = true;
     platformPersisted = true;
   }
+
+
 
   if (action === "UPDATE_COLLABORATOR_PERMISSIONS") {
     const memberId = payload.memberId as string;
@@ -560,6 +766,8 @@ export async function POST(request: Request) {
     }
   }
 
+
+
   const nextSession = persisted
     ? { ...access.session!, previewState }
     : access.session!;
@@ -567,6 +775,8 @@ export async function POST(request: Request) {
     data: {
       action,
       payload,
+      member: operationResultData,
+      result: operationResultData,
       actorId: access.session!.user.id,
       campaignId,
       auditId: `audit_${crypto.randomUUID().slice(0, 8)}`,

@@ -8,14 +8,18 @@ import {
   Check,
   CheckCircle2,
   ClipboardCheck,
+  Clock3,
   Download,
   Eye,
   FilePenLine,
+  Flag,
   LoaderCircle,
   MapPin,
+  Newspaper,
   PackageCheck,
   ReceiptText,
   Rocket,
+  Sparkles,
   Truck,
   UsersRound,
 } from "lucide-react";
@@ -33,8 +37,9 @@ import type {
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
 import { CampaignTeamWorkspace } from "./campaign-team-workspace";
+import { CampaignUpdatesWorkspace } from "./campaign-updates-workspace";
 
-type StageTab = "overview" | "review" | "fulfillment" | "team";
+type StageTab = "overview" | "review" | "fulfillment" | "updates" | "team";
 type FulfillmentStatus = "PENDING" | "PREPARING" | "SHIPPED" | "DELIVERED";
 
 const fulfillmentLabels: Record<FulfillmentStatus, string> = {
@@ -42,6 +47,16 @@ const fulfillmentLabels: Record<FulfillmentStatus, string> = {
   PREPARING: "Đang chuẩn bị",
   SHIPPED: "Đã gửi",
   DELIVERED: "Đã giao",
+};
+
+const ALLOWED_FULFILLMENT_TRANSITIONS: Record<
+  FulfillmentStatus,
+  FulfillmentStatus[]
+> = {
+  PENDING: ["PENDING", "PREPARING"],
+  PREPARING: ["PREPARING", "SHIPPED", "PENDING"],
+  SHIPPED: ["SHIPPED", "DELIVERED"],
+  DELIVERED: ["DELIVERED"],
 };
 
 function postOperation(action: string, payload: Record<string, unknown>) {
@@ -63,7 +78,7 @@ function DraftOrReviewWorkspace({
 }) {
   const router = useRouter();
   const [tab, setTab] = useQueryTab<StageTab>(
-    ["overview", "review", "team"],
+    ["overview", "updates", "review", "team"],
     "overview",
   );
   const [status, setStatus] = useState<CampaignStatus>(campaign.status);
@@ -72,6 +87,7 @@ function DraftOrReviewWorkspace({
     tone: "success" | "error";
     message: string;
   } | null>(null);
+  const isOwner = campaign.ownership === "OWNER";
   const isReviewing = status === "IN_REVIEW";
   const isReady = status === "PRE_LAUNCH";
   const isLaunched = status === "LIVE";
@@ -94,6 +110,35 @@ function DraftOrReviewWorkspace({
       isReviewing || isReady || isLaunched,
     ],
   ] as const;
+
+  const [closeModalOpen, setCloseModalOpen] = useState(false);
+  const [closeFinalStatus, setCloseFinalStatus] = useState<
+    "SUCCESSFUL" | "FAILED"
+  >("SUCCESSFUL");
+  const [closeReason, setCloseReason] = useState("");
+  const [closing, setClosing] = useState(false);
+
+  const handleCloseEarly = async () => {
+    setClosing(true);
+    try {
+      await postOperation("CLOSE_CAMPAIGN", {
+        campaignId: campaign.id,
+        finalStatus: closeFinalStatus,
+        reason: closeReason.trim() || undefined,
+      });
+      setStatus(closeFinalStatus);
+      setCloseModalOpen(false);
+      router.refresh();
+    } catch (err: any) {
+      setNotice({
+        tone: "error",
+        message:
+          clientRequestMessage(err, "Không thể kết thúc chiến dịch lúc này."),
+      });
+    } finally {
+      setClosing(false);
+    }
+  };
 
   const launch = async () => {
     setBusy(true);
@@ -128,6 +173,11 @@ function DraftOrReviewWorkspace({
       >
         {[
           { id: "overview" as const, label: "Tổng quan hồ sơ", icon: ClipboardCheck },
+          {
+            id: "updates" as const,
+            label: `Bản tin tiến độ (${operations.updateHistory.length})`,
+            icon: Newspaper,
+          },
           { id: "review" as const, label: "Tiến độ xét duyệt", icon: BadgeCheck },
           {
             id: "team" as const,
@@ -166,7 +216,17 @@ function DraftOrReviewWorkspace({
         </div>
       ) : null}
 
-      {tab === "team" ? (
+      {tab === "updates" ? (
+        <div className="mt-5">
+          <CampaignUpdatesWorkspace
+            campaignId={campaign.id}
+            campaignSlug={campaign.slug}
+            campaignTitle={campaign.title}
+            initialUpdates={operations.updateHistory}
+            isOwner={campaign.ownership === "OWNER"}
+          />
+        </div>
+      ) : tab === "team" ? (
         <div className="mt-5">
           <CampaignTeamWorkspace
             campaignId={campaign.id}
@@ -181,14 +241,41 @@ function DraftOrReviewWorkspace({
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
               <div>
                 <p className="eyebrow text-[#587024]">
-                  <FilePenLine className="size-4" /> Hồ sơ đang chuẩn bị
+                  {isReady ? (
+                    <>
+                      <Sparkles className="size-4" /> Sẵn sàng công bố
+                    </>
+                  ) : isLaunched ? (
+                    <>
+                      <Rocket className="size-4" /> Đang gọi vốn
+                    </>
+                  ) : isReviewing ? (
+                    <>
+                      <Clock3 className="size-4" /> Hồ sơ đang xét duyệt
+                    </>
+                  ) : (
+                    <>
+                      <FilePenLine className="size-4" /> Hồ sơ đang chuẩn bị
+                    </>
+                  )}
                 </p>
                 <h2 className="mt-3 font-display text-2xl font-extrabold tracking-[-0.035em]">
-                  Hoàn thiện từng phần, không trộn với ORBIT One
+                  {isReady
+                    ? "Hồ sơ đã được duyệt · Chờ mở gọi vốn"
+                    : isLaunched
+                      ? "Chiến dịch đang mở tiếp nhận người ủng hộ"
+                      : isReviewing
+                        ? "Hồ sơ đang được ban quản trị thẩm định"
+                        : "Hoàn thiện từng phần hồ sơ"}
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-                  Đây là dữ liệu riêng của {campaign.title}. Thành viên, gói quà,
-                  lượt xét duyệt và cam kết sau này đều dùng mã {campaign.id}.
+                  {isReady
+                    ? isOwner
+                      ? `Dự án ${campaign.title} đã qua vòng kiểm duyệt. Bạn là chủ dự án và có toàn quyền quyết định thời điểm bấm mở gọi vốn.`
+                      : `Dự án ${campaign.title} đã qua vòng kiểm duyệt và sẵn sàng công bố. Đang chờ Chủ dự án chính thức mở gọi vốn.`
+                    : isLaunched
+                      ? `Dự án ${campaign.title} đang trong thời gian mở gọi vốn công khai.`
+                      : `Đây là dữ liệu riêng của ${campaign.title}. Thành viên, gói quà, lượt xét duyệt và cam kết sau này đều dùng mã ${campaign.id}.`}
                 </p>
               </div>
               <StatusBadge status={status} />
@@ -220,8 +307,12 @@ function DraftOrReviewWorkspace({
               </button>
               <div className="rounded-[14px] bg-[#f2f4eb] p-4">
                 <p className="text-xs text-ink-muted">Cam kết</p>
-                <p className="mt-2 font-display text-xl font-extrabold tabular-nums">0</p>
-                <p className="mt-1 text-[10px] text-ink-muted">Chưa mở gọi vốn</p>
+                <p className="mt-2 font-display text-xl font-extrabold tabular-nums">
+                  {isLaunched ? formatVnd(campaign.pledgedAmount, true) : "0 đ"}
+                </p>
+                <p className="mt-1 text-[10px] text-ink-muted">
+                  {isLaunched ? `${campaign.backerCount} người ủng hộ` : "Chưa mở gọi vốn"}
+                </p>
               </div>
             </div>
 
@@ -247,28 +338,52 @@ function DraftOrReviewWorkspace({
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               {isReady ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void launch()}
-                  className="button-dark"
-                >
-                  {busy ? (
-                    <LoaderCircle className="size-4 animate-spin" />
-                  ) : (
-                    <Rocket className="size-4" />
-                  )}
-                  Mở gọi vốn
-                </button>
+                isOwner ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void launch()}
+                    className="button-dark"
+                  >
+                    {busy ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : (
+                      <Rocket className="size-4" />
+                    )}
+                    Mở gọi vốn
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs font-semibold text-amber-900">
+                    <Clock3 className="size-4 text-amber-600 shrink-0" />
+                    <span>Dự án đã được duyệt · Đang chờ Chủ dự án mở gọi vốn</span>
+                  </div>
+                )
               ) : isLaunched ? (
-                <Link href="/creator" className="button-dark">
-                  <Rocket className="size-4" /> Xem danh mục đang gọi vốn
-                </Link>
-              ) : (
+                <>
+                  <Link href={`/projects/${campaign.slug}`} className="button-dark">
+                    <Eye className="size-4" /> Xem trang chiến dịch công khai
+                  </Link>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => setCloseModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors cursor-pointer"
+                      title="Kết thúc gọi vốn sớm để chốt kết quả và chuyển sang giai đoạn vận hành"
+                    >
+                      <Flag className="size-4" /> Kết thúc gọi vốn sớm
+                    </button>
+                  )}
+                </>
+              ) : isOwner ? (
                 <Link href={editHref} className="button-dark">
                   <FilePenLine className="size-4" />
                   {isReviewing ? "Xem bản đã gửi" : "Tiếp tục chỉnh sửa"}
                 </Link>
+              ) : (
+                <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-xs font-medium text-slate-700">
+                  <FilePenLine className="size-4 text-slate-500 shrink-0" />
+                  <span>{isReviewing ? "Hồ sơ đang trong hàng chờ duyệt" : "Bản nháp đang được Chủ dự án hoàn thiện"}</span>
+                </div>
               )}
               <button
                 type="button"
@@ -303,10 +418,14 @@ function DraftOrReviewWorkspace({
             <div className="rounded-[20px] border border-line bg-white p-5">
               <p className="text-xs font-bold text-ink-muted">Việc kế tiếp</p>
               <p className="mt-2 font-display text-lg font-extrabold">
-                {campaign.nextActionLabel}
+                {isReady && !isOwner
+                  ? "Chờ chủ dự án mở gọi vốn"
+                  : campaign.nextActionLabel}
               </p>
               <p className="mt-2 text-xs leading-5 text-ink-soft">
-                {campaign.nextActionDetail}
+                {isReady && !isOwner
+                  ? "Chỉ Chủ dự án mới có quyền bấm mở gọi vốn để tiếp nhận người ủng hộ."
+                  : campaign.nextActionDetail}
               </p>
             </div>
           </aside>
@@ -346,6 +465,109 @@ function DraftOrReviewWorkspace({
           </ol>
         </section>
       )}
+
+      {/* Modal kết thúc sớm chiến dịch cho Chủ dự án */}
+      <Modal
+        open={closeModalOpen}
+        onClose={() => setCloseModalOpen(false)}
+        title="Kết thúc gọi vốn sớm"
+        description="Đóng chiến dịch sớm để chốt kết quả và chuyển sang giai đoạn vận hành."
+      >
+        <div className="space-y-4 pt-2">
+          <div>
+            <label className="text-xs font-bold text-ink">
+              Chọn kết quả kết thúc chiến dịch:
+            </label>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <label
+                className={`flex cursor-pointer flex-col rounded-xl border p-3.5 transition-all ${
+                  closeFinalStatus === "SUCCESSFUL"
+                    ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20"
+                    : "border-line bg-white hover:border-emerald-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="close-status"
+                    checked={closeFinalStatus === "SUCCESSFUL"}
+                    onChange={() => setCloseFinalStatus("SUCCESSFUL")}
+                    className="size-4 accent-emerald-600"
+                  />
+                  <span className="text-xs font-extrabold text-emerald-800">
+                    Thành công (SUCCESSFUL)
+                  </span>
+                </div>
+                <p className="mt-1.5 pl-6 text-[11px] leading-relaxed text-ink-muted">
+                  Đạt mục tiêu: Thu tiền (Capture) và mở trang vận hành giao quà (Fulfillment).
+                </p>
+              </label>
+
+              <label
+                className={`flex cursor-pointer flex-col rounded-xl border p-3.5 transition-all ${
+                  closeFinalStatus === "FAILED"
+                    ? "border-rose-600 bg-rose-50/70 ring-2 ring-rose-600/20"
+                    : "border-line bg-white hover:border-rose-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="close-status"
+                    checked={closeFinalStatus === "FAILED"}
+                    onChange={() => setCloseFinalStatus("FAILED")}
+                    className="size-4 accent-rose-600"
+                  />
+                  <span className="text-xs font-extrabold text-rose-800">
+                    Thất bại (FAILED)
+                  </span>
+                </div>
+                <p className="mt-1.5 pl-6 text-[11px] leading-relaxed text-ink-muted">
+                  Không đạt: Tự động hủy giữ hạn mức / hoàn trả cam kết cho người ủng hộ.
+                </p>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-ink">
+              Lý do kết thúc sớm (tùy chọn):
+            </label>
+            <input
+              type="text"
+              value={closeReason}
+              onChange={(e) => setCloseReason(e.target.value)}
+              placeholder="Ví dụ: Đã đạt mục tiêu sớm hơn dự kiến, chuyển sang chuẩn bị giao hàng."
+              className="input-field mt-1.5 text-xs"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-line pt-3">
+            <button
+              type="button"
+              disabled={closing}
+              onClick={() => setCloseModalOpen(false)}
+              className="button-secondary text-xs"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="button"
+              disabled={closing}
+              onClick={() => void handleCloseEarly()}
+              className="button-dark text-xs"
+            >
+              {closing ? (
+                <>
+                  <LoaderCircle className="size-3.5 animate-spin" /> Đang xử lý...
+                </>
+              ) : (
+                "Xác nhận kết thúc"
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -358,7 +580,7 @@ function SuccessfulWorkspace({
   operations: CampaignOperationsData;
 }) {
   const [tab, setTab] = useQueryTab<StageTab>(
-    ["overview", "fulfillment", "team"],
+    ["overview", "fulfillment", "updates", "team"],
     "overview",
   );
   const [orders, setOrders] = useState(
@@ -371,11 +593,15 @@ function SuccessfulWorkspace({
     message: string;
   } | null>(null);
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
-  const addressPercent = Math.round(
-    (operations.fulfillment.currentCampaign.addressReadyCount /
-      campaign.backerCount) *
-      100,
-  );
+  const totalBackers = orders.length || campaign.backerCount;
+  const addressPercent =
+    totalBackers > 0
+      ? Math.round(
+          (operations.fulfillment.currentCampaign.addressReadyCount /
+            totalBackers) *
+            100,
+        )
+      : 0;
   const statusCounts = useMemo(
     () =>
       Object.fromEntries(
@@ -443,7 +669,10 @@ function SuccessfulWorkspace({
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-    setNotice({ tone: "success", message: "Đã tải danh sách giao hàng mẫu." });
+    setNotice({
+      tone: "success",
+      message: `Đã xuất danh sách ${orders.length} đơn giao hàng ra file CSV.`,
+    });
   };
 
   return (
@@ -456,6 +685,11 @@ function SuccessfulWorkspace({
         {[
           { id: "overview" as const, label: "Tổng kết gọi vốn", icon: Banknote },
           { id: "fulfillment" as const, label: "Giao quà & đối soát", icon: Truck },
+          {
+            id: "updates" as const,
+            label: `Bản tin tiến độ (${operations.updateHistory.length})`,
+            icon: Newspaper,
+          },
           {
             id: "team" as const,
             label: `Đội ngũ & Cộng tác viên (${operations.team.length})`,
@@ -493,7 +727,17 @@ function SuccessfulWorkspace({
         </div>
       ) : null}
 
-      {tab === "team" ? (
+      {tab === "updates" ? (
+        <div className="mt-5">
+          <CampaignUpdatesWorkspace
+            campaignId={campaign.id}
+            campaignSlug={campaign.slug}
+            campaignTitle={campaign.title}
+            initialUpdates={operations.updateHistory}
+            isOwner={campaign.ownership === "OWNER"}
+          />
+        </div>
+      ) : tab === "team" ? (
         <div className="mt-5">
           <CampaignTeamWorkspace
             campaignId={campaign.id}
@@ -510,11 +754,17 @@ function SuccessfulWorkspace({
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status="SUCCESSFUL" />
                   <span className="text-xs font-bold text-white/48">
-                    Chốt ngày 18/05/2026
+                    {campaign.closedAt
+                      ? `Chốt ngày ${new Date(campaign.closedAt).toLocaleDateString("vi-VN")}`
+                      : campaign.endsAt
+                      ? `Hạn chốt ${new Date(campaign.endsAt).toLocaleDateString("vi-VN")}`
+                      : "Đã chốt gọi vốn"}
                   </span>
                 </div>
                 <h2 className="mt-5 max-w-2xl font-display text-3xl font-extrabold tracking-[-0.04em]">
-                  Vượt mục tiêu, chuyển sang trách nhiệm giao quà
+                  {percent >= 100
+                    ? "Vượt mục tiêu, chuyển sang trách nhiệm giao quà"
+                    : "Kết thúc gọi vốn, chuyển sang trách nhiệm giao quà"}
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
                   Tiền chỉ được thu sau khi chiến dịch đạt mục tiêu. Từ mốc này,
@@ -588,10 +838,10 @@ function SuccessfulWorkspace({
         <section id="orbit-drip-fulfillment" className="mt-5 scroll-mt-28 space-y-5">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: "Tổng đơn", value: formatNumber(campaign.backerCount), icon: UsersRound },
+              { label: "Tổng đơn", value: formatNumber(orders.length || campaign.backerCount), icon: UsersRound },
               { label: "Đủ địa chỉ", value: formatNumber(operations.fulfillment.currentCampaign.addressReadyCount), icon: ClipboardCheck },
               { label: "Chờ phản hồi", value: formatNumber(operations.fulfillment.currentCampaign.surveyPendingCount), icon: AlertCircle },
-              { label: "Đã giao trong mẫu", value: String(statusCounts.DELIVERED), icon: CheckCircle2 },
+              { label: "Đã giao thành công", value: String(statusCounts.DELIVERED), icon: CheckCircle2 },
             ].map(({ label, value, icon: Icon }) => (
               <div key={label} className="rounded-[16px] border border-line bg-white p-4">
                 <Icon className="size-4 text-[#687b31]" />
@@ -608,17 +858,31 @@ function SuccessfulWorkspace({
                   <Truck className="size-4" /> Danh sách đối soát
                 </p>
                 <h2 className="mt-3 font-display text-2xl font-extrabold">
-                  4 đơn đại diện trong bản demo
+                  {orders.length > 0
+                    ? `${orders.length} đơn giao nhận phần thưởng`
+                    : "Chưa có đơn hàng nào"}
                 </h2>
                 <p className="mt-2 text-xs leading-5 text-ink-muted">
-                  Bản thật sẽ phân trang đủ {formatNumber(campaign.backerCount)} đơn và đọc từ fulfillment repository.
+                  {orders.length > 0
+                    ? `Hiển thị toàn bộ ${orders.length} đơn cam kết thực tế của người ủng hộ từ hệ thống.`
+                    : "Chưa có dữ liệu cam kết hoặc chiến dịch chưa có người ủng hộ."}
                 </p>
               </div>
-              <button type="button" onClick={exportOrders} className="button-secondary">
-                <Download className="size-4" /> Xuất CSV mẫu
+              <button
+                type="button"
+                onClick={exportOrders}
+                disabled={orders.length === 0}
+                className="button-secondary disabled:opacity-50"
+              >
+                <Download className="size-4" /> Xuất file CSV
               </button>
             </div>
             <div className="divide-y divide-line md:hidden">
+              {orders.length === 0 ? (
+                <p className="p-6 text-center text-xs text-ink-muted">
+                  Chưa có đơn giao nhận phần thưởng nào trong danh sách.
+                </p>
+              ) : null}
               {orders.map((order) => (
                 <section key={order.id} className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -696,6 +960,13 @@ function SuccessfulWorkspace({
                   </tr>
                 </thead>
                 <tbody>
+                  {orders.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-8 text-center text-xs text-ink-muted">
+                        Chưa có đơn giao nhận phần thưởng nào trong danh sách.
+                      </td>
+                    </tr>
+                  ) : null}
                   {orders.map((order) => (
                     <tr key={order.id} className="border-t border-line">
                       <td className="px-5 py-4 font-extrabold">{order.id}</td>
@@ -703,32 +974,41 @@ function SuccessfulWorkspace({
                       <td className="px-5 py-4 text-ink-soft">{order.reward}</td>
                       <td className="px-5 py-4 text-ink-soft">{order.city}</td>
                       <td className="px-5 py-3">
-                        <span className="relative block min-w-40">
-                          <select
-                            name={`fulfillment-table-status-${order.id}`}
-                            value={order.status}
-                            disabled={busy === order.id}
-                            onChange={(event) =>
-                              void updateOrder(
-                                order.id,
-                                event.target.value as FulfillmentStatus,
-                              )
-                            }
-                            aria-label={`Trạng thái ${order.id}`}
-                            className="h-11 w-full rounded-[10px] border border-line bg-white px-3 pr-9 text-xs font-bold outline-none focus:border-forest"
-                          >
-                            {(Object.keys(fulfillmentLabels) as FulfillmentStatus[]).map(
-                              (status) => (
+                        {order.status === "DELIVERED" ? (
+                          <span className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700">
+                            <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                            Đã giao
+                          </span>
+                        ) : (
+                          <span className="relative block min-w-40">
+                            <select
+                              name={`fulfillment-table-status-${order.id}`}
+                              value={order.status}
+                              disabled={busy === order.id}
+                              onChange={(event) =>
+                                void updateOrder(
+                                  order.id,
+                                  event.target.value as FulfillmentStatus,
+                                )
+                              }
+                              aria-label={`Trạng thái ${order.id}`}
+                              className="h-11 w-full rounded-[10px] border border-line bg-white px-3 pr-9 text-xs font-bold outline-none focus:border-forest"
+                            >
+                              {(
+                                ALLOWED_FULFILLMENT_TRANSITIONS[order.status] ?? [
+                                  order.status,
+                                ]
+                              ).map((status) => (
                                 <option key={status} value={status}>
                                   {fulfillmentLabels[status]}
                                 </option>
-                              ),
-                            )}
-                          </select>
-                          {busy === order.id ? (
-                            <LoaderCircle className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin" />
-                          ) : null}
-                        </span>
+                              ))}
+                            </select>
+                            {busy === order.id ? (
+                              <LoaderCircle className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin" />
+                            ) : null}
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3">
                         <button
@@ -799,34 +1079,51 @@ function SuccessfulWorkspace({
               </dl>
             </div>
 
-            <label className="block text-xs font-bold text-ink-soft">
-              Cập nhật trạng thái giao quà
-              <span className="relative mt-2 block">
-                <select
-                  name={`fulfillment-detail-status-${selectedOrder.id}`}
-                  value={selectedOrder.status}
-                  disabled={busy === selectedOrder.id}
-                  onChange={(event) =>
-                    void updateOrder(
-                      selectedOrder.id,
-                      event.target.value as FulfillmentStatus,
-                    )
-                  }
-                  className="input-field pr-10 font-bold"
-                >
-                  {(Object.keys(fulfillmentLabels) as FulfillmentStatus[]).map(
-                    (status) => (
+            {selectedOrder.status === "DELIVERED" ? (
+              <div className="rounded-[16px] border border-emerald-200 bg-emerald-50/80 p-4">
+                <p className="flex items-center gap-2 text-xs font-extrabold text-emerald-800">
+                  <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                  Đơn hàng đã được giao thành công
+                </p>
+                <p className="mt-1 text-xs text-emerald-700/90 leading-relaxed">
+                  Phần quà đã đến tay người ủng hộ và hoàn tất trách nhiệm giao quà. Hồ sơ đã được khóa an toàn, không thể chuyển ngược về các bước trước.
+                </p>
+              </div>
+            ) : (
+              <label className="block text-xs font-bold text-ink-soft">
+                Cập nhật trạng thái giao quà
+                <span className="relative mt-2 block">
+                  <select
+                    name={`fulfillment-detail-status-${selectedOrder.id}`}
+                    value={selectedOrder.status}
+                    disabled={busy === selectedOrder.id}
+                    onChange={(event) =>
+                      void updateOrder(
+                        selectedOrder.id,
+                        event.target.value as FulfillmentStatus,
+                      )
+                    }
+                    className="input-field pr-10 font-bold"
+                  >
+                    {(
+                      ALLOWED_FULFILLMENT_TRANSITIONS[selectedOrder.status] ?? [
+                        selectedOrder.status,
+                      ]
+                    ).map((status) => (
                       <option key={status} value={status}>
                         {fulfillmentLabels[status]}
                       </option>
-                    ),
-                  )}
-                </select>
-                {busy === selectedOrder.id ? (
-                  <LoaderCircle className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin" />
-                ) : null}
-              </span>
-            </label>
+                    ))}
+                  </select>
+                  {busy === selectedOrder.id ? (
+                    <LoaderCircle className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin" />
+                  ) : null}
+                </span>
+                <span className="mt-1.5 block text-[11px] font-normal text-ink-muted">
+                  Quy trình tuần tiến: Chờ xử lý → Đang chuẩn bị → Đã gửi → Đã giao.
+                </span>
+              </label>
+            )}
           </div>
         ) : null}
       </Modal>

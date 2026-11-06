@@ -101,102 +101,109 @@ const headerCopy: Record<
 function ContextBlock({
   role,
   snapshot,
+  pathname,
 }: {
   role: UserRole;
   snapshot: WorkspaceSnapshot;
+  pathname: string;
 }) {
   const theme = headerTheme[role];
 
   if (role === "BACKER") {
     return (
-      <form action="/discover" className="relative hidden min-w-0 max-w-xl flex-1 md:block">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#9a7b69]" />
-        <input
-          name="q"
-          aria-label="Tìm dự án để ủng hộ"
-          placeholder="Tìm dự án, chủ dự án hoặc lĩnh vực…"
-          className="h-11 w-full rounded-[12px] border border-[#e9d5c2] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#aa9387] focus:border-[#d9895d] focus:ring-3 focus:ring-[#e96543]/10"
-        />
-      </form>
+      <>
+        <span className={`mx-1 hidden h-9 border-l md:block ${theme.divider}`} />
+        <form action="/discover" className="relative hidden min-w-0 max-w-xl flex-1 md:block">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#9a7b69]" />
+          <input
+            name="q"
+            aria-label="Tìm dự án để ủng hộ"
+            placeholder="Tìm dự án, chủ dự án hoặc lĩnh vực…"
+            className="h-11 w-full rounded-[12px] border border-[#e9d5c2] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#aa9387] focus:border-[#d9895d] focus:ring-3 focus:ring-[#e96543]/10"
+          />
+        </form>
+      </>
     );
   }
 
   if (role === "CREATOR") {
+    const isSpecificCampaign = Boolean(
+      snapshot.selectedCampaignSlug &&
+        snapshot.contextTitle &&
+        snapshot.contextTitle !== "Chiến dịch của tôi" &&
+        !snapshot.statusLabel.includes("DANH MỤC") &&
+        pathname.startsWith("/creator/campaigns/") &&
+        pathname !== "/creator/campaigns" &&
+        pathname !== "/creator/campaigns/new",
+    );
+
+    if (!isSpecificCampaign) {
+      return null;
+    }
+
     return (
-      <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={`rounded-md border px-2 py-1 text-[9px] font-bold ${theme.chip}`}>
-              {snapshot.statusLabel}
-            </span>
-            <span className="truncate text-sm font-bold">{snapshot.contextTitle}</span>
-          </div>
+      <>
+        <span className={`mx-1 hidden h-9 border-l md:block ${theme.divider}`} />
+        <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex">
+          <span className={`rounded-md border px-2 py-0.5 text-[9px] font-bold ${theme.chip}`}>
+            {snapshot.statusLabel}
+          </span>
+          <span className="truncate text-sm font-bold text-white/95">
+            {snapshot.contextTitle}
+          </span>
           {snapshot.progress ? (
-            <div className="mt-2 flex items-center gap-3">
-              <span className="h-1.5 w-36 overflow-hidden rounded-full bg-white/12">
-                <span
-                  className="block h-full rounded-full bg-lime"
-                  style={{ width: `${Math.min(100, snapshot.progress.value)}%` }}
-                />
-              </span>
-              <span className="text-[10px] font-semibold text-white/68">
-                {snapshot.progress.label}
-              </span>
-            </div>
-          ) : (
-            <p className="mt-1 max-w-lg truncate text-[10px] text-white/68">
-              {snapshot.contextDetail}
-            </p>
-          )}
+            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold text-lime">
+              {snapshot.progress.label}
+            </span>
+          ) : null}
         </div>
-        <span className="h-9 border-l border-white/12" />
-        <div className="hidden xl:block">
-          <p className="text-[9px] text-white/68">Việc đang mở</p>
-          <p className="mt-0.5 text-xs font-bold">
-            {snapshot.secondaryMetric.value} đầu việc
-          </p>
-        </div>
-      </div>
+      </>
     );
   }
 
   if (role === "COLLABORATOR") {
     return (
-      <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
-        <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#8fd2fb]/14 text-[#ccecff]">
-          <ClipboardCheck className="size-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{snapshot.contextTitle}</p>
-          <p className="mt-1 truncate text-[10px] text-[#bdd6ef]">
-            {snapshot.contextDetail}
-          </p>
+      <>
+        <span className={`mx-1 hidden h-9 border-l md:block ${theme.divider}`} />
+        <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
+          <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#8fd2fb]/14 text-[#ccecff]">
+            <ClipboardCheck className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold">{snapshot.contextTitle}</p>
+            <p className="mt-1 truncate text-[10px] text-[#bdd6ef]">
+              {snapshot.contextDetail}
+            </p>
+          </div>
+          <span className="ml-auto hidden rounded-[9px] border border-white/12 bg-white/6 px-3 py-2 text-[10px] font-semibold text-[#d8efff] xl:inline-flex">
+            {snapshot.primaryMetric.value} việc đang mở
+          </span>
         </div>
-        <span className="ml-auto hidden rounded-[9px] border border-white/12 bg-white/6 px-3 py-2 text-[10px] font-semibold text-[#d8efff] xl:inline-flex">
-          {snapshot.primaryMetric.value} việc đang mở
-        </span>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="hidden min-w-0 flex-1 items-center gap-5 md:flex">
-      <div>
-        <p className="text-[9px] font-bold tracking-[0.12em] text-white/68">
-          PHIÊN VẬN HÀNH THỬ NGHIỆM
-        </p>
-        <p className="mt-1 text-xs font-bold">{snapshot.updatedLabel}</p>
+    <>
+      <span className={`mx-1 hidden h-9 border-l md:block ${theme.divider}`} />
+      <div className="hidden min-w-0 flex-1 items-center gap-5 md:flex">
+        <div>
+          <p className="text-[9px] font-bold tracking-[0.12em] text-white/68">
+            PHIÊN VẬN HÀNH THỬ NGHIỆM
+          </p>
+          <p className="mt-1 text-xs font-bold">{snapshot.updatedLabel}</p>
+        </div>
+        <span className="h-9 border-l border-white/10" />
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="rounded-[7px] border border-amber-300/18 bg-amber-300/8 px-2.5 py-1.5 text-amber-200">
+            {snapshot.primaryMetric.value} hồ sơ đến hạn
+          </span>
+          <span className="rounded-[7px] border border-red-300/18 bg-red-400/8 px-2.5 py-1.5 text-red-200">
+            {snapshot.secondaryMetric.value} cảnh báo mở
+          </span>
+        </div>
       </div>
-      <span className="h-9 border-l border-white/10" />
-      <div className="flex items-center gap-2 text-[10px]">
-        <span className="rounded-[7px] border border-amber-300/18 bg-amber-300/8 px-2.5 py-1.5 text-amber-200">
-          {snapshot.primaryMetric.value} hồ sơ đến hạn
-        </span>
-        <span className="rounded-[7px] border border-red-300/18 bg-red-400/8 px-2.5 py-1.5 text-red-200">
-          {snapshot.secondaryMetric.value} cảnh báo mở
-        </span>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -254,8 +261,7 @@ export function WorkspaceHeader({
           </p>
         </div>
 
-        <span className={`mx-1 hidden h-9 border-l md:block ${theme.divider}`} />
-        <ContextBlock role={role} snapshot={snapshot} />
+        <ContextBlock role={role} snapshot={snapshot} pathname={pathname} />
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <Link

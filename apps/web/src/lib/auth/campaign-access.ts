@@ -10,8 +10,18 @@ export function resolveCampaignAccess(
 ) {
   const isCreatorRole = session.user.roles.includes("CREATOR");
   const isCollaboratorRole = session.user.roles.includes("COLLABORATOR");
-  const isOwner = isCreatorRole;
-  const isCollaborator = isCollaboratorRole;
+  const isAdminRole = session.user.roles.includes("ADMIN");
+
+  // Xác định quyền sở hữu thực tế cho từng chiến dịch cụ thể
+  const isOwner = Boolean(
+    isAdminRole ||
+      (campaignData
+        ? campaignData.ownership === "OWNER" ||
+          campaignData.creatorId === session.user.id ||
+          campaignData.creator?.id === session.user.id
+        : isCreatorRole),
+  );
+  const isCollaborator = !isOwner && (isCollaboratorRole || isCreatorRole);
   const permissions =
     platform?.collaboratorPermissions[
       campaignMemberKey(campaignId, session.user.id)
@@ -21,7 +31,7 @@ export function resolveCampaignAccess(
     campaign: campaignData ?? {
       id: campaignId,
       title: "Chiến dịch",
-      status: platform?.campaignStatuses[campaignId] ?? (campaignData?.status || "LIVE"),
+      status: campaignData?.status ?? platform?.campaignStatuses[campaignId] ?? "LIVE",
     },
     membership: {
       userId: session.user.id,
