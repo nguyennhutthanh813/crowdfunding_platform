@@ -4,7 +4,7 @@
 
 ## NOW
 
-- 06/11/2026 (bộ điều phối UI/UX): `ui-ux-director` có `references/design-skill-map.md` để chọn nguồn thiết kế Anthropic, UI UX Pro Max, Impeccable, Vercel hoặc Stitch theo nhu cầu; các nguồn cộng đồng mới chỉ được nghiên cứu, không tự cài. `agent-skills/install.ps1 -Target All` đã chép bộ nhóm cho Codex/Claude/Kimi, giữ `Both` cho Codex/Claude. Hash source/bản cài và validator đạt; chưa kiểm loader Kimi trong phiên thật. Chưa đổi UI/DB web.
+- 06/11/2026 (trang dữ liệu dùng chung): Quy trình trên `/du-lieu-chung` nay tách nhánh Cộng tác viên theo lời mời khỏi bốn bước tạo → duyệt → mở → cam kết. Chọn góc nhìn chỉ gợi ý tài khoản mẫu đúng vai trò; tải session/danh sách độc lập và không báo “chưa có chiến dịch” khi API lỗi. Chromium 390 px không tràn ngang; chuyển Quản trị/Chủ dự án hiện đúng nút đăng nhập nhanh. TypeScript, ESLint, Next build 50 trang đạt. Backend/PostgreSQL không chạy trong lượt này, nên chưa kiểm ghi/đọc xuyên vai trò; NEXT: thử luồng đầy đủ trên DB phát triển riêng khi có máy chủ.
 
 - 05/11/2026 (hỏi đáp/thông báo): Trang `/du-lieu-chung` có `DiscussionPanel` và `NotificationPanel` nối qua BFF cho bình luận/đọc thông báo; API lọc bình luận của chiến dịch công khai và kiểm `updateId` cùng chiến dịch. Chromium 390 px: Minh Anh hỏi Bếp Mây → Linh thấy thông báo, đánh dấu đã đọc, mở dự án, trả lời → Minh Anh thấy phản hồi. Sau build lại API/web: POST bình luận cho nháp 404, update thuộc ORBIT One gắn Bếp Mây 400, GET nháp 0 dòng; guest đọc lại 1 câu hỏi/1 câu trả lời, console không lỗi, không tràn ngang. 86 test API qua, lint API 34 warning còn lại, lint/type/build web qua. Màn tin nhắn, các màn cũ và payment/AI vẫn chưa chuyển sang PostgreSQL.
 

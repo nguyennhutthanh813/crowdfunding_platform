@@ -58,7 +58,7 @@ export async function backendRequest(path: string, method: string, token?: strin
   if (!url)
     return backendError(
       503,
-      'Chưa cấu hình kết nối backend. Xem GOP_BACKEND_URL trong hướng dẫn chạy.',
+      'Chưa kết nối máy chủ dữ liệu. Nhờ người phụ trách kiểm tra cấu hình rồi tải lại trang.',
     );
   try {
     const response = await fetch(url, {
@@ -87,7 +87,7 @@ export async function backendRequest(path: string, method: string, token?: strin
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch {
-    return backendError(502, 'Không liên lạc được với backend. Kiểm tra API và thử lại.');
+    return backendError(502, 'Không liên lạc được với máy chủ dữ liệu. Vui lòng thử lại sau.');
   }
 }
 

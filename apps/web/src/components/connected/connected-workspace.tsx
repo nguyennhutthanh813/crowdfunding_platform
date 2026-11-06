@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, Check, LogOut, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, LogOut, RefreshCw } from 'lucide-react';
 import { BrandLogo } from '@/components/brand-logo';
 import { connectedRequest } from './request';
 import { AdminPanel } from './admin-panel';
@@ -59,6 +59,7 @@ export function ConnectedWorkspace() {
   const [demoAccounts, setDemoAccounts] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [publicCampaigns, setPublicCampaigns] = useState<Campaign[]>([]);
+  const [publicLoaded, setPublicLoaded] = useState(false);
   const [mine, setMine] = useState<Campaign[]>([]);
   const [pledges, setPledges] = useState<Pledge[]>([]);
   const [queue, setQueue] = useState<ReviewItem[]>([]);
@@ -76,6 +77,7 @@ export function ConnectedWorkspace() {
     ]);
     setPublicCampaigns(campaigns.data);
     setCategories(categoryList);
+    setPublicLoaded(true);
   }
 
   async function reloadRole(nextView = view) {
@@ -90,20 +92,26 @@ export function ConnectedWorkspace() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
+    Promise.allSettled([
       connectedRequest<{ user: User | null; demoAccounts: boolean }>('session'),
       connectedRequest<List<Campaign>>('campaigns'),
       connectedRequest<Category[]>('campaigns/categories'),
     ])
       .then(([session, campaigns, categoryList]) => {
         if (!active) return;
-        setUser(session.user);
-        setDemoAccounts(Boolean(session.demoAccounts));
-        setPublicCampaigns(campaigns.data);
-        setCategories(categoryList);
-      })
-      .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : 'Không tải được dữ liệu.');
+        if (session.status === 'fulfilled') {
+          setUser(session.value.user);
+          setDemoAccounts(Boolean(session.value.demoAccounts));
+        }
+        if (campaigns.status === 'fulfilled') {
+          setPublicCampaigns(campaigns.value.data);
+          setPublicLoaded(true);
+        }
+        if (categoryList.status === 'fulfilled') setCategories(categoryList.value);
+        const failed = [session, campaigns, categoryList].find((result) => result.status === 'rejected');
+        if (failed?.status === 'rejected') {
+          setError(failed.reason instanceof Error ? failed.reason.message : 'Không tải được dữ liệu.');
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -244,7 +252,8 @@ export function ConnectedWorkspace() {
     }
   }
 
-  const requiredRole = views.find((item) => item.key === view)?.role;
+  const currentView = views.find((item) => item.key === view);
+  const requiredRole = currentView?.role;
   const allowed = !requiredRole || user?.roles.includes(requiredRole);
   const member = selected?.members?.find((item) => item.userId === user?.id);
   const discussion = selected ? (
@@ -262,7 +271,7 @@ export function ConnectedWorkspace() {
         <div className={styles.headerInner}>
           <BrandLogo light={false} />
           <span className={styles.headerDivider} />
-          <strong>Dữ liệu dùng chung</strong>
+          <strong>Quy trình chiến dịch</strong>
           <Link href="/" className={styles.backLink}>
             <ArrowLeft size={17} /> Về bản trải nghiệm
           </Link>
@@ -272,21 +281,22 @@ export function ConnectedWorkspace() {
       <div className={styles.shell}>
         <section className={styles.intro}>
           <div>
-            <p className={styles.context}>Luồng từ PostgreSQL · bản thử nghiệm tại máy</p>
-            <h1>Một chiến dịch, các vai trò cùng theo dõi</h1>
+            <p className={styles.context}>Bản thử nghiệm dùng chung dữ liệu</p>
+            <h1>Theo dõi chiến dịch qua từng vai trò</h1>
             <p>
-              Chủ dự án lập hồ sơ, quản trị viên duyệt, người ủng hộ tạo cam kết, cộng tác viên đăng
-              tiến độ. Mỗi bước ghi vào cùng một cơ sở dữ liệu và đọc lại được ở bước sau.
+              Xem Chủ dự án tạo hồ sơ, Quản trị viên duyệt rồi Người ủng hộ cam kết. Khi được mời,
+              Cộng tác viên có thể cập nhật tiến độ của chính chiến dịch đó.
             </p>
           </div>
           <div className={styles.flow} aria-label="Quy trình chính">
-            <span>Chủ dự án</span>
-            <ArrowRight size={15} />
-            <span>Quản trị</span>
-            <ArrowRight size={15} />
-            <span>Người ủng hộ</span>
-            <ArrowRight size={15} />
-            <span>Cộng tác viên</span>
+            <strong className={styles.flowTitle}>Các bước chính</strong>
+            <ol>
+              <li><b>1</b><span>Chủ dự án tạo và gửi hồ sơ</span></li>
+              <li><b>2</b><span>Quản trị viên xét duyệt</span></li>
+              <li><b>3</b><span>Chủ dự án mở gọi vốn</span></li>
+              <li><b>4</b><span>Người ủng hộ tạo cam kết</span></li>
+            </ol>
+            <p className={styles.flowNote}>Cộng tác viên tham gia sau khi được Chủ dự án mời.</p>
           </div>
         </section>
 
@@ -304,7 +314,7 @@ export function ConnectedWorkspace() {
                   key={item.key}
                   type="button"
                   onClick={() => changeView(item.key)}
-                  aria-current={view === item.key ? 'page' : undefined}
+                  aria-pressed={view === item.key}
                   className={`${styles.navItem} ${view === item.key ? styles.active : ''}`}
                 >
                   <span>{item.label}</span>
@@ -339,8 +349,8 @@ export function ConnectedWorkspace() {
           <section className={styles.main} aria-label="Nội dung theo vai trò">
             <div className={styles.mainHead}>
               <div>
-                <p>{views.find((item) => item.key === view)?.summary}</p>
-                <h2>{views.find((item) => item.key === view)?.label}</h2>
+                <p>{currentView?.summary}</p>
+                <h2>{currentView?.label}</h2>
               </div>
               <button
                 className={styles.refresh}
@@ -384,11 +394,13 @@ export function ConnectedWorkspace() {
                 demoAccounts={demoAccounts}
                 busy={busy}
                 onSignIn={signIn}
-                roleName={views.find((item) => item.key === view)?.label ?? ''}
+                roleName={currentView?.label ?? ''}
+                roleKey={view}
+                currentUserName={user?.displayName}
               />
             )}
 
-            {allowed && view === 'public' && (
+            {allowed && !loading && publicLoaded && view === 'public' && (
               <CampaignBrowser
                 campaigns={publicCampaigns}
                 selected={selected}
@@ -397,7 +409,7 @@ export function ConnectedWorkspace() {
               />
             )}
 
-            {allowed && view === 'creator' && (
+            {allowed && !loading && view === 'creator' && (
               <CreatorPanel
                 categories={categories}
                 campaigns={mine}
@@ -409,7 +421,7 @@ export function ConnectedWorkspace() {
               />
             )}
 
-            {allowed && view === 'admin' && (
+            {allowed && !loading && view === 'admin' && (
               <AdminPanel
                 queue={queue}
                 selected={selectedReview}
@@ -419,7 +431,7 @@ export function ConnectedWorkspace() {
               />
             )}
 
-            {allowed && view === 'backer' && (
+            {allowed && !loading && view === 'backer' && (
               <BackerPanel
                 campaigns={publicCampaigns}
                 pledges={pledges}
@@ -431,7 +443,7 @@ export function ConnectedWorkspace() {
               />
             )}
 
-            {allowed && view === 'collaborator' && (
+            {allowed && !loading && view === 'collaborator' && (
               <CollaboratorPanel
                 campaigns={mine}
                 selected={selected}
@@ -454,12 +466,17 @@ function SignIn({
   busy,
   onSignIn,
   roleName,
+  roleKey,
+  currentUserName,
 }: {
   demoAccounts: boolean;
   busy: boolean;
   onSignIn: (body: { email?: string; password?: string; demoAccount?: string }) => Promise<void>;
   roleName: string;
+  roleKey: View;
+  currentUserName?: string;
 }) {
+  const quickAccount = quickAccounts.find((account) => account.id === roleKey);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -469,22 +486,20 @@ function SignIn({
     <section className={styles.signIn}>
       <h3>Đăng nhập để xem phần {roleName.toLowerCase()}</h3>
       <p>
-        Mỗi tài khoản chỉ thấy việc được phép làm. Dữ liệu dùng chung nên kết quả của vai trò trước
-        sẽ hiện ở vai trò sau.
+        {currentUserName
+          ? `${currentUserName} chưa có quyền xem phần này. Đăng nhập bằng tài khoản phù hợp để tiếp tục.`
+          : 'Đăng nhập để xem công việc và dữ liệu của vai trò bạn đã chọn.'}
       </p>
-      {demoAccounts && (
+      {demoAccounts && quickAccount && (
         <div className={styles.quickAccounts}>
-          {quickAccounts.map((account) => (
-            <button
-              type="button"
-              className={styles.quickButton}
-              disabled={busy}
-              key={account.id}
-              onClick={() => void onSignIn({ demoAccount: account.id })}
-            >
-              {account.label}
-            </button>
-          ))}
+          <button
+            type="button"
+            className={styles.quickButton}
+            disabled={busy}
+            onClick={() => void onSignIn({ demoAccount: quickAccount.id })}
+          >
+            Đăng nhập nhanh: {quickAccount.label}
+          </button>
         </div>
       )}
       <form onSubmit={submit} className={styles.formRow}>
