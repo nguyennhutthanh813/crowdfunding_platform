@@ -39,8 +39,6 @@ pnpm test:role-permissions
 pnpm test:new-campaign-flow
 ```
 
-Bộ skill của nhóm và cách cài trên máy khác nằm ở [agent-skills](agent-skills/README.md). Với Codex, gọi `$gop-project-director` cho việc xuyên yêu cầu, dữ liệu, nhiều vai trò và kiểm thử; `$ui-ux-director` dành riêng cho luồng giao diện nhiều màn. Khi rà chú thích, nhãn và lời văn trong source, dùng `$gop-code-voice` cùng [bản ghi nghiên cứu và lượt rà 03/11](docs/project-control/23-nghien-cuu-giong-code-sinh-vien-2026-11-03.md).
-
 ## Các màn hình chính
 
 | Đường dẫn                                               | Nội dung                                                                                                 |

@@ -33,16 +33,7 @@ try {
   foreach ($name in @('src', 'public', 'docs', 'database', 'scripts')) {
     Copy-Folder (Join-Path $project $name) (Join-Path $web $name)
   }
-  $skillSource = Join-Path $project 'agent-skills'
-  $skillTarget = Join-Path $web 'agent-skills'
-  New-Item -ItemType Directory -Path $skillTarget -Force | Out-Null
-  foreach ($name in @('skills', 'compat')) {
-    Copy-Folder (Join-Path $skillSource $name) (Join-Path $skillTarget $name)
-  }
-  foreach ($name in @('README.md', 'install.ps1', 'install-codex-project.ps1')) {
-    Copy-Item -LiteralPath (Join-Path $skillSource $name) -Destination (Join-Path $skillTarget $name)
-  }
-  foreach ($name in @('.env.example', '.gitignore', 'AGENTS.md', 'CHAY-WEB.bat', 'CLAUDE.md', 'README.md', 'eslint.config.mjs',
+  foreach ($name in @('.env.example', '.gitignore', 'CHAY-WEB.bat', 'README.md', 'eslint.config.mjs',
       'next-env.d.ts', 'next.config.ts', 'package.json', 'pnpm-lock.yaml',
       'pnpm-workspace.yaml', 'postcss.config.mjs', 'tsconfig.json')) {
     Copy-Item -LiteralPath (Join-Path $project $name) -Destination (Join-Path $web $name)
@@ -94,7 +85,7 @@ try {
   @'
 # Nội dung gói Góp
 
-- `crowdfunding-ai-platform`: source web, tài nguyên, tài liệu, video demo, script chạy và các skill do nhóm viết.
+- `crowdfunding-ai-platform`: source web, tài nguyên, tài liệu, video demo và script chạy.
 - `crowdfunding-ai-platform/.local-data/gop-mock.sqlite`: bản chụp nhất quán của database local chính, đã gộp dữ liệu WAL.
 - `BAI_NOP_TUAN_USE_CASE_ERD_DATABASE`: Use Case, ERD, SQL, ảnh và file chỉnh sửa sơ đồ.
 - `TAI_LIEU_HUONG_DAN_UI_UX_GOP`: hướng dẫn sử dụng, ảnh minh họa và quy trình nhanh.
@@ -115,10 +106,6 @@ Các ZIP cũ, node_modules, .next, file môi trường thật, cache, dữ liệ
         "$bundleName/NOI_DUNG_GOI.md",
         "$bundleName/crowdfunding-ai-platform/package.json",
         "$bundleName/crowdfunding-ai-platform/CHAY-WEB.bat",
-        "$bundleName/crowdfunding-ai-platform/agent-skills/skills/ui-ux-director/SKILL.md",
-        "$bundleName/crowdfunding-ai-platform/agent-skills/skills/gop-code-voice/SKILL.md",
-        "$bundleName/crowdfunding-ai-platform/agent-skills/install.ps1",
-        "$bundleName/crowdfunding-ai-platform/agent-skills/install-codex-project.ps1",
         "$bundleName/crowdfunding-ai-platform/.local-data/gop-mock.sqlite",
         "$bundleName/BAI_NOP_TUAN_USE_CASE_ERD_DATABASE/01_USE_CASE/",
         "$bundleName/BAI_NOP_TUAN_USE_CASE_ERD_DATABASE/02_ERD_DATABASE.zip",

@@ -7,7 +7,8 @@
 /.local-data/
 /.diagram-tools/
 /.playwright-cli/
-/agent-skills/vendor/
+/agent-skills/
+/scripts/audit-code-voice.mjs
 
 # Next.js
 /.next/

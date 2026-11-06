@@ -1,6 +1,6 @@
 # Mang bản demo Góp sang máy khác
 
-Gói ZIP tạo bởi `scripts/package-portable.ps1` có ba phần: `crowdfunding-ai-platform` (web + SQLite local + bộ skill UI/UX), `BAI_NOP_TUAN_USE_CASE_ERD_DATABASE` (Use Case/ERD/SQL, file Draw.io và ZIP ERD riêng), `TAI_LIEU_HUONG_DAN_UI_UX_GOP` (hướng dẫn, ảnh minh họa và sơ đồ quy trình). Thư mục `tai-lieu-de-bai` giữ bản Word, bản tổng hợp, transcript và hai video nguồn Bandicam để đối chiếu. Mở `NOI_DUNG_GOI.md` ở đầu gói để thấy các phần chính. Không cần giải nén các ZIP cũ nằm trong workspace ban đầu.
+Gói ZIP tạo bởi `scripts/package-portable.ps1` có ba phần: `crowdfunding-ai-platform` (web + SQLite local), `BAI_NOP_TUAN_USE_CASE_ERD_DATABASE` (Use Case/ERD/SQL, file Draw.io và ZIP ERD riêng), `TAI_LIEU_HUONG_DAN_UI_UX_GOP` (hướng dẫn, ảnh minh họa và sơ đồ quy trình). Thư mục `tai-lieu-de-bai` giữ bản Word, bản tổng hợp, transcript và hai video nguồn Bandicam để đối chiếu. Mở `NOI_DUNG_GOI.md` ở đầu gói để thấy các phần chính. Không cần giải nén các ZIP cũ nằm trong workspace ban đầu.
 
 ## Mở web trên máy mới
 
@@ -8,8 +8,6 @@ Gói ZIP tạo bởi `scripts/package-portable.ps1` có ba phần: `crowdfunding
 2. Cài Node.js **24 trở lên** và pnpm (hoặc Corepack). Nhấp đúp `crowdfunding-ai-platform/CHAY-WEB.bat`: file cài dependency nếu máy chưa có, mở web ở cổng **3100** và dùng ngay SQLite đi kèm. Nếu chạy thủ công trong PowerShell, mở thư mục web rồi chạy `pnpm install --frozen-lockfile` và `pnpm dev`; cổng mặc định khi đó là **3000**.
 3. Mở `/auth` ở đúng cổng đang chạy, đăng nhập bằng một tài khoản thử ghi trong `README.md`. Để xem các bảng SQLite, dùng tài khoản Quản trị viên và mở `/local-data`.
 4. Nếu muốn chạy kiểm tra luồng mà không làm bẩn bản SQLite đi kèm, tạo một DB riêng trong cửa sổ PowerShell đang chạy server: `$env:GOP_LOCAL_DB_NAME='gop-kiem-tra'; pnpm dev --port 3102`. Ở cửa sổ khác đặt `$env:GOP_PREVIEW_URL='http://localhost:3102'`, rồi chạy `pnpm test:new-campaign-flow`. Bài test sẽ tạo dữ liệu mới trong `gop-kiem-tra.sqlite`.
-
-Muốn dùng bộ skill UI/UX và skill rà source trên máy mới, trong thư mục web chạy `.\agent-skills\install.ps1 -Target All` cho Codex, Claude Code và Kimi Code; `-Target Both` chỉ cài Codex/Claude Code như trước. Lệnh chép tám skill UI, file tham khảo và `gop-code-voice` tới các agent được chọn; bốn skill điều phối/kiểm định của Góp được cài thêm cho Codex. Hướng dẫn và nguồn skill thiết kế bên ngoài nằm ở `agent-skills/README.md`. Mở phiên mới để ứng dụng nhận skill. Hai skill tham khảo của Vercel được cài riêng trên máy đang phát triển, **không nằm trong ZIP**; bộ skill của nhóm vẫn hoạt động nếu chưa cài chúng.
 
 File `.local-data/gop-mock.sqlite` trong gói là **ảnh chụp dữ liệu local chính** tại lúc đóng gói, không chứa phiên đăng nhập. Vì thế sau khi chuyển máy cần đăng nhập lại. Bản SQLite này giữ trạng thái thử của nhóm; seed ban đầu nằm ở `src/lib/api/mock/relational-store.ts` và được nạp qua `src/lib/local-db/database.ts`. File `src/components/creator/campaign-wizard-samples.ts` chỉ điền ví dụ vào form, **chưa ghi DB**; bấm **Lưu bản nháp** mới tạo hồ sơ local. Nếu chỉ muốn bắt đầu từ seed, cất bản sao file SQLite đi nơi khác trước khi chạy web; khi không có file, `pnpm dev` sẽ tạo DB mới. Đừng dùng dữ liệu này để nhận tiền hoặc lưu thông tin cá nhân thật.
 
