@@ -20,24 +20,6 @@ import {
 const orbitCampaign = getMockCampaign("cmp_orbit");
 const orbitDripCampaign = getMockCampaign("cmp_orbit_drip");
 
-const taskPresentation: Record<string, { dueLabel: string }> = {
-  "task-warranty-reply": {
-    dueLabel: "Hôm nay · 11:30",
-  },
-  "task-thermal-update": {
-    dueLabel: "Hôm nay · 16:00",
-  },
-  "task-bean-question": {
-    dueLabel: "Hôm nay · 17:30",
-  },
-  "task-shipping-surcharge": {
-    dueLabel: "Ngày mai · 10:00",
-  },
-  "task-safety-image": {
-    dueLabel: "Hoàn tất · 09:20",
-  },
-};
-
 const taskHrefByRole = {
   creator:
     "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community",
@@ -48,15 +30,15 @@ const taskHrefByRole = {
 const teamPresentation: Record<string, { role: string; lastSeen: string }> = {
   usr_hoang_linh: {
     role: "Chủ dự án · Sản phẩm",
-    lastSeen: "Vừa xong",
+    lastSeen: "Tại mốc dữ liệu mẫu",
   },
   usr_gia_huy: {
     role: "Cộng tác viên · Phần cứng",
-    lastSeen: "10:18 hôm nay",
+    lastSeen: "13/09/2026 · 10:18",
   },
   usr_minh_trang: {
     role: "Cộng tác viên · Vận hành",
-    lastSeen: "09:46 hôm nay",
+    lastSeen: "13/09/2026 · 09:46",
   },
 };
 
@@ -80,8 +62,6 @@ const orbitTasks: CampaignOperationsData["tasks"] = mockCampaignTasks
   .filter((task) => task.campaignId === orbitCampaign.id)
   .map((task) => {
     const assignee = getMockUser(task.assigneeUserId);
-    const presentation = taskPresentation[task.id];
-    if (!presentation) throw new Error(`MOCK_TASK_PRESENTATION_MISSING:${task.id}`);
     return {
       id: task.id,
       title: task.title,
@@ -92,7 +72,9 @@ const orbitTasks: CampaignOperationsData["tasks"] = mockCampaignTasks
       assigneeId: assignee.id,
       assigneeName: assignee.displayName,
       assigneeInitials: assignee.initials,
-      dueLabel: presentation.dueLabel,
+      dueLabel: task.completedAt
+        ? `Hoàn tất · ${formatDateTime(task.completedAt)}`
+        : `Hạn · ${formatDateTime(task.dueAt)}`,
       hrefByRole: taskHrefByRole,
     };
   });
@@ -124,14 +106,12 @@ const orbitTeam: CampaignOperationsData["team"] = mockCampaignMembers
     };
   });
 
-const handoffLabels: Record<string, { title: string; at: string }> = {
+const handoffLabels: Record<string, { title: string }> = {
   "handoff-thermal": {
     title: "Bộ ảnh kiểm thử nhiệt đã đủ 6 góc",
-    at: "10:05 hôm nay",
   },
   "handoff-shipping": {
     title: "Đã nhận báo giá giao Phú Quý",
-    at: "09:34 hôm nay",
   },
 };
 
@@ -146,7 +126,7 @@ const orbitHandoffs: CampaignOperationsData["handoffs"] = mockTaskHandoffs.map(
       title: presentation.title,
       from: getMockUser(handoff.fromUserId).displayName,
       to: getMockUser(handoff.toUserId).displayName,
-      at: presentation.at,
+      at: formatDateTime(handoff.createdAt),
       note: handoff.note,
     };
   },

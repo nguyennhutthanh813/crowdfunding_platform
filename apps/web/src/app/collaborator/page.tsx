@@ -31,22 +31,25 @@ export const metadata: Metadata = {
   description: "Theo dõi chiến dịch được mời, công việc và quyền cộng tác.",
 };
 
-function InvitationBoard({ invitations, givenName, platform, viewerId, empty = false }: {
+function InvitationBoard({ invitations, givenName, platform, viewerId, empty = false, otherCampaigns = false }: {
   invitations: ReturnType<typeof previewInvitationsForUser>;
   givenName: string;
   platform: PlatformPreviewState;
   viewerId?: string;
   empty?: boolean;
+  otherCampaigns?: boolean;
 }) {
   if (!invitations.length && !empty) return null;
   const pendingCount = invitations.filter((item) => !item.accepted).length;
-  return <section id="loi-moi" className="border-b border-[#c8d9ec] bg-[#f0f5f9] py-8">
+  return <section id={otherCampaigns ? "chien-dich-khac" : "loi-moi"} className="scroll-mt-36 border-b border-[#c8d9ec] bg-[#f0f5f9] py-8">
     <div className="container-shell">
-      <p className="eyebrow text-[#2869ac]">Chiến dịch gắn với email tài khoản</p>
-      <h2 className="mt-2 font-display text-2xl font-extrabold">{!invitations.length
+      <p className="eyebrow text-[#2869ac]">{otherCampaigns ? "Chiến dịch khác" : "Lời mời gửi tới tài khoản"}</p>
+      <h2 className="mt-2 font-display text-2xl font-extrabold">{otherCampaigns ? "Những chiến dịch bạn cũng đang tham gia" : !invitations.length
         ? `Chào ${givenName}, bạn chưa có việc nhóm.`
         : pendingCount ? `Bạn có ${pendingCount} lời mời cần xác nhận` : "Chiến dịch bạn đang cộng tác"}</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-soft">{empty && !invitations.length
+      <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-soft">{otherCampaigns
+        ? "Mỗi chiến dịch có quyền riêng. Mở đúng phần việc trước khi đăng cập nhật hoặc trả lời cộng đồng."
+        : empty && !invitations.length
         ? "Khi Chủ dự án ghi email của bạn trong hồ sơ được duyệt, lời mời sẽ xuất hiện tại đây. Bạn tự xác nhận trước khi có quyền thao tác."
         : pendingCount ? "Email có trong hồ sơ chỉ là lời mời; quyền làm việc bắt đầu sau khi bạn chấp nhận." : "Mỗi chiến dịch có quyền riêng. Mở phần việc để xem chính xác bạn được làm gì."}</p>
       {invitations.length ? <div className="mt-5 grid gap-3 md:grid-cols-2">{invitations.map((item) => {
@@ -65,7 +68,7 @@ function InvitationBoard({ invitations, givenName, platform, viewerId, empty = f
         {item.accepted && myQuestions.length > 0 ? <p className="mt-3 rounded-lg bg-[#e7f2fb] px-3 py-2 text-sm font-bold text-[#225b86]">
           {myQuestions.length} câu hỏi đang chờ bạn trả lời
         </p> : null}
-        <p className="mt-2 text-xs leading-6 text-ink-soft">Quyền được đề nghị: {[
+        <p className="mt-2 text-xs leading-6 text-ink-soft">{item.accepted ? "Quyền của bạn" : "Quyền được đề nghị"}: {[
           item.permissions.canUpdate && "đăng cập nhật",
           item.permissions.canReply && "trả lời cộng đồng",
           item.permissions.canViewAi && "xem dự báo (chưa nối cho hồ sơ mới)",
@@ -102,6 +105,7 @@ export default async function CollaboratorPage() {
     (task) => task.assigneeId === collaboratorId,
   );
   const openTasks = assignedTasks.filter((task) => task.status !== "DONE");
+  const flowTask = openTasks[0] ?? assignedTasks[0];
   const completedTasks = assignedTasks.length - openTasks.length;
   const urgentTasks = openTasks.filter((task) => task.priority === "HIGH");
   const workProgress = assignedTasks.length
@@ -111,6 +115,8 @@ export default async function CollaboratorPage() {
   const specialistRole =
     collaboratorProfile?.role.replace("Cộng tác viên · ", "") ?? "Thành viên";
   const invitations = session ? previewInvitationsForUser(session, platformState) : [];
+  const pendingInvitations = invitations.filter((item) => !item.accepted);
+  const acceptedInvitations = invitations.filter((item) => item.accepted);
   const canOpenOrbit = session
     ? resolveCampaignAccess("cmp_orbit", session, platformState).isCollaborator
     : false;
@@ -118,7 +124,7 @@ export default async function CollaboratorPage() {
 
   return (
     <>
-    <InvitationBoard invitations={invitations} givenName={givenName} platform={platformState} viewerId={collaboratorId} />
+    <InvitationBoard invitations={pendingInvitations} givenName={givenName} platform={platformState} viewerId={collaboratorId} />
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
       <div className="border-b border-[#c8d9ec] bg-[#e8f0f8] py-9 sm:py-11">
         <div className="container-shell flex flex-col justify-between gap-6 md:flex-row md:items-end">
@@ -127,16 +133,21 @@ export default async function CollaboratorPage() {
               <Users className="size-4" /> Không gian cộng tác
             </span>
             <h1 className="mt-3 max-w-3xl font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
-              Chào {givenName}, đây là các việc nhóm giao cho bạn.
+              Ca làm việc ORBIT One của {givenName}
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-soft">
-              Đây là ca làm việc của bạn trong ORBIT One: đầu việc, hạn bàn
-              giao và phần trao đổi đang chờ đều lấy từ cùng một dữ liệu chiến dịch.
+              Xem việc được giao, hạn bàn giao và phần trao đổi của riêng chiến dịch này.
+              {acceptedInvitations.length ? " Các chiến dịch khác nằm ở cuối trang và trong mục Các mục." : ""}
             </p>
           </div>
-          <span className="inline-flex w-fit items-center gap-2 rounded-[9px] border border-[#b7cee5] bg-white px-4 py-2 text-xs font-semibold text-[#315b86]">
-            <span className="size-1.5 rounded-full bg-blue-500" /> {openTasks.length} việc đang mở
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex w-fit items-center gap-2 rounded-[9px] border border-[#b7cee5] bg-white px-4 py-2 text-xs font-semibold text-[#315b86]">
+              <span className="size-1.5 rounded-full bg-blue-500" /> {openTasks.length} việc đang mở
+            </span>
+            {acceptedInvitations.length ? <Link href="#chien-dich-khac" className="inline-flex min-h-11 items-center rounded-[9px] border border-[#b7cee5] bg-white px-4 text-xs font-bold text-[#225b86] hover:bg-[#f0f5f9]">
+              Xem {acceptedInvitations.length} chiến dịch khác <ArrowRight className="ml-2 size-4" />
+            </Link> : null}
+          </div>
         </div>
       </div>
 
@@ -220,30 +231,30 @@ export default async function CollaboratorPage() {
             eyebrow="Đường đi của một đầu việc"
             title="Việc đến tay bạn từ đâu, rồi đi tiếp thế nào?"
             description={`Bạn đang tham gia với vai trò ${specialistRole}. Quyền và đầu việc đều gắn riêng với ORBIT One, nên thay đổi ở đây sẽ quay về đúng xưởng chiến dịch của chủ dự án.`}
-            recordCode={`TASK · ${(openTasks[0]?.id ?? assignedTasks[0]?.id ?? "ORBIT").toLocaleUpperCase("vi")}`}
+            recordCode={flowTask ? `TASK · ${flowTask.id.toLocaleUpperCase("vi")}` : "ORBIT · VIỆC NHÓM"}
             steps={[
               {
                 actor: "Nguyễn Hoàng Linh · Chủ dự án",
                 title: "Giao việc kèm phạm vi quyền",
-                detail: `${operations.handoffs[0].title} · ${operations.handoffs[0].at}.`,
+                detail: flowTask ? `${flowTask.title}. ${flowTask.dueLabel}.` : "Khi có việc mới, bạn sẽ thấy tên việc và hạn bàn giao ở đây.",
                 kind: "person",
-                state: "done",
+                state: flowTask ? "done" : "next",
               },
               {
                 actor: givenName,
-                title: `${openTasks.length} việc đang chờ bạn`,
+                title: openTasks.length ? `${openTasks.length} việc đang chờ bạn` : "Không còn việc đang mở",
                 detail: urgentTasks[0]
                   ? `Ưu tiên trước: ${urgentTasks[0].title}.`
-                  : "Danh sách hiện không có việc ưu tiên cao.",
+                  : openTasks.length ? "Danh sách hiện không có việc ưu tiên cao." : "Bạn đã xử lý xong các đầu việc đang được giao; tiếp tục theo dõi trao đổi mới.",
                 kind: "team",
-                state: "current",
+                state: openTasks.length ? "current" : "done",
               },
               {
                 actor: "Xưởng chiến dịch ORBIT",
                 title: "Nhận lại trạng thái và nội dung",
-              detail: "Chủ dự án thấy cùng mã công việc, người nhận, hạn bàn giao và kết quả vừa cập nhật.",
+                detail: openTasks.length ? "Khi bạn báo xong, chủ dự án sẽ thấy trạng thái mới của đúng công việc này." : "Chủ dự án thấy trạng thái đã hoàn tất của công việc trong bảng việc nhóm.",
                 kind: "campaign",
-                state: "current",
+                state: openTasks.length ? "next" : "done",
               },
               {
                 actor: "Người ủng hộ",
@@ -368,6 +379,7 @@ export default async function CollaboratorPage() {
         </aside>
       </div>
     </section>
+    <InvitationBoard invitations={acceptedInvitations} givenName={givenName} platform={platformState} viewerId={collaboratorId} otherCampaigns />
     </>
   );
 }

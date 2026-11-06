@@ -1,6 +1,6 @@
 # Nguồn tài nguyên và công cụ
 
-Cập nhật 14/10/2026. Đây là sổ kiểm kê cần nhóm duyệt, không phải tuyên bố toàn bộ nguồn đã được xác minh. Không tự cấp giấy phép cho source đồ án hoặc tài nguyên chưa rõ tác giả.
+Cập nhật 07/11/2026. Đây là sổ kiểm kê cần nhóm duyệt, không phải tuyên bố toàn bộ nguồn đã được xác minh. Không tự cấp giấy phép cho source đồ án hoặc tài nguyên chưa rõ tác giả.
 
 ## Thư viện và font đã nhận diện
 
@@ -9,6 +9,7 @@ Cập nhật 14/10/2026. Đây là sổ kiểm kê cần nhóm duyệt, không p
 | Next.js 16.3.4 | `package.json`, `node_modules/next/license.md` | MIT, Vercel |
 | React/React DOM 19.2.8 | package; `node_modules/react/LICENSE` | React: MIT, Meta và contributors; cần giữ license riêng của gói đi kèm khi phân phối |
 | Lucide React 1.41.0 | `node_modules/lucide-react/LICENSE` | ISC; một số icon kế thừa Feather có phần MIT trong cùng file |
+| React Flow (`@xyflow/react` 12.12.1) | `package.json`, `node_modules/@xyflow/react/package.json` và `LICENSE` | MIT; sơ đồ tiến độ giữ liên kết ghi công của thư viện |
 | Tailwind CSS 4.3.3 | package đã cài; `node_modules/tailwindcss/LICENSE` | MIT, Tailwind Labs |
 | TypeScript 5.9.3 | package đã cài; `node_modules/typescript/LICENSE.txt` | Apache 2.0 |
 | ESLint 9.39.5 | package đã cài; `node_modules/eslint/LICENSE` | MIT |
@@ -27,8 +28,9 @@ Cập nhật 14/10/2026. Đây là sổ kiểm kê cần nhóm duyệt, không p
 | `public/images/editorial/dong-goi-qua-minh-hoa-v1.webp` | Minh họa bước sau gọi vốn ở phần “Cách Góp hoạt động” | Sinh mới ngày 21/10/2026 bằng imagegen, prompt mô tả hai người làm sản phẩm ở xưởng nhỏ Việt Nam đang kiểm tra và đóng gói đèn bàn vào hộp giấy, ánh sáng tự nhiên, không logo/chữ. Chuyển WebP 1672 × 941, 147 KB. **Không** coi đây là ảnh giao hàng/đơn thật của ORBIT hay nhóm đồ án. |
 | `public/images/editorial/buoi-gioi-thieu-san-pham-v1.webp` | Ảnh minh họa lời mời tạo dự án trên trang chủ từ ngày 22/10 | Sinh mới bằng công cụ imagegen tích hợp: hai người làm sản phẩm Việt Nam giới thiệu bản mẫu trò chơi về địa danh cho một người quan tâm tại quán cộng đồng nhỏ, ảnh đời thường, không logo/chữ. Chuyển WebP 1536 × 1024, 166 KB. **Không** coi người trong ảnh là thành viên nhóm hoặc khách hàng thật. Prompt đầy đủ ở `docs/brand/nhan-dien-2026-10-22.md`. |
 | `public/images/campaigns/bep-may-minh-hoa-v1.webp` | Ảnh tùy chọn của hồ sơ Bếp Mây trong wizard và trang công khai | Tạo bằng imagegen tích hợp ngày 30/10/2026, chuyển WebP 1400 × 933, khoảng 132 KB. Bản gốc, prompt và cách dùng ở [`docs/brand/bep-may-anh-minh-hoa-2026-10-30.md`](brand/bep-may-anh-minh-hoa-2026-10-30.md). Đây là ảnh minh họa AI, không phải bản mẫu hoặc bằng chứng sản phẩm thật. |
+| `public/images/editorial/hanh-trinh-du-an-3d.png` | Minh họa bốn chặng trên trang chủ | Tạo bằng imagegen tích hợp trong đợt chỉnh 06–07/11/2026; mô tả đầu vào và cách dùng ở [`docs/brand/hanh-trinh-du-an-3d-2026-11-07.md`](brand/hanh-trinh-du-an-3d-2026-11-07.md). Đây là tranh 3D minh họa, không phải ảnh hoạt động thật. |
 | `docs/archive/unused-assets/community-workshop-v2.png` | Không còn dùng trên website; đã chuyển khỏi `public` ngày 18/09 | Có thể là bản trước/tài nguyên báo cáo. Giữ tạm để nhóm đối chiếu nguồn trước khi quyết định xóa |
-| `public/brand/*.svg`, `*.png` | Logo và biểu tượng Góp | Ngày 22/10 thay icon vuông cũ bằng chữ G mở trên nền màu giấy; SVG được vẽ trong source, PNG xuất từ chính SVG. `src/app/icon.svg` và ảnh chia sẻ cũng dùng dấu này. Lịch sử nguồn gốc các bản trước vẫn cần nhóm tự xác nhận; không coi tên file là bằng chứng sở hữu thương hiệu. |
+| `public/brand/*.svg`, `*.png` | Logo và biểu tượng Góp | Bản đang dùng là dấu chữ `PT/NT` gắn với tên hai thành viên trong header, favicon và ảnh chia sẻ. Các bản dấu G cũ thuộc lịch sử chỉnh sửa; lịch sử nguồn gốc bản trước vẫn cần nhóm tự xác nhận. Tên thành viên thứ hai cần nhóm chốt theo hồ sơ nộp. |
 | `public/diagrams`, `docs/diagrams`, các cây role | Hồ sơ phân tích, có script sinh | Là tài liệu thiết kế của bản demo, không chứng minh mọi chức năng trong sơ đồ đã được lập trình |
 | Ảnh UI trong hướng dẫn ngày 15/09 | Tài liệu lịch sử | Giữ mốc phiên bản. Đợt 17/09 đã xem ảnh chụp localhost trực tiếp trong phiên kiểm tra; công cụ từ chối ghi PNG vào workspace nên chưa có bộ ảnh mới trên đĩa. Không dùng hình sinh làm bằng chứng chạy web |
 

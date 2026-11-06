@@ -11,7 +11,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import type { CampaignCardData } from "@/lib/api";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
 
-export function FeaturedCampaign({ campaign }: { campaign: CampaignCardData }) {
+export function FeaturedCampaign({ campaign, localDbAvailable }: { campaign: CampaignCardData; localDbAvailable: boolean }) {
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
 
   return (
@@ -21,7 +21,7 @@ export function FeaturedCampaign({ campaign }: { campaign: CampaignCardData }) {
           <div>
             <p className="text-xs font-bold text-coral-dark">Dự án nổi bật</p>
             <p className="mt-1 text-sm text-ink-muted">
-              Một dự án tiêu biểu trong dữ liệu mẫu của Góp.
+              Xem nhóm thực hiện, mục tiêu và các gói ủng hộ trước khi quyết định góp.
             </p>
           </div>
           <Link
@@ -110,7 +110,8 @@ export function FeaturedCampaign({ campaign }: { campaign: CampaignCardData }) {
               </Link>
             </div>
             <p className="mt-4 text-[11px] leading-5 text-ink-muted">
-              Bản demo chỉ ghi cam kết mẫu; không giữ thẻ hoặc thu tiền.
+              {localDbAvailable ? "Cam kết được lưu trên máy trong SQLite; " : "Cam kết chỉ lưu trong phiên dùng thử; "}
+              chưa giữ thẻ hoặc thu tiền.
             </p>
           </div>
         </article>

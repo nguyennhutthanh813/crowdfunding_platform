@@ -6,6 +6,7 @@ import { CategoryLinks } from "@/components/home/category-links";
 import { CreatorInvitation } from "@/components/home/creator-invitation";
 import { FeaturedCampaign } from "@/components/home/featured-campaign";
 import { FundingGuide } from "@/components/home/funding-guide";
+import { ProjectJourneyPreview } from "@/components/home/project-journey-preview";
 import { NotifyButton } from "@/components/notify-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { api } from "@/lib/api";
@@ -14,6 +15,7 @@ import { getFriendlyName } from "@/lib/auth/roles";
 import { getServerSession } from "@/lib/auth/server-session";
 import { formatDate } from "@/lib/format";
 import { applyCampaignCardPreviewState } from "@/lib/preview-read-models";
+import { localDbEnabled } from "@/lib/local-db/database";
 
 export default async function HomePage() {
   const [baseCampaigns, session, platformState] = await Promise.all([
@@ -34,10 +36,11 @@ export default async function HomePage() {
     session?.user.roles.includes("BACKER"),
   );
   const friendlyName = session ? getFriendlyName(session.user.name) : "bạn";
+  const localDbAvailable = localDbEnabled();
 
   return (
     <>
-      <FeaturedCampaign campaign={featured} />
+      <FeaturedCampaign campaign={featured} localDbAvailable={localDbAvailable} />
       <CategoryLinks />
 
       <section className="page-section">
@@ -118,7 +121,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <FundingGuide />
+      <ProjectJourneyPreview campaignId={featured.id} localDbAvailable={localDbAvailable} />
+      <FundingGuide localDbAvailable={localDbAvailable} />
       <CreatorInvitation />
     </>
   );

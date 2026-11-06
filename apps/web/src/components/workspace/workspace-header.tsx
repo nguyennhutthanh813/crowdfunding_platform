@@ -266,13 +266,13 @@ export function WorkspaceHeader({
         <Link
           href="/"
           className="group inline-flex min-h-11 min-w-11 shrink-0 items-center"
-          aria-label="Góp · Góp một phần · Làm nên chuyện · Trang chủ"
         >
           <BrandLogo
             compact
             light={role !== "BACKER"}
             className="[&>svg]:size-9"
           />
+          <span className="sr-only">PT NT · Góp · Trang chủ</span>
         </Link>
         <span className={`hidden h-9 border-l sm:block ${theme.divider}`} />
         <div className="min-w-0 shrink-0">
@@ -436,7 +436,7 @@ export function WorkspaceHeader({
                 <Link href="/account" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${theme.iconButton}`}>
                   <Settings className="size-4" /> Tài khoản
                 </Link>
-                <button type="button" disabled={busy} onClick={() => void signOut()} className="flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-red-400/20 bg-red-400/8 text-xs font-bold text-red-300">
+                <button type="button" disabled={busy} onClick={() => void signOut()} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${role === "BACKER" ? "border-red-200 bg-red-50 text-red-700" : "border-red-300/25 bg-red-400/10 text-red-200"}`}>
                   <LogOut className="size-4" /> Đăng xuất
                 </button>
               </div>

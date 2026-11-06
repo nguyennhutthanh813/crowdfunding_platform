@@ -3,7 +3,6 @@
 import { Type } from "lucide-react";
 import { useEffect, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { DEMO_SNAPSHOT_LABEL } from "@/lib/api/mock/relational-store";
 
 const readingSizeKey = "gop_reading_size";
 const readingSizeEvent = "gop-reading-size";
@@ -26,7 +25,7 @@ function currentReadingSize() {
   }
 }
 
-export function DemoContextNotice() {
+export function DemoContextNotice({ localDbAvailable, snapshotLabel }: { localDbAvailable: boolean; snapshotLabel: string }) {
   const pathname = usePathname();
   const largeText = useSyncExternalStore(subscribe, currentReadingSize, () => false);
 
@@ -49,10 +48,15 @@ export function DemoContextNotice() {
 
   return (
     <div className="border-b border-[#d9e2cf] bg-[#f3f7ea] text-[#385447]">
-      <div className="container-shell flex items-center justify-between gap-2 py-2 sm:gap-4">
+      <div className="container-shell flex items-center justify-between gap-2 py-1 sm:gap-4">
         <details className="min-w-0 text-[13px] leading-5">
-          <summary className="min-h-11 cursor-pointer content-center font-bold">Dữ liệu mẫu 13/09/2026 · không thu tiền</summary>
-          <p className="pb-2 text-sm font-normal">Chiến dịch mẫu chốt lúc {DEMO_SNAPSHOT_LABEL}. “Còn ngày” và “sắp mở” tính từ mốc này. Hồ sơ mới dùng thời gian trên máy.</p>
+          <summary className="min-h-11 cursor-pointer content-center font-bold">{localDbAvailable ? "SQLite trên máy · Không thanh toán" : "Bản xem thử · Không thanh toán"}</summary>
+          <p className="pb-2 text-sm font-normal">
+            {localDbAvailable
+              ? "Tài khoản và thao tác mới được ghi vào SQLite trên máy này."
+              : "Các thao tác đang dùng dữ liệu thử trong phiên trình duyệt."}{" "}
+            Số liệu chiến dịch có sẵn chốt lúc {snapshotLabel}; những nhãn thời gian tương đối tính từ mốc đó. Chưa tích hợp cổng thanh toán.
+          </p>
         </details>
         <button
           type="button"
@@ -60,7 +64,7 @@ export function DemoContextNotice() {
           onClick={changeReadingSize}
           className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-[#a9c7a8] bg-white px-3 text-[13px] font-bold text-[#27533a] hover:bg-[#e9f1df]"
         >
-          <Type className="size-4" aria-hidden="true" /> Chữ dễ đọc
+          <Type className="size-4" aria-hidden="true" /> {largeText ? "Chữ thường" : "Chữ lớn"}
         </button>
       </div>
     </div>

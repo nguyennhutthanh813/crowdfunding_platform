@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Modal } from "@/components/ui/modal";
 import type { CampaignWorkspaceTask } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 
@@ -38,6 +39,8 @@ export function CollaboratorTaskList({
   const [filter, setFilter] = useState<"all" | "open" | "done">("all");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [taskToComplete, setTaskToComplete] = useState<CampaignWorkspaceTask | null>(null);
   const visibleTasks = tasks.filter((task) => {
     if (filter === "open") return task.status !== "DONE";
     if (filter === "done") return task.status === "DONE";
@@ -47,6 +50,7 @@ export function CollaboratorTaskList({
   const markDone = async (taskId: string) => {
     setBusy(taskId);
     setNotice("");
+    setActionError("");
     try {
       await clientRequest("/api/v1/creator/operations", {
         method: "POST",
@@ -63,9 +67,10 @@ export function CollaboratorTaskList({
         ),
       );
       setNotice("Đã báo cho nhóm rằng công việc này hoàn tất.");
+      setTaskToComplete(null);
       router.refresh();
     } catch (error) {
-      setNotice(clientRequestMessage(error, "Chưa thể cập nhật công việc. Bạn thử lại sau nhé."));
+      setActionError(clientRequestMessage(error, "Chưa thể cập nhật công việc. Bạn thử lại sau nhé."));
     } finally {
       setBusy(null);
     }
@@ -80,7 +85,7 @@ export function CollaboratorTaskList({
         <div>
           <p className="eyebrow text-coral">Việc cần làm</p>
           <h2 className="mt-2 font-display text-2xl font-extrabold">
-            Ưu tiên trong hôm nay
+            Việc được giao ở ORBIT One
           </h2>
         </div>
         <div
@@ -124,10 +129,11 @@ export function CollaboratorTaskList({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-bold">{task.title}</p>
-                  <span
-                    className={`text-[11px] font-bold ${task.priority === "HIGH" ? "text-red-600" : "text-ink-muted"}`}
-                  >
+                  <span className={`text-[11px] font-bold ${task.priority === "HIGH" ? "text-red-600" : "text-ink-muted"}`}>
                     {priorityLabels[task.priority]}
+                  </span>
+                  <span className="rounded-full bg-[#eff0e9] px-2 py-1 text-[11px] font-semibold text-ink-soft">
+                    {statusLabels[task.status]}
                   </span>
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-ink-muted">
@@ -155,13 +161,16 @@ export function CollaboratorTaskList({
                 <button
                   type="button"
                   disabled={busy === task.id}
-                  onClick={() => void markDone(task.id)}
+                  onClick={() => {
+                    setActionError("");
+                    setTaskToComplete(task);
+                  }}
                   className="col-span-2 min-h-11 justify-self-start rounded-full border border-line px-3 text-[11px] font-bold text-ink-soft hover:border-forest/25 hover:text-forest disabled:cursor-wait sm:col-span-1"
                 >
                   {busy === task.id ? (
                     <LoaderCircle className="size-3.5 animate-spin" />
                   ) : (
-                    statusLabels[task.status]
+                    "Đánh dấu đã xong"
                   )}
                 </button>
               )}
@@ -175,11 +184,33 @@ export function CollaboratorTaskList({
         </div>
       ) : null}
       <p
-        className={`mt-3 min-h-5 text-xs ${notice.startsWith("Chưa") ? "text-red-600" : "text-ink-muted"}`}
-        role={notice.startsWith("Chưa") ? "alert" : "status"}
+        className="mt-3 min-h-5 text-xs text-ink-muted"
+        role="status"
       >
         {notice}
       </p>
+      <Modal
+        open={Boolean(taskToComplete)}
+        title="Xác nhận hoàn thành công việc"
+        description={taskToComplete?.title}
+        onClose={() => setTaskToComplete(null)}
+        locked={busy !== null}
+        size="sm"
+      >
+        <p className="text-sm leading-6 text-ink-soft">
+          Hãy kiểm tra phần việc đã làm xong trước khi báo cho chủ dự án. Trạng thái này sẽ xuất hiện trong bảng việc của nhóm.
+        </p>
+        {actionError ? <p role="alert" className="mt-3 text-sm text-red-700">{actionError}</p> : null}
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          <button type="button" disabled={busy !== null} onClick={() => setTaskToComplete(null)} className="button-secondary">
+            Để sau
+          </button>
+          <button type="button" disabled={busy !== null} onClick={() => taskToComplete && void markDone(taskToComplete.id)} className="button-primary">
+            {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Check className="size-4" />}
+            Xác nhận đã xong
+          </button>
+        </div>
+      </Modal>
     </article>
   );
 }

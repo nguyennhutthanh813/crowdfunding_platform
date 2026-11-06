@@ -71,6 +71,7 @@ export default async function ProjectDetailPage({
   const isSuccessful = campaign.status === "SUCCESSFUL";
   const isFailed = campaign.status === "FAILED";
   const isSuspended = campaign.status === "SUSPENDED";
+  const localDbAvailable = localDbEnabled();
   const launchDate = new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -132,7 +133,7 @@ export default async function ProjectDetailPage({
                     : `${isPreLaunch ? "Dự kiến mở" : "Mở ngày"} ${launchDate}`}
                 </span>
               </div>
-              {localDbEnabled() ? <Link href={`/campaigns/${campaign.id}/timeline`} className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#b9cfbb] bg-white px-4 text-xs font-bold text-[#27533a] hover:bg-[#edf4e9]">Xem tiến độ và cập nhật đã ghi →</Link> : null}
+              {localDbAvailable ? <Link href={`/campaigns/${campaign.id}/timeline`} className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#b9cfbb] bg-white px-4 text-xs font-bold text-[#27533a] hover:bg-[#edf4e9]">Xem tiến độ và cập nhật đã ghi →</Link> : null}
             </div>
             <div className="lg:pt-1">
               <ProjectActions campaignId={campaign.id} />
@@ -191,14 +192,14 @@ export default async function ProjectDetailPage({
                       </>
                     ) : canPledge ? (
                       <>
-                        <strong>Bản demo All-or-Nothing:</strong> thao tác ủng hộ
-                        chỉ ghi cam kết mẫu. Chưa giữ hạn mức thẻ hay thu tiền;
+                        <strong>{localDbAvailable ? "Cam kết trên SQLite:" : "Cam kết dùng thử:"}</strong> thao tác ủng hộ
+                        ghi lại cam kết {localDbAvailable ? "trên máy chạy web" : "trong trình duyệt này"}. Chưa giữ hạn mức thẻ hay thu tiền;
                         phần đối soát khi kết thúc cần tích hợp sau.
                       </>
                     ) : isSuccessful ? (
                       <>
                         <strong>Đã đạt mục tiêu trong dữ liệu mẫu:</strong> nhóm
-                        chuyển sang theo dõi sản xuất và giao quà. Bản demo
+                        chuyển sang theo dõi sản xuất và giao quà. Hiện
                         chưa thực hiện thu tiền.
                       </>
                     ) : isFailed ? (
@@ -253,7 +254,7 @@ export default async function ProjectDetailPage({
                     : isSuccessful
                       ? "Theo dõi cập nhật sản xuất và tiến độ giao quà"
                       : isFailed
-                        ? "Bản demo không phát sinh khoản thu tiền"
+                        ? "Chế độ hiện tại không phát sinh khoản thu tiền"
                         : isSuspended
                           ? "Các cam kết cũ được giữ nguyên để chờ xử lý"
                         : "Không còn nhận cam kết mới"}

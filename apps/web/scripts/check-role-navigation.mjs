@@ -43,7 +43,7 @@ const cases = [
   ["CREATOR", "/creator/campaigns/new", "Tạo chiến dịch mới"],
   ["CREATOR", "/creator/campaigns/new?campaign=orbit-mini-bo-pha-gon", "Chỉnh sửa ORBIT Mini"],
 
-  ["COLLABORATOR", "/collaborator", "đây là các việc nhóm giao cho bạn"],
+  ["COLLABORATOR", "/collaborator", "Ca làm việc ORBIT One của"],
   ["COLLABORATOR", "/collaborator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community", "cùng nhóm cập nhật tiến độ"],
   ["COLLABORATOR", "/collaborator/forecast", "Dữ liệu đang nói gì về ORBIT One?"],
   ["COLLABORATOR", "/projects/orbit-one-ca-phe-thong-minh", "Pha đúng gu trong 90 giây"],

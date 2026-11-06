@@ -412,7 +412,7 @@ export function CreatorCampaignOperations({
                 <p className="mt-3 font-display text-xl font-extrabold text-[#173d65]">
                   {collaboratorOpenTasks.length}
                 </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#61778d]">
+                <p className="mt-1 text-[11px] leading-4 text-[#4f657b]">
                   việc đang mở
                 </p>
               </div>
@@ -421,7 +421,7 @@ export function CreatorCampaignOperations({
                 <p className="mt-3 font-display text-xl font-extrabold text-[#173d65]">
                   {collaboratorMember?.permissions.length ?? 0}
                 </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#61778d]">
+                <p className="mt-1 text-[11px] leading-4 text-[#4f657b]">
                   quyền được cấp
                 </p>
               </div>
@@ -430,7 +430,7 @@ export function CreatorCampaignOperations({
                 <p className="mt-3 font-display text-xl font-extrabold text-[#173d65]">
                   {operations.handoffs.length}
                 </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#61778d]">
+                <p className="mt-1 text-[11px] leading-4 text-[#4f657b]">
                   lượt bàn giao
                 </p>
               </div>
@@ -798,7 +798,6 @@ export function CreatorCampaignOperations({
                         setMessageReply("");
                       }}
                       className="group min-h-36 rounded-2xl border border-line bg-[#fbfaf7] p-4 text-left transition hover:border-coral/45 hover:bg-white"
-                      aria-label={`Đọc “${message.subject}” của ${message.senderName}`}
                     >
                       <span className="flex items-start justify-between gap-3">
                         <span className="flex min-w-0 items-center gap-3">
@@ -1095,7 +1094,7 @@ export function CreatorCampaignOperations({
                     <p className="mt-2 text-[11px] leading-5 text-white/60">
                       {handoff.note}
                     </p>
-                    <p className="mt-3 text-[11px] font-semibold text-white/42">
+                    <p className="mt-3 text-[11px] font-semibold text-white/70">
                       {handoff.from} → {handoff.to}
                     </p>
                   </div>

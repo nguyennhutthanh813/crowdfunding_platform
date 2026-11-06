@@ -1,4 +1,26 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+.gop-journey-flow .react-flow__pane {
+  cursor: grab;
+}
+.gop-journey-flow .react-flow__node {
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+.gop-journey-flow .react-flow__node:hover {
+  box-shadow: 0 18px 34px rgba(22, 59, 43, 0.17) !important;
+}
+.gop-journey-flow .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid #ceddce;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(22, 59, 43, 0.1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gop-journey-flow .react-flow__node {
+    transition: none;
+  }
+}
 
 :root {
   --canvas: #f4f1e9;

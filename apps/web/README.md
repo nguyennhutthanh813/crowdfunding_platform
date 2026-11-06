@@ -2,7 +2,9 @@
 
 > Trong repo `crowdfunding_platform`, thư mục này là `apps/web`. Cài dependency từ root bằng `corepack pnpm install --frozen-lockfile`, rồi chạy `corepack pnpm dev:web`. Bản SQLite riêng được tạo trong `apps/web/.local-data` khi chạy local; GitHub chỉ chứa source và seed, không chứa file dữ liệu đang thao tác.
 
-Trang `/du-lieu-chung` đã nối một luồng Creator → Admin → Backer → Collaborator qua NestJS và PostgreSQL. Nó có tài khoản backend riêng, không dùng chung phiên/ID với bản SQLite demo. Xem [hướng dẫn chạy hai ứng dụng](../../docs/du-lieu-dung-chung.md); các màn còn lại bên dưới vẫn mô tả bản demo.
+Trang `/du-lieu-chung` đã nối một luồng Creator → Admin → Backer → Collaborator qua NestJS và PostgreSQL. Nó có tài khoản backend riêng, không dùng chung phiên/ID với các màn chạy SQLite local hoặc cookie dùng thử. Xem [hướng dẫn chạy hai ứng dụng](../../docs/du-lieu-dung-chung.md); những màn còn lại vẫn thuộc luồng dữ liệu mẫu riêng.
+
+**Cập nhật 07/11/2026:** trang chủ có [tranh minh họa bốn chặng](docs/brand/hanh-trinh-du-an-3d-2026-11-07.md); trang `/campaigns/[id]/timeline` có sơ đồ tương tác lấy số hoạt động từ SQLite và lọc theo quyền người xem. Trên máy, thao tác được ghi lại cho các tài khoản cùng server; bản Vercel của các màn cũ vẫn dùng cookie riêng từng trình duyệt. Chưa tích hợp cổng thanh toán hoặc ba mô hình AI thật. Phần “Trạng thái ngày 30/10” bên dưới là mốc kiểm thử trước đợt chỉnh này.
 
 Đây là phần web của đồ án **Nghiên cứu và xây dựng nền tảng gọi vốn cộng đồng tích hợp trí tuệ nhân tạo hỗ trợ đánh giá và tối ưu hóa chiến dịch**.
 
@@ -55,7 +57,7 @@ pnpm test:new-campaign-flow
 | `/creator/campaigns/[id]/manage`                        | Tiến độ hồ sơ mới, phản hồi duyệt, mở gọi vốn, cam kết và hộp tin của đúng chủ dự án.                    |
 | `/projects/[id]`, `/pledge/[id]`                        | Trang công khai và cam kết mẫu cho chiến dịch mới đã được duyệt/mở.                                     |
 | `/local-data`                                           | Xem bảng, quan hệ và dữ liệu vừa thử trong SQLite trên máy; chỉ Admin và chỉ khi chạy local.             |
-| `/campaigns/[id]/timeline`                             | Lộ trình và nhật ký thao tác mới; Khách chỉ thấy mục công khai, các vai trò đăng nhập được lọc theo quyền. Chỉ chạy local. |
+| `/campaigns/[id]/timeline`                             | Sơ đồ bốn chặng có thể chọn, bộ lọc và nhật ký thao tác SQLite; Khách chỉ thấy mục công khai, vai trò khác được lọc theo quyền. Chỉ chạy local. |
 | `/creator/campaigns/new?campaign=orbit-mini-bo-pha-gon` | Chỉnh hồ sơ mẫu ORBIT Mini của Hoàng Linh; tách khỏi nút tạo mới.                                         |
 | `/creator`                                              | Tổng quan dành cho Chủ dự án: chỉ số, việc cần làm, chiến dịch và dự báo.                                |
 | `/creator/ai`                                           | Dự báo thành công, yếu tố ảnh hưởng và trợ lý kiểm tra nội dung bản nháp.                                |
@@ -165,7 +167,7 @@ pnpm test:role-permissions
 
 Ba cây theo role được xuất thành PNG/SVG dạng hai phía để đọc rõ trong báo cáo, còn bản Draw.io dùng lưới 3 × 2 và giữ từng node riêng để nhóm chỉnh tay. Trang `/system-design` có thêm link tải kế hoạch, ma trận truy vết và bảng tiến độ.
 
-Ảnh minh họa chiến dịch nằm trong `public/images/campaigns`; ảnh phần giới thiệu cộng đồng nằm trong `public/images/editorial`. Ảnh mẫu Bếp Mây được tạo bằng `imagegen` để minh họa ý tưởng, có nhãn demo trên web và ghi nguồn ở `docs/brand/bep-may-anh-minh-hoa-2026-10-30.md`.
+Ảnh minh họa chiến dịch nằm trong `public/images/campaigns`; ảnh phần giới thiệu cộng đồng nằm trong `public/images/editorial`. Ảnh mẫu Bếp Mây được tạo bằng `imagegen` để minh họa ý tưởng, có nhãn demo trên web và ghi nguồn ở `docs/brand/bep-may-anh-minh-hoa-2026-10-30.md`. Hình 3D bốn chặng trên trang chủ là tranh minh họa quy trình, nguồn ở `docs/brand/hanh-trinh-du-an-3d-2026-11-07.md`.
 Bộ nhận diện nằm trong `public/brand`, gồm SVG có thể chỉnh sửa và PNG dùng cho PWA/báo cáo. Bản mới dùng hai cặp chữ tắt của nhóm thay cho dấu G chung chung; tên hai thành viên xuất hiện trong logo ngang, header và footer. Quyết định về tên thứ hai cần nhóm xác nhận trước bản nộp chính thức; xem `docs/brand/nhan-dien-hai-thanh-vien-2026-10-22.md`. Hai ảnh editorial trên trang chủ là ảnh minh họa sinh bằng công cụ, không phải ảnh nhóm làm sản phẩm thật; xem `docs/nguon-tai-nguyen-va-cong-cu.md`.
 
 ## Đưa lên Vercel

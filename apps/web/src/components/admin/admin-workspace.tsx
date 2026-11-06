@@ -233,7 +233,7 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
       <section className="overflow-hidden rounded-[18px] border border-line bg-white">
         <div className="flex flex-col justify-between gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-xs font-bold">Ca trực ngày 13/09</p>
+            <p className="text-xs font-bold">Ca trực mẫu ngày 13/09/2026</p>
             <p className="mt-1 text-[11px] text-ink-muted">
               Việc cần xử lý trước khi chuyển ca chiều
             </p>
@@ -247,7 +247,7 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
             {
               icon: FileCheck2,
               value: `${data.operations.reviewsDueToday} hồ sơ`,
-              label: "đến hạn duyệt hôm nay",
+              label: "đến hạn tại mốc dữ liệu",
               detail: `${data.operations.overdueReviews} hồ sơ đã quá hạn xử lý`,
               tone: "text-amber-700 bg-amber-50",
             },
@@ -1431,7 +1431,7 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
     {
       label: "Tổng cam kết",
       value: formatVnd(data.metrics.grossPledged, true),
-      detail: "Từ tháng 4 đến nay",
+      detail: "Từ tháng 4 đến mốc mẫu",
       icon: CircleDollarSign,
       tone: "bg-[#eef4df] text-[#566c27]",
       tab: "overview" as const,
@@ -1447,7 +1447,7 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
     {
       label: "Hồ sơ chờ duyệt",
       value: String(data.reviewQueue.length),
-      detail: `${data.operations.reviewsDueToday} hồ sơ đến hạn hôm nay`,
+      detail: `${data.operations.reviewsDueToday} hồ sơ đến hạn ở mốc mẫu`,
       icon: FileCheck2,
       tone: "bg-blue-50 text-blue-700",
       tab: "reviews" as const,
@@ -1578,7 +1578,7 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
                 },
                 {
                   actor: "Trần Khánh An · Quản trị viên",
-                  title: `${data.operations.reviewsDueToday} hồ sơ đến hạn hôm nay`,
+                  title: `${data.operations.reviewsDueToday} hồ sơ đến hạn ở mốc mẫu`,
                   detail: "Đọc danh sách kiểm tra và bằng chứng, sau đó chọn duyệt, yêu cầu sửa hoặc chuyển kiểm tra sâu.",
                   kind: "admin",
                   state: "current",

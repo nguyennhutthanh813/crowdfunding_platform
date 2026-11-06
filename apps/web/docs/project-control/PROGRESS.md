@@ -1,6 +1,14 @@
 # Tiến độ thực hiện
 
-**Cập nhật gần nhất:** 06/11/2026, làm rõ luồng trên trang dữ liệu dùng chung.
+**Cập nhật gần nhất:** 07/11/2026, cây tiến độ chiến dịch và giao diện theo vai trò.
+
+## Checkpoint giao diện và SQLite local 07/11/2026
+
+- Trang chủ thêm tranh 3D minh họa bốn chặng và hàng bước đọc được ở màn nhỏ; nguồn ảnh và giới hạn sử dụng ở `docs/brand/hanh-trinh-du-an-3d-2026-11-07.md`. Trang `/campaigns/[id]/timeline` có sơ đồ 2D bốn node (React Flow), đường nối, nút lọc và dòng hoạt động lấy từ bảng sự kiện SQLite theo quyền. Ở mobile, dùng hàng nút dễ bấm thay cho canvas thu nhỏ; giữ liên kết ghi công thư viện.
+- Thanh chung của bốn không gian làm việc mở đủ mục qua nút **Các mục** ở màn nhỏ; lời mời cộng tác khác được đặt sau việc ORBIT hiện hành. Cộng tác viên xác nhận hoàn thành việc trong modal, thấy phản hồi và số việc cập nhật; khối “đường đi” nay lấy đúng đầu việc đang hiển thị. Nhãn ngày của nhiệm vụ, duyệt và cảnh báo lấy từ record thay cho chữ “hôm nay” trên seed tháng 09. Banner nói rõ chế độ SQLite local và việc chưa có thanh toán; trang chủ/trang dự án cũng phân biệt cách lưu local với cookie dùng thử.
+- Chromium trên bản production với DB riêng `gop-ui-browser-20261107`: Gia Huy đăng nhập nhanh, đánh dấu xong việc nhiệt, danh sách từ 2 xuống 1 việc mở; trang tiến độ hiện một sự kiện nhóm ở chặng Gọi vốn sau khi tải lại và sau khi khởi động lại server. Khách ở phiên trình duyệt khác thấy 0 sự kiện nhóm. Mobile 390 px: trang tiến độ và bảng Cộng tác viên `scrollWidth=390`, không tràn ngang; menu **Các mục** mở đủ sáu lối vào. Lighthouse snapshot trên trang Cộng tác viên ở desktop và mobile sau sửa: Accessibility/Best Practices/SEO/Agentic Browsing đều 100, 35 mục đạt, 0 mục lỗi; điểm này chỉ áp dụng cho đúng màn đã kiểm, không thay thế kiểm toàn site.
+- `pnpm lint`, `pnpm type-check`, `pnpm test:ui-controls` (176 nút, 166 link, 117 field), `pnpm test:schema-relations` (14/14), `pnpm test:role-navigation` (26/26), `pnpm build` (50 route) qua. Bài quyền 32/32 đã qua trước lần chỉnh cuối trên DB test khác; lần cuối chỉ sửa giao diện, văn bản và nhãn accessibility. DB chính `.local-data/gop-mock.sqlite` không đặt lại hay ghi dữ liệu thử.
+- Còn thiếu: SQLite local chưa phải kho dữ liệu bền trên Vercel; `/du-lieu-chung` vẫn dùng phiên và ID backend riêng. Thanh toán, mô hình AI thật, upload và email/push chưa có. Cây tiến độ chỉ có sự kiện mới từ lúc bật nhật ký, seed cũ không được dựng thành lịch sử giả. Nhóm cần chốt tên thành viên thứ hai trong logo theo hồ sơ nộp.
 
 ## Checkpoint trang dữ liệu dùng chung 06/11/2026
 

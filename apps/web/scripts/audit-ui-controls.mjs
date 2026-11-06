@@ -112,7 +112,7 @@ for (const file of listFiles(sourceRoot)) {
 
       if (tag === "select") {
         counts.select += 1;
-        if (!hasWorkingHandler(node, "onChange")) {
+        if (!hasWorkingHandler(node, "onChange") && !findAttribute(node, "defaultValue")) {
           report(node, "SELECT_WITHOUT_CHANGE", "Select không có onChange.");
         }
       }

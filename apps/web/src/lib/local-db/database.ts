@@ -70,10 +70,12 @@ const localRuntime = globalThis as typeof globalThis & {
   gopLocalDbSchemaVersion?: number;
 };
 const databaseFolder = join(process.cwd(), ".local-data");
-// Tên file riêng cho test, chỉ nhận ký tự tên đơn giản để không ghi ra ngoài thư mục local.
-const databaseName = /^[a-z0-9_-]{1,50}$/i.test(process.env.GOP_LOCAL_DB_NAME ?? "")
-  ? process.env.GOP_LOCAL_DB_NAME!
-  : "gop-mock";
+// Tên DB test chỉ nhận chữ, số, gạch ngang và gạch dưới; báo lỗi nếu nhập sai để khỏi mở nhầm DB mặc định.
+const configuredDatabaseName = process.env.GOP_LOCAL_DB_NAME;
+if (configuredDatabaseName && !/^[a-z0-9_-]{1,50}$/i.test(configuredDatabaseName)) {
+  throw new Error("GOP_LOCAL_DB_NAME chỉ nhận chữ, số, '-' hoặc '_'; không thêm đuôi .sqlite.");
+}
+const databaseName = configuredDatabaseName || "gop-mock";
 const databasePath = join(databaseFolder, `${databaseName}.sqlite`);
 
 export function localDbEnabled() {

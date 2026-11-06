@@ -43,7 +43,7 @@ function reviewDueLabel(value: string | null) {
   const due = new Date(value);
   const snapshot = new Date(DEMO_SNAPSHOT_AT);
   const minutes = Math.round((due.getTime() - snapshot.getTime()) / 60_000);
-  if (minutes >= 0) return `Hôm nay · ${dateParts(value).time}`;
+  if (minutes >= 0) return `Hạn ${dateParts(value).date} · ${dateParts(value).time}`;
 
   const overdue = Math.abs(minutes);
   const hours = Math.floor(overdue / 60);
@@ -51,17 +51,8 @@ function reviewDueLabel(value: string | null) {
   return `Quá hạn ${hours ? `${hours} giờ ` : ""}${rest ? `${rest} phút` : ""}`.trim();
 }
 
-function relativeDetectedAt(value: string) {
-  const minutes = Math.max(
-    0,
-    Math.round(
-      (new Date(DEMO_SNAPSHOT_AT).getTime() - new Date(value).getTime()) /
-        60_000,
-    ),
-  );
-  if (minutes < 60) return `${minutes} phút trước`;
-  const hours = Math.round(minutes / 60);
-  return `${hours} giờ trước`;
+function detectedAtLabel(value: string) {
+  return `${dateParts(value).date} · ${dateParts(value).time}`;
 }
 
 export const adminReviewQueue: ReviewQueueItem[] = mockCampaignReviews.map(
@@ -105,7 +96,7 @@ export const adminFraudAlerts: FraudAlert[] = [...mockFraudAlerts]
       amount: getMockPledgeTotal(pledge),
       riskScore: alert.riskScore,
       status: alert.status,
-      createdAt: relativeDetectedAt(alert.detectedAt),
+      createdAt: detectedAtLabel(alert.detectedAt),
       signals: mockFraudSignals
         .filter((signal) => signal.alertId === alert.id)
         .sort((left, right) => right.weight - left.weight)

@@ -139,6 +139,7 @@ function PledgeForm({
           <label>
             <Label>Gói ủng hộ</Label>
             <select
+              name="rewardId"
               value={rewardId}
               onChange={(event) => {
                 setRewardId(event.target.value);
@@ -160,6 +161,7 @@ function PledgeForm({
                 <label className={styles.checkInput} key={item.id}>
                   <input
                     type="checkbox"
+                    name="addOnIds"
                     checked={addOnIds.includes(item.id)}
                     onChange={(event) =>
                       setAddOnIds(
@@ -177,6 +179,7 @@ function PledgeForm({
           <label>
             <Label>Ủng hộ thêm (đồng)</Label>
             <input
+              name="bonusAmount"
               type="number"
               min={0}
               step={1000}
@@ -189,6 +192,7 @@ function PledgeForm({
               <label>
                 <Label>Cách giao quà</Label>
                 <select
+                  name="shippingOptionId"
                   value={shippingOptionId}
                   required
                   onChange={(event) => setShippingOptionId(event.target.value)}

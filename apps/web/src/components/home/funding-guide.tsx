@@ -12,17 +12,17 @@ const steps = [
     icon: CreditCard,
     number: "02",
     title: "Chọn mức muốn góp",
-    text: "Bạn chọn gói quà và địa chỉ giao. Bản demo ghi một cam kết mẫu, chưa giữ tiền thật.",
+    text: "Bạn chọn gói quà và địa chỉ giao. Cam kết được ghi lại để bạn xem trong tài khoản; chưa giữ tiền thật.",
   },
   {
     icon: PackageCheck,
     number: "03",
     title: "Chờ chiến dịch kết thúc",
-    text: "Theo thiết kế All-or-Nothing, đủ mục tiêu mới thu tiền; chưa đạt thì hủy giữ hạn mức. Thanh toán thật chưa được tích hợp.",
+    text: "Khi có cổng thanh toán, chỉ chiến dịch đạt mục tiêu mới được thu tiền; nếu không đạt, khoản ủy quyền cần được hủy. Hiện chưa liên kết ngân hàng.",
   },
 ] as const;
 
-export function FundingGuide() {
+export function FundingGuide({ localDbAvailable }: { localDbAvailable: boolean }) {
   return (
     <section id="cach-hoat-dong" className="page-section scroll-mt-24 border-y border-line bg-white">
       <div className="container-shell">
@@ -35,6 +35,7 @@ export function FundingGuide() {
             <p className="mt-4 text-sm leading-7 text-ink-soft">
               Góp mô phỏng cơ chế tất cả hoặc không. Chủ dự án phải đạt mục tiêu đã
               công bố thì khoản cam kết mới được xử lý ở phiên bản có cổng thanh toán.
+              {localDbAvailable ? " Dữ liệu thao tác hiện lưu trong SQLite trên máy chạy web." : " Dữ liệu dùng thử hiện chỉ nằm trong trình duyệt của bạn."}
             </p>
           </div>
           <div className="relative min-h-[220px] overflow-hidden rounded-[18px] border border-line sm:min-h-[290px]">

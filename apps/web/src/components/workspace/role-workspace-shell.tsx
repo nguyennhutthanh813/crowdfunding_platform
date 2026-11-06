@@ -15,8 +15,7 @@ import {
   HeartHandshake,
   History,
   CircleHelp,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
   LayoutDashboard,
   MessageSquareText,
   PackageCheck,
@@ -31,7 +30,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
 import { RoleGate } from "@/components/auth/role-gate";
 import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import type { UserRole } from "@/lib/api/contracts";
@@ -244,7 +242,7 @@ function collaboratorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[]
   for (const item of invitations) {
     if (item.accepted && item.campaignId !== current?.campaignId) items.push({
       href: `/collaborator/campaigns/${item.campaignId}/manage`,
-      label: item.title.length > 28 ? `${item.title.slice(0, 27)}…` : item.title,
+      label: item.title,
       note: "Phần việc đã nhận", icon: FolderKanban,
     });
   }
@@ -553,30 +551,20 @@ function MobileRoleNav({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const theme = shellTheme[role];
-  const navRef = useRef<HTMLElement>(null);
-  const [atEnd, setAtEnd] = useState(false);
-  const currentTab = searchParams.get("tab");
-  const currentCampaign = searchParams.get("campaign");
-  const currentDraft = searchParams.get("draft");
-
-  useEffect(() => {
-    navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [pathname, currentTab, currentCampaign, currentDraft]);
+  const items = workspaceNavigation(role, snapshot);
+  const activeItem = items.find((item) => navIsActive(item, pathname, searchParams));
+  const quickItems = activeItem && activeItem.href !== items[0]?.href
+    ? [items[0], activeItem]
+    : items.slice(0, 1);
 
   return (
     <div className={`sticky top-[72px] z-40 border-b px-3 py-2 lg:hidden ${theme.mobile}`}>
       <div className="flex items-center gap-2">
         <nav
-          ref={navRef}
-          onScroll={(event) => {
-            const element = event.currentTarget;
-            setAtEnd(element.scrollLeft + element.clientWidth >= element.scrollWidth - 8);
-          }}
-          className="scrollbar-none flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5"
+          className="flex min-w-0 flex-1 gap-2"
           aria-label={`Điều hướng nhanh ${roleLabels[role]}`}
         >
-          {workspaceNavigation(role, snapshot).map((item) => {
+          {quickItems.map((item) => {
             const Icon = item.icon;
             const active = navIsActive(item, pathname, searchParams);
             return (
@@ -584,25 +572,48 @@ function MobileRoleNav({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[9px] px-3 text-[11px] font-bold ${active ? role === "ADMIN" ? "bg-[#22252e] text-white" : role === "COLLABORATOR" ? "bg-[#173d65] text-white" : role === "CREATOR" ? "bg-[#102a22] text-white" : "bg-[#56352b] text-white" : "border border-black/8 bg-white/70 text-ink-soft"}`}
+                className={`inline-flex min-h-11 min-w-0 items-center gap-2 rounded-[9px] px-3 text-xs font-bold ${active ? role === "ADMIN" ? "bg-[#22252e] text-white" : role === "COLLABORATOR" ? "bg-[#173d65] text-white" : role === "CREATOR" ? "bg-[#102a22] text-white" : "bg-[#56352b] text-white" : "border border-black/8 bg-white/70 text-ink-soft"}`}
               >
-                <Icon className="size-3.5" /> {item.label}
+                <Icon className="size-4 shrink-0" /> <span className="truncate">{item.label}</span>
               </Link>
             );
           })}
         </nav>
-        <button
-          type="button"
-          aria-label={atEnd ? "Về đầu danh sách mục" : "Xem thêm mục"}
-          onClick={() => {
-            const nav = navRef.current;
-            if (!nav) return;
-            nav.scrollTo({ left: atEnd ? 0 : nav.scrollLeft + nav.clientWidth * 0.8, behavior: "smooth" });
+        <details
+          key={`${pathname}?${searchParams.toString()}`}
+          className="group/menu shrink-0"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
           }}
-          className="grid size-11 shrink-0 place-items-center rounded-lg border border-line bg-white text-ink"
         >
-          {atEnd ? <ChevronLeft className="size-5" /> : <ChevronRight className="size-5" />}
-        </button>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-lg border border-line bg-white px-3 text-xs font-bold text-ink [&::-webkit-details-marker]:hidden">
+            Các mục <ChevronDown className="size-4 transition-transform group-open/menu:rotate-180" />
+          </summary>
+          <nav
+            aria-label={`Tất cả mục ${roleLabels[role]}`}
+            className="absolute left-3 right-3 top-[calc(100%+2px)] max-h-[min(70dvh,32rem)] overflow-y-auto rounded-xl border border-line bg-white p-2 text-ink shadow-[0_16px_36px_rgba(15,39,30,0.2)]"
+          >
+            {items.map((item) => {
+              const Icon = item.icon;
+              const active = navIsActive(item, pathname, searchParams);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex min-h-12 items-center gap-3 rounded-lg px-3 py-2 text-sm ${active ? "bg-[#eef3e7] font-bold text-forest" : "hover:bg-canvas-soft"}`}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {active ? <span className="text-xs">Đang xem</span> : null}
+                </Link>
+              );
+            })}
+          </nav>
+        </details>
       </div>
     </div>
   );
