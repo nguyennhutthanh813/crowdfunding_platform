@@ -18,20 +18,7 @@ import type {
   CreatorPortfolioData,
 } from "@/lib/api/contracts";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
-import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
-
-function getCampaignHref(campaign: CreatorPortfolioCampaign) {
-  if (isPreviewCampaignId(campaign.id)) {
-    return `/creator/campaigns/${campaign.id}/manage`;
-  }
-  if (campaign.nextAction === "OPERATE" && campaign.status === "LIVE") {
-    return `/creator/campaigns/${campaign.slug}/manage?tab=overview`;
-  }
-  if (campaign.nextAction === "FULFILL") {
-    return `/creator/campaigns/${campaign.slug}/manage?tab=fulfillment#orbit-drip-fulfillment`;
-  }
-  return `/creator/campaigns/${campaign.slug}/manage?tab=overview`;
-}
+import { creatorCampaignHref } from "@/lib/creator/campaign-href";
 
 function CampaignFacts({
   campaign,
@@ -98,7 +85,7 @@ function ActiveCampaignCard({ campaign, showTimeline }: { campaign: CreatorPortf
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={campaign.status} />
             <span className="rounded-full border border-lime/25 bg-lime/10 px-2.5 py-1 text-[11px] font-bold text-lime">
-              ĐANG CHỌN
+              ƯU TIÊN VẬN HÀNH
             </span>
           </div>
           <span className="text-[11px] font-semibold text-white/68">
@@ -234,7 +221,7 @@ function ActiveCampaignCard({ campaign, showTimeline }: { campaign: CreatorPortf
             </div>
           </div>
           <Link
-            href={getCampaignHref(campaign)}
+            href={creatorCampaignHref(campaign)}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-lime px-4 text-xs font-extrabold text-forest hover:bg-[#e2ef95]"
           >
             Mở chiến dịch <ArrowRight className="size-4" />
@@ -306,7 +293,7 @@ function SecondaryCampaignCard({
       </div>
 
       <Link
-        href={getCampaignHref(campaign)}
+        href={creatorCampaignHref(campaign)}
         className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-forest/15 bg-white px-4 text-xs font-extrabold text-forest hover:bg-[#f0f3e9]"
       >
         {campaign.nextActionLabel} <ArrowRight className="size-4" />
@@ -347,7 +334,7 @@ export function CreatorPortfolioBoard({
             Chiến dịch của bạn
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-soft sm:mt-3">
-            {portfolio.summary.total} chiến dịch ở các giai đoạn khác nhau. Mỗi chiến dịch có tiến độ và nhóm riêng.
+            {portfolio.summary.total} chiến dịch ở các giai đoạn khác nhau. Thẻ lớn bên dưới ưu tiên chiến dịch đang gọi vốn; bản đồ phía trên dùng để xem quan hệ của từng hồ sơ.
           </p>
         </div>
       </div>

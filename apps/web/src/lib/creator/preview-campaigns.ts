@@ -80,7 +80,7 @@ export function previewCampaignsForOwner(
                   ? "Trang dự án đang công khai và có thể nhận cam kết mẫu."
                   : status === "SUSPENDED"
                     ? "Chiến dịch đang tạm dừng; không nhận cam kết mới."
-                  : "Nội dung được giữ trong bản demo, chưa mở nhận cam kết.",
+                  : "Hồ sơ đã lưu, chưa gửi xét duyệt và chưa nhận cam kết.",
       };
     });
 }

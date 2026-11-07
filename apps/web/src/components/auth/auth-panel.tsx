@@ -61,9 +61,11 @@ function destinationAfterQuickSignIn(
 export function AuthPanel({
   initialMode = "SIGN_IN",
   nextPath,
+  localDbAvailable,
 }: {
   initialMode?: Mode;
   nextPath?: string;
+  localDbAvailable: boolean;
 }) {
   const router = useRouter();
   const { session, status, establishSession, signOut } = useAuth();
@@ -267,7 +269,7 @@ export function AuthPanel({
               href="#tai-khoan-mau"
               className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-coral/25 bg-[#fff5eb] px-4 text-sm font-bold text-coral-dark hover:bg-[#ffebdc] lg:hidden"
             >
-              Muốn xem thử? Chọn tài khoản mẫu
+              Chọn tài khoản mẫu để đăng nhập nhanh
               <ArrowRight className="size-4 shrink-0" />
             </a>
           ) : null}
@@ -418,7 +420,9 @@ export function AuthPanel({
             <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-700" />
             {mode === "SIGN_IN"
               ? "Nếu tài khoản có quyền, bạn sẽ quay lại trang vừa mở."
-              : "Đây là bản dùng thử. Hãy dùng email giả để kiểm tra; bạn có thể đăng xuất rồi đăng nhập lại."}
+              : localDbAvailable
+                ? "Tài khoản mới được lưu trong SQLite trên máy này. Dùng email giả để thử luồng; bạn có thể đăng nhập lại."
+                : "Tài khoản dùng thử được giữ trong trình duyệt này. Dùng email giả và có thể đăng nhập lại."}
           </div>
         </form>
       </div>
@@ -426,6 +430,7 @@ export function AuthPanel({
       <DemoAccountPicker
         busyAccountId={quickAccountId}
         creatorIntent={creatorIntent}
+        localDbAvailable={localDbAvailable}
         disabled={submitting || quickAccountId !== null}
         onSelect={(account) => void quickSignIn(account)}
       />

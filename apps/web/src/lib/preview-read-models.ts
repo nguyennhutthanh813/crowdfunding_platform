@@ -80,7 +80,7 @@ export function applyCreatorPortfolioPreviewState(
         nextAction: "FOLLOW_REVIEW" as const,
         nextActionLabel: "Xem lý do tạm dừng",
         nextActionDetail:
-          "Chiến dịch đang tạm dừng trong bản demo; các thao tác vận hành và nhận cam kết đã được khóa.",
+          "Chiến dịch đang tạm dừng; các thao tác vận hành và nhận cam kết đã được khóa.",
       };
     }
     if (launchedStatus === "LIVE") {

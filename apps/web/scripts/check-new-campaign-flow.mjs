@@ -106,11 +106,16 @@ const wrongOwnerPage = await readPage(`/creator/campaigns/new?draft=${campaignId
 assert.ok(wrongOwnerPage.html.includes("không thuộc tài khoản"), "Trang phải báo rõ nháp không thuộc tài khoản");
 const own = await request(campaignPath, "POST", { action: "CREATE", draft: { title: "Gốm Sông Hàn" }, rewards: [] });
 assert.equal(own.status, 201, JSON.stringify(own.data));
+const secondOwn = await request(campaignPath, "POST", { action: "CREATE", draft: { title: "Vườn rau Bờ Sông" }, rewards: [] });
+assert.equal(secondOwn.status, 201, JSON.stringify(secondOwn.data));
 portfolio = await request("/api/v1/creator/portfolio");
-assert.equal(portfolio.data.campaigns.length, 1);
-assert.equal(portfolio.data.campaigns[0].id, own.data.data.campaignId);
+assert.equal(portfolio.data.campaigns.length, 2, "Một chủ dự án được có nhiều chiến dịch");
+assert.ok(portfolio.data.campaigns.some((item) => item.id === own.data.data.campaignId));
+assert.ok(portfolio.data.campaigns.some((item) => item.id === secondOwn.data.data.campaignId));
 const creatorPage = await readPage("/creator");
 assert.ok(creatorPage.html.includes("Gốm Sông Hàn"), "Không gian Creator mới không hiện hồ sơ riêng");
+assert.ok(creatorPage.html.includes("Vườn rau Bờ Sông"), "Không gian Creator mới không hiện hồ sơ thứ hai");
+assert.ok(creatorPage.html.includes("Bản đồ chiến dịch"), "Thiếu cây quan hệ ở Creator mới");
 
 await login("quantri@gop.vn");
 const overview = await request("/api/v1/admin/overview");

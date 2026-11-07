@@ -41,6 +41,7 @@ export default async function HomePage() {
   return (
     <>
       <FeaturedCampaign campaign={featured} localDbAvailable={localDbAvailable} />
+      <ProjectJourneyPreview campaignId={featured.id} localDbAvailable={localDbAvailable} />
       <CategoryLinks />
 
       <section className="page-section">
@@ -121,7 +122,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <ProjectJourneyPreview campaignId={featured.id} localDbAvailable={localDbAvailable} />
       <FundingGuide localDbAvailable={localDbAvailable} />
       <CreatorInvitation />
     </>

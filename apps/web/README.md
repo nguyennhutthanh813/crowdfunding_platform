@@ -4,7 +4,7 @@
 
 Trang `/du-lieu-chung` đã nối một luồng Creator → Admin → Backer → Collaborator qua NestJS và PostgreSQL. Nó có tài khoản backend riêng, không dùng chung phiên/ID với các màn chạy SQLite local hoặc cookie dùng thử. Xem [hướng dẫn chạy hai ứng dụng](../../docs/du-lieu-dung-chung.md); những màn còn lại vẫn thuộc luồng dữ liệu mẫu riêng.
 
-**Cập nhật 07/11/2026:** trang chủ có [tranh minh họa bốn chặng](docs/brand/hanh-trinh-du-an-3d-2026-11-07.md); trang `/campaigns/[id]/timeline` có sơ đồ tương tác lấy số hoạt động từ SQLite và lọc theo quyền người xem. Trên máy, thao tác được ghi lại cho các tài khoản cùng server; bản Vercel của các màn cũ vẫn dùng cookie riêng từng trình duyệt. Chưa tích hợp cổng thanh toán hoặc ba mô hình AI thật. Phần “Trạng thái ngày 30/10” bên dưới là mốc kiểm thử trước đợt chỉnh này.
+**Cập nhật 07/11/2026:** trang chủ có [tranh minh họa bốn chặng](docs/brand/hanh-trinh-du-an-3d-2026-11-07.md) gần đầu trang; Chủ dự án có cây quan hệ cho từng chiến dịch mình sở hữu, kể cả nhiều hồ sơ của một tài khoản. Trang `/campaigns/[id]/timeline` có sơ đồ tương tác lấy số hoạt động từ SQLite và lọc theo quyền người xem. Chạy [CHAY-WEB.bat](CHAY-WEB.bat) để dùng file `.local-data/gop-mock.sqlite` trên máy; thao tác của các tài khoản cùng server được lưu và đọc lại. Bản Vercel của các màn cũ vẫn dùng cookie riêng từng trình duyệt. Chưa tích hợp cổng thanh toán hoặc ba mô hình AI thật. Phần “Trạng thái ngày 30/10” bên dưới là mốc kiểm thử trước đợt chỉnh này.
 
 Đây là phần web của đồ án **Nghiên cứu và xây dựng nền tảng gọi vốn cộng đồng tích hợp trí tuệ nhân tạo hỗ trợ đánh giá và tối ưu hóa chiến dịch**.
 

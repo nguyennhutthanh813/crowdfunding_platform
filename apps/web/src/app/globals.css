@@ -10,6 +10,13 @@
 .gop-journey-flow .react-flow__node:hover {
   box-shadow: 0 18px 34px rgba(22, 59, 43, 0.17) !important;
 }
+.gop-campaign-tree .react-flow__node {
+  cursor: pointer;
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+.gop-campaign-tree .react-flow__node:hover {
+  box-shadow: 0 18px 34px rgba(22, 59, 43, 0.17) !important;
+}
 .gop-journey-flow .react-flow__controls {
   overflow: hidden;
   border: 1px solid #ceddce;
@@ -18,6 +25,9 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .gop-journey-flow .react-flow__node {
+    transition: none;
+  }
+  .gop-campaign-tree .react-flow__node {
     transition: none;
   }
 }

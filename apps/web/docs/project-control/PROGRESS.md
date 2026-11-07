@@ -1,6 +1,14 @@
 # Tiến độ thực hiện
 
-**Cập nhật gần nhất:** 07/11/2026, cây tiến độ chiến dịch và giao diện theo vai trò.
+**Cập nhật gần nhất:** 07/11/2026, bản đồ nhiều chiến dịch của Chủ dự án và kiểm tra SQLite local.
+
+## Checkpoint danh mục Chủ dự án 07/11/2026
+
+- Trang Chủ dự án có bản đồ node **một tài khoản → chiến dịch đang chọn → xét duyệt / nhóm / người ủng hộ**. Đổi chiến dịch thì tên, mã, trạng thái, thành viên, số cam kết và đường mở hồ sơ đổi theo record đó. Nút giải thích từng nhánh mở modal; màn nhỏ dùng cây dạng danh sách thay cho canvas. Trang Chủ dự án mới đưa bản đồ lên gần đầu trang, có lối tạo thêm chiến dịch. Thẻ lớn của tài khoản mẫu được gọi rõ là chiến dịch ưu tiên vận hành, không ngụ ý đổi theo lựa chọn trên bản đồ.
+- Trang chủ đưa tranh quy trình 3D lên ngay sau dự án nổi bật. Màn đăng nhập và đăng nhập nhanh giải thích rõ tài khoản mẫu lưu thao tác chung trong SQLite khi chạy local; bản Vercel còn dùng cookie riêng. Các bản nháp mới không còn bị gọi nhầm là nội dung chỉ nằm trong “bản demo”. Không có thanh toán thật.
+- Trên DB thử riêng `gop-tree-20261107`, một tài khoản Chủ dự án mới tạo **hai** bản nháp với hai `campaign_id` khác nhau và cùng `creator_id`; `PRAGMA foreign_key_check` trả 0 lỗi. Bài `test:new-campaign-flow` đã đi qua Creator → Admin → Collaborator → Backer và qua. Chromium đăng nhập chính tài khoản này, chọn hồ sơ thứ hai, mở modal và đi tới trang quản lý đúng mã. Ở viewport 390 px, `scrollWidth=clientWidth=390`.
+- Kiểm sau chỉnh sửa: `pnpm lint`, `pnpm type-check`, `pnpm build` (50 route), `pnpm test:schema-relations` (14/14), `pnpm test:ui-controls` (181 nút, 171 liên kết, 117 field), `pnpm test:role-navigation` (26/26 trên server 3103 với DB thử), `pnpm test:docs-sync` và `git diff --check` đều qua. File `CHAY-WEB.bat` khởi động cổng 3100 với DB chính; health và trang chủ trả 200, DB chính có 18 campaign và khóa ngoại sạch ở lúc kiểm. Bài điều hướng lần đầu chỉ lỗi vì chưa bật server mặc định 3000; chạy lại đúng URL 3103 đã qua.
+- File `.local-data/gop-mock.sqlite` dùng hằng ngày không bị reset hoặc dùng cho bài thử ghi. Việc còn thiếu: bản đồ node hiện tập trung ở Chủ dự án và trang tiến độ; các role khác vẫn có giao diện riêng nhưng chưa có cây tương tự. SQLite local không thay PostgreSQL dùng chung trên Vercel; mục `/du-lieu-chung` còn là luồng backend tách riêng. Ảnh 3D chỉ minh họa quy trình, không phải số liệu hay ảnh thực địa.
 
 ## Checkpoint giao diện và SQLite local 07/11/2026
 

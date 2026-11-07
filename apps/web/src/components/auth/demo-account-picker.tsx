@@ -43,11 +43,13 @@ const roleStyle: Record<
 export function DemoAccountPicker({
   busyAccountId,
   creatorIntent = false,
+  localDbAvailable,
   disabled,
   onSelect,
 }: {
   busyAccountId: string | null;
   creatorIntent?: boolean;
+  localDbAvailable: boolean;
   disabled: boolean;
   onSelect: (account: PreviewAccount) => void;
 }) {
@@ -55,12 +57,14 @@ export function DemoAccountPicker({
     <aside className="border-t border-line bg-[#f8f6ef] p-6 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
       <p className="text-xs font-bold text-coral-dark">Đăng nhập nhanh</p>
       <h2 id="tai-khoan-mau" tabIndex={-1} className="mt-2 scroll-mt-24 font-display text-2xl font-extrabold tracking-[-0.035em]">
-        Xem thử từng vai trò
+        Chọn tài khoản theo vai trò
       </h2>
       <p className="mt-3 text-sm leading-6 text-ink-soft">
         {creatorIntent
           ? "Chủ dự án vào form ngay. Với tài khoản Người ủng hộ, bạn cần xác nhận thêm quyền Chủ dự án trước khi tạo chiến dịch."
-          : "Chọn một tài khoản để mở đúng khu vực làm việc. Dữ liệu giữa các màn hình đã được nối sẵn để tiện kiểm tra luồng."}
+          : localDbAvailable
+            ? "Bốn tài khoản này đã có trong SQLite trên máy. Hãy đăng nhập để thử một việc; các tài khoản khác sẽ đọc lại dữ liệu đã lưu."
+            : "Chọn một tài khoản để vào đúng khu vực làm việc. Dữ liệu thử trên bản web này chỉ nằm trong trình duyệt đang dùng."}
       </p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">

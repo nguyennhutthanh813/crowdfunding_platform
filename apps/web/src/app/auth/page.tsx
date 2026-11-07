@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthPanel } from "@/components/auth/auth-panel";
+import { localDbEnabled } from "@/lib/local-db/database";
 
 export const metadata: Metadata = {
   title: "Đăng nhập và đăng ký",
@@ -19,6 +20,7 @@ export default async function AuthPage({
           key={query.mode === "register" ? "register" : "sign-in"}
           initialMode={query.mode === "register" ? "REGISTER" : "SIGN_IN"}
           nextPath={query.next}
+          localDbAvailable={localDbEnabled()}
         />
       </div>
     </section>

@@ -529,9 +529,9 @@ function Sidebar({
         <p className={`mt-3 flex items-start gap-2 px-1 text-[11px] leading-5 ${theme.muted}`}>
           {role === "BACKER" ? <HeartHandshake className="mt-0.5 size-3.5 shrink-0" /> : role === "ADMIN" ? <ShieldAlert className="mt-0.5 size-3.5 shrink-0" /> : role === "CREATOR" ? <PackageCheck className="mt-0.5 size-3.5 shrink-0" /> : <ReceiptText className="mt-0.5 size-3.5 shrink-0" />}
           {role === "BACKER"
-            ? "Cam kết mẫu không giữ hoặc thu tiền; tiến độ đang mô phỏng."
+            ? "Cam kết được ghi lại để thử luồng; chưa giữ hoặc thu tiền thật."
             : role === "CREATOR"
-              ? "Số tiền chỉ được thu khi chiến dịch đạt mục tiêu."
+              ? "Bản hiện tại ghi cam kết và tiến độ; chưa thu tiền thật."
               : role === "COLLABORATOR"
                 ? "Mỗi chiến dịch cấp quyền riêng; lời mời chưa nhận không cho phép thao tác."
                 : "Điểm cảnh báo chỉ xếp thứ tự kiểm tra; quản trị viên quyết định cuối."}

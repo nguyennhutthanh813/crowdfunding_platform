@@ -18,9 +18,9 @@ import Link from "next/link";
 import { CampaignVisual } from "@/components/campaign/campaign-visual";
 import { CreatorOnboarding } from "@/components/creator/creator-onboarding";
 import { CreatorPortfolioBoard } from "@/components/creator/creator-portfolio-board";
+import { CreatorCampaignTree } from "@/components/creator/creator-campaign-tree";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { RoleConnectionPanel } from "@/components/workspace/role-connection-panel";
 import { api } from "@/lib/api";
 import { buildMockCreatorPortfolio } from "@/lib/api/mock/creator-portfolio";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
@@ -79,14 +79,14 @@ export default async function CreatorPage() {
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
 
   if (session?.user.id !== "usr_hoang_linh") {
-    return <CreatorOnboarding givenName={givenName} campaigns={portfolio.campaigns} showTimeline={localDbEnabled()} />;
+    return <CreatorOnboarding givenName={givenName} portfolio={portfolio} localDbAvailable={localDbEnabled()} />;
   }
 
   const baseCampaign =
     campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
     campaigns.find((item) => item.id === operations.campaignId);
   if (!baseCampaign) {
-    return <CreatorOnboarding givenName={givenName} />;
+    return <CreatorOnboarding givenName={givenName} portfolio={portfolio} localDbAvailable={localDbEnabled()} />;
   }
   const campaign = applyCampaignCardPreviewState(baseCampaign, platformState);
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
@@ -142,6 +142,7 @@ export default async function CreatorPage() {
       </div>
 
       <div className="container-shell min-w-0 pt-5 sm:pt-8">
+        <CreatorCampaignTree portfolio={portfolio} localDbAvailable={localDbEnabled()} />
         <CreatorPortfolioBoard portfolio={portfolio} showTimeline={localDbEnabled()} />
         {draftReview ? (
           <article className="mb-5 mt-6 grid gap-4 rounded-[18px] border border-[#cbd7bd] bg-[#f4f7ed] p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
@@ -172,47 +173,6 @@ export default async function CreatorPage() {
             </Link>
           </article>
         ) : null}
-        <RoleConnectionPanel
-          role="CREATOR"
-          eyebrow="Chiến dịch đang chọn · bốn điểm bàn giao"
-          title="ORBIT đang được nối giữa ai với ai?"
-          description="Mỗi cam kết được ghi vào cùng hồ sơ chiến dịch. Từ đó nhóm ORBIT nhận việc, quản trị viên theo dõi số tổng hợp và hệ thống chỉ thu tiền sau khi chiến dịch đạt mục tiêu."
-          recordCode={`CMP · ${campaign.id.replace("cmp_", "").toLocaleUpperCase("vi")}`}
-          steps={[
-            {
-              actor: "Chủ dự án + Quản trị viên",
-              title: "Hồ sơ đã qua kiểm duyệt",
-              detail: "Mục tiêu và hạn chót được khóa trước khi mở gọi vốn.",
-              kind: "admin",
-              state: "done",
-            },
-            {
-              actor: "Cộng đồng",
-              title: `${formatNumber(campaign.backerCount)} người đã cam kết`,
-              detail: `${formatVnd(campaign.pledgedAmount)} đang tính vào tiến độ, chưa phải tiền được rút.`,
-              kind: "money",
-              state: "current",
-            },
-            {
-              actor: `Nhóm ORBIT · ${operations.team.length} người`,
-              title: `${openTasks.length} việc đang được xử lý`,
-              detail: "Chủ dự án giao đúng người; cộng tác viên chỉ thấy phần được cấp quyền.",
-              kind: "team",
-              state: "current",
-            },
-            {
-              actor: operations.funding.deadlineLabel,
-              title: "Chốt All-or-Nothing",
-              detail: "Hai kết quả đạt/không đạt được mô phỏng; phần thu hoặc hủy tiền thật chưa tích hợp.",
-              kind: "system",
-              state: "next",
-            },
-          ]}
-          action={{
-            label: "Mở bảng vận hành",
-            href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=overview",
-          }}
-        />
         <div className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
