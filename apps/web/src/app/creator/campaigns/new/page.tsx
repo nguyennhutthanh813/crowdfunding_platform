@@ -4,11 +4,12 @@ import { CampaignWizard } from "@/components/creator/campaign-wizard";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getServerSession } from "@/lib/auth/server-session";
 import { previewCampaignStatus } from "@/lib/creator/preview-campaigns";
+import { localDbEnabled } from "@/lib/local-db/database";
 
 export const metadata: Metadata = {
   title: "Tạo chiến dịch",
   description:
-    "Tạo hồ sơ chiến dịch riêng, lưu nháp và gửi quản trị viên xét duyệt trong bản demo.",
+    "Tạo hồ sơ chiến dịch riêng, lưu nháp và gửi quản trị viên xét duyệt trên Góp.",
 };
 
 export default async function NewCampaignPage({
@@ -21,6 +22,7 @@ export default async function NewCampaignPage({
     getServerSession(),
     getServerPlatformPreviewState(),
   ]);
+  const localDbAvailable = localDbEnabled();
   if (!session?.user.roles.includes("CREATOR")) {
     return <CampaignAccessNotice message="Hãy đăng nhập bằng tài khoản có vai trò Chủ dự án để tạo hồ sơ." />;
   }
@@ -32,6 +34,7 @@ export default async function NewCampaignPage({
     const miniDecision = miniReview && platformState.reviewDecisions[miniReview.id];
     return (
       <CampaignWizard
+        localDbAvailable={localDbAvailable}
         prefillSample
         mode="edit"
         campaignId="cmp_orbit_mini"
@@ -45,11 +48,12 @@ export default async function NewCampaignPage({
   if (draftId) {
     const saved = platformState.campaignDrafts[draftId];
     if (!saved || saved.ownerId !== session.user.id) {
-      return <CampaignAccessNotice message="Bản nháp không tồn tại trong dữ liệu thử hoặc không thuộc tài khoản đang đăng nhập." />;
+      return <CampaignAccessNotice message="Bản nháp không còn hoặc không thuộc tài khoản đang đăng nhập." />;
     }
     const review = platformState.submittedReviews.find((item) => item.campaignId === draftId);
     return (
       <CampaignWizard
+        localDbAvailable={localDbAvailable}
         mode="create"
         campaignId={draftId}
         initialDraft={saved}
@@ -58,5 +62,5 @@ export default async function NewCampaignPage({
       />
     );
   }
-  return <CampaignWizard mode="create" />;
+  return <CampaignWizard mode="create" localDbAvailable={localDbAvailable} />;
 }

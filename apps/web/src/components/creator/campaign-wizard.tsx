@@ -77,6 +77,7 @@ const blankDraft: DraftCampaign = {
 };
 
 export function CampaignWizard({
+  localDbAvailable,
   prefillSample = false,
   mode = "create",
   campaignId = "",
@@ -85,6 +86,7 @@ export function CampaignWizard({
   reviewStatus = "DRAFT",
   reviewFeedback,
 }: {
+  localDbAvailable: boolean;
   prefillSample?: boolean;
   mode?: "create" | "edit";
   campaignId?: string;
@@ -102,7 +104,11 @@ export function CampaignWizard({
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState(() =>
-    savedDraft ? "Đã khôi phục bản nháp vừa lưu trong bản demo." : "",
+    savedDraft
+      ? localDbAvailable
+        ? "Đã mở bản nháp lưu trong SQLite trên máy."
+        : "Đã mở bản nháp lưu trong trình duyệt này."
+      : "",
   );
   const [saveFailed, setSaveFailed] = useState(false);
   const [submittedCampaignId, setSubmittedCampaignId] = useState<string | null>(null);
@@ -303,7 +309,9 @@ export function CampaignWizard({
     try {
       await persistDraft();
       router.refresh();
-      setSaveNotice("Đã lưu bản nháp trong bản demo.");
+      setSaveNotice(localDbAvailable
+        ? "Đã lưu bản nháp vào SQLite trên máy."
+        : "Đã lưu bản nháp trong trình duyệt này.");
     } catch (error) {
       setSaveFailed(true);
       setSaveNotice(clientRequestMessage(error, "Chưa thể lưu bản nháp"));
@@ -449,7 +457,7 @@ export function CampaignWizard({
               </h1>
               {mode === "create" ? (
                 <p className="mt-2 max-w-xl text-sm leading-6 text-ink-soft">
-                  Điền thông tin theo từng bước và lưu bản nháp bất cứ lúc nào. Khi hoàn tất, gửi hồ sơ để quản trị viên xem trước khi mở gọi vốn mẫu.
+                  Điền thông tin theo từng bước và lưu bản nháp bất cứ lúc nào. Khi hoàn tất, gửi hồ sơ để quản trị viên duyệt rồi mở trang gọi vốn. Cam kết hiện chỉ để thử luồng, chưa thu tiền.
                 </p>
               ) : null}
             </div>
