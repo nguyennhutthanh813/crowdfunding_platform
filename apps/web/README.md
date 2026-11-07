@@ -6,6 +6,8 @@ Trang `/du-lieu-chung` đã nối một luồng Creator → Admin → Backer →
 
 **Cập nhật 07/11/2026:** trang chủ có [tranh minh họa bốn chặng](docs/brand/hanh-trinh-du-an-3d-2026-11-07.md) gần đầu trang; Chủ dự án có cây quan hệ cho từng chiến dịch mình sở hữu, kể cả nhiều hồ sơ của một tài khoản. Trang `/campaigns/[id]/timeline` có sơ đồ tương tác lấy số hoạt động từ SQLite và lọc theo quyền người xem. Chạy [CHAY-WEB.bat](CHAY-WEB.bat) để dùng file `.local-data/gop-mock.sqlite` trên máy; thao tác của các tài khoản cùng server được lưu và đọc lại. Bản Vercel của các màn cũ vẫn dùng cookie riêng từng trình duyệt. Chưa tích hợp cổng thanh toán hoặc ba mô hình AI thật. Phần “Trạng thái ngày 30/10” bên dưới là mốc kiểm thử trước đợt chỉnh này.
 
+Tab **Dự án đã ủng hộ** cũng có cây riêng: một khoản cam kết dẫn đến đúng dự án, trạng thái dòng tiền và gói quà của tài khoản đang đăng nhập. Bản mobile chuyển cây thành các nút lớn; cả hai góc nhìn dùng các mã và quan hệ trong dữ liệu hiện có. Các trạng thái thu/giao trên dữ liệu mẫu chỉ để kiểm tra quy trình, chưa có tiền hoặc đơn giao thật.
+
 Đây là phần web của đồ án **Nghiên cứu và xây dựng nền tảng gọi vốn cộng đồng tích hợp trí tuệ nhân tạo hỗ trợ đánh giá và tối ưu hóa chiến dịch**.
 
 Nhóm có 2 thành viên và dự kiến thực hiện trong 10 tuần, vì vậy phạm vi được chốt ở một web responsive với ba chức năng AI chính:

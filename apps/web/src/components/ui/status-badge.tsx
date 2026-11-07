@@ -11,9 +11,9 @@ const campaignLabels: Record<CampaignStatus, string> = {
 };
 const paymentLabels: Record<PaymentStatus, string> = {
   AUTHORIZED: "Cam kết mẫu · chưa thu",
-  CAPTURED: "Đã thu tiền",
+  CAPTURED: "Đã thu · dữ liệu mẫu",
   CANCELED: "Đã hủy · không thu",
-  FAILED: "Thanh toán lỗi",
+  FAILED: "Thanh toán lỗi · mẫu",
 };
 const tone: Record<CampaignStatus | PaymentStatus, string> = {
   DRAFT: "border-slate-200 bg-slate-50 text-slate-600",

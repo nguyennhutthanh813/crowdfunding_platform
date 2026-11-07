@@ -28,13 +28,14 @@ import Link from "next/link";
 import { type FormEvent, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CampaignVisual } from "@/components/campaign/campaign-visual";
+import { BackerPledgeTree } from "@/components/dashboard/backer-pledge-tree";
 import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { RoleConnectionPanel } from "@/components/workspace/role-connection-panel";
 import { useQueryTab } from "@/hooks/use-query-tab";
 import type { BackedProject, UserDashboardData } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatVnd } from "@/lib/format";
+import { backerFulfillmentText } from "@/lib/pledge/backer-fulfillment";
 
 const tabs = [
   { id: "backed", label: "Dự án đã ủng hộ", icon: FolderHeart },
@@ -236,8 +237,8 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
             Một khoản ủng hộ chỉ đi theo một trong hai kết quả.
           </h3>
           <p className="mt-2 max-w-md text-xs leading-6 text-white/70">
-            Bản demo dùng cơ chế tất cả hoặc không để minh họa các trạng thái.
-            Chưa có giao dịch ngân hàng; việc giữ và thu tiền cần tích hợp sau.
+            Dữ liệu mẫu minh họa cơ chế tất cả hoặc không. Chưa có giao dịch
+            ngân hàng; việc giữ và thu tiền cần tích hợp sau.
           </p>
 
           <div className="mt-5 rounded-2xl border border-white/15 bg-white/[0.07] p-4">
@@ -263,7 +264,7 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
             <div>
               <p className="text-xs font-extrabold">Khi chiến dịch kết thúc</p>
               <p className="mt-1 text-[11px] leading-5 text-ink-muted">
-                Hệ thống đối chiếu số tiền thực tế với mục tiêu đã công bố.
+                Hệ thống đối chiếu số cam kết với mục tiêu đã công bố.
               </p>
             </div>
           </div>
@@ -277,10 +278,10 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
                 {formatVnd(captured.amount)}
               </dd>
               <dd className="mt-1 text-[11px] font-bold text-ink-muted">
-                {captured.count} khoản đã thu tiền
+                {captured.count} khoản ở trạng thái đã thu (mẫu)
               </dd>
               <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
-                Tiền được thu, sau đó chủ dự án chuẩn bị và giao quà.
+                Nếu nối cổng thanh toán, khoản đạt mục tiêu sẽ được thu rồi chủ dự án chuẩn bị giao quà.
               </dd>
             </div>
 
@@ -292,7 +293,7 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
                 {formatVnd(canceled.amount)}
               </dd>
               <dd className="mt-1 text-[11px] font-bold text-ink-muted">
-                {canceled.count} khoản đã hủy giữ tiền
+                {canceled.count} khoản ở trạng thái đã hủy (mẫu)
               </dd>
               <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
                 Không thu tiền và cũng không tạo đơn giao quà.
@@ -316,45 +317,40 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
   );
 }
 
-function FulfillmentState({ status }: { status: BackedProject["fulfillmentStatus"] }) {
+function FulfillmentState({ pledge }: { pledge: BackedProject }) {
   const states: Record<
     BackedProject["fulfillmentStatus"],
-    { label: string; icon: LucideIcon; className: string }
+    { icon: LucideIcon; className: string }
   > = {
     PENDING: {
-      label: "Chờ kết quả",
       icon: Clock3,
       className: "text-amber-700",
     },
     PREPARING: {
-      label: "Đang chuẩn bị",
       icon: PackageCheck,
       className: "text-emerald-700",
     },
     SHIPPED: {
-      label: "Đã bàn giao vận chuyển",
       icon: Truck,
       className: "text-sky-700",
     },
     DELIVERED: {
-      label: "Đã giao",
       icon: CheckCircle2,
       className: "text-emerald-700",
     },
     NOT_APPLICABLE: {
-      label: "Không áp dụng",
       icon: XCircle,
       className: "text-stone-500",
     },
   };
-  const state = states[status];
+  const state = states[pledge.fulfillmentStatus];
   const Icon = state.icon;
 
   return (
     <div className="flex items-center gap-2 text-xs text-ink-soft">
       <Icon className={`size-4 shrink-0 ${state.className}`} />
       <span>
-        Gói quà: <strong>{state.label}</strong>
+        Giao quà: <strong>{backerFulfillmentText(pledge)}</strong>
       </span>
     </div>
   );
@@ -375,7 +371,7 @@ function BackedPanel({
             Các dự án đã ủng hộ
           </h2>
           <p className="mt-2 text-sm text-ink-muted">
-            Mỗi khoản đều ghi rõ đã thu, đang chờ kết quả hay đã hủy.
+            Mỗi khoản đều ghi rõ trạng thái mẫu: đang chờ kết quả, đã chốt hay đã hủy. Chưa có thu tiền thật.
           </p>
         </div>
         <span className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink-soft">
@@ -384,6 +380,7 @@ function BackedPanel({
       </div>
       {data.backedProjects.length ? (
         <>
+          <BackerPledgeTree projects={data.backedProjects} backerName={data.user.name} />
           <PledgeLifecycleGuide projects={data.backedProjects} />
           <div className="mt-5 space-y-4">
             {data.backedProjects.map((item, index) => (
@@ -426,7 +423,7 @@ function BackedPanel({
                       </p>
                     </div>
                     <div className="mt-5 grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
-                      <FulfillmentState status={item.fulfillmentStatus} />
+                      <FulfillmentState pledge={item} />
                       <div className="flex flex-wrap gap-2 sm:justify-end">
                         <button
                           type="button"
@@ -1155,10 +1152,6 @@ export function BackerDashboard({
   const [messageComposerOpen, setMessageComposerOpen] = useState(false);
   const currentTab = dashboardTabCopy[tab];
   const CurrentTabIcon = currentTab.icon;
-  const orbitPledge =
-    data.backedProjects.find(
-      (item) => item.campaign.slug === "orbit-one-ca-phe-thong-minh",
-    ) ?? data.backedProjects[0];
   const stats = [
     {
       label: "Đã ủng hộ",
@@ -1283,54 +1276,7 @@ export function BackerDashboard({
         </div>
 
         {tab === "backed" ? (
-          <>
-            <AttentionRail data={data} />
-            {orbitPledge ? (
-              <div className="mt-6">
-                <RoleConnectionPanel
-                  role="BACKER"
-                  eyebrow="Dòng tiền của một cam kết"
-                  title="Khoản ORBIT của bạn đang ở đâu?"
-                  description={`${formatVnd(orbitPledge.amount)} là cam kết mẫu cho ${orbitPledge.campaign.title}. Chủ dự án thấy khoản này trong tiến độ mô phỏng; chưa có tiền được giữ hoặc chuyển và chưa tạo đơn giao quà.`}
-                  recordCode={orbitPledge.referenceCode}
-                  steps={[
-                    {
-                      actor: data.user.name,
-                      title: "Đã xác nhận cam kết",
-                      detail: `${orbitPledge.rewardTitle} · tổng ${formatVnd(orbitPledge.amount)}.`,
-                      kind: "person",
-                      state: "done",
-                    },
-                    {
-                      actor: "Bản mô phỏng",
-                      title: "Chưa thực hiện thanh toán",
-                      detail: "Không có ủy quyền thẻ hoặc giao dịch ngân hàng.",
-                      kind: "money",
-                      state: "current",
-                    },
-                    {
-                      actor: "Xưởng chiến dịch",
-                      title: "Ghi nhận một cam kết mẫu",
-                      detail: "Số tiền được cộng vào tiến độ mô phỏng, chưa mở giao quà.",
-                      kind: "campaign",
-                      state: "current",
-                    },
-                    {
-                      actor: "Ngày 01/10/2026",
-                      title: "Hệ thống chốt kết quả",
-                      detail: "Bản demo cho thấy hai kết quả; thu/hủy tiền thật chưa tích hợp.",
-                      kind: "system",
-                      state: "next",
-                    },
-                  ]}
-                  action={{
-                    label: "Đối chiếu trang ORBIT",
-                    href: `/projects/${orbitPledge.campaign.slug}`,
-                  }}
-                />
-              </div>
-            ) : null}
-          </>
+          <AttentionRail data={data} />
         ) : null}
       </div>
     </section>

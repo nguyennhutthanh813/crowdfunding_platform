@@ -2,6 +2,13 @@
 
 **Cập nhật gần nhất:** 07/11/2026, bản đồ nhiều chiến dịch của Chủ dự án và kiểm tra SQLite local.
 
+## Checkpoint sổ ủng hộ 07/11/2026
+
+- Tab **Dự án đã ủng hộ** có cây 2D riêng cho Người ủng hộ: tài khoản → khoản cam kết → dự án, trạng thái dòng tiền và gói quà. Chọn từng khoản thì mã, số tiền, tên dự án, trạng thái và liên kết trang dự án đổi theo `BackedProject` của tài khoản; modal giải thích từng nhánh. Trên màn nhỏ là cây nút đọc/bấm được, không thu nhỏ canvas. Bỏ khối ORBIT cố định ở cuối trang để người dùng không nhầm khoản của mình với một ví dụ duy nhất.
+- Khi dựng dashboard, khoản không chọn giao hàng nay nhận `NOT_APPLICABLE` từ `shippingOptionId` đã lưu; khoản có giao hàng vẫn là `PENDING`. Với cam kết bị hủy, nhãn giao quà nói **không giao vì cam kết đã hủy** thay vì gợi ý gói quà vốn không cần giao. Sidebar Người ủng hộ/Chủ dự án mới nói đúng SQLite local hay cookie; nhãn `CAPTURED` được ghi rõ là **dữ liệu mẫu** để không báo nhầm đã thu tiền thật.
+- Chromium trên DB chính chỉ đọc: tài khoản Minh Anh có bốn khoản, chọn Bếp Mây → ORBIT → Mộc làm node, mã và link đổi tương ứng; modal ORBIT trỏ đúng trang ORBIT. Trên 390 px không tràn (`scrollWidth=clientWidth=390`). Bài kiểm tra về `NOT_APPLICABLE` cho gói không giao và `PENDING` cho gói có địa chỉ đã thêm vào hai script luồng local. DB chính không đặt lại hoặc dùng để tạo dữ liệu thử trong lượt này.
+- Sau chỉnh sửa, `pnpm lint`, `pnpm type-check`, `pnpm build` (50 route), `pnpm test:ui-controls` (186 nút/173 liên kết/117 field), `pnpm test:schema-relations` (14/14) và `pnpm test:docs-sync` qua. Trên server production dùng DB riêng `gop-backer-tree-20261107`, `pnpm test:local-db` qua (27 bảng, FK sạch), `pnpm test:new-campaign-flow` qua vòng Creator → Admin → Collaborator → Backer và `pnpm test:role-navigation` đạt 26/26. Đây là bằng chứng cho các luồng đã kiểm, không thay thế kiểm mọi nút của toàn website.
+
 ## Checkpoint danh mục Chủ dự án 07/11/2026
 
 - Trang Chủ dự án có bản đồ node **một tài khoản → chiến dịch đang chọn → xét duyệt / nhóm / người ủng hộ**. Đổi chiến dịch thì tên, mã, trạng thái, thành viên, số cam kết và đường mở hồ sơ đổi theo record đó. Nút giải thích từng nhánh mở modal; màn nhỏ dùng cây dạng danh sách thay cho canvas. Trang Chủ dự án mới đưa bản đồ lên gần đầu trang, có lối tạo thêm chiến dịch. Thẻ lớn của tài khoản mẫu được gọi rõ là chiến dịch ưu tiên vận hành, không ngụ ý đổi theo lựa chọn trên bản đồ.

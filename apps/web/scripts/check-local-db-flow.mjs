@@ -131,6 +131,8 @@ assert.equal(pledge.status, 201, JSON.stringify(pledge.data));
 await login(backerAgain, email, password);
 const dashboard = await backerAgain("/api/v1/me/dashboard");
 assert.ok(dashboard.data.backedProjects.some((item) => item.campaign.id === "cmp_orbit"));
+assert.equal(dashboard.data.backedProjects.find((item) => item.campaign.id === "cmp_orbit")?.fulfillmentStatus,
+  "NOT_APPLICABLE", "Gói không cần giao không được hiện là đang chờ giao quà");
 assert.ok((await backerAgain("/api/v1/auth/session")).data.data.previewState.savedCampaignIds.includes("cmp_orbit"),
   "Tài khoản mới mất danh sách đã lưu sau khi trạng thái chung thay đổi");
 

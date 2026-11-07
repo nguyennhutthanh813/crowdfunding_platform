@@ -34,6 +34,7 @@ export interface WorkspaceSnapshot {
 
 export function buildBackerWorkspaceSnapshot(
   data: UserDashboardData,
+  localDbAvailable: boolean,
 ): WorkspaceSnapshot {
   return {
     entityCode: `USR · ${data.user.initials}`,
@@ -48,7 +49,9 @@ export function buildBackerWorkspaceSnapshot(
       label: "việc đang chờ",
       value: String(data.attentionItems.length),
     },
-    updatedLabel: "Dữ liệu dùng thử · giữ trong phiên đăng nhập",
+    updatedLabel: localDbAvailable
+      ? "Tài khoản và thao tác lưu trong SQLite trên máy"
+      : "Dữ liệu dùng thử giữ trong trình duyệt này",
   };
 }
 

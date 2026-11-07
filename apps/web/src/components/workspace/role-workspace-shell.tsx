@@ -328,7 +328,7 @@ function creatorSnapshotForLocation(
     primaryMetric: {
       label:
         campaign.status === "SUCCESSFUL"
-          ? "đã thu tiền"
+          ? "cam kết đạt mục tiêu"
           : campaign.status === "LIVE"
             ? "đã cam kết"
             : "mục tiêu dự kiến",

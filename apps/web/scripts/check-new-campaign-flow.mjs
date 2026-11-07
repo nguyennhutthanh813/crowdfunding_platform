@@ -234,6 +234,8 @@ assert.equal(detail.data.rewards[0].claimed, 1);
 const dashboard = await request("/api/v1/me/dashboard");
 assert.ok(dashboard.data.backedProjects?.some((item) => item.campaign.id === campaignId),
   "Backer phải thấy cam kết của chiến dịch mới");
+assert.equal(dashboard.data.backedProjects.find((item) => item.campaign.id === campaignId)?.fulfillmentStatus,
+  "PENDING", "Gói có địa chỉ giao hàng phải được theo dõi bước giao quà");
 assert.equal((await request("/api/v1/me/dashboard", "POST", {
   action: "SAVE_PROJECT", payload: { campaignId, saved: true },
 })).status, 200);

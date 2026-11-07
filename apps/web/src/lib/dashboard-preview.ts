@@ -49,6 +49,7 @@ export function mergePreviewDashboardState(
       rewardTitle: pledge.rewardTitle,
       totalAmount: pledge.totalAmount,
       authorizedAt: pledge.authorizedAt,
+      shippingOptionId: pledge.shippingOptionId ?? null,
     }));
   const latestPledges = [
     ...sharedPledges,
@@ -70,7 +71,12 @@ export function mergePreviewDashboardState(
         campaign,
         amount: pledge.totalAmount,
         paymentStatus: "AUTHORIZED",
-        fulfillmentStatus: "PENDING",
+        fulfillmentStatus:
+          ("shippingOptionId" in pledge
+            ? Boolean(pledge.shippingOptionId)
+            : Boolean(pledge.rewardId))
+            ? "PENDING"
+            : "NOT_APPLICABLE",
         rewardTitle: pledge.rewardTitle,
         pledgedAt: pledge.authorizedAt,
         nextStep:

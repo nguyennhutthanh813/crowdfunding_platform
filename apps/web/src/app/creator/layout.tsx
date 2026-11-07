@@ -9,6 +9,7 @@ import {
   applyOperationsPreviewState,
 } from "@/lib/preview-read-models";
 import { buildCreatorWorkspaceSnapshot, type WorkspaceSnapshot } from "@/lib/workspace-snapshot";
+import { localDbEnabled } from "@/lib/local-db/database";
 
 export default async function CreatorLayout({
   children,
@@ -50,7 +51,9 @@ export default async function CreatorLayout({
         statusLabel: firstPreview?.status ?? "CHƯA CÓ CHIẾN DỊCH",
         primaryMetric: { label: "hồ sơ của bạn", value: String(portfolio.summary.total) },
         secondaryMetric: { label: "đang chuẩn bị", value: String(portfolio.summary.draftOrReview) },
-        updatedLabel: "Dữ liệu dùng thử · chưa phải hệ thống thật",
+        updatedLabel: localDbEnabled()
+          ? "Hồ sơ và thao tác lưu trong SQLite trên máy"
+          : "Hồ sơ dùng thử giữ trong trình duyệt này",
         scopeCount: portfolio.summary.total,
         selectedCampaignSlug: firstPreview?.slug,
         selectedCampaignStatus: firstPreview?.status,
