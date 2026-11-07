@@ -39,7 +39,7 @@ function dateParts(value: string) {
 }
 
 function reviewDueLabel(value: string | null) {
-  if (!value) return "Tạm dừng SLA";
+  if (!value) return "Chưa có hạn xử lý";
   const due = new Date(value);
   const snapshot = new Date(DEMO_SNAPSHOT_AT);
   const minutes = Math.round((due.getTime() - snapshot.getTime()) / 60_000);
@@ -64,6 +64,7 @@ export const adminReviewQueue: ReviewQueueItem[] = mockCampaignReviews.map(
 
     return {
       id: review.id,
+      campaignId: review.campaignId,
       title: campaign.title,
       creator: creator.displayName,
       submittedAt: `${submitted.date} · ${submitted.time}`,
@@ -78,7 +79,9 @@ export const adminReviewQueue: ReviewQueueItem[] = mockCampaignReviews.map(
         review.decision === "CHANGES_REQUESTED"
           ? "Chờ chủ dự án"
           : reviewer.displayName,
-      reviewDueAt: reviewDueLabel(review.reviewDueAt),
+      reviewDueAt: review.decision === "CHANGES_REQUESTED"
+        ? "Chờ chủ dự án gửi lại"
+        : reviewDueLabel(review.reviewDueAt),
       documentCount: review.documentCount,
       checks: review.checks,
     };

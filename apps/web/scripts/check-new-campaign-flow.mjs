@@ -119,14 +119,21 @@ assert.ok(creatorPage.html.includes("Bản đồ chiến dịch"), "Thiếu cây
 
 await login("quantri@gop.vn");
 const overview = await request("/api/v1/admin/overview");
+assert.equal((await request("/api/v1/admin/actions", "POST", {
+  action: "REVIEW_CAMPAIGN", payload: { reviewId: "rev_03", decision: "APPROVED" },
+})).status, 409, "Hồ sơ đã yêu cầu bổ sung không được duyệt lại trước khi gửi mới");
 const review = overview.data.reviewQueue.find((item) => item.title === fields.title);
 assert.ok(review, "Admin không thấy hồ sơ mới trong hàng chờ");
+assert.equal(review.campaignId, campaignId, "Hồ sơ Admin phải nối đúng chiến dịch vừa gửi");
 assert.equal(review.evidence.story, fields.story);
 assert.equal(review.evidence.rewards[0].amount, 750000);
 const approved = await request("/api/v1/admin/actions", "POST", {
   action: "REVIEW_CAMPAIGN", payload: { reviewId: review.id, decision: "APPROVED", feedback: "Đã kiểm tra nội dung bản demo." },
 });
 assert.equal(approved.status, 200, JSON.stringify(approved.data));
+assert.equal((await request("/api/v1/admin/actions", "POST", {
+  action: "REVIEW_CAMPAIGN", payload: { reviewId: review.id, decision: "APPROVED" },
+})).status, 409, "Một lần gửi duyệt không được quyết định hai lần");
 
 await login("linh@orbit.vn");
 portfolio = await request("/api/v1/creator/portfolio");

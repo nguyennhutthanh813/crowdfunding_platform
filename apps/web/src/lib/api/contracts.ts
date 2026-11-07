@@ -553,6 +553,7 @@ export interface FraudAlert {
 
 export interface ReviewQueueItem {
   id: string;
+  campaignId: string;
   title: string;
   creator: string;
   submittedAt: string;

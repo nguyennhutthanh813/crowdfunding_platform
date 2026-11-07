@@ -8,6 +8,8 @@ Trang `/du-lieu-chung` đã nối một luồng Creator → Admin → Backer →
 
 Tab **Dự án đã ủng hộ** cũng có cây riêng: một khoản cam kết dẫn đến đúng dự án, trạng thái dòng tiền và gói quà của tài khoản đang đăng nhập. Bản mobile chuyển cây thành các nút lớn; cả hai góc nhìn dùng các mã và quan hệ trong dữ liệu hiện có. Các trạng thái thu/giao trên dữ liệu mẫu chỉ để kiểm tra quy trình, chưa có tiền hoặc đơn giao thật.
 
+Tổng quan **Quản trị viên** có cây theo từng hồ sơ gửi duyệt: chủ dự án, mã chiến dịch, lần gửi, checklist và người phụ trách. Chọn hồ sơ rồi bấm **Mở đúng hồ sơ này** để tới thẻ cần đọc. Hồ sơ đã yêu cầu bổ sung phải chờ chủ dự án gửi lại; API chặn duyệt lặp. Cảnh báo gian lận là hàng chờ khác và không được ghép vào một hồ sơ chỉ vì cùng đứng đầu danh sách.
+
 Đây là phần web của đồ án **Nghiên cứu và xây dựng nền tảng gọi vốn cộng đồng tích hợp trí tuệ nhân tạo hỗ trợ đánh giá và tối ưu hóa chiến dịch**.
 
 Nhóm có 2 thành viên và dự kiến thực hiện trong 10 tuần, vì vậy phạm vi được chốt ở một web responsive với ba chức năng AI chính:

@@ -1,6 +1,13 @@
 # Tiến độ thực hiện
 
-**Cập nhật gần nhất:** 07/11/2026, bản đồ nhiều chiến dịch của Chủ dự án và kiểm tra SQLite local.
+**Cập nhật gần nhất:** 07/11/2026, bản đồ xét duyệt của Quản trị viên và kiểm tra SQLite local.
+
+## Checkpoint xét duyệt theo đúng hồ sơ 07/11/2026
+
+- Tổng quan Admin thay khối quy trình từng ghép hồ sơ đầu tiên với cảnh báo đầu tiên (hai record không nhất thiết liên quan) bằng cây **Chủ dự án → chiến dịch → lần gửi duyệt → checklist/người phụ trách**. Chọn ORBIT Mini hoặc Nếp đổi mã, trạng thái và nội dung theo đúng `reviewQueue`; modal giải thích từng nhánh, nút **Mở đúng hồ sơ này** chuyển đến thẻ tương ứng. Màn 390 px dùng cây nút và không tràn ngang. Cảnh báo gian lận giữ ở tab riêng.
+- `ReviewQueueItem` nay có `campaignId` từ seed hoặc hồ sơ vừa gửi. API trả 409 nếu cố duyệt lại một lần gửi đã có quyết định; thẻ Nếp **cần bổ sung** chỉ cho đọc hồ sơ, không hiện nút duyệt lại. Seed Nếp chưa lưu câu phản hồi cũ nên giao diện nói rõ khoảng thiếu này thay vì điền một câu giả vào ô phản hồi. Nhãn hạn xử lý đổi từ "SLA" sang tiếng Việt; thẻ số liệu tách số chờ duyệt và chờ bổ sung. Sau một quyết định mới, Admin làm mới dữ liệu tổng quan và hàng chờ; lần gửi tiếp theo có phiên bản mới được hiện lại.
+- Browser trên DB chính chỉ đọc: chọn Nếp đổi sang `cmp_nep · rev_03`, mở modal checklist và chuyển tới thẻ Nếp ở `/admin?tab=reviews`; trên mobile 390 px, `scrollWidth=390`, thẻ Nếp chỉ có **Xem hồ sơ** và không có lỗi console. Test ghi chạy ở DB riêng `gop-admin-tree-20261107`: `test:new-campaign-flow` qua cả các ca 409 và đối chiếu `campaignId`, `test:local-db` qua với 27 bảng/FK hợp lệ, `test:role-navigation` 26/26. Sau chỉnh câu cuối, `lint`, `type-check`, `build` 50 route và `test:docs-sync` qua; `test:ui-controls` 195 nút/173 liên kết/117 field và `test:schema-relations` 14/14 cũng qua trong lượt này.
+- Chưa nối toàn bộ giao diện Admin với backend PostgreSQL dùng chung; ảnh cây là cách đọc dữ liệu đang có, không phải điểm AI hay bằng chứng kiểm duyệt thực tế.
 
 ## Checkpoint sổ ủng hộ 07/11/2026
 

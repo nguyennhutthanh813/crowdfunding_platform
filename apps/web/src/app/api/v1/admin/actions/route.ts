@@ -80,6 +80,9 @@ export async function POST(request: Request) {
         "Không tìm thấy hồ sơ cần duyệt.",
       );
     }
+    if (("decision" in review && review.decision === "CHANGES_REQUESTED") || platformState.reviewDecisions[reviewId]) {
+      return apiError(409, "REVIEW_ALREADY_DECIDED", "Hồ sơ này đã có quyết định. Hãy chờ chủ dự án gửi lại trước khi xét duyệt tiếp.");
+    }
     if (!new Set(["APPROVED", "CHANGES", "REJECTED"]).has(decision)) {
       return apiError(
         422,

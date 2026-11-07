@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   BadgeDollarSign,
@@ -26,9 +27,9 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AdminReviewTree } from "@/components/admin/admin-review-tree";
 import { Modal } from "@/components/ui/modal";
-import { RoleConnectionPanel } from "@/components/workspace/role-connection-panel";
 import { useQueryTab } from "@/hooks/use-query-tab";
 import type { AdminDashboardData, FraudAlert } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
@@ -90,12 +91,6 @@ const adminTabCopy: Record<
       "Thay đổi cấu hình có phản hồi rõ, còn lịch sử cho biết ai đã làm gì và vào thời điểm nào.",
     icon: Settings2,
   },
-};
-
-const reviewDecisionLabels: Record<ReviewDecision, string> = {
-  APPROVED: "ĐÃ DUYỆT",
-  CHANGES: "YÊU CẦU SỬA",
-  REJECTED: "TỪ CHỐI",
 };
 
 const fraudStatusLabels: Record<FraudAlert["status"], string> = {
@@ -382,13 +377,10 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
 }
 
 function ReviewPanel({ data }: { data: AdminDashboardData }) {
-  const [reviews, setReviews] = useState(data.reviewQueue);
-  const [feedback, setFeedback] = useState<Record<string, string>>({
-    rev_03: "Bổ sung kế hoạch giao hàng và mô tả rõ rủi ro nhà cung cấp.",
-  });
-  const [decisions, setDecisions] = useState<Record<string, ReviewDecision>>(
-    {},
-  );
+  const router = useRouter();
+  const [decidedVersions, setDecidedVersions] = useState<Record<string, number>>({});
+  const reviews = data.reviewQueue.filter((item) => decidedVersions[item.id] !== item.submissionVersion);
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expandedReview, setExpandedReview] = useState<string | null>(null);
@@ -425,10 +417,11 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
         decision,
         feedback: reason,
       });
-      setDecisions((current) => ({ ...current, [id]: decision }));
-      setReviews((current) => current.filter((review) => review.id !== id));
+      const version = reviews.find((item) => item.id === id)?.submissionVersion;
+      if (version !== undefined) setDecidedVersions((current) => ({ ...current, [id]: version }));
       setPendingDecision(null);
       setNotice("Đã lưu quyết định và gửi phản hồi cho chủ dự án.");
+      router.refresh();
     } catch (error) {
       setNotice(
         adminRequestError(
@@ -448,7 +441,7 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
           <FileCheck2 className="size-4" /> Hàng chờ xét duyệt
         </p>
         <h2 className="mt-2 font-display text-2xl font-extrabold">
-          Chiến dịch chờ duyệt
+          Hồ sơ cần theo dõi
         </h2>
         <p className="mt-2 text-xs text-ink-muted">
           Mở từng hồ sơ để đọc nội dung đã gửi. Quyết định và phản hồi sẽ gắn với đúng chiến dịch trong bản dùng thử.
@@ -459,11 +452,12 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
       ) : null}
       <div className="mt-6 space-y-4">
         {reviews.map((item) => {
-          const decision = decisions[item.id];
+          const needsChanges = item.status === "NEEDS_CHANGES";
           return (
             <article
               key={item.id}
-              className="rounded-[22px] border border-line bg-white p-5"
+              id={`review-${item.id}`}
+              className="scroll-mt-28 rounded-[22px] border border-line bg-white p-5"
             >
               <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
                 <div>
@@ -473,11 +467,6 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                     >
                       {item.status === "PENDING" ? "CHỜ DUYỆT" : "CẦN BỔ SUNG"}
                     </span>
-                    {decision ? (
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                        {reviewDecisionLabels[decision]}
-                      </span>
-                    ) : null}
                   </div>
                   <h3 className="mt-3 font-display text-lg font-extrabold">
                     {item.title}
@@ -527,6 +516,11 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                   </div>
                 </div>
                 <div>
+                  {needsChanges ? (
+                    <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
+                      Đã yêu cầu chủ dự án bổ sung. Bản dữ liệu mẫu chưa lưu nội dung phản hồi cũ; xem checklist và chờ một lần gửi mới trước khi quyết định tiếp.
+                    </p>
+                  ) : <>
                   <label>
                     <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                       Phản hồi cho chủ dự án
@@ -547,6 +541,7 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                   <p className="mt-2 text-xs leading-5 text-ink-muted">
                     Đọc hồ sơ trước khi duyệt. Nếu yêu cầu sửa hoặc từ chối, hãy ghi rõ lý do để chủ dự án biết cần làm gì.
                   </p>
+                  </>}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -562,6 +557,7 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                       <Eye className="size-3.5" />
                       {expandedReview === item.id ? "Thu gọn" : "Xem hồ sơ"}
                     </button>
+                    {!needsChanges ? <>
                     <button
                       type="button"
                       disabled={busy === item.id}
@@ -591,8 +587,9 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                       )}{" "}
                       Duyệt
                     </button>
+                    </> : null}
                   </div>
-                  {pendingDecision?.id === item.id ? (
+                  {!needsChanges && pendingDecision?.id === item.id ? (
                     <InlineActionConfirm
                       title={
                         pendingDecision.decision === "APPROVED"
@@ -1425,6 +1422,14 @@ function AdminContent({
 
 export function AdminWorkspace({ data, localDbAvailable = false }: { data: AdminDashboardData; localDbAvailable?: boolean }) {
   const [tab, setTab] = useQueryTab<AdminTab>(adminTabIds, "overview");
+  const [targetReviewId, setTargetReviewId] = useState<string | null>(null);
+  useEffect(() => {
+    if (tab !== "reviews" || !targetReviewId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`review-${targetReviewId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tab, targetReviewId]);
   const currentTab = adminTabCopy[tab];
   const CurrentTabIcon = currentTab.icon;
   const metrics = [
@@ -1445,9 +1450,9 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
       tab: "settings" as const,
     },
     {
-      label: "Hồ sơ chờ duyệt",
+      label: "Hồ sơ theo dõi",
       value: String(data.reviewQueue.length),
-      detail: `${data.operations.reviewsDueToday} hồ sơ đến hạn ở mốc mẫu`,
+      detail: `${data.reviewQueue.filter((item) => item.status === "PENDING").length} chờ duyệt · ${data.reviewQueue.filter((item) => item.status === "NEEDS_CHANGES").length} chờ bổ sung`,
       icon: FileCheck2,
       tone: "bg-blue-50 text-blue-700",
       tab: "reviews" as const,
@@ -1549,51 +1554,11 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
 
         {tab === "overview" ? (
           <div className="mt-6">
-            <RoleConnectionPanel
-              role="ADMIN"
-              eyebrow="Đường đi của một quyết định"
-              title="Quản trị viên nhận dữ liệu gì và trả kết quả về đâu?"
-              description="Hàng chờ gom hồ sơ, tín hiệu và hạn xử lý để quản trị viên đọc nhanh hơn. Điểm cảnh báo chỉ xếp thứ tự kiểm tra; quyết định cuối vẫn cần người xử lý, lý do và nhật ký."
-              recordCode={`OPS · ${data.operations.snapshotAt}`}
-              steps={[
-                {
-                  actor: "Chủ dự án",
-                  title: data.reviewQueue[0]
-                    ? `Gửi hồ sơ xét duyệt lần ${data.reviewQueue[0].submissionVersion}`
-                    : "Gửi hồ sơ kiểm duyệt",
-                  detail: data.reviewQueue[0]
-                    ? `${data.reviewQueue[0].title} · ${data.reviewQueue[0].documentCount} mục nội dung.`
-                    : "Hồ sơ giữ mã chiến dịch, phiên bản và tài liệu liên quan.",
-                  kind: "campaign",
-                  state: "done",
-                },
-                {
-                  actor: "Bộ lọc tự động",
-                  title: data.alerts[0]
-                    ? `Đưa cảnh báo điểm ${data.alerts[0].riskScore} lên trước`
-                    : "Sắp xếp tín hiệu cần xem",
-                  detail: "Điểm số không tự khóa người dùng, chiến dịch hay khoản tiền.",
-                  kind: "system",
-                  state: "done",
-                },
-                {
-                  actor: "Trần Khánh An · Quản trị viên",
-                  title: `${data.operations.reviewsDueToday} hồ sơ đến hạn ở mốc mẫu`,
-                  detail: "Đọc danh sách kiểm tra và bằng chứng, sau đó chọn duyệt, yêu cầu sửa hoặc chuyển kiểm tra sâu.",
-                  kind: "admin",
-                  state: "current",
-                },
-                {
-                  actor: "Chủ dự án + nhật ký hệ thống",
-                  title: "Nhận trạng thái và lý do",
-                  detail: "Kết quả quay lại đúng chiến dịch; người thao tác, thời gian và căn cứ được giữ để đối chiếu.",
-                  kind: "person",
-                  state: "next",
-                },
-              ]}
-              action={{
-                label: "Mở hàng chờ kiểm duyệt",
-                href: "/admin?tab=reviews",
+            <AdminReviewTree
+              reviews={data.reviewQueue}
+              onOpenReview={(id) => {
+                setTargetReviewId(id ?? null);
+                setTab("reviews");
               }}
             />
           </div>
