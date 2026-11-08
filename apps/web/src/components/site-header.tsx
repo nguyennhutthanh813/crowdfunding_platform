@@ -84,12 +84,12 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
       : displayedRole === "COLLABORATOR"
         ? { href: "/collaborator", label: "Việc được giao" }
         : displayedRole === "CREATOR"
-          ? { href: "/creator/campaigns/new", label: "Mở hồ sơ mẫu" }
+          ? { href: "/creator/campaigns/new", label: "Tạo chiến dịch mới" }
           : {
               href: session
                 ? "/creator/campaigns/new"
                 : "/auth?mode=register&next=%2Fcreator%2Fcampaigns%2Fnew",
-              label: "Xem cách tạo dự án",
+              label: "Bắt đầu dự án",
             };
 
   return (
@@ -157,7 +157,7 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
             />
           ) : session && displayedRole ? (
             <>
-              <label
+              {session.user.roles.length > 1 ? <label
                 className={`relative flex h-11 items-center gap-2 rounded-full border pl-3 pr-2 text-xs ${tone?.chip ?? "border-line bg-canvas-soft text-ink"}`}
               >
                 <span className={`size-2 rounded-full ${tone?.dot}`} />
@@ -167,9 +167,7 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                   aria-label="Chuyển không gian làm việc"
                   value={displayedRole}
                   disabled={busy}
-                  onChange={(event) =>
-                    void switchRole(event.target.value as UserRole)
-                  }
+                  onChange={(event) => void switchRole(event.target.value as UserRole)}
                   className="cursor-pointer appearance-none bg-transparent pr-5 font-bold text-current outline-none disabled:cursor-wait"
                 >
                   {session.user.roles.map((role) => (
@@ -179,7 +177,7 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                   ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 size-3.5 opacity-55" />
-              </label>
+              </label> : null}
 
               <Link
                 href="/account?tab=notifications"
@@ -231,13 +229,16 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                   >
                     <Settings className="size-4" /> Hồ sơ và cài đặt
                   </Link>
+                  <Link href="/collaborator" className="flex min-h-11 items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-ink-soft hover:bg-canvas-soft hover:text-ink">
+                    <LayoutDashboard className="size-4" /> Việc nhóm được mời
+                  </Link>
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => void signOut("/auth")}
                     className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-ink-soft hover:bg-canvas-soft hover:text-ink disabled:cursor-wait"
                   >
-                    <ArrowLeftRight className="size-4" /> Đổi tài khoản
+                    <ArrowLeftRight className="size-4" /> Đăng xuất để đổi tài khoản
                   </button>
                   <button
                     type="button"
@@ -251,12 +252,14 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
               </details>
             </>
           ) : (
-            <Link
-              href={`/auth?next=${encodeURIComponent(pathname)}`}
-              className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white px-4 text-xs font-bold text-ink-soft hover:bg-canvas-soft hover:text-ink"
-            >
-              <LogIn className="size-4" /> Đăng nhập
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/auth?next=${encodeURIComponent(pathname)}`}
+                className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white px-4 text-xs font-bold text-ink-soft hover:bg-canvas-soft hover:text-ink"
+              >
+                <LogIn className="size-4" /> Đăng nhập
+              </Link>
+            </div>
           )}
 
           <Link
@@ -311,7 +314,7 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                     </p>
                   </div>
                 </div>
-                <label className="mt-3 block text-[11px] opacity-65">
+                {session.user.roles.length > 1 ? <label className="mt-3 block text-[11px] opacity-65">
                   Vai trò đang dùng
                   <span className="relative mt-1.5 block">
                     <select
@@ -332,7 +335,7 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 opacity-50" />
                   </span>
-                </label>
+                </label> : null}
               </div>
             ) : null}
 
@@ -351,6 +354,9 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                   className="flex min-h-11 items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-ink-soft hover:bg-canvas-soft"
                 >
                   <Bell className="size-4" /> Thông báo{unreadCount ? ` · ${unreadCount} câu hỏi mới` : ""}
+                </Link>
+                <Link href="/collaborator" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-ink-soft hover:bg-canvas-soft">
+                  <LayoutDashboard className="size-4" /> Việc nhóm được mời
                 </Link>
                 <Link
                   href="/account"

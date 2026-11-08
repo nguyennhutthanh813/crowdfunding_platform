@@ -454,9 +454,8 @@ export async function POST(request: Request) {
       const member = getCampaignMembership(campaignId, access.session.user.id);
       const isOwner = campaign.creator.id === access.session.user.id &&
         access.session.user.roles.includes("CREATOR");
-      const canReplyAsTeam = access.session.user.roles.includes("COLLABORATOR") &&
-        ((member?.role === "COLLABORATOR" && member.canReplyComments) ||
-          Boolean(invitation?.accepted && invitation.permissions.canReply));
+      const canReplyAsTeam = (member?.role === "COLLABORATOR" && member.canReplyComments) ||
+        Boolean(invitation?.accepted && invitation.permissions.canReply);
       const badge: CommentBadge = isOwner ? "CREATOR" : canReplyAsTeam ? "COLLABORATOR" : "BACKER";
       const comment = {
         id: `comment_${crypto.randomUUID().slice(0, 12)}`, campaignId, parentId,

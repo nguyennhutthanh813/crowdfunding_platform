@@ -2,10 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { UserRole } from "@/lib/api/contracts";
 import { decodeSession, SESSION_COOKIE_NAME } from "./session-cookie";
-import {
-  decodePlatformPreview,
-  PLATFORM_PREVIEW_COOKIE_NAME,
-} from "./platform-preview-cookie";
+import { getServerPlatformPreviewState } from "./platform-preview-cookie";
 import { clearPreviewSessionCookie } from "./write-session-cookie";
 import { hydrateLocalSession, localSessionUserExists } from "@/lib/local-db/database";
 
@@ -25,9 +22,7 @@ export async function requireSession(allowedRoles?: UserRole[]) {
     };
   }
 
-  const platformState = decodePlatformPreview(
-    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
-  );
+  const platformState = await getServerPlatformPreviewState();
   if (platformState.userStatuses[session.user.id] === "SUSPENDED") {
     const response = NextResponse.json(
       {

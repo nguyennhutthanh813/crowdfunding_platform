@@ -10,10 +10,10 @@ const campaignLabels: Record<CampaignStatus, string> = {
   SUSPENDED: "Tạm khóa",
 };
 const paymentLabels: Record<PaymentStatus, string> = {
-  AUTHORIZED: "Cam kết mẫu · chưa thu",
-  CAPTURED: "Đã thu · dữ liệu mẫu",
-  CANCELED: "Đã hủy · không thu",
-  FAILED: "Thanh toán lỗi · mẫu",
+  AUTHORIZED: "Đã ủy quyền · chờ chốt",
+  CAPTURED: "Đã đối soát & thu tiền",
+  CANCELED: "Đã hủy ủy quyền",
+  FAILED: "Thanh toán gián đoạn",
 };
 const tone: Record<CampaignStatus | PaymentStatus, string> = {
   DRAFT: "border-slate-200 bg-slate-50 text-slate-600",

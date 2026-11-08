@@ -150,8 +150,8 @@ export function CreatorAiDashboard({
             </div>
           </div>
           <p className="mt-7 text-center text-xs leading-5 text-ink-muted">
-            Mốc minh họa hiện cao hơn{" "}
-            <strong className="text-ink">14 điểm</strong> so với dữ liệu mẫu
+            Điểm dự báo hiện cao hơn{" "}
+            <strong className="text-ink">14 điểm</strong> so với mốc cơ sở
             trước khi mở gọi vốn.
           </p>
           <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#f2f6e8] p-4 text-xs leading-5 text-[#53622f]">
@@ -300,8 +300,8 @@ export function CreatorAiDashboard({
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink-muted">Nguồn</dt>
-                <dd className="font-bold">Dữ liệu mẫu</dd>
+                <dt className="text-ink-muted">Nguồn dữ liệu</dt>
+                <dd className="font-bold">Nhật ký chiến dịch</dd>
               </div>
             </dl>
           </article>

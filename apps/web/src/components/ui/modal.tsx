@@ -14,6 +14,8 @@ export function Modal({
   open,
   title,
   description,
+  badge,
+  footer,
   children,
   onClose,
   closeLabel = "Đóng cửa sổ",
@@ -23,6 +25,8 @@ export function Modal({
   open: boolean;
   title: string;
   description?: string;
+  badge?: string;
+  footer?: ReactNode;
   children: ReactNode;
   onClose: () => void;
   closeLabel?: string;
@@ -108,6 +112,11 @@ export function Modal({
       >
         <div className="flex items-start justify-between gap-5 border-b border-line px-5 py-5 sm:px-6">
           <div>
+            {badge ? (
+              <p className="mb-1.5 inline-flex rounded-md bg-[#eef2ea] px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wider text-forest">
+                {badge}
+              </p>
+            ) : null}
             <h2 id={titleId} className="font-display text-xl font-extrabold tracking-[-0.025em] text-ink">
               {title}
             </h2>
@@ -128,6 +137,11 @@ export function Modal({
           </button>
         </div>
         <div className="px-5 py-5 sm:px-6 sm:py-6">{children}</div>
+        {footer ? (
+          <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-line bg-[#fafaf5] px-5 py-4 rounded-b-[22px] sm:px-6">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );

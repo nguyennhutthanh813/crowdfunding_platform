@@ -10,12 +10,23 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import { ArrowRight, FileCheck2, GitBranch, ShieldCheck } from "lucide-react";
+import { ArrowRight, Box, FileCheck2, GitBranch, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import {
+  RoleStage3DScene,
+  type StageStepItem,
+} from "@/components/visuals/role-stage-3d-scene";
 import type { ReviewQueueItem } from "@/lib/api/contracts";
 
 type ReviewPart = "creator" | "campaign" | "submission" | "checks" | "reviewer";
+const REVIEW_PARTS: ReviewPart[] = [
+  "creator",
+  "campaign",
+  "submission",
+  "checks",
+  "reviewer",
+];
 
 export function AdminReviewTree({
   reviews,
@@ -25,7 +36,10 @@ export function AdminReviewTree({
   onOpenReview: (reviewId?: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState(reviews[0]?.id ?? "");
+  const [focusedPart, setFocusedPart] = useState<ReviewPart>("submission");
+  const [displayMode, setDisplayMode] = useState<"flow" | "stage3d">("stage3d");
   const [openPart, setOpenPart] = useState<ReviewPart | null>(null);
+  const [expanded, setExpanded] = useState(true);
   const selected = reviews.find((item) => item.id === selectedId) ?? reviews[0];
 
   if (!selected) return (
@@ -106,7 +120,37 @@ export function AdminReviewTree({
     { id: "campaign-submission", source: "campaign", target: "submission", ariaLabel: "Chiến dịch có hồ sơ gửi duyệt" },
     { id: "submission-checks", source: "submission", target: "checks", ariaLabel: "Hồ sơ có danh sách kiểm tra" },
     { id: "submission-reviewer", source: "submission", target: "reviewer", ariaLabel: "Hồ sơ có người phụ trách" },
-  ].map((edge) => ({ ...edge, type: "smoothstep", markerEnd: { type: MarkerType.ArrowClosed, color: "#a38289" }, style: { stroke: "#a38289", strokeWidth: 2.5 } }));
+  ].map((edge) => {
+    const isActiveEdge =
+      edge.target === focusedPart || edge.source === focusedPart;
+    return {
+      ...edge,
+      type: "smoothstep",
+      animated: true,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: isActiveEdge ? "#9f2630" : "#a38289",
+      },
+      style: {
+        stroke: isActiveEdge ? "#9f2630" : "#a38289",
+        strokeWidth: isActiveEdge ? 3.2 : 2.5,
+      },
+    };
+  });
+
+  const stageSteps: StageStepItem[] = REVIEW_PARTS.map((part, index) => ({
+    id: part,
+    code: `0${index + 1}`,
+    title: details[part].title,
+    subtitle: details[part].value,
+    detail: details[part].body,
+    metric:
+      part === "submission"
+        ? reviewState
+        : part === "checks"
+          ? `${selected.completeness}% đầy đủ`
+          : undefined,
+  }));
 
   const openReview = () => {
     setOpenPart(null);
@@ -115,34 +159,91 @@ export function AdminReviewTree({
 
   return <section aria-labelledby="admin-review-tree-title" className="overflow-hidden rounded-[22px] border border-[#ded2d5] bg-[#fdfafa] shadow-[0_18px_45px_rgba(50,31,38,.06)]">
     <div className="border-b border-[#eadfe2] bg-[#f6eef0] px-5 py-5 sm:px-7">
-      <p className="flex items-center gap-2 text-sm font-bold text-[#9f2630]"><GitBranch className="size-4" /> Bản đồ xét duyệt</p>
-      <h2 id="admin-review-tree-title" className="mt-1 font-display text-2xl font-extrabold tracking-tight text-[#352d37]">Một hồ sơ, một chiến dịch rõ ràng</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-[#665762]">Chọn hồ sơ để thấy ai gửi, thuộc dự án nào, cần kiểm những gì và ai đang phụ trách. Cảnh báo gian lận là hàng chờ riêng.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-bold text-[#9f2630]"><GitBranch className="size-4" /> Bản đồ xét duyệt</p>
+          <h2 id="admin-review-tree-title" className="mt-1 font-display text-2xl font-extrabold tracking-tight text-[#352d37]">Một hồ sơ, một chiến dịch rõ ràng</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#665762]">Chọn hồ sơ để thấy ai gửi, thuộc dự án nào, cần kiểm những gì và ai đang phụ trách. Cảnh báo gian lận là hàng chờ riêng.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-xl border border-[#e3ccd0] bg-white p-1" role="group" aria-label="Chế độ hiển thị bản đồ xét duyệt">
+            <button
+              type="button"
+              aria-pressed={displayMode === "flow" && expanded}
+              onClick={() => { setDisplayMode("flow"); setExpanded(true); }}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
+                displayMode === "flow" && expanded ? "bg-[#9f2630] text-white" : "text-[#783e45] hover:bg-[#fff5f5]"
+              }`}
+            >
+              <GitBranch className="size-3.5" /> Sơ đồ cây
+            </button>
+            <button
+              type="button"
+              aria-pressed={displayMode === "stage3d" && expanded}
+              onClick={() => { setDisplayMode("stage3d"); setExpanded(true); }}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
+                displayMode === "stage3d" && expanded ? "bg-[#9f2630] text-white" : "text-[#783e45] hover:bg-[#fff5f5]"
+              }`}
+            >
+              <Box className="size-3.5" /> Sa bàn 3D
+            </button>
+          </div>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+            className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#9f2630] bg-[#9f2630] px-3.5 text-xs font-bold text-white hover:bg-[#7d1d25]"
+          >
+            {expanded ? "Thu gọn sơ đồ" : "Mở sơ đồ cây & Sa bàn 3D"}
+          </button>
+        </div>
+      </div>
       <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Chọn hồ sơ xét duyệt trên bản đồ">
-        {reviews.map((review) => <button key={review.id} type="button" aria-pressed={review.id === selected.id} onClick={() => { setSelectedId(review.id); setOpenPart(null); }} className={"min-h-11 max-w-full rounded-xl border px-3 py-2 text-left text-xs font-bold transition-colors " + (review.id === selected.id ? "border-[#9f2630] bg-[#9f2630] text-white" : "border-[#e3ccd0] bg-white text-[#783e45] hover:bg-[#fff8f8]")}>{review.title} · lần {review.submissionVersion}</button>)}
+        {reviews.map((review) => <button key={review.id} type="button" aria-pressed={review.id === selected.id} onClick={() => { setSelectedId(review.id); setFocusedPart("submission"); setOpenPart(null); setExpanded(true); }} className={"min-h-11 max-w-full rounded-xl border px-3 py-2 text-left text-xs font-bold transition-colors " + (review.id === selected.id ? "border-[#9f2630] bg-[#9f2630] text-white" : "border-[#e3ccd0] bg-white text-[#783e45] hover:bg-[#fff8f8]")}>{review.title} · lần {review.submissionVersion}</button>)}
       </div>
     </div>
 
+    {expanded ? (
     <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
       <div>
-        <div className="hidden h-[390px] overflow-hidden rounded-2xl border border-[#eadfe2] bg-white lg:block" aria-label="Cây quan hệ của hồ sơ đang chọn">
-          <ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.08 }} minZoom={0.65} maxZoom={1.4} nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} zoomOnScroll={false} zoomOnDoubleClick={false} panOnScroll={false} onNodeClick={(_, node) => setOpenPart(node.id as ReviewPart)} ariaLabelConfig={{ "controls.ariaLabel": "Điều khiển sơ đồ xét duyệt", "controls.zoomIn.ariaLabel": "Phóng to sơ đồ", "controls.zoomOut.ariaLabel": "Thu nhỏ sơ đồ", "controls.fitView.ariaLabel": "Xem toàn bộ sơ đồ" }}>
-            <Background variant={BackgroundVariant.Dots} gap={19} size={1} color="#ecdfe3" />
-            <Controls showInteractive={false} />
-          </ReactFlow>
-        </div>
-        <div className="lg:hidden">
-          <button type="button" onClick={() => setOpenPart("creator")} className="min-h-12 w-full rounded-xl border border-[#dbd5e2] bg-[#f4f1f7] px-4 py-3 text-left text-sm font-bold text-[#312c42]">{selected.creator}</button>
-          <div className="ml-5 border-l-2 border-[#cdbac0] pb-1 pl-4 pt-3">
-            <button type="button" onClick={() => setOpenPart("campaign")} className="min-h-12 w-full rounded-xl bg-[#263c55] px-4 py-3 text-left text-sm font-bold text-white">{selected.title}</button>
-            <div className="ml-5 border-l-2 border-[#cdbac0] pb-1 pl-4 pt-3">
-              <button type="button" onClick={() => setOpenPart("submission")} className="min-h-12 w-full rounded-xl bg-[#9f2630] px-4 py-3 text-left text-sm font-bold text-white">Hồ sơ gửi lần {selected.submissionVersion}</button>
-              <div className="ml-5 grid gap-2 border-l-2 border-[#cdbac0] pb-1 pl-4 pt-3">
-                {(["checks", "reviewer"] as const).map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-12 rounded-xl border border-[#eadfe2] bg-white px-4 py-3 text-left text-sm font-semibold text-[#60343a]">{details[part].title}<span className="mt-1 block text-[13px] font-normal text-[#765f65]">{details[part].value}</span></button>)}
+        {displayMode === "stage3d" ? (
+          <RoleStage3DScene
+            tone="crimson"
+            eyebrow="Hồ sơ đang xét"
+            title="Trạm kiểm định 5 bước của hồ sơ đang chọn"
+            centerLabel={selected.title}
+            centerSubtext={`${selected.id} · Gửi lần ${selected.submissionVersion} · ${passed}/${selected.checks.length} mục đạt`}
+            steps={stageSteps}
+            activeStepId={focusedPart}
+            onSelectStep={(stepId) => setFocusedPart(stepId as ReviewPart)}
+            onInspectStep={(stepId) => {
+              setFocusedPart(stepId as ReviewPart);
+              setOpenPart(stepId as ReviewPart);
+            }}
+            compact
+          />
+        ) : (
+          <>
+            <div className="hidden h-[390px] overflow-hidden rounded-2xl border border-[#eadfe2] bg-white lg:block" aria-label="Cây quan hệ của hồ sơ đang chọn">
+              <ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.08 }} minZoom={0.65} maxZoom={1.4} nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} zoomOnScroll={false} zoomOnDoubleClick={false} panOnScroll={false} onNodeClick={(_, node) => { setFocusedPart(node.id as ReviewPart); setOpenPart(node.id as ReviewPart); }} ariaLabelConfig={{ "controls.ariaLabel": "Điều khiển sơ đồ xét duyệt", "controls.zoomIn.ariaLabel": "Phóng to sơ đồ", "controls.zoomOut.ariaLabel": "Thu nhỏ sơ đồ", "controls.fitView.ariaLabel": "Xem toàn bộ sơ đồ" }}>
+                <Background variant={BackgroundVariant.Dots} gap={19} size={1} color="#ecdfe3" />
+                <Controls showInteractive={false} />
+              </ReactFlow>
+            </div>
+            <div className="lg:hidden">
+              <button type="button" onClick={() => setOpenPart("creator")} className="min-h-12 w-full rounded-xl border border-[#dbd5e2] bg-[#f4f1f7] px-4 py-3 text-left text-sm font-bold text-[#312c42]">{selected.creator}</button>
+              <div className="ml-5 border-l-2 border-[#cdbac0] pb-1 pl-4 pt-3">
+                <button type="button" onClick={() => setOpenPart("campaign")} className="min-h-12 w-full rounded-xl bg-[#263c55] px-4 py-3 text-left text-sm font-bold text-white">{selected.title}</button>
+                <div className="ml-5 border-l-2 border-[#cdbac0] pb-1 pl-4 pt-3">
+                  <button type="button" onClick={() => setOpenPart("submission")} className="min-h-12 w-full rounded-xl bg-[#9f2630] px-4 py-3 text-left text-sm font-bold text-white">Hồ sơ gửi lần {selected.submissionVersion}</button>
+                  <div className="ml-5 grid gap-2 border-l-2 border-[#cdbac0] pb-1 pl-4 pt-3">
+                    {(["checks", "reviewer"] as const).map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-12 rounded-xl border border-[#eadfe2] bg-white px-4 py-3 text-left text-sm font-semibold text-[#60343a]">{details[part].title}<span className="mt-1 block text-[13px] font-normal text-[#765f65]">{details[part].value}</span></button>)}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       <aside className="flex flex-col rounded-[17px] border border-[#e5d7da] bg-white p-5">
@@ -163,6 +264,7 @@ export function AdminReviewTree({
         <button type="button" onClick={openReview} className="button-dark mt-auto w-full">Mở đúng hồ sơ này <ArrowRight className="size-4" /></button>
       </aside>
     </div>
+    ) : null}
 
     <Modal open={openPart !== null} title={openPart ? details[openPart].title : ""} description={selected.title} onClose={() => setOpenPart(null)} size="sm">
       {openPart ? <div>

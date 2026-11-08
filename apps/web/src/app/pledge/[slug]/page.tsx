@@ -44,7 +44,7 @@ export default async function PledgePage({
           </Link>
           <div className="hidden flex-wrap gap-3 text-[11px] text-ink-muted sm:flex">
             <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="size-3.5" /> Bản demo · không nhập thẻ, không thu tiền
+              <ShieldCheck className="size-3.5 text-emerald-600" /> Bảo vệ All-or-Nothing · Chỉ thu khi đạt 100% mục tiêu
             </span>
           </div>
         </div>

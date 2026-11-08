@@ -192,6 +192,39 @@ a {
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: 0 1px 0 rgba(16, 37, 30, 0.03);
+  transition:
+    border-color 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out),
+    transform 220ms var(--ease-out);
+}
+
+.gop-progress-fill {
+  position: relative;
+  overflow: hidden;
+}
+
+.gop-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: gop-progress-sheen 3.2s var(--ease-out) infinite;
+}
+
+@keyframes gop-progress-sheen {
+  0% {
+    transform: translateX(-100%);
+  }
+  55%,
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .eyebrow {
@@ -450,6 +483,72 @@ a {
   background: linear-gradient(90deg, #e5e8e2 20%, #f6f7f3 46%, #e5e8e2 72%);
   background-size: 220% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+.gop-scene-perspective {
+  perspective: 1100px;
+}
+
+.gop-preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.gop-float-3d {
+  animation: gop-float-3d 5.2s ease-in-out infinite;
+}
+
+.gop-float-3d-delayed {
+  animation: gop-float-3d 5.2s ease-in-out 1.4s infinite;
+}
+
+.gop-orbit-ring {
+  animation: gop-orbit-spin 18s linear infinite;
+}
+
+.gop-pulse-beacon {
+  animation: gop-pulse-beacon 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.gop-flow-dash {
+  stroke-dasharray: 7 6;
+  animation: gop-dash-march 1.35s linear infinite;
+}
+
+@keyframes gop-float-3d {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -7px, 12px);
+  }
+}
+
+@keyframes gop-orbit-spin {
+  from {
+    transform: rotateX(62deg) rotateZ(0deg);
+  }
+  to {
+    transform: rotateX(62deg) rotateZ(360deg);
+  }
+}
+
+@keyframes gop-pulse-beacon {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: 0.35;
+  }
+}
+
+@keyframes gop-dash-march {
+  to {
+    stroke-dashoffset: -26;
+  }
 }
 
 @keyframes rise-in {

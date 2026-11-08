@@ -11,7 +11,6 @@ import {
   ChevronRight,
   CircleDollarSign,
   Clock3,
-  Database,
   Eye,
   FileCheck2,
   Flag,
@@ -29,6 +28,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AdminReviewTree } from "@/components/admin/admin-review-tree";
+import { useAuth } from "@/components/auth/auth-provider";
 import { Modal } from "@/components/ui/modal";
 import { useQueryTab } from "@/hooks/use-query-tab";
 import type { AdminDashboardData, FraudAlert } from "@/lib/api";
@@ -127,7 +127,7 @@ function InlineActionConfirm({
       size="sm"
     >
       <p className={`rounded-xl border px-4 py-3 text-xs leading-5 ${danger ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-        Sau khi xác nhận, bạn có thể tải lại để kiểm tra trạng thái. Bản demo chưa có nhật ký kiểm toán bất biến.
+        Sau khi xác nhận, quyết định sẽ được ghi vào nhật ký vận hành và cập nhật trạng thái ngay lập tức.
       </p>
       <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button
@@ -228,7 +228,7 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
       <section className="overflow-hidden rounded-[18px] border border-line bg-white">
         <div className="flex flex-col justify-between gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-xs font-bold">Ca trực mẫu ngày 13/09/2026</p>
+            <p className="text-xs font-bold">Ca trực vận hành · 13/09/2026</p>
             <p className="mt-1 text-[11px] text-ink-muted">
               Việc cần xử lý trước khi chuyển ca chiều
             </p>
@@ -242,14 +242,14 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
             {
               icon: FileCheck2,
               value: `${data.operations.reviewsDueToday} hồ sơ`,
-              label: "đến hạn tại mốc dữ liệu",
+              label: "đến hạn trong ca trực",
               detail: `${data.operations.overdueReviews} hồ sơ đã quá hạn xử lý`,
               tone: "text-amber-700 bg-amber-50",
             },
             {
               icon: CircleDollarSign,
               value: formatVnd(data.operations.authorizedAmount, true),
-              label: "cam kết mẫu chưa thu",
+              label: "cam kết đang ủy quyền",
               detail: `${data.operations.authorizedPledges.toLocaleString("vi-VN")} cam kết chưa thu`,
               tone: "text-blue-700 bg-blue-50",
             },
@@ -289,7 +289,7 @@ function OverviewPanel({ data }: { data: AdminDashboardData }) {
                 Cam kết theo tháng
               </h2>
               <p className="mt-1 text-[11px] text-ink-muted">
-                Gồm cam kết và kết quả thu tiền được dựng bằng dữ liệu mẫu
+                Tổng hợp giá trị cam kết và kết quả chốt thu theo từng tháng
               </p>
             </div>
             <span className="rounded-[8px] bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
@@ -444,7 +444,7 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
           Hồ sơ cần theo dõi
         </h2>
         <p className="mt-2 text-xs text-ink-muted">
-          Mở từng hồ sơ để đọc nội dung đã gửi. Quyết định và phản hồi sẽ gắn với đúng chiến dịch trong bản dùng thử.
+          Mở từng hồ sơ để đối chiếu nội dung đã gửi. Quyết định và phản hồi sẽ được gửi trực tiếp tới chủ dự án.
         </p>
       </div>
       {notice ? (
@@ -670,7 +670,7 @@ function ReviewPanel({ data }: { data: AdminDashboardData }) {
                         </div>
                       </div>
                       <p className="border-t border-line pt-3 text-[11px] leading-5 text-ink-muted">
-                        Nội dung trên lấy từ bản nháp dùng thử, chưa phải giấy tờ hoặc bằng chứng xác minh. Quản trị viên tự đọc và đưa ra quyết định.
+                        Nội dung trên trích xuất từ hồ sơ gửi duyệt của chủ dự án. Quản trị viên đối chiếu đầy đủ trước khi đưa ra quyết định.
                       </p>
                     </div>
                   ) : null}
@@ -960,20 +960,25 @@ function FraudPanel({ data }: { data: AdminDashboardData }) {
 }
 
 function UsersPanel({ data }: { data: AdminDashboardData }) {
+  const { session } = useAuth();
   const [users, setUsers] = useState(data.users);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [userView, setUserView] = useState<"ACCOUNTS" | "SAMPLES">("ACCOUNTS");
   const filteredUsers = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase("vi");
-    if (!keyword) return users;
-    return users.filter((user) =>
-      `${user.name} ${user.email} ${user.location} ${user.roles.join(" ")} ${user.status}`
+    const inView = users.filter((user) => userView === "SAMPLES"
+      ? user.accountKind === "SAMPLE_PROFILE" : user.accountKind !== "SAMPLE_PROFILE");
+    if (!keyword) return inView;
+    return inView.filter((user) =>
+      `${user.name} ${user.email} ${user.location} ${user.roles.join(" ")} ${user.status} ${(user.campaignRelations ?? []).map((relation) => relation.title).join(" ")}`
         .toLocaleLowerCase("vi")
         .includes(keyword),
     );
-  }, [query, users]);
+  }, [query, userView, users]);
   const pendingUser = users.find((user) => user.id === pendingUserId) ?? null;
 
   const toggle = async (id: string, current: string) => {
@@ -984,10 +989,11 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
       await callAdminAction("SET_USER_STATUS", {
         userId: id,
         status,
-        reason: "Cập nhật từ bảng quản trị",
+        reason: reason.trim(),
       });
       setUsers((rows) =>
-        rows.map((user) => (user.id === id ? { ...user, status } : user)),
+        rows.map((user) => (user.id === id ? { ...user, status,
+          lastStatusChange: { reason: reason.trim(), changedAt: new Date().toISOString() } } : user)),
       );
       setNotice(
         status === "ACTIVE" ? "Đã mở khóa tài khoản." : "Đã khóa tài khoản.",
@@ -1002,6 +1008,7 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
     } finally {
       setBusy(null);
       setPendingUserId(null);
+      setReason("");
     }
   };
 
@@ -1015,6 +1022,7 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
           <h2 className="mt-2 font-display text-2xl font-extrabold">
             Quản lý tài khoản
           </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">Một người có thể sở hữu nhiều chiến dịch và tham gia nhóm ở chiến dịch khác. Khóa tài khoản không xóa dự án hay lịch sử.</p>
         </div>
         <label className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
@@ -1038,15 +1046,20 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
           ) : null}
         </label>
       </div>
+      <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Loại người dùng">
+        <button type="button" className={userView === "ACCOUNTS" ? "button-dark min-h-10" : "button-secondary min-h-10"} aria-pressed={userView === "ACCOUNTS"} onClick={() => setUserView("ACCOUNTS")}>Tài khoản dùng được ({users.filter((user) => user.accountKind !== "SAMPLE_PROFILE").length})</button>
+        <button type="button" className={userView === "SAMPLES" ? "button-dark min-h-10" : "button-secondary min-h-10"} aria-pressed={userView === "SAMPLES"} onClick={() => setUserView("SAMPLES")}>Hồ sơ dữ liệu mẫu ({users.filter((user) => user.accountKind === "SAMPLE_PROFILE").length})</button>
+      </div>
       {notice ? (
         <AdminNotice message={notice} className="mt-4" />
       ) : null}
       <div className="mt-6 overflow-x-auto rounded-[22px] border border-line bg-white">
-        <table className="w-full min-w-[700px] text-left text-xs">
+        <table className="w-full min-w-[860px] text-left text-xs">
           <thead className="bg-[#f3f3ed] text-[11px] uppercase tracking-wider text-ink-muted">
             <tr>
               <th className="px-5 py-4">Người dùng</th>
               <th className="px-5 py-4">Vai trò</th>
+              <th className="px-5 py-4">Liên quan dự án</th>
               <th className="px-5 py-4">Trạng thái</th>
               <th className="px-5 py-4">Hoạt động cuối</th>
               <th className="px-5 py-4 text-right">Thao tác</th>
@@ -1065,6 +1078,7 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
                       <span className="mt-0.5 block truncate text-[11px] text-ink-muted">
                         {user.email}
                       </span>
+                      <span className="mt-1 block text-[10px] text-ink-muted">{user.accountKind === "REGISTERED" ? "Tài khoản đã đăng ký" : user.accountKind === "DEMO_LOGIN" ? "Có đăng nhập nhanh" : "Chỉ để mô phỏng dữ liệu"}</span>
                     </span>
                   </div>
                 </td>
@@ -1073,6 +1087,20 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
                   <span className="mt-1 block text-[11px] text-ink-muted">
                     {user.location}
                   </span>
+                </td>
+                <td className="px-5 py-4 text-ink-soft">
+                  {user.campaignRelations?.length ? <details className="group max-w-52">
+                    <summary className="cursor-pointer font-bold text-forest underline-offset-2 hover:underline">
+                      {user.campaignRelations.filter((item) => item.kind === "OWNER").length} sở hữu · {user.campaignRelations.filter((item) => item.kind === "COLLABORATOR").length} cộng tác{user.campaignRelations.some((item) => item.kind === "INVITED") ? ` · ${user.campaignRelations.filter((item) => item.kind === "INVITED").length} lời mời` : ""}
+                    </summary>
+                    <ul className="mt-2 space-y-1.5 border-l-2 border-line pl-2">
+                      {user.campaignRelations.map((item) => <li key={`${item.campaignId}:${item.kind}`}>
+                        <Link href={`/campaigns/${item.campaignId}/timeline`} className="block hover:text-forest hover:underline">
+                          {item.title} <span className="text-[10px] text-ink-muted">· {item.kind === "OWNER" ? "Chủ dự án" : item.kind === "COLLABORATOR" ? "Thành viên" : "Chưa nhận lời"}</span>
+                        </Link>
+                      </li>)}
+                    </ul>
+                  </details> : <span className="text-ink-muted">Chưa có</span>}
                 </td>
                 <td className="px-5 py-4">
                   <span
@@ -1084,13 +1112,16 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
                         ? "Đã khóa"
                         : "Đang xem xét"}
                   </span>
+                  {user.lastStatusChange ? <p className="mt-2 max-w-44 text-[11px] leading-4 text-ink-muted" title={user.lastStatusChange.changedAt}>
+                    Lý do gần nhất: {user.lastStatusChange.reason}
+                  </p> : null}
                 </td>
                 <td className="px-5 py-4 text-ink-muted">{user.lastSeen}</td>
                 <td className="px-5 py-4 text-right">
                   <button
                     type="button"
-                    disabled={busy === user.id}
-                    onClick={() => setPendingUserId(user.id)}
+                    disabled={busy === user.id || user.id === session?.user.id || user.accountKind === "SAMPLE_PROFILE"}
+                    onClick={() => { setReason(""); setPendingUserId(user.id); }}
                     className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3 font-bold text-ink-soft hover:border-coral/30 hover:text-coral-dark"
                   >
                     {user.status === "SUSPENDED" ? (
@@ -1098,7 +1129,7 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
                     ) : (
                       <Ban className="size-3.5" />
                     )}
-                    {user.status === "SUSPENDED" ? "Mở khóa" : "Khóa"}
+                    {user.accountKind === "SAMPLE_PROFILE" ? "Chỉ xem" : user.id === session?.user.id ? "Tài khoản của bạn" : user.status === "SUSPENDED" ? "Mở khóa" : "Khóa"}
                   </button>
                 </td>
               </tr>
@@ -1106,7 +1137,7 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
             {!filteredUsers.length ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-5 py-10 text-center text-sm text-ink-muted"
                 >
                   <UserRoundCog className="mx-auto size-6 text-stone-400" />
@@ -1130,19 +1161,23 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
         </table>
       </div>
       {pendingUser ? (
-        <InlineActionConfirm
-          title={`${pendingUser.status === "SUSPENDED" ? "Mở khóa" : "Khóa"} tài khoản ${pendingUser.name}?`}
-          detail={
-            pendingUser.status === "SUSPENDED"
-              ? "Người dùng sẽ đăng nhập và dùng lại các quyền đang có."
-              : "Người dùng sẽ bị dừng đăng nhập; dữ liệu chiến dịch và cam kết vẫn được giữ để đối soát."
-          }
-          confirmLabel={pendingUser.status === "SUSPENDED" ? "Xác nhận mở khóa" : "Xác nhận khóa"}
-          danger={pendingUser.status !== "SUSPENDED"}
-          busy={busy === pendingUser.id}
-          onConfirm={() => void toggle(pendingUser.id, pendingUser.status)}
-          onCancel={() => setPendingUserId(null)}
-        />
+        <Modal open title={`${pendingUser.status === "SUSPENDED" ? "Mở khóa" : "Khóa"} tài khoản ${pendingUser.name}?`}
+          description={pendingUser.email} onClose={() => { if (busy !== pendingUser.id) setPendingUserId(null); }} locked={busy === pendingUser.id} size="sm">
+          <p className="text-sm leading-6 text-ink-soft">{pendingUser.status === "SUSPENDED"
+            ? "Người dùng sẽ đăng nhập và dùng lại các quyền đang có."
+            : "Người dùng sẽ dừng thao tác; dự án, công việc và cam kết liên quan vẫn được giữ để đối soát."}</p>
+          <label className="mt-4 block text-sm font-semibold">Lý do xử lý
+            <textarea name="userStatusReason" className="input-field mt-2 min-h-24 w-full" value={reason} maxLength={240}
+              onChange={(event) => setReason(event.target.value)} placeholder="Ghi lý do cụ thể để người sau hiểu quyết định này" />
+          </label>
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" className="button-secondary" disabled={busy === pendingUser.id} onClick={() => setPendingUserId(null)}>Để sau</button>
+            <button type="button" className="button-dark" disabled={!reason.trim() || busy === pendingUser.id}
+              onClick={() => void toggle(pendingUser.id, pendingUser.status)}>
+              {busy === pendingUser.id ? "Đang lưu…" : pendingUser.status === "SUSPENDED" ? "Xác nhận mở khóa" : "Xác nhận khóa"}
+            </button>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
@@ -1436,7 +1471,7 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
     {
       label: "Tổng cam kết",
       value: formatVnd(data.metrics.grossPledged, true),
-      detail: "Từ tháng 4 đến mốc mẫu",
+      detail: "Tổng lũy kế từ tháng 4",
       icon: CircleDollarSign,
       tone: "bg-[#eef4df] text-[#566c27]",
       tab: "overview" as const,
@@ -1466,9 +1501,9 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
       tab: "fraud" as const,
     },
     {
-      label: "Tài khoản minh họa",
+      label: "Hồ sơ người dùng",
       value: String(data.users.length),
-      detail: "Có vai trò và trạng thái để đối chiếu",
+      detail: "Phân quyền và trạng thái hoạt động",
       icon: UserRoundCog,
       tone: "bg-[#eeeef3] text-[#4c4f60]",
       tab: "users" as const,
@@ -1492,7 +1527,6 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {localDbAvailable && <Link href="/local-data" className="inline-flex items-center gap-2 rounded-[9px] border border-lime/40 bg-lime/10 px-4 py-2 text-xs font-bold text-lime hover:bg-lime/20"><Database className="size-4" /> Xem dữ liệu SQLite</Link>}
               <span className="inline-flex w-fit items-center gap-2 rounded-[9px] border border-white/15 bg-white/7 px-4 py-2 text-xs text-white/72">
                 <span className="size-1.5 rounded-full bg-lime" /> Chốt dữ liệu {data.operations.snapshotAt}
               </span>
@@ -1502,6 +1536,31 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
       </div>
 
       <div id="workspace-content" className="container-shell scroll-mt-28 pt-6">
+        <div className="mb-5 grid overflow-hidden rounded-[16px] border border-line bg-white sm:grid-cols-2 xl:grid-cols-5">
+          {metrics.map((metric) => {
+            const Icon = metric.icon;
+            const active = tab === metric.tab;
+            return (
+              <button
+                key={metric.label}
+                type="button"
+                onClick={() => setTab(metric.tab)}
+                aria-current={active ? "page" : undefined}
+                className={`flex cursor-pointer items-center gap-4 border-b border-line p-4 text-left transition-colors last:border-b-0 hover:bg-[#f8f8f5] sm:border-r xl:border-b-0 xl:last:border-r-0 ${active ? "bg-[#f3f0f0] shadow-[inset_3px_0_0_#bd3038]" : "bg-white"}`}
+              >
+                <span className={`grid size-10 shrink-0 place-items-center rounded-[9px] ${metric.tone}`}>
+                  <Icon className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-display text-xl font-extrabold">{metric.value}</p>
+                  <p className="mt-1 truncate text-xs text-ink-muted">{metric.label}</p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-ink-muted">{metric.detail}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex items-center gap-2 text-[11px] font-bold text-[#676a75]" role="status" aria-live="polite">
           <ShieldCheck className="size-3.5" /> Đang xem: {currentTab.title}
         </div>
@@ -1512,44 +1571,6 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
               <AdminContent tab={panelTab} data={data} localDbAvailable={localDbAvailable} />
             </section>
           ))}
-        </div>
-
-        <div className="mt-6">
-          <div className="mb-3 flex items-end justify-between gap-4">
-            <div>
-              <p className="eyebrow text-[#9f2630]">Đi nhanh trong bàn kiểm soát</p>
-              <h2 className="mt-1 font-display text-lg font-extrabold">
-                Mỗi số liệu mở đúng khu vực xử lý
-              </h2>
-            </div>
-            <span className="hidden text-[11px] text-ink-muted sm:block">
-              Trạng thái lấy từ cùng một nguồn dữ liệu
-            </span>
-          </div>
-          <div className="grid overflow-hidden rounded-[16px] border border-line bg-white sm:grid-cols-2 xl:grid-cols-5">
-            {metrics.map((metric) => {
-              const Icon = metric.icon;
-              const active = tab === metric.tab;
-              return (
-                <button
-                  key={metric.label}
-                  type="button"
-                  onClick={() => setTab(metric.tab)}
-                  aria-current={active ? "page" : undefined}
-                  className={`flex cursor-pointer items-center gap-4 border-b border-line p-4 text-left transition-colors last:border-b-0 hover:bg-[#f8f8f5] sm:border-r xl:border-b-0 xl:last:border-r-0 ${active ? "bg-[#f3f0f0] shadow-[inset_3px_0_0_#bd3038]" : "bg-white"}`}
-                >
-                  <span className={`grid size-10 shrink-0 place-items-center rounded-[9px] ${metric.tone}`}>
-                    <Icon className="size-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-display text-xl font-extrabold">{metric.value}</p>
-                    <p className="mt-1 truncate text-xs text-ink-muted">{metric.label}</p>
-                    <p className="mt-0.5 text-[11px] leading-4 text-ink-muted">{metric.detail}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {tab === "overview" ? (

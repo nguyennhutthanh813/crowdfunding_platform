@@ -110,8 +110,7 @@ export function FeaturedCampaign({ campaign, localDbAvailable }: { campaign: Cam
               </Link>
             </div>
             <p className="mt-4 text-[11px] leading-5 text-ink-muted">
-              {localDbAvailable ? "Cam kết được lưu trên máy trong SQLite; " : "Cam kết chỉ lưu trong phiên dùng thử; "}
-              chưa giữ thẻ hoặc thu tiền.
+              Theo quy tắc Tất cả hoặc không gì cả, dự án cần đạt mục tiêu trước khi chuyển sang chuẩn bị quà. Bản hiện tại ghi cam kết {localDbAvailable ? "vào dữ liệu trên máy" : "trong phiên dùng thử"}, chưa xử lý thanh toán.
             </p>
           </div>
         </article>

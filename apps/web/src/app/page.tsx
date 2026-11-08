@@ -41,7 +41,6 @@ export default async function HomePage() {
   return (
     <>
       <FeaturedCampaign campaign={featured} localDbAvailable={localDbAvailable} />
-      <ProjectJourneyPreview campaignId={featured.id} localDbAvailable={localDbAvailable} />
       <CategoryLinks />
 
       <section className="page-section">
@@ -76,6 +75,8 @@ export default async function HomePage() {
         </div>
       </section>
 
+      <ProjectJourneyPreview campaignId={featured.id} localDbAvailable={localDbAvailable} />
+
       <section className="border-y border-line bg-[#ebe7dc] py-14 sm:py-18">
         <div className="container-shell grid overflow-hidden rounded-[22px] border border-line bg-white lg:grid-cols-[0.85fr_1.15fr]">
           <div className="flex flex-col justify-center p-7 sm:p-9 lg:p-11">
@@ -90,7 +91,7 @@ export default async function HomePage() {
             </p>
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-muted">
               <span className="font-bold text-ink-soft">
-                Dự kiến mở theo mốc mẫu: {formatDate(upcoming.launchDate, {
+                Mốc mở theo dữ liệu mẫu: {formatDate(upcoming.launchDate, {
                   hour: "2-digit",
                   minute: "2-digit",
                   day: "2-digit",

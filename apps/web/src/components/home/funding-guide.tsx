@@ -1,4 +1,4 @@
-import { BadgeCheck, CreditCard, PackageCheck } from "lucide-react";
+import { BadgeCheck, HandHeart, PackageCheck } from "lucide-react";
 import Image from "next/image";
 
 const steps = [
@@ -9,16 +9,16 @@ const steps = [
     text: "Đọc câu chuyện, kế hoạch dùng vốn, rủi ro và thông tin của nhóm thực hiện.",
   },
   {
-    icon: CreditCard,
+    icon: HandHeart,
     number: "02",
     title: "Chọn mức muốn góp",
-    text: "Bạn chọn gói quà và địa chỉ giao. Cam kết được ghi lại để bạn xem trong tài khoản; chưa giữ tiền thật.",
+    text: "Chọn gói quà và nhập địa chỉ nếu cần giao. Sổ ủng hộ ghi lại cam kết để bạn xem lại.",
   },
   {
     icon: PackageCheck,
     number: "03",
     title: "Chờ chiến dịch kết thúc",
-    text: "Khi có cổng thanh toán, chỉ chiến dịch đạt mục tiêu mới được thu tiền; nếu không đạt, khoản ủy quyền cần được hủy. Hiện chưa liên kết ngân hàng.",
+    text: "Xem kết quả đạt mục tiêu hay chưa, rồi theo dõi các cập nhật về quà. Bản hiện tại chưa xử lý tiền thật.",
   },
 ] as const;
 
@@ -33,9 +33,8 @@ export function FundingGuide({ localDbAvailable }: { localDbAvailable: boolean }
               Rõ trước khi góp, yên tâm khi chờ
             </h2>
             <p className="mt-4 text-sm leading-7 text-ink-soft">
-              Góp mô phỏng cơ chế tất cả hoặc không. Chủ dự án phải đạt mục tiêu đã
-              công bố thì khoản cam kết mới được xử lý ở phiên bản có cổng thanh toán.
-              {localDbAvailable ? " Dữ liệu thao tác hiện lưu trong SQLite trên máy chạy web." : " Dữ liệu dùng thử hiện chỉ nằm trong trình duyệt của bạn."}
+              Góp mô phỏng cơ chế Tất cả hoặc không gì cả: chiến dịch đạt mục tiêu đã công bố mới chuyển sang bước chuẩn bị quà.
+              {localDbAvailable ? " Các thay đổi được lưu trong SQLite trên máy để những vai trò liên quan cùng xem." : " Dữ liệu dùng thử của bản web này nằm trong trình duyệt."}
             </p>
           </div>
           <div className="relative min-h-[220px] overflow-hidden rounded-[18px] border border-line sm:min-h-[290px]">
@@ -43,7 +42,7 @@ export function FundingGuide({ localDbAvailable }: { localDbAvailable: boolean }
               alt="Ảnh minh họa hai người chuẩn bị hộp quà thủ công trong xưởng nhỏ"
               fill sizes="(max-width: 1024px) 100vw, 52vw" className="object-cover object-center" />
             <p className="absolute bottom-3 left-3 right-3 w-fit max-w-[90%] rounded-lg bg-white/94 px-3 py-2 text-[11px] font-semibold text-forest shadow-sm backdrop-blur-sm">
-              Minh họa khâu chuẩn bị quà · chưa phải đơn hàng thật
+              Khâu chuẩn bị và đóng gói quà tại xưởng dự án sau khi gọi vốn thành công
             </p>
           </div>
         </div>

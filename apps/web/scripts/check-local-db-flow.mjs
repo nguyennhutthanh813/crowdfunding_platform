@@ -40,6 +40,7 @@ const creatorAgain = browser();
 const admin = browser();
 const backer = browser();
 const backerAgain = browser();
+const collaborator = browser();
 const anonymous = browser();
 assert.equal((await anonymous("/api/v1/local-db")).status, 401);
 const guestTimeline = await anonymous("/campaigns/cmp_orbit/timeline");
@@ -73,11 +74,27 @@ const campaignRoute = "/api/v1/creator/campaigns";
 const created = await creator(campaignRoute, "POST", {
   action: "CREATE", draft: fields,
   rewards: [{ id: 1, title: "Bộ lọc lô đầu", amount: "750000", delivery: "03/2027", limit: "100" }],
-  addOns: [], collaborators: [],
+  addOns: [], collaborators: [{ id: 1, email: "giahuy@orbit.vn", name: "Lê Gia Huy",
+    canUpdate: true, canReply: true, canViewAi: false }],
 });
 assert.equal(created.status, 201, JSON.stringify(created.data));
 const campaignId = created.data.data.campaignId;
 assert.match(campaignId, /^cmp_preview_[a-f0-9]{12}$/);
+
+const extraDraft = await creator(campaignRoute, "POST", {
+  action: "CREATE", draft: { title: "Bản nháp chỉ để kiểm xóa" },
+  rewards: [{ id: 1, title: "Gói thử", amount: "100000", delivery: "03/2027", limit: "5" }],
+  addOns: [], collaborators: [],
+});
+assert.equal(extraDraft.status, 201, JSON.stringify(extraDraft.data));
+const extraDraftId = extraDraft.data.data.campaignId;
+assert.equal((await admin(campaignRoute, "POST", { action: "DELETE_DRAFT", campaignId: extraDraftId })).status, 403);
+assert.equal((await creator(campaignRoute, "POST", { action: "DELETE_DRAFT", campaignId: extraDraftId })).status, 200);
+assert.ok(!(await admin("/api/v1/local-db")).data.data.campaigns.some((item) => item.id === extraDraftId),
+  "Bản nháp đã xóa vẫn nằm trong bảng campaigns của SQLite");
+const removedPage = await creator(`/creator/campaigns/${extraDraftId}/manage`);
+assert.ok(String(removedPage.data).includes("404 · Không tìm thấy"),
+  "Đường dẫn bản nháp đã xóa vẫn mở được nội dung cũ");
 
 await login(creatorAgain, "linh@orbit.vn");
 let portfolio = await creatorAgain("/api/v1/creator/portfolio");
@@ -85,6 +102,8 @@ assert.ok(portfolio.data.campaigns.some((item) => item.id === campaignId && item
 assert.ok(portfolio.data.campaigns.filter((item) => item.ownership === "OWNER").length >= 4);
 const submitted = await creator(campaignRoute, "POST", { action: "SUBMIT", campaignId });
 assert.equal(submitted.status, 200, JSON.stringify(submitted.data));
+assert.equal((await creator(campaignRoute, "POST", { action: "DELETE_DRAFT", campaignId })).status, 409,
+  "Hồ sơ đã gửi duyệt không được xóa như bản nháp mới");
 const reviewQueue = await admin("/api/v1/admin/overview");
 const review = reviewQueue.data.reviewQueue.find((item) => item.title === title);
 assert.ok(review, "Admin ở trình duyệt khác chưa thấy hồ sơ");
@@ -160,4 +179,125 @@ assert.ok(backerTimeline.data.includes("Ghi cam kết ủng hộ mẫu"));
 assert.ok(!backerTimeline.data.includes("Điều chỉnh quyền cộng tác"),
   "Việc nội bộ không được lộ trong trang người ủng hộ.");
 assert.equal((await admin("/local-data")).status, 200);
-console.log(`PASS SQLite local: ${after.data.data.tables.length} bảng, tạo/lưu/gửi/sửa/duyệt chiến dịch qua hai trình duyệt; đăng ký/cam kết/đăng nhập lại; nhật ký phân quyền; khóa ngoại hợp lệ. Campaign ${campaignId}`);
+
+await login(collaborator, "giahuy@orbit.vn");
+const accepted = await collaborator("/api/v1/collaborator/invitations", "POST", {
+  action: "ACCEPT", campaignId,
+});
+assert.equal(accepted.status, 200, JSON.stringify(accepted.data));
+const taskRoute = "/api/v1/campaign-tasks";
+assert.equal((await anonymous(taskRoute, "POST", { action: "CREATE", campaignId })).status, 401);
+assert.equal((await creator(taskRoute, "POST", { action: "CREATE", campaignId,
+  title: "Kiểm tra lõi lọc lô đầu", assigneeUserId: "usr_minh_anh" })).status, 422,
+"Không được giao việc cho người ngoài nhóm");
+const assigned = await creator(taskRoute, "POST", { action: "CREATE", campaignId,
+  title: "Kiểm tra lõi lọc lô đầu", detail: "Đo tốc độ lọc trên ba vòi nước ở Đà Nẵng.",
+  assigneeUserId: "usr_gia_huy" });
+assert.equal(assigned.status, 201, JSON.stringify(assigned.data));
+const taskId = assigned.data.data.taskId;
+assert.equal((await admin(taskRoute, "POST", { action: "DELETE", campaignId, taskId })).status, 403);
+assert.equal((await collaborator(taskRoute, "POST", { action: "EDIT", campaignId, taskId,
+  title: "Tự ý sửa tên việc", assigneeUserId: "usr_gia_huy" })).status, 403);
+assert.equal((await collaborator(taskRoute, "POST", { action: "UPDATE_STATUS", campaignId, taskId,
+  status: "IN_PROGRESS" })).status, 200);
+assert.ok((await creator(`/creator/campaigns/${campaignId}/manage`)).data.includes("Kiểm tra lõi lọc lô đầu"));
+assert.ok((await collaborator(`/collaborator/campaigns/${campaignId}/manage`)).data.includes("Kiểm tra lõi lọc lô đầu"));
+assert.ok(!(await anonymous(`/collaborator/campaigns/${campaignId}/manage`)).data.includes("Kiểm tra lõi lọc lô đầu"));
+assert.equal((await creator(taskRoute, "POST", { action: "EDIT", campaignId, taskId,
+  title: "Ghi lại tốc độ lọc lô đầu", detail: "Gửi số đo và ảnh vào nhóm.",
+  assigneeUserId: "usr_gia_huy" })).status, 200);
+assert.ok((await collaborator(`/collaborator/campaigns/${campaignId}/manage`)).data.includes("Ghi lại tốc độ lọc lô đầu"));
+assert.equal((await creator(taskRoute, "POST", { action: "EDIT", campaignId, taskId,
+  title: "Ghi lại tốc độ lọc lô đầu", detail: "Gửi số đo và ảnh vào nhóm.",
+  assigneeUserId: "usr_hoang_linh" })).status, 422,
+"Đổi người nhận phải có lý do bàn giao");
+assert.equal((await creator(taskRoute, "POST", { action: "EDIT", campaignId, taskId,
+  title: "Ghi lại tốc độ lọc lô đầu", detail: "Gửi số đo và ảnh vào nhóm.",
+  assigneeUserId: "usr_hoang_linh", handoffNote: "Chủ dự án tự tổng hợp kết quả." })).status, 200);
+assert.ok(!(await collaborator(`/collaborator/campaigns/${campaignId}/manage`)).data.includes("Ghi lại tốc độ lọc lô đầu"));
+assert.equal((await creator(taskRoute, "POST", { action: "EDIT", campaignId, taskId,
+  title: "Ghi lại tốc độ lọc lô đầu", detail: "Gửi số đo và ảnh vào nhóm.",
+  assigneeUserId: "usr_gia_huy", handoffNote: "Gia Huy tiếp tục đo lô thứ hai." })).status, 200);
+assert.equal((await creator(taskRoute, "POST", { action: "DELETE", campaignId, taskId })).status, 200);
+assert.ok(!(await collaborator(`/collaborator/campaigns/${campaignId}/manage`)).data.includes("Ghi lại tốc độ lọc lô đầu"));
+const ongoing = await creator(taskRoute, "POST", { action: "CREATE", campaignId,
+  title: "Chuẩn bị ảnh lô lọc tiếp theo", detail: "Chọn ảnh rõ chi tiết lõi và tem dán.",
+  assigneeUserId: "usr_gia_huy" });
+assert.equal(ongoing.status, 201);
+const ongoingId = ongoing.data.data.taskId;
+assert.equal((await creator(taskRoute, "POST", { action: "EDIT", campaignId, taskId: ongoingId,
+  title: "Chuẩn bị ảnh lô lọc tiếp theo", detail: "Chọn ảnh rõ chi tiết lõi và tem dán.",
+  assigneeUserId: "usr_hoang_linh", handoffNote: "Linh kiểm tra ảnh gốc trước." })).status, 200);
+assert.equal((await creator(taskRoute, "POST", { action: "EDIT", campaignId, taskId: ongoingId,
+  title: "Chuẩn bị ảnh lô lọc tiếp theo", detail: "Chọn ảnh rõ chi tiết lõi và tem dán.",
+  assigneeUserId: "usr_gia_huy", handoffNote: "Gia Huy chọn ảnh để đăng." })).status, 200);
+assert.ok((await collaborator(`/collaborator/campaigns/${campaignId}/manage`)).data.includes("Chuẩn bị ảnh lô lọc tiếp theo"));
+assert.ok((await collaborator(`/collaborator/campaigns/${campaignId}/manage`)).data.includes("Lịch sử bàn giao"));
+assert.ok((await creatorAgain(`/creator/campaigns/${campaignId}/manage`)).data.includes("Chuẩn bị ảnh lô lọc tiếp theo"));
+const creatorOverview = await creatorAgain("/creator");
+assert.ok(creatorOverview.data.includes(title) && creatorOverview.data.includes("Việc đang mở"));
+const collaboratorOverview = await collaborator("/collaborator");
+assert.ok(collaboratorOverview.data.includes("việc nhóm đang chờ bạn làm"));
+assert.ok(collaboratorOverview.data.includes(`#cong-viec-nhom`));
+assert.equal((await creator(campaignRoute, "POST", { action: "LAUNCH", campaignId })).status, 200);
+assert.ok(!(await anonymous(`/projects/${campaignId}`)).data.includes("Chuẩn bị ảnh lô lọc tiếp theo"),
+  "Việc nội bộ không được hiện trên trang dự án công khai");
+const ownerUpdate = await creator(campaignRoute, "POST", {
+  action: "PUBLISH_UPDATE", campaignId,
+  title: "Đã thử lõi lọc lô đầu",
+  body: "Nhóm đã thử lõi lọc trên vòi nước ở ba căn bếp nhỏ tại Đà Nẵng và đang ghi lại tốc độ lọc.",
+});
+assert.equal(ownerUpdate.status, 200, JSON.stringify(ownerUpdate.data));
+const ownerUpdateId = ownerUpdate.data.data.updateId;
+assert.equal((await collaborator("/api/v1/collaborator/campaigns", "POST", {
+  action: "EDIT_UPDATE", campaignId, updateId: ownerUpdateId,
+  title: "Sửa bài của người khác", body: "Nội dung này không được phép ghi đè lên bài do Chủ dự án đăng.",
+})).status, 403);
+const collaboratorUpdate = await collaborator("/api/v1/collaborator/campaigns", "POST", {
+  action: "PUBLISH_UPDATE", campaignId,
+  title: "Đã nhận hình ảnh lô thử",
+  body: "Nhóm phần cứng đã nhận bộ ảnh lô thử và đang so lại mã linh kiện trước khi công bố lịch giao.",
+});
+assert.equal(collaboratorUpdate.status, 201, JSON.stringify(collaboratorUpdate.data));
+const updateId = collaboratorUpdate.data.data.id;
+const edited = await collaborator("/api/v1/collaborator/campaigns", "POST", {
+  action: "EDIT_UPDATE", campaignId, updateId,
+  title: "Đã đối chiếu ảnh lô thử",
+  body: "Nhóm phần cứng đã đối chiếu ảnh lô thử với mã linh kiện, còn chờ xác nhận mẫu cuối để báo lịch giao.",
+});
+assert.equal(edited.status, 200, JSON.stringify(edited.data));
+let publicDetail = await backer(`/api/v1/campaigns/${campaignId}`);
+assert.equal(publicDetail.status, 200);
+assert.ok(publicDetail.data.updates.some((item) => item.id === updateId && item.title === "Đã đối chiếu ảnh lô thử"));
+assert.equal((await collaborator("/api/v1/collaborator/campaigns", "POST", {
+  action: "DELETE_UPDATE", campaignId, updateId: ownerUpdateId,
+})).status, 403, "Cộng tác viên không được gỡ bài của Chủ dự án");
+assert.equal((await backer(campaignRoute, "POST", { action: "DELETE_UPDATE", campaignId, updateId })).status, 403);
+const ownerEdited = await creator(campaignRoute, "POST", {
+  action: "EDIT_UPDATE", campaignId, updateId,
+  title: "Đã chốt ảnh và linh kiện",
+  body: "Chủ dự án đã kiểm tra ảnh và mã linh kiện do cộng tác viên bàn giao, tiếp theo nhóm công bố lịch giao dự kiến.",
+});
+assert.equal(ownerEdited.status, 200, JSON.stringify(ownerEdited.data));
+publicDetail = await backer(`/api/v1/campaigns/${campaignId}`);
+assert.ok(publicDetail.data.updates.some((item) => item.id === updateId && item.title === "Đã chốt ảnh và linh kiện"));
+assert.equal((await creator(campaignRoute, "POST", { action: "DELETE_UPDATE", campaignId, updateId })).status, 200);
+publicDetail = await backer(`/api/v1/campaigns/${campaignId}`);
+assert.ok(!publicDetail.data.updates.some((item) => item.id === updateId), "Bản tin đã gỡ vẫn hiện công khai");
+assert.ok(publicDetail.data.updates.some((item) => item.id === ownerUpdateId));
+const finalDb = await admin("/api/v1/local-db");
+assert.deepEqual(finalDb.data.data.foreignKeyErrors, []);
+assert.equal(finalDb.data.data.tables.find((item) => item.name === "campaign_tasks").count,
+  before.data.data.tables.find((item) => item.name === "campaign_tasks").count + 1,
+  "Công việc còn mở phải có một dòng trong SQLite, việc đã xóa không được sót lại");
+assert.equal(finalDb.data.data.tables.find((item) => item.name === "campaign_task_handoffs").count,
+  before.data.data.tables.find((item) => item.name === "campaign_task_handoffs").count + 2,
+  "Lịch sử bàn giao của việc đang mở phải có hai dòng, việc đã xóa không còn handoff");
+assert.ok(finalDb.data.data.recentHandoffs.some((item) => item.campaignId === campaignId &&
+  item.taskTitle === "Chuẩn bị ảnh lô lọc tiếp theo" && item.note === "Gia Huy chọn ảnh để đăng."));
+assert.ok(finalDb.data.data.recentTasks.some((item) => item.id === ongoing.data.data.taskId &&
+  item.campaignId === campaignId && item.assignee === "Lê Gia Huy" &&
+  item.detail === "Chọn ảnh rõ chi tiết lõi và tem dán."),
+"Dòng việc SQLite phải giữ đúng chiến dịch, người nhận và nội dung");
+assert.ok(finalDb.data.data.campaigns.find((item) => item.id === campaignId).eventCount >= 11);
+console.log(`PASS SQLite local: ${after.data.data.tables.length} bảng; tạo/xóa nháp; giao/sửa/bàn giao/xóa việc, cộng tác viên cập nhật; Creator → Admin → Collaborator → Backer; đăng/sửa/gỡ bản tin; khóa ngoại hợp lệ. Campaign ${campaignId}`);

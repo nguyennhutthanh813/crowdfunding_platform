@@ -8,7 +8,7 @@ function apiError(status: number, code: string, message: string) {
 }
 
 export async function GET() {
-  const access = await requireSession(["COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
   const platform = await getServerPlatformPreviewState();
   const user = access.session!.user;
@@ -41,7 +41,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireSession(["COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
   let body: unknown;
   try {
@@ -60,6 +60,10 @@ export async function PATCH(request: Request) {
     return apiError(422, "NOTIFICATION_INVALID", "Thiếu mã câu hỏi hoặc thời điểm giao việc.");
   }
   const platform = await getServerPlatformPreviewState();
+  const invitation = previewInvitationForUser(campaignId, access.session!, platform);
+  if (!invitation?.accepted || !invitation.permissions.canReply) {
+    return apiError(403, "NOTIFICATION_PERMISSION_REQUIRED", "Bạn không còn quyền xử lý câu hỏi của chiến dịch này.");
+  }
   const assignment = platform.questionAssignments.find((item) =>
     item.campaignId === campaignId && item.commentId === commentId &&
     item.assignedAt === assignedAt && item.assigneeUserId === access.session!.user.id);

@@ -21,10 +21,7 @@ export function resolveCampaignAccess(
   const isOwner = Boolean(
     membership?.role === "OWNER" && session.user.roles.includes("CREATOR"),
   );
-  const isCollaborator = Boolean(
-    membership?.role === "COLLABORATOR" &&
-    session.user.roles.includes("COLLABORATOR"),
-  );
+  const isCollaborator = membership?.role === "COLLABORATOR";
   const permissions =
     platform?.collaboratorPermissions[
       campaignMemberKey(campaignId, session.user.id)

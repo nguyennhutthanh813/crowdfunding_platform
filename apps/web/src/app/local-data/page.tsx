@@ -19,6 +19,7 @@ const statusLabels: Record<string, string> = {
   DRAFT: "Bản nháp", IN_REVIEW: "Đang xét duyệt", PRE_LAUNCH: "Đã duyệt, chưa mở",
   LIVE: "Đang gọi vốn", APPROVED: "Đã duyệt", CHANGES: "Cần bổ sung",
   REJECTED: "Từ chối", PENDING: "Chờ xét duyệt", AUTHORIZED: "Đã ghi cam kết mẫu",
+  TODO: "Cần làm", IN_PROGRESS: "Đang làm", DONE: "Đã xong",
 };
 
 function status(value: unknown) {
@@ -109,6 +110,23 @@ export default async function LocalDataPage() {
         </ul> : <p className="mt-4 rounded-xl bg-[#f7f8f3] p-4 text-sm text-[#607469]">
           Chưa có bình luận mới. Đăng nhập tài khoản Người ủng hộ rồi viết ở tab Bình luận của một chiến dịch.
         </p>}
+      </section>
+
+      <section className="mb-8 rounded-[20px] border border-[#dce4d9] bg-white p-5 sm:p-6" aria-labelledby="campaign-tasks">
+        <p className="text-xs font-bold uppercase tracking-wider text-[#54785b]">Chiến dịch → người phụ trách → tiến độ</p>
+        <h2 id="campaign-tasks" className="mt-1 text-xl font-bold">Việc nhóm đã giao</h2>
+        <p className="mt-2 text-sm text-[#607469]">Các dòng này lấy từ bảng <code>campaign_tasks</code> của SQLite, cùng mã hồ sơ mà Chủ dự án và Cộng tác viên đang xem.</p>
+        {db.recentTasks.length ? <ul className="mt-4 grid gap-3 md:grid-cols-2">{db.recentTasks.map((row) => <li key={text(row.id)} className="rounded-xl border border-[#e3e9dd] bg-[#fafbf7] p-4">
+          <Link href={`/campaigns/${encodeURIComponent(text(row.campaignId))}/timeline`} className="text-sm font-semibold text-[#264437] underline-offset-2 hover:underline">{text(row.title)} ↗</Link>
+          {row.detail ? <p className="mt-2 text-sm leading-6 text-[#40564a]">{text(row.detail)}</p> : null}
+          <p className="mt-2 text-xs text-[#607469]">{text(row.campaignTitle)} · {text(row.assignee)} · {row.status === "IN_REVIEW" ? "Chờ chủ dự án duyệt" : status(row.status)}</p>
+        </li>)}</ul> : <p className="mt-4 rounded-xl bg-[#f7f8f3] p-4 text-sm text-[#607469]">Chưa có việc mới. Chủ dự án có thể giao việc sau khi hồ sơ được duyệt.</p>}
+        {db.recentHandoffs.length ? <div className="mt-5 border-t border-[#e3e9dd] pt-4">
+          <h3 className="text-sm font-bold">Các lần bàn giao</h3>
+          <ul className="mt-3 space-y-2 text-sm text-[#40564a]">{db.recentHandoffs.map((row) => <li key={text(row.id)}>
+            <b>{text(row.taskTitle)}</b>: {text(row.fromName)} → {text(row.toName)} · {text(row.note)}
+          </li>)}</ul>
+        </div> : null}
       </section>
 
       <section className="mb-8 rounded-[20px] border border-[#dce4d9] bg-white p-5 sm:p-6" aria-labelledby="question-assignments">

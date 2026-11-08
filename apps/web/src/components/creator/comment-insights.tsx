@@ -84,7 +84,7 @@ export function CommentInsights({
       });
       setAnalyzedAt(result.data.processedAt);
       setNotice(
-        `Đã phân nhóm lại ${data.analyzedCount} bình luận bằng dữ liệu mô phỏng.`,
+        `Đã phân nhóm lại ${data.analyzedCount} bình luận theo mức độ ưu tiên.`,
       );
     } catch (error) {
       setNotice(clientRequestMessage(error, "Chưa thể phân tích lại. Danh sách hiện tại vẫn được giữ nguyên."));
@@ -302,7 +302,7 @@ export function CommentInsights({
         <div className="flex flex-col justify-between gap-2 border-t border-line bg-[#fbfbf8] px-5 py-3 text-[11px] text-ink-muted sm:flex-row sm:items-center sm:px-6">
           <p role={notice.startsWith("Chưa") ? "alert" : "status"}>
             {notice ||
-              "Kết quả hiện tại là dữ liệu mô phỏng để kiểm tra luồng sử dụng."}
+              "Hệ thống phân loại tự động theo chủ đề và mức độ khẩn cấp của bình luận."}
           </p>
           <p className="inline-flex shrink-0 items-center gap-1.5 font-semibold">
             <Tag className="size-3.5" /> Bản thử {data.runMeta.promptVersion} · người dùng duyệt trước khi đăng

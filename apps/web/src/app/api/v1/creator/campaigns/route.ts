@@ -65,7 +65,7 @@ export async function POST(request: Request) {
   const body = objectValue(rawBody);
   if (!body) return apiError(422, "INVALID_BODY", "Nội dung gửi lên chưa hợp lệ.");
   const action = body.action;
-  if (action !== "CREATE" && action !== "SAVE" && action !== "SUBMIT" && action !== "LAUNCH" && action !== "REPLY_MESSAGE") {
+  if (action !== "CREATE" && action !== "SAVE" && action !== "SUBMIT" && action !== "LAUNCH" && action !== "REPLY_MESSAGE" && action !== "PUBLISH_UPDATE" && action !== "EDIT_UPDATE" && action !== "DELETE_UPDATE" && action !== "DELETE_DRAFT") {
     return apiError(400, "INVALID_ACTION", "Thao tác chiến dịch chưa hợp lệ.");
   }
 
@@ -84,8 +84,20 @@ export async function POST(request: Request) {
   if (action !== "CREATE" && (!existing || existing.ownerId !== ownerId)) {
     return apiError(404, "CAMPAIGN_NOT_FOUND", "Hồ sơ không tồn tại hoặc không thuộc tài khoản này.");
   }
-  if (action !== "CREATE" && action !== "LAUNCH" && action !== "REPLY_MESSAGE" && previewCampaignStatus(campaignId, platform) !== "DRAFT") {
+  if (action !== "CREATE" && action !== "LAUNCH" && action !== "REPLY_MESSAGE" && action !== "PUBLISH_UPDATE" && action !== "EDIT_UPDATE" && action !== "DELETE_UPDATE" && previewCampaignStatus(campaignId, platform) !== "DRAFT") {
     return apiError(409, "CAMPAIGN_LOCKED", "Hồ sơ đang xét duyệt hoặc đã được duyệt nên chưa thể chỉnh/gửi lại.");
+  }
+
+  if (action === "DELETE_DRAFT") {
+    const hasReview = platform.submittedReviews.some((item) => item.campaignId === campaignId);
+    if (hasReview || platform.pledges.some((item) => item.campaignId === campaignId)) {
+      return apiError(409, "DRAFT_HAS_HISTORY", "Hồ sơ đã gửi duyệt hoặc có cam kết cần giữ lịch sử, không thể xóa như bản nháp mới.");
+    }
+    const nextDrafts = { ...platform.campaignDrafts };
+    delete nextDrafts[campaignId];
+    platform.campaignDrafts = nextDrafts;
+    const response = NextResponse.json({ data: { campaignId, deleted: true } });
+    return writePlatformPreviewCookie(response, platform) ?? response;
   }
 
   if (action === "LAUNCH") {
@@ -131,6 +143,71 @@ export async function POST(request: Request) {
     }) ?? response;
   }
 
+  if (action === "PUBLISH_UPDATE") {
+    if (previewCampaignStatus(campaignId, platform) !== "LIVE") {
+      return apiError(409, "CAMPAIGN_NOT_LIVE", "Chỉ chiến dịch đang gọi vốn mới đăng cập nhật công khai.");
+    }
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const updateBody = typeof body.body === "string" ? body.body.trim() : "";
+    if (title.length < 8 || title.length > 80 || updateBody.length < 30 || updateBody.length > 1000) {
+      return apiError(422, "UPDATE_INVALID", "Tiêu đề cần 8–80 ký tự và nội dung cần 30–1.000 ký tự.");
+    }
+    const update = {
+      id: `upd_creator_${crypto.randomUUID().slice(0, 8)}`,
+      campaignId,
+      title,
+      body: updateBody,
+      author: access.session!.user.name,
+      authorId: ownerId,
+      publishedAt: new Date().toISOString(),
+      when: "Vừa đăng",
+    };
+    platform.publishedUpdates = [update, ...platform.publishedUpdates].slice(0, localDbEnabled() ? undefined : 16);
+    const response = NextResponse.json({ data: { campaignId, updateId: update.id }, meta: { source: "preview" } });
+    return writePlatformPreviewCookie(response, platform, {
+      campaignId,
+      actorUserId: ownerId,
+      actorRole: "CREATOR",
+      eventType: "PUBLISH_UPDATE",
+      stage: "FUNDING",
+      visibility: "PUBLIC",
+      title: `Chủ dự án đăng cập nhật: ${title}`,
+      detail: updateBody.slice(0, 180),
+      refId: update.id,
+    }) ?? response;
+  }
+
+  if (action === "EDIT_UPDATE" || action === "DELETE_UPDATE") {
+    if (previewCampaignStatus(campaignId, platform) !== "LIVE") {
+      return apiError(409, "CAMPAIGN_NOT_LIVE", "Chiến dịch đang tạm dừng hoặc chưa mở nên chưa thể sửa bản tin.");
+    }
+    const updateId = typeof body.updateId === "string" ? body.updateId : "";
+    const current = platform.publishedUpdates.find((item) =>
+      item.id === updateId && item.campaignId === campaignId);
+    if (!current) return apiError(404, "UPDATE_NOT_FOUND", "Không thấy bản tin trong chiến dịch này.");
+
+    let nextTitle = current.title;
+    if (action === "EDIT_UPDATE") {
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      const content = typeof body.body === "string" ? body.body.trim() : "";
+      if (title.length < 8 || title.length > 80 || content.length < 30 || content.length > 1000) {
+        return apiError(422, "UPDATE_INVALID", "Tiêu đề cần 8–80 ký tự và nội dung cần 30–1.000 ký tự.");
+      }
+      nextTitle = title;
+      platform.publishedUpdates = platform.publishedUpdates.map((item) =>
+        item.id === updateId ? { ...item, title, body: content, when: "Vừa chỉnh sửa" } : item);
+    } else {
+      platform.publishedUpdates = platform.publishedUpdates.filter((item) => item.id !== updateId);
+    }
+    const response = NextResponse.json({ data: { campaignId, updateId, action }, meta: { source: "preview" } });
+    return writePlatformPreviewCookie(response, platform, {
+      campaignId, actorUserId: ownerId, actorRole: "CREATOR",
+      eventType: action, stage: "FUNDING", visibility: "PUBLIC",
+      title: action === "EDIT_UPDATE" ? "Chủ dự án chỉnh bản tin" : "Chủ dự án gỡ bản tin",
+      detail: nextTitle, refId: updateId,
+    }) ?? response;
+  }
+
   if (action === "SUBMIT") {
     const problem = reviewProblem(existing!);
     if (problem) return apiError(422, "CAMPAIGN_INCOMPLETE", problem);
@@ -169,6 +246,10 @@ export async function POST(request: Request) {
       ownerId,
     );
     if (result.error) return apiError(422, "CAMPAIGN_DRAFT_INVALID", result.error);
+    const emails = (result.value!.collaborators ?? []).map((item) => item.email.trim().toLowerCase()).filter(Boolean);
+    if (new Set(emails).size !== emails.length || emails.includes(access.session!.user.email.toLowerCase())) {
+      return apiError(422, "COLLABORATOR_EMAIL_DUPLICATE", "Mỗi email cộng tác viên chỉ thêm một lần và không được trùng email Chủ dự án.");
+    }
     platform.campaignDrafts = { ...platform.campaignDrafts, [campaignId]: result.value! };
   }
 

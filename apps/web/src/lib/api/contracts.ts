@@ -600,6 +600,13 @@ export interface AdminDashboardData {
     roles: string[];
     status: "ACTIVE" | "SUSPENDED" | "REVIEWING";
     lastSeen: string;
+    accountKind?: "DEMO_LOGIN" | "REGISTERED" | "SAMPLE_PROFILE";
+    campaignRelations?: Array<{
+      campaignId: string;
+      title: string;
+      kind: "OWNER" | "COLLABORATOR" | "INVITED";
+    }>;
+    lastStatusChange?: { reason: string; changedAt: string };
   }>;
   fundingSeries: Array<{ month: string; amount: number }>;
   operations: {

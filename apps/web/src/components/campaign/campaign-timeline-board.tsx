@@ -1,8 +1,10 @@
 "use client";
 
 import { Background, BackgroundVariant, Controls, MarkerType, Position, ReactFlow, type Edge, type Node } from "@xyflow/react";
-import { ArrowRight, Check, Clock3 } from "lucide-react";
+import { ArrowRight, Check, Clock3, Eye, Layers } from "lucide-react";
+import Image from "next/image";
 import { useMemo, useState } from "react";
+import { Modal } from "@/components/ui/modal";
 import type { LocalCampaignTimeline } from "@/lib/local-db/database";
 
 const stages = [
@@ -35,6 +37,8 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
   viewer: LocalCampaignTimeline["viewer"];
 }) {
   const [selectedStage, setSelectedStage] = useState<StageKey | "ALL">("ALL");
+  const [inspectStageKey, setInspectStageKey] = useState<StageKey | null>(null);
+  const [inspectEvent, setInspectEvent] = useState<TimelineEvent | null>(null);
   const counts = useMemo(() => Object.fromEntries(stages.map((stage) => [
     stage.key, events.filter((event) => event.stage === stage.key).length,
   ])) as Record<StageKey, number>, [events]);
@@ -42,6 +46,9 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
     ? events
     : events.filter((event) => event.stage === selectedStage);
   const selected = stages.find((stage) => stage.key === selectedStage);
+  const activeStageForModal = inspectStageKey
+    ? stages.find((stage) => stage.key === inspectStageKey)
+    : null;
 
   const nodes: Node[] = stages.map((stage, index) => {
     const current = index === currentPhase;
@@ -78,15 +85,25 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
       },
     };
   });
-  const edges: Edge[] = stages.slice(0, -1).map((stage, index) => ({
-    id: `${stage.key}-${stages[index + 1].key}`,
-    ariaLabel: `Từ ${stage.label} đến ${stages[index + 1].label}`,
-    source: stage.key,
-    target: stages[index + 1].key,
-    type: "smoothstep",
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#7c9c80" },
-    style: { stroke: "#7c9c80", strokeWidth: 2.5 },
-  }));
+  const edges: Edge[] = stages.slice(0, -1).map((stage, index) => {
+    const isCurrentEdge = index === currentPhase - 1 || stage.key === selectedStage;
+    return {
+      id: `${stage.key}-${stages[index + 1].key}`,
+      ariaLabel: `Từ ${stage.label} đến ${stages[index + 1].label}`,
+      source: stage.key,
+      target: stages[index + 1].key,
+      type: "smoothstep",
+      animated: true,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: isCurrentEdge ? "#315e42" : "#7c9c80",
+      },
+      style: {
+        stroke: isCurrentEdge ? "#315e42" : "#7c9c80",
+        strokeWidth: isCurrentEdge ? 3.5 : 2.5,
+      },
+    };
+  });
 
   return <div className="space-y-5">
     <section aria-labelledby="phase-title" className="overflow-hidden rounded-[20px] border border-[#dce5dc] bg-white">
@@ -137,10 +154,19 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
             <span className="mr-1 text-xs opacity-70">{index + 1}.</span>{stage.label} <span className="text-xs opacity-70">({counts[stage.key]})</span>
           </button>)}
         </div>
-        <p className="mt-4 rounded-xl bg-[#f3f6ef] px-4 py-3 text-sm leading-6 text-[#3d5c47]" role="status">
-          {selected ? `${selected.label}: ${selected.hint}. ${counts[selected.key]} hoạt động bạn có quyền xem.`
-            : `Đang xem toàn bộ ${events.length} hoạt động được lưu và được phép xem.`}
-        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#f3f6ef] px-4 py-3 text-sm leading-6 text-[#3d5c47]" role="status">
+          <p>
+            {selected ? `${selected.label}: ${selected.hint}. ${counts[selected.key]} hoạt động bạn có quyền xem.`
+              : `Đang xem toàn bộ ${events.length} hoạt động được lưu và được phép xem.`}
+          </p>
+          <button
+            type="button"
+            onClick={() => setInspectStageKey((selected?.key ?? stages[currentPhase]?.key ?? "PREPARATION") as StageKey)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#c5d6c5] bg-white px-3 text-xs font-bold text-[#28513b] hover:border-[#527759]"
+          >
+            <Layers className="size-3.5" /> Mô hình 3D & quy tắc chặng
+          </button>
+        </div>
       </div>
     </section>
 
@@ -162,11 +188,106 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
           <h3 className="mt-2 text-sm font-extrabold sm:text-base">{event.title}</h3>
           <p className="mt-1 text-xs text-[#526d5b]">{roleNames[event.actorRole] ?? event.actorRole} · {event.actor}</p>
           {event.detail ? <p className="mt-2 max-w-2xl rounded-xl bg-[#f7f8f3] px-3 py-2.5 text-sm leading-6 text-[#476252]">{event.eventType === "UPDATE_TASK_STATUS" && event.detail === "Trạng thái: DONE." ? "Công việc được đánh dấu đã xong." : event.detail}</p> : null}
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setInspectEvent(event)}
+              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#d4dfd4] bg-white px-2.5 text-[11px] font-bold text-[#315a3f] hover:bg-[#f2f6ef]"
+            >
+              <Eye className="size-3" /> Chi tiết bản ghi
+            </button>
+          </div>
         </li>)}
       </ol> : <div className="mt-6 rounded-xl border border-dashed border-[#cbdccb] bg-[#fafbf8] p-5">
         <p className="font-semibold">{selected ? "Chặng này chưa có thao tác được ghi" : viewer === "GUEST" ? "Chưa có cập nhật công khai mới" : "Chưa có thao tác mới để hiển thị"}</p>
         <p className="mt-2 text-sm leading-6 text-[#5e7366]">Nhật ký chỉ bắt đầu từ thao tác đã lưu vào SQLite và nằm trong quyền xem của bạn. Chọn chặng khác hoặc xem tất cả để đối chiếu.</p>
       </div>}
     </section>
+
+    <Modal
+      open={Boolean(activeStageForModal)}
+      onClose={() => setInspectStageKey(null)}
+      badge="Mô hình 3D & chặng tiến độ"
+      title={activeStageForModal ? `Chặng: ${activeStageForModal.label}` : "Chi tiết chặng"}
+      description={activeStageForModal?.hint}
+    >
+      {activeStageForModal ? (
+        <div className="space-y-4 text-sm leading-6 text-ink-soft">
+          <div className="overflow-hidden rounded-2xl border border-[#d4dfd4] bg-[#f4f7f1] p-3.5">
+            <div className="grid gap-4 sm:grid-cols-[190px_1fr] sm:items-center">
+              <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-[#d4dfd4] bg-white">
+                <Image
+                  src="/images/editorial/hanh-trinh-du-an-3d.png"
+                  alt="Minh họa 3D bốn chặng vận hành chiến dịch"
+                  fill
+                  sizes="190px"
+                  className="object-cover"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#315a3f]">
+                  Trạng thái ghi nhận trong SQLite
+                </p>
+                <p className="mt-1 font-display text-base font-extrabold text-[#17392f]">
+                  {counts[activeStageForModal.key]} hoạt động thuộc quyền xem của bạn
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#4b6456]">
+                  Quyền xem hiện tại: {viewer === "OWNER" ? "Chủ dự án" : (roleNames[viewer] ?? viewer)}. Chỉ các thao tác thật đã lưu vào cơ sở dữ liệu trên máy mới xuất hiện trong chặng này.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className=" flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedStage(activeStageForModal.key);
+                setInspectStageKey(null);
+              }}
+              className="button-dark"
+            >
+              Lọc dòng hoạt động theo chặng này
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
+
+    <Modal
+      open={Boolean(inspectEvent)}
+      onClose={() => setInspectEvent(null)}
+      badge={inspectEvent ? `EVENT · ${inspectEvent.eventType}` : "Chi tiết sự kiện"}
+      title={inspectEvent?.title ?? "Chi tiết bản ghi"}
+      description={inspectEvent ? `${formatDate(inspectEvent.createdAt)} · Phạm vi: ${scopeNames[inspectEvent.visibility] ?? inspectEvent.visibility}` : undefined}
+    >
+      {inspectEvent ? (
+        <div className="space-y-4 text-sm leading-6 text-ink-soft">
+          <div className="rounded-xl border border-line bg-surface-muted p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink">Nội dung bản ghi</p>
+            <p className="mt-1.5">
+              {inspectEvent.detail
+                ? inspectEvent.eventType === "UPDATE_TASK_STATUS" && inspectEvent.detail === "Trạng thái: DONE."
+                  ? "Công việc được đánh dấu đã xong."
+                  : inspectEvent.detail
+                : "Thao tác đã được ghi nhận vào nhật ký chiến dịch."}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-line p-3.5">
+              <p className="text-xs font-bold text-ink">Người thực hiện</p>
+              <p className="mt-1 text-xs text-ink-soft">
+                {roleNames[inspectEvent.actorRole] ?? inspectEvent.actorRole} · {inspectEvent.actor}
+              </p>
+            </div>
+            <div className="rounded-xl border border-line p-3.5">
+              <p className="text-xs font-bold text-ink">Chặng & phạm vi hiển thị</p>
+              <p className="mt-1 text-xs text-ink-soft">
+                {stages.find((stage) => stage.key === inspectEvent.stage)?.label ?? inspectEvent.stage} · {scopeNames[inspectEvent.visibility] ?? inspectEvent.visibility}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
   </div>;
 }

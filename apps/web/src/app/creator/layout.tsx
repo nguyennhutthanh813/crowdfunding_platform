@@ -35,11 +35,11 @@ export default async function CreatorLayout({
     basePortfolio,
     platformState,
   );
-  const baseCampaign =
-    campaigns.find((item) => item.id === portfolio.activeCampaignId) ??
-    campaigns.find((item) => item.id === operations.campaignId);
+  const baseCampaign = campaigns.find((item) => item.id === portfolio.activeCampaignId &&
+    item.creator.id === session?.user.id && item.id === operations.campaignId);
   const campaign = baseCampaign ? applyCampaignCardPreviewState(baseCampaign, platformState) : null;
-  const firstPreview = portfolio.campaigns[0];
+  const firstPreview = portfolio.campaigns.find((item) => item.id === portfolio.activeCampaignId)
+    ?? portfolio.campaigns[0];
   const snapshot: WorkspaceSnapshot = campaign
     ? buildCreatorWorkspaceSnapshot(campaign, operations, portfolio)
     : {

@@ -61,7 +61,7 @@ const dashboardTabCopy: Record<
     eyebrow: "Cam kết & dòng tiền",
     title: "Các khoản ủng hộ của bạn.",
     description:
-      "Đối chiếu cam kết mẫu, kết quả giả lập và tình trạng giao quà của từng chiến dịch.",
+      "Theo dõi trạng thái cam kết, tiến độ gọi vốn và tình trạng giao quà của từng chiến dịch.",
     icon: FolderHeart,
   },
   saved: {
@@ -89,14 +89,14 @@ const dashboardTabCopy: Record<
     eyebrow: "Nhật ký tài khoản",
     title: "Hoạt động gần đây của bạn.",
     description:
-      "Đối chiếu các lần cam kết, lưu dự án, đọc tin và những thay đổi vừa diễn ra trong lần dùng thử này.",
+      "Đối chiếu các lần cam kết, lưu dự án, đọc tin và những cập nhật gần đây trên tài khoản của bạn.",
     icon: Activity,
   },
   settings: {
     eyebrow: "Tùy chọn cá nhân",
     title: "Thông báo và quyền riêng tư.",
     description:
-      "Chọn loại cập nhật muốn nhận và cách thông tin của bạn được sử dụng trong bản trải nghiệm.",
+      "Chọn loại cập nhật muốn nhận và quản lý tùy chọn quyền riêng tư của tài khoản.",
     icon: Settings,
   },
 };
@@ -237,8 +237,8 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
             Một khoản ủng hộ chỉ đi theo một trong hai kết quả.
           </h3>
           <p className="mt-2 max-w-md text-xs leading-6 text-white/70">
-            Dữ liệu mẫu minh họa cơ chế tất cả hoặc không. Chưa có giao dịch
-            ngân hàng; việc giữ và thu tiền cần tích hợp sau.
+            Theo cơ chế Tất cả hoặc không gì cả, khoản ủng hộ chỉ được chốt thu
+            khi dự án đạt 100% mục tiêu gọi vốn đã công bố.
           </p>
 
           <div className="mt-5 rounded-2xl border border-white/15 bg-white/[0.07] p-4">
@@ -247,7 +247,7 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
                 <Clock3 className="size-4" />
               </span>
               <div>
-                <p className="text-xs font-extrabold">Đang chạy · chưa thu</p>
+                <p className="text-xs font-extrabold">Đang chạy · chờ chốt kết quả</p>
                 <p className="mt-1 text-[11px] text-white/65">
                   {authorized.count} cam kết · {formatVnd(authorized.amount)}
                 </p>
@@ -264,7 +264,7 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
             <div>
               <p className="text-xs font-extrabold">Khi chiến dịch kết thúc</p>
               <p className="mt-1 text-[11px] leading-5 text-ink-muted">
-                Hệ thống đối chiếu số cam kết với mục tiêu đã công bố.
+                Hệ thống đối chiếu tổng cam kết với mục tiêu đã công bố.
               </p>
             </div>
           </div>
@@ -278,10 +278,10 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
                 {formatVnd(captured.amount)}
               </dd>
               <dd className="mt-1 text-[11px] font-bold text-ink-muted">
-                {captured.count} khoản ở trạng thái đã thu (mẫu)
+                {captured.count} khoản đã chốt thu
               </dd>
               <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
-                Nếu nối cổng thanh toán, khoản đạt mục tiêu sẽ được thu rồi chủ dự án chuẩn bị giao quà.
+                Khi dự án đạt mục tiêu, khoản cam kết được chốt thu và chuyển sang giai đoạn chuẩn bị giao quà.
               </dd>
             </div>
 
@@ -293,10 +293,10 @@ function PledgeLifecycleGuide({ projects }: { projects: BackedProject[] }) {
                 {formatVnd(canceled.amount)}
               </dd>
               <dd className="mt-1 text-[11px] font-bold text-ink-muted">
-                {canceled.count} khoản ở trạng thái đã hủy (mẫu)
+                {canceled.count} khoản đã hủy cam kết
               </dd>
               <dd className="mt-3 border-t border-line pt-3 text-[11px] leading-5 text-ink-soft">
-                Không thu tiền và cũng không tạo đơn giao quà.
+                Không thu tiền và giải phóng toàn bộ nghĩa vụ cam kết.
               </dd>
             </div>
           </dl>
@@ -361,8 +361,13 @@ function BackedPanel({
   onOpenMessages,
 }: {
   data: UserDashboardData;
-  onOpenMessages: () => void;
+  onOpenMessages: (recipientKey?: string, subject?: string) => void;
 }) {
+  const [selectedPledgeId, setSelectedPledgeId] = useState<string | null>(null);
+  const selectedPledge = data.backedProjects.find(
+    (item) => item.pledgeId === selectedPledgeId,
+  );
+
   return (
     <div>
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
@@ -371,7 +376,7 @@ function BackedPanel({
             Các dự án đã ủng hộ
           </h2>
           <p className="mt-2 text-sm text-ink-muted">
-            Mỗi khoản đều ghi rõ trạng thái mẫu: đang chờ kết quả, đã chốt hay đã hủy. Chưa có thu tiền thật.
+            Mỗi khoản đều hiển thị rõ trạng thái hiện tại: đang chờ kết quả gọi vốn, đã chốt thu hoặc đã hủy.
           </p>
         </div>
         <span className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink-soft">
@@ -380,8 +385,6 @@ function BackedPanel({
       </div>
       {data.backedProjects.length ? (
         <>
-          <BackerPledgeTree projects={data.backedProjects} backerName={data.user.name} />
-          <PledgeLifecycleGuide projects={data.backedProjects} />
           <div className="mt-5 space-y-4">
             {data.backedProjects.map((item, index) => (
               <article
@@ -427,7 +430,19 @@ function BackedPanel({
                       <div className="flex flex-wrap gap-2 sm:justify-end">
                         <button
                           type="button"
-                          onClick={onOpenMessages}
+                          onClick={() => setSelectedPledgeId(item.pledgeId)}
+                          className="inline-flex min-h-11 items-center gap-1.5 px-1 text-xs font-bold text-ink-soft hover:text-coral-dark"
+                        >
+                          <ReceiptText className="size-3.5" /> Xem biên nhận
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenMessages(
+                              `${item.campaign.id}:${item.campaign.creator.id}`,
+                              `Trao đổi về ${item.campaign.title}`,
+                            )
+                          }
                           className="inline-flex min-h-11 items-center gap-1.5 px-1 text-xs font-bold text-ink-soft hover:text-coral-dark"
                         >
                           <MessageSquare className="size-3.5" /> Nhắn chủ dự án
@@ -454,6 +469,99 @@ function BackedPanel({
               </article>
             ))}
           </div>
+
+          <PledgeLifecycleGuide projects={data.backedProjects} />
+          <BackerPledgeTree projects={data.backedProjects} backerName={data.user.name} />
+
+          <Modal
+            open={Boolean(selectedPledge)}
+            badge={selectedPledge ? selectedPledge.referenceCode : undefined}
+            title={
+              selectedPledge
+                ? `Biên nhận cam kết · ${selectedPledge.campaign.title}`
+                : "Biên nhận cam kết"
+            }
+            description={
+              selectedPledge
+                ? `Chủ dự án: ${selectedPledge.campaign.creator.name} · Gói quà: ${selectedPledge.rewardTitle}`
+                : undefined
+            }
+            onClose={() => setSelectedPledgeId(null)}
+            footer={
+              selectedPledge ? (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/campaigns/${selectedPledge.campaign.id}/timeline`}
+                      className="button-secondary min-h-10 px-4 text-xs"
+                    >
+                      Mở nhật ký chiến dịch
+                    </Link>
+                    <Link
+                      href={`/projects/${selectedPledge.campaign.slug}`}
+                      className="button-ghost min-h-10 px-4 text-xs"
+                    >
+                      Xem trang dự án
+                    </Link>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPledgeId(null)}
+                    className="button-dark min-h-10 px-4 text-xs"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              ) : undefined
+            }
+          >
+            {selectedPledge ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 rounded-2xl border border-line bg-[#f7f5f0] p-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                      Mã tham chiếu
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-bold text-ink">
+                      {selectedPledge.referenceCode} ({selectedPledge.pledgeId})
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                      Số tiền cam kết
+                    </p>
+                    <p className="mt-1 font-display text-lg font-extrabold text-coral-dark">
+                      {formatVnd(selectedPledge.amount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                      Trạng thái thanh toán
+                    </p>
+                    <div className="mt-1.5">
+                      <StatusBadge status={selectedPledge.paymentStatus} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                      Tiến độ giao quà
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-ink">
+                      {backerFulfillmentText(selectedPledge)}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-[#d29b66]/45 bg-[#fff8f0] p-4">
+                  <p className="text-xs font-bold text-ink">
+                    Mốc tiếp theo · {selectedPledge.nextStepAt}
+                  </p>
+                  <p className="mt-1.5 text-xs leading-6 text-ink-soft">
+                    {selectedPledge.nextStep}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </Modal>
         </>
       ) : (
         <DashboardEmptyState
@@ -656,10 +764,14 @@ function MessagesPanel({
   data,
   composeOpen,
   onComposeOpenChange,
+  presetRecipientKey,
+  presetSubject,
 }: {
   data: UserDashboardData;
   composeOpen: boolean;
   onComposeOpenChange: (open: boolean) => void;
+  presetRecipientKey?: string;
+  presetSubject?: string;
 }) {
   const { session } = useAuth();
   const recipients = [
@@ -684,6 +796,11 @@ function MessagesPanel({
     subject: "",
     body: "",
   });
+  const activeRecipientKey =
+    presetRecipientKey &&
+    recipients.some((item) => item.key === presetRecipientKey)
+      ? presetRecipientKey
+      : draftMessage.recipientKey || recipients[0]?.key || "";
   const [sentMessages, setSentMessages] = useState<
     Array<{
       id: string;
@@ -719,11 +836,13 @@ function MessagesPanel({
     });
   };
 
+  const activeSubject = draftMessage.subject || presetSubject || "";
+
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!draftMessage.subject.trim() || !draftMessage.body.trim()) return;
+    if (!activeSubject.trim() || !draftMessage.body.trim()) return;
     const recipient = recipients.find(
-      (item) => item.key === draftMessage.recipientKey,
+      (item) => item.key === activeRecipientKey,
     );
     if (!recipient) {
       setSyncNotice("Chưa xác định được dự án nhận tin nhắn.");
@@ -735,7 +854,7 @@ function MessagesPanel({
       await updateDashboard("SEND_MESSAGE", {
         campaignId: recipient.campaignId,
         recipientUserId: recipient.userId,
-        subject: draftMessage.subject,
+        subject: activeSubject,
         body: draftMessage.body,
       });
       setSentMessages((current) => [
@@ -745,7 +864,7 @@ function MessagesPanel({
           senderId: session?.user.id ?? "preview-backer",
           recipientId: recipient.userId,
           recipient: recipient.name,
-          subject: draftMessage.subject.trim(),
+          subject: activeSubject.trim(),
           body: draftMessage.body.trim(),
           sentAt: "Vừa xong",
         },
@@ -829,7 +948,7 @@ function MessagesPanel({
               <span className="text-xs font-bold text-ink-soft">Gửi đến</span>
               <select
                 name="message-recipient"
-                value={draftMessage.recipientKey}
+                value={activeRecipientKey}
                 onChange={(event) =>
                   setDraftMessage((current) => ({
                     ...current,
@@ -849,7 +968,7 @@ function MessagesPanel({
               <span className="text-xs font-bold text-ink-soft">Chủ đề</span>
               <input
                 name="message-subject"
-                value={draftMessage.subject}
+                value={activeSubject}
                 onChange={(event) =>
                   setDraftMessage((current) => ({
                     ...current,
@@ -894,7 +1013,7 @@ function MessagesPanel({
               type="submit"
               disabled={
                 sending ||
-                !draftMessage.subject.trim() ||
+                !activeSubject.trim() ||
                 !draftMessage.body.trim()
               }
               className="button-primary min-h-11 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
@@ -931,45 +1050,76 @@ function MessagesPanel({
       ) : null}
       {data.messages.length ? (
         <div className="mt-6 divide-y divide-line overflow-hidden rounded-[22px] border border-line bg-white">
-          {data.messages.map((message) => (
-            <button
-              key={message.id}
-              type="button"
-              aria-expanded={selectedId === message.id}
-              onClick={() => openMessage(message.id)}
-              className={`flex w-full cursor-pointer gap-4 p-4 text-left hover:bg-[#fafaf6] ${!readIds.has(message.id) ? "bg-[#fffaf6]" : ""}`}
-            >
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e9eddf] text-xs font-bold">
-                {message.initials}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="truncate font-display text-sm font-extrabold">
-                    {message.sender}
-                  </p>
-                  <span className="shrink-0 text-[11px] text-ink-muted">
-                    {message.sentAt}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-xs font-semibold text-ink-soft">
-                  {message.subject}
-                </p>
-                <p
-                  className={`mt-1 text-xs text-ink-muted ${selectedId === message.id ? "whitespace-normal leading-5" : "truncate"}`}
+          {data.messages.map((message) => {
+            const matchedRecipient = recipients.find(
+              (item) => item.name === message.sender,
+            );
+            return (
+              <div
+                key={message.id}
+                className={`p-4 hover:bg-[#fafaf6] ${!readIds.has(message.id) ? "bg-[#fffaf6]" : ""}`}
+              >
+                <button
+                  type="button"
+                  aria-expanded={selectedId === message.id}
+                  onClick={() => openMessage(message.id)}
+                  className="flex w-full cursor-pointer gap-4 text-left"
                 >
-                  {message.preview}
-                </p>
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e9eddf] text-xs font-bold">
+                    {message.initials}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="truncate font-display text-sm font-extrabold">
+                        {message.sender}
+                      </p>
+                      <span className="shrink-0 text-[11px] text-ink-muted">
+                        {message.sentAt}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-xs font-semibold text-ink-soft">
+                      {message.subject}
+                    </p>
+                    <p
+                      className={`mt-1 text-xs text-ink-muted ${selectedId === message.id ? "whitespace-normal leading-5" : "truncate"}`}
+                    >
+                      {message.preview}
+                    </p>
+                  </div>
+                  {!readIds.has(message.id) ? (
+                    <span className="mt-2 size-2 shrink-0 rounded-full bg-coral" />
+                  ) : null}
+                </button>
                 {selectedId === message.id ? (
-                  <p className="mt-3 text-[11px] font-bold text-coral-dark">
-                    Tin nhắn đã được đánh dấu là đã đọc.
-                  </p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pl-14">
+                    <p className="text-[11px] font-bold text-coral-dark">
+                      Tin nhắn đã được đánh dấu là đã đọc.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftMessage((current) => ({
+                          ...current,
+                          recipientKey:
+                            matchedRecipient?.key ??
+                            current.recipientKey ??
+                            recipients[0]?.key ??
+                            "",
+                          subject: message.subject.startsWith("Phản hồi:")
+                            ? message.subject
+                            : `Phản hồi: ${message.subject}`.slice(0, 80),
+                        }));
+                        onComposeOpenChange(true);
+                      }}
+                      className="button-secondary min-h-9 px-3 text-xs"
+                    >
+                      <MessageSquare className="size-3.5" /> Phản hồi tin nhắn
+                    </button>
+                  </div>
                 ) : null}
               </div>
-              {!readIds.has(message.id) ? (
-                <span className="mt-2 size-2 shrink-0 rounded-full bg-coral" />
-              ) : null}
-            </button>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="mt-6 rounded-[22px] border border-dashed border-line bg-white p-7 text-center">
@@ -1117,12 +1267,16 @@ function DashboardContent({
   onOpenMessages,
   messageComposerOpen,
   onMessageComposerOpenChange,
+  presetRecipientKey,
+  presetSubject,
 }: {
   tab: DashboardTab;
   data: UserDashboardData;
-  onOpenMessages: () => void;
+  onOpenMessages: (recipientKey?: string, subject?: string) => void;
   messageComposerOpen: boolean;
   onMessageComposerOpenChange: (open: boolean) => void;
+  presetRecipientKey?: string;
+  presetSubject?: string;
 }) {
   if (tab === "backed") {
     return <BackedPanel data={data} onOpenMessages={onOpenMessages} />;
@@ -1135,6 +1289,8 @@ function DashboardContent({
         data={data}
         composeOpen={messageComposerOpen}
         onComposeOpenChange={onMessageComposerOpenChange}
+        presetRecipientKey={presetRecipientKey}
+        presetSubject={presetSubject}
       />
     );
   if (tab === "activity") return <ActivityPanel data={data} />;
@@ -1150,6 +1306,12 @@ export function BackerDashboard({
 }) {
   const [tab, setTab] = useQueryTab<DashboardTab>(dashboardTabIds, "backed");
   const [messageComposerOpen, setMessageComposerOpen] = useState(false);
+  const [presetRecipientKey, setPresetRecipientKey] = useState<
+    string | undefined
+  >(undefined);
+  const [presetSubject, setPresetSubject] = useState<string | undefined>(
+    undefined,
+  );
   const currentTab = dashboardTabCopy[tab];
   const CurrentTabIcon = currentTab.icon;
   const stats = [
@@ -1211,6 +1373,32 @@ export function BackerDashboard({
       </div>
 
       <div id="workspace-content" className="container-shell scroll-mt-28 pt-6">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+            const active = tab === stat.tab;
+            return (
+              <button
+                key={stat.label}
+                type="button"
+                onClick={() => setTab(stat.tab)}
+                aria-current={active ? "page" : undefined}
+                className={`flex cursor-pointer items-center gap-4 rounded-[14px] border bg-white p-4 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-[#c79869] ${active ? "border-[#9f5c3e] shadow-[0_8px_20px_rgba(121,75,52,0.08)]" : "border-line"}`}
+              >
+                <span className="grid size-10 place-items-center rounded-[9px] bg-forest text-lime">
+                  <Icon className="size-4" />
+                </span>
+                <div>
+                  <p className="font-display text-2xl font-extrabold">
+                    {stat.value}
+                  </p>
+                  <p className="text-xs text-ink-muted">{stat.label}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
         <div
           className="flex items-center gap-2 text-xs font-bold text-[#745f56]"
           role="status"
@@ -1219,7 +1407,11 @@ export function BackerDashboard({
           <LayoutDashboard className="size-3.5" /> Đang xem: {currentTab.title}
         </div>
 
-        <div className="mt-3 min-w-0 rounded-[20px] border border-line bg-white p-5 sm:p-7">
+        {tab === "backed" ? (
+          <AttentionRail data={data} />
+        ) : null}
+
+        <div className="mt-4 min-w-0 rounded-[20px] border border-line bg-white p-5 sm:p-7">
           {dashboardTabIds.map((panelTab) => (
             <section key={panelTab} hidden={tab !== panelTab}>
               <DashboardContent
@@ -1227,7 +1419,11 @@ export function BackerDashboard({
                 data={data}
                 messageComposerOpen={messageComposerOpen}
                 onMessageComposerOpenChange={setMessageComposerOpen}
-                onOpenMessages={() => {
+                presetRecipientKey={presetRecipientKey}
+                presetSubject={presetSubject}
+                onOpenMessages={(recipientKey, subject) => {
+                  if (recipientKey) setPresetRecipientKey(recipientKey);
+                  if (subject) setPresetSubject(subject);
                   setMessageComposerOpen(true);
                   setTab("messages");
                 }}
@@ -1235,49 +1431,6 @@ export function BackerDashboard({
             </section>
           ))}
         </div>
-
-        <div className="mt-6">
-          <div className="mb-3 flex items-end justify-between gap-4">
-            <div>
-              <p className="eyebrow text-[#8c4b32]">Đi nhanh trong sổ ủng hộ</p>
-              <h2 className="mt-1 font-display text-lg font-extrabold">
-                Chuyển mục bằng số liệu đang có
-              </h2>
-            </div>
-            <span className="hidden text-xs text-ink-muted sm:block">
-              Mỗi ô mở một giao diện riêng
-            </span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              const active = tab === stat.tab;
-              return (
-                <button
-                  key={stat.label}
-                  type="button"
-                  onClick={() => setTab(stat.tab)}
-                  aria-current={active ? "page" : undefined}
-                  className={`flex cursor-pointer items-center gap-4 rounded-[14px] border bg-white p-4 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-[#c79869] ${active ? "border-[#9f5c3e] shadow-[0_8px_20px_rgba(121,75,52,0.08)]" : "border-line"}`}
-                >
-                  <span className="grid size-10 place-items-center rounded-[9px] bg-forest text-lime">
-                    <Icon className="size-4" />
-                  </span>
-                  <div>
-                    <p className="font-display text-2xl font-extrabold">
-                      {stat.value}
-                    </p>
-                    <p className="text-xs text-ink-muted">{stat.label}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {tab === "backed" ? (
-          <AttentionRail data={data} />
-        ) : null}
       </div>
     </section>
   );

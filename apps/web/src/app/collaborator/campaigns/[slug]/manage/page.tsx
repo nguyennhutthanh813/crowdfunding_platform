@@ -3,8 +3,12 @@ import Link from "next/link";
 import { ArrowLeft, Eye, NotebookPen } from "lucide-react";
 import { notFound } from "next/navigation";
 import { CampaignAccessNotice } from "@/components/auth/campaign-access-notice";
-import { PublishPreviewUpdate } from "@/components/collaborator/preview-campaign-actions";
+import {
+  PreviewCampaignUpdateHistory,
+  PublishPreviewUpdate,
+} from "@/components/collaborator/preview-campaign-actions";
 import { CampaignDiscussionDesk } from "@/components/campaign/campaign-discussion-desk";
+import { PreviewTaskBoard } from "@/components/campaign/preview-task-board";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getServerSession } from "@/lib/auth/server-session";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
@@ -12,6 +16,7 @@ import { previewInvitationForUser } from "@/lib/auth/preview-collaborators";
 import { publicPreviewCampaignDetail } from "@/lib/creator/public-preview-campaigns";
 import { previewQuestionResponders } from "@/lib/campaign/question-assignments";
 import { localDbEnabled } from "@/lib/local-db/database";
+import { mockUsers } from "@/lib/api/mock/relational-store";
 
 export const metadata: Metadata = {
   title: "Phần việc trong chiến dịch",
@@ -23,8 +28,8 @@ export default async function PreviewCollaboratorPage({ params }: {
 }) {
   const { slug } = await params;
   const [session, platform] = await Promise.all([getServerSession(), getServerPlatformPreviewState()]);
-  if (!session?.user.roles.includes("COLLABORATOR")) {
-    return <CampaignAccessNotice message="Hãy đăng nhập bằng tài khoản Cộng tác viên được mời." />;
+  if (!session) {
+    return <CampaignAccessNotice message="Hãy đăng nhập bằng tài khoản có email được mời vào chiến dịch." />;
   }
   const invitation = previewInvitationForUser(slug, session, platform);
   if (!invitation) notFound();
@@ -34,8 +39,18 @@ export default async function PreviewCollaboratorPage({ params }: {
   }
   const campaign = publicPreviewCampaignDetail(slug, platform);
   if (!campaign) notFound();
-  const updates = campaign.updates.filter((item) =>
-    platform.publishedUpdates.some((row) => row.id === item.id && row.authorId === session.user.id));
+  const updates = platform.publishedUpdates.filter(
+    (row) => row.campaignId === slug,
+  );
+  const myTasks = (platform.campaignTasks ?? []).filter((item) =>
+    item.campaignId === slug && item.assigneeUserId === session.user.id);
+  const myTaskIds = new Set(myTasks.map((item) => item.id));
+  const memberIds = [platform.campaignDrafts[slug].ownerId, ...(platform.acceptedCollaborators[slug] ?? [])];
+  const taskPeople = memberIds.flatMap((id) => {
+    const member = mockUsers.find((item) => item.id === id) ??
+      platform.registeredAccounts.find((item) => item.id === id);
+    return member ? [{ id, name: "displayName" in member ? member.displayName : member.name }] : [];
+  });
 
   return <section className="min-h-screen bg-[var(--canvas)] pb-16">
     <div className="border-b border-[#c8d9ec] bg-[#e8f0f8] py-8 sm:py-10"><div className="container-shell">
@@ -56,6 +71,12 @@ export default async function PreviewCollaboratorPage({ params }: {
             <b>{label}</b><span className="mt-1 block text-xs">{allowed ? label === "Xem dự báo" ? "Có trong hồ sơ; màn AI riêng chưa nối" : "Được cấp" : "Chưa cấp"}</span>
           </li>)}</ul>
         </section>
+        {(campaign.status === "PRE_LAUNCH" || campaign.status === "LIVE") ? <PreviewTaskBoard
+          campaignId={slug} role="collaborator" viewerId={session.user.id}
+          tasks={myTasks}
+          handoffs={(platform.campaignTaskHandoffs ?? []).filter((item) =>
+            item.campaignId === slug && myTaskIds.has(item.taskId))}
+          people={taskPeople} /> : null}
         {invitation.permissions.canUpdate && campaign.status === "LIVE" ? <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 sm:p-7">
           <p className="eyebrow text-[#2869ac]">Thông tin cho cộng đồng</p><h2 className="mt-2 font-display text-xl font-extrabold">Đăng một cập nhật tiến độ</h2>
           <p className="mb-5 mt-2 text-sm leading-6 text-ink-soft">Nêu việc đã làm, điều còn vướng và mốc tiếp theo. Bài đăng hiển thị ngay ở tab Cập nhật của dự án.</p>
@@ -63,9 +84,23 @@ export default async function PreviewCollaboratorPage({ params }: {
         </section> : <section className="rounded-[20px] border border-dashed border-[#c8d9ec] bg-white p-5 text-sm text-ink-soft">
           {campaign.status !== "LIVE" ? "Chiến dịch chưa mở hoặc đang tạm dừng, nên chưa đăng cập nhật." : "Chủ dự án chưa cấp quyền đăng cập nhật cho bạn."}
         </section>}
-        <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 sm:p-7"><h2 className="font-display text-xl font-extrabold">Bài bạn đã đăng</h2>
-          {updates.length ? <ul className="mt-4 divide-y divide-line">{updates.map((update) => <li key={update.id} className="py-3"><b className="text-sm">{update.title}</b><p className="mt-1 text-xs leading-6 text-ink-soft">{update.excerpt}</p></li>)}</ul>
-            : <p className="mt-3 text-sm text-ink-muted">Chưa có bài cập nhật nào do bạn đăng trong hồ sơ này.</p>}
+        <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 sm:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-xl font-extrabold">
+              Bản tin cập nhật của chiến dịch
+            </h2>
+            <span className="text-xs text-ink-muted">
+              {updates.length} bản tin đã đăng
+            </span>
+          </div>
+          {updates.length ? (
+            <PreviewCampaignUpdateHistory campaignId={slug} updates={updates}
+              manager={{ role: "collaborator", userId: session.user.id }} />
+          ) : (
+            <p className="mt-3 text-sm text-ink-muted">
+              Chưa có bài cập nhật nào được đăng trong hồ sơ này.
+            </p>
+          )}
         </section>
         <CampaignDiscussionDesk campaignId={slug} comments={campaign.comments} role="COLLABORATOR"
           canReply={invitation.permissions.canReply && campaign.status !== "SUSPENDED"} paused={campaign.status === "SUSPENDED"}

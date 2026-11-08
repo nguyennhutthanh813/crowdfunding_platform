@@ -79,7 +79,10 @@ export function CampaignVisual({
         </>
       ) : (
         <>
-          <div className="absolute -right-[12%] -top-[25%] aspect-square w-[70%] rounded-full border border-white/20 bg-white/8 backdrop-blur-md" />
+          <div className="gop-orbit-ring pointer-events-none absolute -right-[10%] -top-[22%] aspect-square w-[68%] rounded-full border border-dashed border-white/25 bg-white/6 backdrop-blur-md" />
+          <div className="gop-float-3d pointer-events-none absolute right-[10%] top-[16%] hidden size-20 rounded-2xl border border-white/30 bg-white/12 shadow-[0_18px_36px_rgba(0,0,0,0.22)] backdrop-blur-md sm:grid sm:place-items-center">
+            <Icon className="size-9 stroke-[1.6] text-white/90" aria-hidden="true" />
+          </div>
           <div className="absolute -bottom-[28%] -left-[8%] aspect-square w-[58%] rounded-full border border-white/12 bg-black/8" />
           <div className="absolute left-[12%] top-[14%] h-px w-[56%] bg-gradient-to-r from-white/50 to-transparent" />
           <div
@@ -93,7 +96,7 @@ export function CampaignVisual({
           <div
             className={`relative z-10 flex h-full flex-col justify-between ${compact ? "p-5" : "p-7 sm:p-9"}`}
           >
-            <span className="eyebrow text-current/70">Hình đang cập nhật</span>
+            <span className="eyebrow text-current/70">Mô hình trực quan 3D · Đang cập nhật ảnh</span>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <Icon

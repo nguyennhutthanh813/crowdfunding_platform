@@ -119,7 +119,7 @@ function ProfilePanel() {
             id="email-note"
             className="mt-1.5 block text-[11px] text-ink-muted"
           >
-            Email đăng nhập chưa thể đổi trong bản trải nghiệm.
+            Email đăng nhập hiện chưa thể thay đổi.
           </span>
         </label>
         <label className="block">
@@ -205,7 +205,7 @@ function RolesPanel() {
                 <span
                   className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${active ? "bg-lime text-forest" : enabled ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-ink-muted"}`}
                 >
-                  {active ? "Đang sử dụng" : enabled ? "Đã cấp" : "Chưa có"}
+                  {active ? "Đang sử dụng" : enabled ? "Đã cấp" : role === "COLLABORATOR" ? "Theo lời mời" : "Chưa có"}
                 </span>
               </div>
               <h3 className="mt-4 font-display text-lg font-extrabold">
@@ -224,6 +224,7 @@ function RolesPanel() {
                   Chuyển sang vai trò này
                 </button>
               ) : null}
+              {role === "COLLABORATOR" && !enabled ? <a href="/collaborator" className="button-secondary mt-4 inline-flex min-h-11 items-center px-4 text-xs">Xem lời mời của tôi</a> : null}
               {!enabled && canRequest ? (
                 <button
                   type="button"
@@ -254,7 +255,7 @@ function RolesPanel() {
 
 function NotificationsPanel() {
   const { session, establishSession } = useAuth();
-  const canSeeWork = session?.user.roles.includes("COLLABORATOR") ?? false;
+  const canSeeWork = Boolean(session);
   const [inbox, setInbox] = useState<Array<{
     campaignId: string; commentId: string; assignedAt: string; readAt: string | null;
     campaignTitle: string; question: string; answered: boolean; href: string;
@@ -363,7 +364,7 @@ function NotificationsPanel() {
 
   return (
     <div>
-      {canSeeWork ? <section className="mb-9 rounded-2xl border border-[#c8d9ec] bg-[#f4f9fd] p-4 sm:p-5" aria-labelledby="question-inbox-title">
+      {canSeeWork && (inbox.length > 0 || session?.user.roles.includes("COLLABORATOR")) ? <section className="mb-9 rounded-2xl border border-[#c8d9ec] bg-[#f4f9fd] p-4 sm:p-5" aria-labelledby="question-inbox-title">
         <p className="eyebrow text-[#2869ac]">Việc trong nhóm</p>
         <h2 id="question-inbox-title" className="mt-2 font-display text-xl font-extrabold">Câu hỏi được giao cho bạn</h2>
         <p className="mt-2 text-sm leading-6 text-ink-soft">Mỗi câu hỏi chỉ hiện một lần theo người đang phụ trách. Trả lời trên trang chiến dịch để người ủng hộ cũng đọc được.</p>

@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   api,
@@ -17,11 +16,7 @@ import {
 import { hasCampaignFulfillmentOrder } from "@/lib/api/mock/operations";
 import { resolveCampaignAccess } from "@/lib/auth/campaign-access";
 import { campaignMemberKey } from "@/lib/auth/campaign-permissions";
-import {
-  decodePlatformPreview,
-  PLATFORM_PREVIEW_COOKIE_NAME,
-  writePlatformPreviewCookie,
-} from "@/lib/auth/platform-preview-cookie";
+import { getServerPlatformPreviewState, writePlatformPreviewCookie } from "@/lib/auth/platform-preview-cookie";
 import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import { requireSession } from "@/lib/auth/require-session";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
@@ -60,7 +55,7 @@ function asPayload(value: unknown): Record<string, unknown> {
 }
 
 export async function GET(request: NextRequest) {
-  const access = await requireSession(["CREATOR", "COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
 
   const slug =
@@ -74,10 +69,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const cookieStore = await cookies();
-  const platformState = decodePlatformPreview(
-    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
-  );
+  const platformState = await getServerPlatformPreviewState();
   const campaignAccess = resolveCampaignAccess(
     campaign.id,
     access.session!,
@@ -113,7 +105,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
-  const access = await requireSession(["CREATOR", "COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
 
   let rawBody: unknown;
@@ -140,10 +132,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const cookieStore = await cookies();
-  const platformState = decodePlatformPreview(
-    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
-  );
+  const platformState = await getServerPlatformPreviewState();
   const campaignAccess = resolveCampaignAccess(
     campaignId,
     access.session!,
@@ -430,12 +419,13 @@ export async function POST(request: Request) {
     }
     if (
       campaignAccess.isCollaborator &&
-      (task.assigneeUserId !== access.session!.user.id || status !== "DONE")
+      (task.assigneeUserId !== access.session!.user.id ||
+        (status !== "TODO" && status !== "IN_PROGRESS" && status !== "DONE"))
     ) {
       return apiError(
         403,
         "TASK_ASSIGNEE_REQUIRED",
-        "Cộng tác viên chỉ có thể hoàn tất công việc được giao cho mình.",
+        "Cộng tác viên chỉ có thể đổi trạng thái việc được giao cho mình.",
       );
     }
   }

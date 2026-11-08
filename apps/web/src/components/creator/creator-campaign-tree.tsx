@@ -10,11 +10,12 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import { ArrowRight, GitBranch, UsersRound } from "lucide-react";
+import { ArrowRight, Box, GitBranch, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Modal } from "@/components/ui/modal";
+import { RoleStage3DScene } from "@/components/visuals/role-stage-3d-scene";
 import type { CreatorPortfolioData } from "@/lib/api/contracts";
 import { creatorCampaignHref } from "@/lib/creator/campaign-href";
 import { formatVnd, fundingPercent } from "@/lib/format";
@@ -46,7 +47,10 @@ export function CreatorCampaignTree({
   localDbAvailable: boolean;
 }) {
   const [selectedId, setSelectedId] = useState(portfolio.activeCampaignId);
+  const [focusedPart, setFocusedPart] = useState<TreePart>("campaign");
+  const [displayMode, setDisplayMode] = useState<"flow" | "stage3d">("stage3d");
   const [openPart, setOpenPart] = useState<TreePart | null>(null);
+  const [expanded, setExpanded] = useState(true);
   const selected = portfolio.campaigns.find((item) => item.id === selectedId)
     ?? portfolio.campaigns[0];
 
@@ -79,7 +83,7 @@ export function CreatorCampaignTree({
     },
     community: {
       title: "Người ủng hộ",
-      body: "Số người ủng hộ và tiền cam kết thuộc riêng chiến dịch này. Cam kết trong bản đang chạy chưa giữ thẻ hay thu tiền thật.",
+      body: "Số người ủng hộ và tiền cam kết thuộc riêng chiến dịch này. Cam kết được quản lý theo quy tắc Tất cả hoặc không gì cả và chỉ chốt thu khi chiến dịch đạt 100% mục tiêu.",
       value: selected.backerCount + " người · " + formatVnd(selected.pledgedAmount),
     },
   };
@@ -153,11 +157,31 @@ export function CreatorCampaignTree({
     { id: "campaign-review", source: "campaign", target: "review", ariaLabel: "Chiến dịch được quản trị viên xét duyệt" },
     { id: "campaign-team", source: "campaign", target: "team", ariaLabel: "Chiến dịch có nhóm cộng tác" },
     { id: "campaign-community", source: "campaign", target: "community", ariaLabel: "Chiến dịch nhận cam kết từ cộng đồng" },
-  ].map((edge) => ({
-    ...edge,
-    type: "smoothstep",
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#82a387" },
-    style: { stroke: "#82a387", strokeWidth: 2.5 },
+  ].map((edge) => {
+    const activeEdge = edge.target === focusedPart || edge.source === focusedPart;
+    return {
+      ...edge,
+      type: "smoothstep",
+      animated: true,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: activeEdge ? "#b9432d" : "#658c65",
+      },
+      style: {
+        stroke: activeEdge ? "#b9432d" : "#658c65",
+        strokeWidth: activeEdge ? 3.2 : 2.4,
+      },
+    };
+  });
+
+  const stageSteps = (
+    ["owner", "campaign", "review", "team", "community"] as const
+  ).map((part, idx) => ({
+    id: part,
+    code: `0${idx + 1}`,
+    title: details[part].title,
+    subtitle: details[part].value,
+    detail: details[part].body,
   }));
 
   return <section id="ban-do-chien-dich" aria-labelledby="creator-tree-title" className="mb-6 overflow-hidden rounded-[22px] border border-[#cbd9c6] bg-[#fbfcf8] shadow-[0_18px_45px_rgba(30,56,41,.06)]">
@@ -168,16 +192,45 @@ export function CreatorCampaignTree({
           <h2 id="creator-tree-title" className="mt-1 font-display text-2xl font-extrabold tracking-tight text-[#173b2e]">Một chủ dự án, nhiều hành trình riêng</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#536858]">Chọn một chiến dịch để xem ai đang tham gia, hồ sơ ở bước nào và tiền cam kết thuộc về đâu.</p>
         </div>
-        <span className="rounded-full border border-[#bfd2ba] bg-white px-3 py-2 text-xs font-bold text-[#3a6345]">
-          {localDbAvailable ? "SQLite trên máy" : "Lưu trong trình duyệt"}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-xl border border-[#bfd2ba] bg-white p-1" role="group" aria-label="Chế độ hiển thị cây chiến dịch">
+            <button
+              type="button"
+              aria-pressed={displayMode === "flow" && expanded}
+              onClick={() => { setDisplayMode("flow"); setExpanded(true); }}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
+                displayMode === "flow" && expanded ? "bg-[#315b40] text-white" : "text-[#315b40] hover:bg-[#f2f7ef]"
+              }`}
+            >
+              <GitBranch className="size-3.5" /> Sơ đồ cây
+            </button>
+            <button
+              type="button"
+              aria-pressed={displayMode === "stage3d" && expanded}
+              onClick={() => { setDisplayMode("stage3d"); setExpanded(true); }}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
+                displayMode === "stage3d" && expanded ? "bg-[#315b40] text-white" : "text-[#315b40] hover:bg-[#f2f7ef]"
+              }`}
+            >
+              <Box className="size-3.5" /> Sa bàn 3D
+            </button>
+          </div>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+            className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#315b40] bg-[#315b40] px-3.5 text-xs font-bold text-white hover:bg-[#23442f]"
+          >
+            {expanded ? "Thu gọn sơ đồ" : "Mở sơ đồ cây & Sa bàn 3D"}
+          </button>
+        </div>
       </div>
       <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Chọn chiến dịch trên bản đồ">
         {portfolio.campaigns.map((campaign) => <button
           key={campaign.id}
           type="button"
           aria-pressed={campaign.id === selected.id}
-          onClick={() => { setSelectedId(campaign.id); setOpenPart(null); }}
+          onClick={() => { setSelectedId(campaign.id); setOpenPart(null); setExpanded(true); }}
           className={"min-h-11 max-w-full rounded-xl border px-3 py-2 text-left text-xs font-bold transition-colors " + (campaign.id === selected.id
             ? "border-[#315b40] bg-[#315b40] text-white"
             : "border-[#c8d9c4] bg-white text-[#315b40] hover:bg-[#f6f9f2]")}
@@ -185,48 +238,70 @@ export function CreatorCampaignTree({
       </div>
     </div>
 
+    {expanded ? (
     <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_290px]">
       <div>
-        <div className="gop-campaign-tree hidden h-[465px] overflow-hidden rounded-2xl border border-[#dbe5d7] bg-white lg:block" aria-label="Cây quan hệ của chiến dịch đang chọn">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            fitView
-            fitViewOptions={{ padding: 0.08 }}
-            minZoom={0.65}
-            maxZoom={1.4}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            nodesFocusable={false}
-            edgesFocusable={false}
-            zoomOnScroll={false}
-            zoomOnDoubleClick={false}
-            panOnScroll={false}
-            ariaLabelConfig={{
-              "controls.ariaLabel": "Điều khiển cây chiến dịch",
-              "controls.zoomIn.ariaLabel": "Phóng to sơ đồ",
-              "controls.zoomOut.ariaLabel": "Thu nhỏ sơ đồ",
-              "controls.fitView.ariaLabel": "Xem toàn bộ sơ đồ",
-            }}
-            onNodeClick={(_, node) => setOpenPart(node.id as TreePart)}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={19} size={1} color="#d6e2d2" />
-            <Controls showInteractive={false} />
-          </ReactFlow>
-        </div>
-        <div className="lg:hidden">
-          <button type="button" onClick={() => setOpenPart("owner")} className="flex min-h-12 w-full items-center justify-between rounded-xl border border-[#c3d7bf] bg-[#edf3e7] px-4 text-left text-sm font-bold text-[#173b2e]">
-            {portfolio.owner.name} <span className="text-[13px]">{portfolio.campaigns.length} chiến dịch</span>
-          </button>
-          <div className="ml-5 border-l-2 border-[#a8c1a8] pb-1 pl-4 pt-3">
-            <button type="button" onClick={() => setOpenPart("campaign")} className="min-h-12 w-full rounded-xl bg-[#173b2e] px-4 py-3 text-left text-sm font-bold text-white">{selected.title}</button>
-            <div className="ml-5 grid gap-2 border-l-2 border-[#a8c1a8] pb-1 pl-4 pt-3">
-              {(["review", "team", "community"] as const).map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-12 rounded-xl border border-[#d6e0d2] bg-white px-4 py-3 text-left text-sm font-semibold text-[#284b36]">
-                {details[part].title} <span className="mt-0.5 block text-[13px] leading-5 font-normal text-[#617465]">{details[part].value}</span>
-              </button>)}
+        {displayMode === "stage3d" ? (
+          <RoleStage3DScene
+            eyebrow="Chiến dịch của bạn"
+            title={`Mô hình không gian chiến dịch: ${selected.title}`}
+            centerLabel={selected.title}
+            centerSubtext={`${statusText[selected.status]} · Mã ${selected.id}`}
+            steps={stageSteps}
+            activeStepId={focusedPart}
+            onSelectStep={(id) => setFocusedPart(id as TreePart)}
+            onInspectStep={(id) => setOpenPart(id as TreePart)}
+            tone="forest"
+            compact
+          />
+        ) : (
+          <>
+            <div className="gop-campaign-tree hidden h-[465px] overflow-hidden rounded-2xl border border-[#dbe5d7] bg-white lg:block" aria-label="Cây quan hệ của chiến dịch đang chọn">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                fitView
+                fitViewOptions={{ padding: 0.08 }}
+                minZoom={0.65}
+                maxZoom={1.4}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                nodesFocusable={false}
+                edgesFocusable={false}
+                zoomOnScroll={false}
+                zoomOnDoubleClick={false}
+                panOnScroll={false}
+                ariaLabelConfig={{
+                  "controls.ariaLabel": "Điều khiển cây chiến dịch",
+                  "controls.zoomIn.ariaLabel": "Phóng to sơ đồ",
+                  "controls.zoomOut.ariaLabel": "Thu nhỏ sơ đồ",
+                  "controls.fitView.ariaLabel": "Xem toàn bộ sơ đồ",
+                }}
+                onNodeClick={(_, node) => {
+                  const part = node.id as TreePart;
+                  setFocusedPart(part);
+                  setOpenPart(part);
+                }}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={19} size={1} color="#d6e2d2" />
+                <Controls showInteractive={false} />
+              </ReactFlow>
             </div>
-          </div>
-        </div>
+            <div className="lg:hidden">
+              <button type="button" onClick={() => setOpenPart("owner")} className="flex min-h-12 w-full items-center justify-between rounded-xl border border-[#c3d7bf] bg-[#edf3e7] px-4 text-left text-sm font-bold text-[#173b2e]">
+                {portfolio.owner.name} <span className="text-[13px]">{portfolio.campaigns.length} chiến dịch</span>
+              </button>
+              <div className="ml-5 border-l-2 border-[#a8c1a8] pb-1 pl-4 pt-3">
+                <button type="button" onClick={() => setOpenPart("campaign")} className="min-h-12 w-full rounded-xl bg-[#173b2e] px-4 py-3 text-left text-sm font-bold text-white">{selected.title}</button>
+                <div className="ml-5 grid gap-2 border-l-2 border-[#a8c1a8] pb-1 pl-4 pt-3">
+                  {(["review", "team", "community"] as const).map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-12 rounded-xl border border-[#d6e0d2] bg-white px-4 py-3 text-left text-sm font-semibold text-[#284b36]">
+                    {details[part].title} <span className="mt-0.5 block text-[13px] leading-5 font-normal text-[#617465]">{details[part].value}</span>
+                  </button>)}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <aside className="flex flex-col rounded-[18px] border border-[#d4e0d0] bg-white p-5">
@@ -254,6 +329,7 @@ export function CreatorCampaignTree({
         </div>
       </aside>
     </div>
+    ) : null}
 
     <Modal open={openPart !== null} title={openPart ? details[openPart].title : ""} description={selected.title} onClose={() => setOpenPart(null)} size="sm">
       {openPart ? <div>

@@ -15,8 +15,7 @@ import {
 } from "@/lib/auth/write-session-cookie";
 import { decodeSession, SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import {
-  decodePlatformPreview,
-  PLATFORM_PREVIEW_COOKIE_NAME,
+  getServerPlatformPreviewState,
   writePlatformPreviewCookie,
 } from "@/lib/auth/platform-preview-cookie";
 import { requireSession } from "@/lib/auth/require-session";
@@ -84,9 +83,7 @@ export async function GET() {
     return response;
   }
   if (session) {
-    const platformState = decodePlatformPreview(
-      cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
-    );
+    const platformState = await getServerPlatformPreviewState();
     if (platformState.userStatuses[session.user.id] === "SUSPENDED") {
       const response = NextResponse.json({ data: null });
       clearPreviewSessionCookie(response);
@@ -127,10 +124,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const cookieStore = await cookies();
-  const platformState = decodePlatformPreview(
-    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
-  );
+  const platformState = await getServerPlatformPreviewState();
   const normalizedEmail = body.email.trim().toLowerCase();
   const registeredAccount = platformState.registeredAccounts.find(
     (account) => account.email === normalizedEmail,
@@ -332,10 +326,7 @@ export async function PATCH(request: Request) {
       : session.previewState,
   };
   const response = NextResponse.json(nextSession);
-  const cookieStore = await cookies();
-  const platformState = decodePlatformPreview(
-    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
-  );
+  const platformState = await getServerPlatformPreviewState();
   const accountIndex = platformState.registeredAccounts.findIndex(
     (account) => account.id === nextSession.user.id,
   );

@@ -8,8 +8,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { CreatorPortfolioData } from "@/lib/api/contracts";
-import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { CreatorCampaignTree } from "@/components/creator/creator-campaign-tree";
 
 const onboardingSteps = [
@@ -59,11 +57,11 @@ export function CreatorOnboarding({
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
               {campaigns.length
-                ? `Mỗi chiến dịch có hồ sơ, nhóm và tiến độ riêng. Dữ liệu đang lưu ${localDbAvailable ? "trong SQLite trên máy chạy web" : "trong trình duyệt đang dùng"}.`
+                ? "Mỗi chiến dịch có hồ sơ, thành viên nhóm và tiến độ vận hành riêng biệt."
                 : "Bạn chưa có chiến dịch. Hãy bắt đầu bằng một hồ sơ ngắn; có thể lưu nháp trước khi gửi xét duyệt."}
             </p>
             {campaigns.length ? <div className="mt-5 flex flex-wrap gap-2.5">
-              <Link href="#ban-do-chien-dich" className="button-dark min-h-11">Xem bản đồ chiến dịch <ArrowRight className="size-4" /></Link>
+              <Link href="#my-campaigns" className="button-dark min-h-11">Xem chiến dịch của tôi <ArrowRight className="size-4" /></Link>
               <Link href="/creator/campaigns/new" className="button-secondary min-h-11">Tạo chiến dịch mới <Plus className="size-4" /></Link>
             </div> : null}
           </div>
@@ -76,33 +74,15 @@ export function CreatorOnboarding({
             </p>
             <p className="mt-2 text-xs leading-6 text-ink-muted">
               {localDbAvailable
-                ? "Hồ sơ và thao tác mới được lưu vào SQLite trên máy chạy web."
-                : "Hồ sơ dùng thử được lưu trong trình duyệt đang dùng."} Chưa nhận tiền thật.
+                ? "Hồ sơ nháp, gói quà và kết quả xét duyệt được lưu trong SQLite trên máy này, theo tài khoản của bạn."
+                : "Hồ sơ nháp và gói quà chỉ được lưu tạm trong trình duyệt này để bạn thử quy trình."}
             </p>
           </div> : null}
         </div>
       </div>
 
       <div className="container-shell py-10 sm:py-14">
-        {campaigns.length ? <CreatorCampaignTree portfolio={portfolio} localDbAvailable={localDbAvailable} /> : null}
-        {campaigns.length ? (
-          <section className="mb-8" aria-labelledby="my-preview-campaigns">
-            <h2 id="my-preview-campaigns" className="font-display text-2xl font-extrabold">Hồ sơ đang làm</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {campaigns.filter((item) => isPreviewCampaignId(item.id)).map((campaign) => (
-                <div key={campaign.id} className="rounded-[18px] border border-line bg-white p-5">
-                  <StatusBadge status={campaign.status} />
-                  <h3 className="mt-3 text-base font-extrabold">{campaign.title}</h3>
-                  <p className="mt-2 text-xs leading-6 text-ink-soft">{campaign.nextActionDetail}</p>
-                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-                    <Link href={`/creator/campaigns/new?draft=${campaign.id}`} className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-forest hover:underline">{campaign.nextActionLabel} <ArrowRight className="size-4" /></Link>
-                    {localDbAvailable ? <Link href={`/campaigns/${campaign.id}/timeline`} className="inline-flex min-h-11 items-center text-xs font-bold text-[#426450] hover:underline">Xem tiến độ và lịch sử</Link> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
+        {campaigns.length ? <div id="my-campaigns" className="scroll-mt-28"><CreatorCampaignTree portfolio={portfolio} localDbAvailable={localDbAvailable} /></div> : null}
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <article className="rounded-[20px] border border-line bg-white p-6 sm:p-8">
             <p className="eyebrow text-coral">Lộ trình gợi ý</p>

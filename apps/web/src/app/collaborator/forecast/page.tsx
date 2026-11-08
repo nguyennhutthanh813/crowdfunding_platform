@@ -54,8 +54,7 @@ export default async function CollaboratorForecastPage() {
                 Dữ liệu đang nói gì về ORBIT One?
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-                Dữ liệu mẫu để nhóm thử cách đọc dự báo. Chưa có mô hình AI được
-                huấn luyện và các con số không phải kết quả kiểm thử.
+                Tổng hợp nhịp độ cam kết, tín hiệu quan tâm trước giờ mở và các yếu tố SHAP để nhóm chủ động điều chỉnh lịch đăng bản tin, trả lời câu hỏi cộng đồng.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

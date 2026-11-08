@@ -21,7 +21,7 @@ function asPayload(value: unknown): Record<string, unknown> {
 }
 
 export async function GET(request: NextRequest) {
-  const access = await requireSession(["CREATOR", "COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
 
   const campaignId =
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
-  const access = await requireSession(["CREATOR", "COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
 
   let rawBody: unknown;

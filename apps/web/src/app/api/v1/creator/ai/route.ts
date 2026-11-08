@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/auth/require-session";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 
 export async function GET(request: NextRequest) {
-  const access = await requireSession(["CREATOR", "COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
 
   const campaignId =

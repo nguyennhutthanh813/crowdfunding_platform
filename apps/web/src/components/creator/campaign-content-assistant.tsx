@@ -119,7 +119,7 @@ export function CampaignContentAssistant({
     setNotice("");
     try {
       await saveDraft(title, blurb);
-      setNotice("Đã lưu tiêu đề và mô tả ngắn vào bản nháp trải nghiệm.");
+      setNotice("Đã lưu tiêu đề và mô tả ngắn vào bản nháp.");
     } catch (error) {
       setNotice(clientRequestMessage(error, "Chưa thể lưu bản nháp. Nội dung trên màn hình vẫn còn nguyên."));
     } finally {
@@ -265,7 +265,7 @@ export function CampaignContentAssistant({
                 role={notice.startsWith("Chưa") ? "alert" : "status"}
                 className={`text-xs leading-5 ${notice.startsWith("Chưa") ? "text-red-600" : "text-emerald-700"}`}
               >
-                {notice || "Các thay đổi chỉ nằm trong bản nháp trải nghiệm."}
+                {notice || "Các thay đổi nằm trong bản nháp của bạn."}
               </p>
               <button
                 type="button"

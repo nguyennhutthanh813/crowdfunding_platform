@@ -182,7 +182,7 @@ function ContextBlock({
     <div className="hidden min-w-0 flex-1 items-center gap-5 md:flex">
       <div>
         <p className="text-[11px] font-bold tracking-[0.1em] text-white/68">
-          PHIÊN VẬN HÀNH THỬ NGHIỆM
+          TRUNG TÂM KIỂM SOÁT VẬN HÀNH
         </p>
         <p className="mt-1 text-xs font-bold">{snapshot.updatedLabel}</p>
       </div>
@@ -251,6 +251,17 @@ export function WorkspaceHeader({
           : headerCopy[role];
   const selectedRole =
     session?.user.roles.includes(role) ? role : session?.user.activeRole;
+  const shortRoleLabels: Record<UserRole, string> = {
+    BACKER: "Ủng hộ",
+    CREATOR: "Chủ dự án",
+    COLLABORATOR: "Cộng tác",
+    ADMIN: "Quản trị",
+  };
+  const handleQuickRoleSwitch = (targetRole: UserRole) => {
+    if (session?.user.roles.includes(targetRole)) {
+      void switchRole(targetRole);
+    }
+  };
   const ActionIcon =
     role === "ADMIN"
       ? ShieldAlert
@@ -288,6 +299,45 @@ export function WorkspaceHeader({
         <ContextBlock role={role} snapshot={snapshot} />
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {session && session.user.roles.length > 1 ? <div
+            className={`hidden items-center gap-1 rounded-[11px] border p-1 xl:inline-flex ${
+              role === "BACKER"
+                ? "border-[#e9d5c2] bg-white/90"
+                : "border-white/14 bg-black/20"
+            }`}
+            role="group"
+            aria-label="Chuyển vai trò của tài khoản"
+          >
+            {session.user.roles.map((itemRole) => {
+              const isCurrent = role === itemRole;
+              return (
+                <button
+                  key={itemRole}
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={isCurrent}
+                  onClick={() => handleQuickRoleSwitch(itemRole)}
+                  className={`rounded-[8px] px-2.5 py-1.5 text-[11px] font-bold transition ${
+                    isCurrent
+                      ? role === "BACKER"
+                        ? "bg-[#3d2821] text-white shadow-2xs"
+                        : "bg-white text-[#142921] shadow-2xs"
+                      : role === "BACKER"
+                        ? "text-[#6c5146] hover:bg-[#fff1de]"
+                        : "text-white/75 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {shortRoleLabels[itemRole]}
+                </button>
+              );
+            })}
+          </div> : null}
+          <Link
+            href="/discover"
+            className={`hidden min-h-11 items-center gap-1.5 rounded-[10px] border px-3 text-xs font-semibold 2xl:inline-flex ${theme.iconButton}`}
+          >
+            <Search className="size-3.5" /> Khám phá dự án
+          </Link>
           <Link
             href={copy.actionHref}
             className={`hidden min-h-11 items-center gap-2 rounded-[10px] px-3 text-xs font-bold lg:inline-flex ${
@@ -330,14 +380,14 @@ export function WorkspaceHeader({
                   <p className="truncate text-sm font-bold">{session.user.name}</p>
                   <p className="mt-1 truncate text-[11px] text-[#77827d]">{session.user.email}</p>
                 </div>
-                <label className="mt-2 block px-3 pb-2 pt-1 text-[11px] font-semibold text-[#77827d]">
-                  Chuyển vai trò
+                {session.user.roles.length > 1 ? <label className="mt-2 block px-3 pb-2 pt-1 text-[11px] font-semibold text-[#77827d]">
+                  Chuyển vai trò của tôi
                   <span className="relative mt-1.5 block">
                     <select
                       name="workspaceRole"
                       value={selectedRole}
                       disabled={busy}
-                      onChange={(event) => void switchRole(event.target.value as UserRole)}
+                      onChange={(event) => handleQuickRoleSwitch(event.target.value as UserRole)}
                       className="h-11 w-full appearance-none rounded-[10px] border border-[#dedfdc] bg-white px-3 pr-8 text-xs font-bold text-[#17251f] outline-none"
                     >
                       {session.user.roles.map((availableRole) => (
@@ -348,7 +398,7 @@ export function WorkspaceHeader({
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#77827d]" />
                   </span>
-                </label>
+                </label> : null}
                 <Link href="/account" className="flex min-h-11 items-center gap-2 rounded-[10px] px-3 py-2.5 text-xs font-semibold hover:bg-[#f3f2ed]">
                   <Settings className="size-4" /> Hồ sơ và cài đặt
                 </Link>
@@ -358,7 +408,7 @@ export function WorkspaceHeader({
                   onClick={() => void signOut("/auth")}
                   className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2.5 text-left text-xs font-semibold hover:bg-[#f3f2ed]"
                 >
-                  <ArrowLeftRight className="size-4" /> Đổi tài khoản
+                  <ArrowLeftRight className="size-4" /> Quản lý phiên đăng nhập
                 </button>
                 <button
                   type="button"
@@ -413,7 +463,7 @@ export function WorkspaceHeader({
           </div>
           {session && selectedRole ? (
             <div className={`mt-3 border-t pt-3 ${theme.divider}`}>
-              <label className={`text-[11px] font-semibold ${theme.muted}`}>
+              {session.user.roles.length > 1 ? <label className={`text-[11px] font-semibold ${theme.muted}`}>
                 Vai trò đang dùng
                 <select
                   name="mobileWorkspaceRole"
@@ -421,7 +471,7 @@ export function WorkspaceHeader({
                   disabled={busy}
                   onChange={(event) => {
                     setMobileOpen(false);
-                    void switchRole(event.target.value as UserRole);
+                    handleQuickRoleSwitch(event.target.value as UserRole);
                   }}
                   className="mt-1.5 h-11 w-full rounded-[10px] border border-[#dedfdc] bg-white px-3 text-sm font-bold text-[#17251f] outline-none"
                 >
@@ -431,7 +481,7 @@ export function WorkspaceHeader({
                     </option>
                   ))}
                 </select>
-              </label>
+              </label> : null}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <Link href="/account" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${theme.iconButton}`}>
                   <Settings className="size-4" /> Tài khoản

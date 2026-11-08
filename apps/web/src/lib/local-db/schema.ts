@@ -19,6 +19,15 @@ CREATE TABLE IF NOT EXISTS user_roles (
   role TEXT NOT NULL,
   PRIMARY KEY (user_id, role)
 );
+CREATE TABLE IF NOT EXISTS user_status_events (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  actor_user_id TEXT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL CHECK (status IN ('ACTIVE','SUSPENDED')),
+  reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  changed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_user_status_events_user ON user_status_events(user_id, changed_at DESC);
 CREATE TABLE IF NOT EXISTS categories (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
@@ -50,10 +59,24 @@ CREATE TABLE IF NOT EXISTS campaign_members (
   campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id),
   role TEXT NOT NULL CHECK (role IN ('OWNER','COLLABORATOR')),
+  status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','REVOKED')),
   PRIMARY KEY (campaign_id, user_id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_one_owner
   ON campaign_members(campaign_id) WHERE role = 'OWNER';
+CREATE TABLE IF NOT EXISTS campaign_invitations (
+  campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  invitee_user_id TEXT REFERENCES users(id),
+  display_name TEXT NOT NULL DEFAULT '',
+  can_post_updates INTEGER NOT NULL CHECK (can_post_updates IN (0,1)),
+  can_reply_comments INTEGER NOT NULL CHECK (can_reply_comments IN (0,1)),
+  can_view_ai INTEGER NOT NULL CHECK (can_view_ai IN (0,1)),
+  status TEXT NOT NULL CHECK (status IN ('PENDING','ACCEPTED')),
+  PRIMARY KEY (campaign_id, email),
+  UNIQUE (campaign_id, invitee_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_invitations_user ON campaign_invitations(invitee_user_id, status);
 CREATE TABLE IF NOT EXISTS reward_tiers (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -158,14 +181,17 @@ CREATE TABLE IF NOT EXISTS campaign_tasks (
   assignee_user_id TEXT NOT NULL REFERENCES users(id),
   created_by_user_id TEXT NOT NULL REFERENCES users(id),
   title TEXT NOT NULL,
-  status TEXT NOT NULL
+  status TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS campaign_task_handoffs (
   id TEXT PRIMARY KEY,
   task_id TEXT NOT NULL REFERENCES campaign_tasks(id),
   from_user_id TEXT NOT NULL REFERENCES users(id),
   to_user_id TEXT NOT NULL REFERENCES users(id),
-  note TEXT NOT NULL
+  note TEXT NOT NULL,
+  created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
@@ -262,4 +288,83 @@ CREATE TABLE IF NOT EXISTS user_preview_state (
   value_json TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+-- SQLite local còn giữ bảng task cũ; các trigger này chặn ghi sai thành viên theo chiến dịch.
+CREATE TRIGGER IF NOT EXISTS trg_campaign_owner_insert BEFORE INSERT ON campaign_members
+WHEN NEW.role='OWNER'
+BEGIN
+  SELECT RAISE(ABORT, 'owner differs from creator') WHERE
+    NOT EXISTS (SELECT 1 FROM campaigns WHERE id=NEW.campaign_id AND creator_id=NEW.user_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_owner_update BEFORE UPDATE OF campaign_id, user_id, role ON campaign_members
+WHEN NEW.role='OWNER'
+BEGIN
+  SELECT RAISE(ABORT, 'owner differs from creator') WHERE
+    NOT EXISTS (SELECT 1 FROM campaigns WHERE id=NEW.campaign_id AND creator_id=NEW.user_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_task_member_insert BEFORE INSERT ON campaign_tasks
+BEGIN
+  SELECT RAISE(ABORT, 'task member outside campaign') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.assignee_user_id) OR
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.created_by_user_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_task_member_update BEFORE UPDATE OF campaign_id, assignee_user_id, created_by_user_id ON campaign_tasks
+BEGIN
+  SELECT RAISE(ABORT, 'task member outside campaign') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.assignee_user_id) OR
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.created_by_user_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_handoff_member_insert BEFORE INSERT ON campaign_task_handoffs
+BEGIN
+  SELECT RAISE(ABORT, 'handoff member outside campaign') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_tasks t JOIN campaign_members m ON m.campaign_id=t.campaign_id AND m.user_id=NEW.from_user_id WHERE t.id=NEW.task_id) OR
+    NOT EXISTS (SELECT 1 FROM campaign_tasks t JOIN campaign_members m ON m.campaign_id=t.campaign_id AND m.user_id=NEW.to_user_id WHERE t.id=NEW.task_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_update_member_insert BEFORE INSERT ON campaign_updates
+BEGIN
+  SELECT RAISE(ABORT, 'update author outside campaign') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.author_id);
+END;
+`;
+
+// Tạo sau khi DB cũ đã được thêm cột status. Các dòng REVOKED giữ khóa ngoại
+// cho việc/bản tin cũ nhưng không được nhận việc hay viết bản tin mới.
+export const activeMembershipGuards = `
+CREATE TRIGGER IF NOT EXISTS trg_owner_active_insert BEFORE INSERT ON campaign_members
+WHEN NEW.role='OWNER' AND NEW.status!='ACTIVE'
+BEGIN
+  SELECT RAISE(ABORT, 'owner must be active');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_owner_active_update BEFORE UPDATE OF role, status ON campaign_members
+WHEN NEW.role='OWNER' AND NEW.status!='ACTIVE'
+BEGIN
+  SELECT RAISE(ABORT, 'owner must be active');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_task_active_insert BEFORE INSERT ON campaign_tasks
+BEGIN
+  SELECT RAISE(ABORT, 'task member revoked') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.assignee_user_id AND status='ACTIVE') OR
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.created_by_user_id AND status='ACTIVE');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_task_active_update BEFORE UPDATE OF campaign_id, assignee_user_id, created_by_user_id ON campaign_tasks
+BEGIN
+  SELECT RAISE(ABORT, 'task member revoked') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.assignee_user_id AND status='ACTIVE') OR
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.created_by_user_id AND status='ACTIVE');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_handoff_active_insert BEFORE INSERT ON campaign_task_handoffs
+BEGIN
+  SELECT RAISE(ABORT, 'handoff member revoked') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_tasks t JOIN campaign_members m ON m.campaign_id=t.campaign_id AND m.user_id=NEW.from_user_id AND m.status='ACTIVE' WHERE t.id=NEW.task_id) OR
+    NOT EXISTS (SELECT 1 FROM campaign_tasks t JOIN campaign_members m ON m.campaign_id=t.campaign_id AND m.user_id=NEW.to_user_id AND m.status='ACTIVE' WHERE t.id=NEW.task_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_update_active_insert BEFORE INSERT ON campaign_updates
+BEGIN
+  SELECT RAISE(ABORT, 'update author revoked') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.author_id AND status='ACTIVE');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_update_active_update BEFORE UPDATE OF campaign_id, author_id ON campaign_updates
+BEGIN
+  SELECT RAISE(ABORT, 'update author revoked') WHERE
+    NOT EXISTS (SELECT 1 FROM campaign_members WHERE campaign_id=NEW.campaign_id AND user_id=NEW.author_id AND status='ACTIVE');
+END;
 `;

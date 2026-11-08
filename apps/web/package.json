@@ -13,6 +13,8 @@
     "test:audit-regressions": "node scripts/check-audit-regressions.mjs",
     "test:new-campaign-flow": "node scripts/check-new-campaign-flow.mjs",
     "test:local-db": "node scripts/check-local-db-flow.mjs",
+    "test:team-membership": "node scripts/check-team-membership-flow.mjs",
+    "test:local-schema-guards": "node scripts/check-local-schema-guards.mjs",
     "test:comment-flow": "node scripts/check-comment-flow.mjs",
     "test:local-concurrency": "node scripts/check-local-concurrent-writes.mjs",
     "docs:sync": "node scripts/sync-project-docs.mjs --write",

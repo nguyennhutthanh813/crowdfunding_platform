@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ArrowRight,
-  LoaderCircle,
-  LockKeyhole,
-  UserRoundCog,
-} from "lucide-react";
+import { LoaderCircle, LockKeyhole, UserRoundCog } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -24,7 +19,13 @@ export function RoleGate({
   const searchParams = useSearchParams();
   const currentPath = `${pathname}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
   const wantsNewCampaign = pathname === "/creator/campaigns/new";
-  const { session, status, busy, activateCreatorRole, signOut } = useAuth();
+  const {
+    session,
+    status,
+    busy,
+    activateCreatorRole,
+    signOut,
+  } = useAuth();
   const [activationError, setActivationError] = useState("");
 
   if (status === "loading") {
@@ -82,14 +83,14 @@ export function RoleGate({
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href={`/auth?next=${nextPath}`} className="button-primary">
-                Đăng nhập <ArrowRight className="size-4" />
+                Đăng nhập để tiếp tục
               </Link>
-              <Link
+              {(wantsNewCampaign || allowedRoles.includes("BACKER")) ? <Link
                 href={`/auth?mode=register&next=${nextPath}`}
-                className="button-secondary"
+                className="button-ghost"
               >
                 Tạo tài khoản
-              </Link>
+              </Link> : null}
             </div>
           </div>
         </div>
@@ -97,7 +98,7 @@ export function RoleGate({
     );
   }
 
-  const hasAccess = allowedRoles.some((role) =>
+  const hasAccess = (allowedRoles.length === 1 && allowedRoles[0] === "COLLABORATOR") || allowedRoles.some((role) =>
     session.user.roles.includes(role),
   );
   if (hasAccess) return children;
@@ -152,7 +153,7 @@ export function RoleGate({
             </p>
           </div>
         </div>
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           {canActivateCreator ? (
             <button
               type="button"
@@ -163,8 +164,8 @@ export function RoleGate({
               {busy
                 ? "Đang mở vai trò…"
                 : wantsNewCampaign
-                  ? "Mở vai trò và tạo chiến dịch"
-                  : "Mở vai trò Chủ dự án"}
+                  ? "Mở vai trò Chủ dự án trên tài khoản hiện tại"
+                  : "Mở thêm vai trò Chủ dự án"}
             </button>
           ) : null}
           <button
@@ -173,7 +174,7 @@ export function RoleGate({
             onClick={() =>
               void signOut(`/auth?next=${encodeURIComponent(currentPath)}`)
             }
-            className="button-secondary"
+            className="button-ghost"
           >
             Đăng nhập tài khoản khác
           </button>

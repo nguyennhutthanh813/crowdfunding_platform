@@ -7,7 +7,7 @@ export function previewInvitationForUser(
   session: SessionResult,
   platform: PlatformPreviewState,
 ) {
-  if (!isPreviewCampaignId(campaignId) || !session.user.roles.includes("COLLABORATOR")) return null;
+  if (!isPreviewCampaignId(campaignId)) return null;
   const snapshot = platform.campaignDrafts[campaignId];
   if (!snapshot || snapshot.ownerId === session.user.id) return null;
   const invitation = snapshot.collaborators?.find((item) =>

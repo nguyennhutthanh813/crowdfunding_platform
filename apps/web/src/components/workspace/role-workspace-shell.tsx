@@ -354,9 +354,7 @@ function creatorSnapshotForLocation(
       : undefined,
     selectedCampaignSlug: campaign.slug,
     selectedCampaignStatus: campaign.status,
-    updatedLabel: isPreviewCampaignId(campaign.id)
-      ? "Hồ sơ tạo trong bản thử · không giao dịch thật"
-      : snapshot.updatedLabel,
+    updatedLabel: snapshot.updatedLabel,
   };
 }
 
@@ -529,9 +527,9 @@ function Sidebar({
         <p className={`mt-3 flex items-start gap-2 px-1 text-[11px] leading-5 ${theme.muted}`}>
           {role === "BACKER" ? <HeartHandshake className="mt-0.5 size-3.5 shrink-0" /> : role === "ADMIN" ? <ShieldAlert className="mt-0.5 size-3.5 shrink-0" /> : role === "CREATOR" ? <PackageCheck className="mt-0.5 size-3.5 shrink-0" /> : <ReceiptText className="mt-0.5 size-3.5 shrink-0" />}
           {role === "BACKER"
-            ? "Cam kết được ghi lại để thử luồng; chưa giữ hoặc thu tiền thật."
+            ? "Cam kết theo cơ chế Tất cả hoặc không gì cả; chỉ chốt thu khi dự án đạt 100% mục tiêu."
             : role === "CREATOR"
-              ? "Bản hiện tại ghi cam kết và tiến độ; chưa thu tiền thật."
+              ? "Mọi cập nhật tiến độ, phản hồi và trạng thái đơn quà đều đồng bộ tới người ủng hộ."
               : role === "COLLABORATOR"
                 ? "Mỗi chiến dịch cấp quyền riêng; lời mời chưa nhận không cho phép thao tác."
                 : "Điểm cảnh báo chỉ xếp thứ tự kiểm tra; quản trị viên quyết định cuối."}

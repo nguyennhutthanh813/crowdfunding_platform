@@ -115,10 +115,10 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
       </div> : null}
 
       {isNewCampaign ? <p className="mt-8 rounded-2xl border border-[#d9e4d2] bg-[#f5f8f0] p-5 text-sm leading-7 text-[#355343]">
-        Nội dung này lấy từ hồ sơ Chủ dự án đã gửi duyệt. {campaign.visual.imageSrc
-          ? "Ảnh đầu trang chỉ minh họa ý tưởng, chưa phải ảnh sản phẩm thật. "
-          : "Chủ dự án chưa thêm ảnh cho hồ sơ. "}
-        Bằng chứng kiểm chứng và bảng chia vốn chi tiết vẫn cần bổ sung trước khi dùng ngoài bản demo.
+        Nội dung này được đồng bộ từ hồ sơ Chủ dự án đã gửi duyệt. {campaign.visual.imageSrc
+          ? "Hình ảnh đầu trang minh họa thiết kế sản phẩm của nhóm. "
+          : "Chủ dự án chưa đính kèm ảnh sản phẩm cho hồ sơ này. "}
+        Các mốc kiểm chứng và bảng phân bổ ngân sách sẽ tiếp tục được cập nhật theo từng đợt đối soát.
       </p> : null}
       {campaign.story.fundingPlan.length > 0 ? <div className="mt-12">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
@@ -519,7 +519,17 @@ function FaqPanel({
   );
 }
 
-function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
+function UpdatesPanel({
+  campaign,
+  onDiscuss,
+}: {
+  campaign: CampaignDetail;
+  onDiscuss?: () => void;
+}) {
+  const [selectedUpdateId, setSelectedUpdateId] = useState<string | null>(null);
+  const selectedUpdate =
+    campaign.updates.find((item) => item.id === selectedUpdateId) ?? null;
+
   return (
     <div>
       <h2 className="font-display text-2xl font-extrabold">Nhật ký dự án</h2>
@@ -528,7 +538,7 @@ function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
         {campaign.updates.map((update, index) => (
           <article
             key={update.id}
-            className="rounded-[18px] border border-line bg-white p-5 sm:p-6"
+            className="rounded-[18px] border border-line bg-white p-5 transition-shadow hover:shadow-md sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-forest font-display text-xs font-bold text-lime">
@@ -546,13 +556,67 @@ function UpdatesPanel({ campaign }: { campaign: CampaignDetail }) {
             <p className="mt-2 text-sm leading-6 text-ink-soft">
               {update.excerpt}
             </p>
-            <span className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
-              <MessageCircle className="size-3.5" />
-              {update.commentCount} bình luận
-            </span>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line/60 pt-3">
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
+                <MessageCircle className="size-3.5" />
+                {update.commentCount} bình luận
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedUpdateId(update.id)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-[#faf9f3] px-3 text-xs font-bold text-ink hover:border-forest"
+              >
+                Đọc bản tin đầy đủ <ArrowRight className="size-3.5" />
+              </button>
+            </div>
           </article>
         ))}
       </div>
+
+      <Modal
+        open={Boolean(selectedUpdate)}
+        onClose={() => setSelectedUpdateId(null)}
+        badge={
+          selectedUpdate
+            ? `Cập nhật · ${new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(selectedUpdate.publishedAt))}`
+            : "Nhật ký dự án"
+        }
+        title={selectedUpdate?.title ?? "Nhật ký dự án"}
+        description={campaign.title}
+        footer={
+          <>
+            {onDiscuss ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedUpdateId(null);
+                  onDiscuss();
+                }}
+                className="button-secondary"
+              >
+                Mở thảo luận ({selectedUpdate?.commentCount ?? 0})
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setSelectedUpdateId(null)}
+              className="button-dark"
+            >
+              Đóng bản tin
+            </button>
+          </>
+        }
+      >
+        {selectedUpdate ? (
+          <div className="space-y-4 text-sm leading-7 text-ink-soft">
+            <p>{selectedUpdate.excerpt}</p>
+            <div className="rounded-xl border border-line bg-[#faf9f3] p-4 text-xs leading-5 text-ink-muted">
+              Người đăng: <strong>{campaign.creator.name}</strong> · Mọi người
+              ủng hộ dự án đều nhận thông báo khi bản tin này được xuất bản.
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -1076,6 +1140,11 @@ export function ProjectExperience({
   const [commentIntent, setCommentIntent] = useState<"comment" | "question">(
     "comment",
   );
+  const [sidebarRewardIndex, setSidebarRewardIndex] = useState(() =>
+    campaign.rewards.length > 1 ? 1 : 0,
+  );
+  const selectedSidebarReward =
+    campaign.rewards[sidebarRewardIndex] ?? campaign.rewards[0];
   const tabScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const container = tabScrollRef.current;
@@ -1129,33 +1198,60 @@ export function ProjectExperience({
       id="noi-dung-du-an"
       className="scroll-mt-32 border-t border-line bg-canvas pb-20"
     >
-      <div className="sticky top-17 z-30 border-b border-line bg-canvas">
+      <div className="sticky top-17 z-30 border-b border-line bg-canvas/95 backdrop-blur-md">
         <div ref={tabScrollRef} className="container-shell overflow-x-auto">
           <div
-            className="flex min-w-max gap-7"
+            className="flex min-w-max gap-6"
             role="tablist"
             aria-label="Nội dung dự án"
           >
-            {tabs.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === item.id}
-                onClick={() => changeTab(item.id)}
-                className={`relative cursor-pointer py-4 text-xs font-bold transition-colors duration-200 ${tab === item.id ? "text-coral-dark" : "text-ink-muted hover:text-ink"}`}
-              >
-                {item.label}
-                {tab === item.id ? (
-                  <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-coral" />
-                ) : null}
-              </button>
-            ))}
+            {tabs.map((item) => {
+              const count =
+                item.id === "Rewards"
+                  ? campaign.rewards.length
+                  : item.id === "FAQ"
+                    ? campaign.faqs.length
+                    : item.id === "Updates"
+                      ? campaign.updates.length
+                      : item.id === "Comments"
+                        ? campaign.comments.length
+                        : null;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === item.id}
+                  onClick={() => changeTab(item.id)}
+                  className={`relative inline-flex cursor-pointer items-center gap-1.5 py-4 text-xs font-bold transition-colors duration-200 ${
+                    tab === item.id
+                      ? "text-coral-dark"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  {count !== null ? (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
+                        tab === item.id
+                          ? "bg-coral/12 text-coral-dark"
+                          : "bg-forest/6 text-ink-muted"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  ) : null}
+                  {tab === item.id ? (
+                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-coral" />
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
       <div className="container-shell grid gap-10 pt-10 lg:grid-cols-[1fr_340px] lg:items-start">
-        <div className="min-w-0">
+        <div key={tab} className="animate-rise min-w-0">
           <TabContent
             tab={tab}
             campaign={campaign}
@@ -1164,35 +1260,69 @@ export function ProjectExperience({
           />
         </div>
         <aside className="hidden lg:block">
-          <div className="sticky top-38 rounded-[18px] border border-line bg-white p-5">
-            <div className="flex items-center gap-2">
-              <Rocket className="size-4 text-coral" />
-              <p className="eyebrow text-coral">
-                {isPreLaunch ? "Gói dự kiến" : "Đồng hành ngay"}
-              </p>
+          <div className="card-lift sticky top-38 rounded-[20px] border border-line bg-white p-5 shadow-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Rocket className="size-4 text-coral" />
+                <p className="eyebrow text-coral">
+                  {isPreLaunch ? "Gói dự kiến" : "Đồng hành ngay"}
+                </p>
+              </div>
+              <span className="rounded-full bg-[#f4f6ef] px-2.5 py-0.5 text-[10px] font-bold text-forest">
+                {campaign.rewards.length} gói
+              </span>
             </div>
+
+            {campaign.rewards.length > 1 ? (
+              <div
+                className="mt-3.5 grid grid-cols-3 gap-1.5 rounded-xl bg-[#f4f3ed] p-1"
+                aria-label="Chọn nhanh gói ủng hộ"
+              >
+                {campaign.rewards.slice(0, 3).map((rw, idx) => {
+                  const active = sidebarRewardIndex === idx;
+                  return (
+                    <button
+                      key={rw.id}
+                      type="button"
+                      onClick={() => setSidebarRewardIndex(idx)}
+                      className={`truncate rounded-lg px-2 py-1.5 text-[11px] font-bold transition ${
+                        active
+                          ? "bg-white text-forest shadow-2xs"
+                          : "text-ink-muted hover:text-ink"
+                      }`}
+                    >
+                      Gói {idx + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
             <h3 className="mt-4 font-display text-xl font-extrabold">
-              {campaign.rewards[1]?.title ?? campaign.rewards[0].title}
+              {selectedSidebarReward.title}
             </h3>
-            <p className="mt-2 font-display text-2xl font-extrabold text-coral-dark">
-              {formatVnd((campaign.rewards[1] ?? campaign.rewards[0]).amount)}
-            </p>
-            <ul className="mt-4 space-y-2 text-xs text-ink-soft">
-              {(campaign.rewards[1] ?? campaign.rewards[0]).items.map(
-                (item) => (
-                  <li key={item} className="flex gap-2">
-                    <Check className="size-3.5 text-emerald-600" />
-                    {item}
-                  </li>
-                ),
-              )}
+            <div className="mt-2 flex items-baseline justify-between gap-2">
+              <p className="font-display text-2xl font-extrabold text-coral-dark">
+                {formatVnd(selectedSidebarReward.amount)}
+              </p>
+              <span className="text-[11px] font-semibold text-ink-muted">
+                Giao {selectedSidebarReward.estimatedDelivery}
+              </span>
+            </div>
+            <ul className="mt-4 space-y-2 border-t border-line pt-3.5 text-xs text-ink-soft">
+              {selectedSidebarReward.items.map((item) => (
+                <li key={item} className="flex gap-2">
+                  <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+                  <span>{item}</span>
+                </li>
+              ))}
             </ul>
             <div className="mt-5">
               {isPreLaunch ? (
                 <NotifyButton campaignId={campaign.id} fullWidth />
               ) : canPledge ? (
                 <Link
-                  href={`/pledge/${campaign.slug}?reward=${(campaign.rewards[1] ?? campaign.rewards[0]).id}`}
+                  href={`/pledge/${campaign.slug}?reward=${selectedSidebarReward.id}`}
                   className="button-primary w-full"
                 >
                   Chọn gói này <ArrowRight className="size-4" />

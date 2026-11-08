@@ -75,11 +75,34 @@ export interface SharedQuestionAssignment {
   readAt?: string | null;
 }
 
+export interface SharedPreviewTask {
+  id: string;
+  campaignId: string;
+  title: string;
+  detail: string;
+  assigneeUserId: string;
+  createdByUserId: string;
+  status: WorkspaceTaskStatus;
+  createdAt: string;
+}
+
+export interface SharedPreviewTaskHandoff {
+  id: string;
+  taskId: string;
+  campaignId: string;
+  fromUserId: string;
+  toUserId: string;
+  note: string;
+  createdAt: string;
+}
+
 export interface PlatformPreviewState {
   version: 1;
   userStatuses: Record<string, "ACTIVE" | "SUSPENDED">;
   registeredAccounts: StoredPreviewAccount[];
   taskStatuses: Record<string, WorkspaceTaskStatus>;
+  campaignTasks: SharedPreviewTask[];
+  campaignTaskHandoffs: SharedPreviewTaskHandoff[];
   collaboratorPermissions: Record<string, string[]>;
   fulfillmentStatuses: Record<
     string,
@@ -108,6 +131,14 @@ export interface PlatformPreviewState {
   questionAssignments: SharedQuestionAssignment[];
   commentLikes: Record<string, string[]>;
   acceptedCollaborators: Record<string, string[]>;
+  userStatusHistory: Array<{
+    id: string;
+    userId: string;
+    actorId: string;
+    status: "ACTIVE" | "SUSPENDED";
+    reason: string;
+    changedAt: string;
+  }>;
 }
 
 export function createEmptyPlatformPreviewState(): PlatformPreviewState {
@@ -116,6 +147,8 @@ export function createEmptyPlatformPreviewState(): PlatformPreviewState {
     userStatuses: {},
     registeredAccounts: [],
     taskStatuses: {},
+    campaignTasks: [],
+    campaignTaskHandoffs: [],
     collaboratorPermissions: {},
     fulfillmentStatuses: {},
     campaignDrafts: {},
@@ -132,6 +165,7 @@ export function createEmptyPlatformPreviewState(): PlatformPreviewState {
     questionAssignments: [],
     commentLikes: {},
     acceptedCollaborators: {},
+    userStatusHistory: [],
   };
 }
 
@@ -159,6 +193,8 @@ export function decodePlatformPreview(
         ? parsed.registeredAccounts.slice(0, 3)
         : [],
       taskStatuses: { ...(parsed.taskStatuses ?? {}) },
+      campaignTasks: Array.isArray(parsed.campaignTasks) ? parsed.campaignTasks.slice(0, 12) : [],
+      campaignTaskHandoffs: Array.isArray(parsed.campaignTaskHandoffs) ? parsed.campaignTaskHandoffs.slice(0, 16) : [],
       collaboratorPermissions: Object.fromEntries(
         Object.entries(parsed.collaboratorPermissions ?? {}).map(
           ([memberId, permissions]) => [
@@ -203,6 +239,8 @@ export function decodePlatformPreview(
         ]),
       ),
       acceptedCollaborators: { ...(parsed.acceptedCollaborators ?? {}) },
+      userStatusHistory: Array.isArray(parsed.userStatusHistory)
+        ? parsed.userStatusHistory.slice(0, 12) : [],
     };
   } catch {
     return createEmptyPlatformPreviewState();

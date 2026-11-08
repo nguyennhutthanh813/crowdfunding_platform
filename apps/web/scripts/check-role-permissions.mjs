@@ -316,6 +316,7 @@ const cases = [
 ];
 
 const results = [];
+const sharedLocalDb = (await request(admin, "GET", "/api/v1/local-db")).status === 200;
 for (const testCase of cases) {
   const result = await request(
     testCase.cookie,
@@ -366,6 +367,52 @@ results.push({
   result: backerPortfolioResult.status === 403 ? "PASS" : "FAIL",
 });
 
+const taskStart = await request(
+  collaborator,
+  "POST",
+  "/api/v1/creator/operations",
+  {
+    action: "UPDATE_TASK_STATUS",
+    payload: {
+      campaignId: "cmp_orbit",
+      taskId: "task-bean-question",
+      status: "IN_PROGRESS",
+    },
+  },
+);
+const creatorTaskView = await request(
+  sharedLocalDb ? creator : taskStart.cookie,
+  "GET",
+  "/api/v1/creator/operations?slug=orbit-one-ca-phe-thong-minh",
+);
+results.push({
+  test: sharedLocalDb ? "Collaborator bắt đầu việc, Creator thấy trạng thái mới" : "Collaborator bắt đầu việc",
+  http: taskStart.status,
+  code: creatorTaskView.body?.data?.tasks?.find((task) => task.id === "task-bean-question")?.status ?? "MISSING",
+  result: taskStart.status === 200 &&
+    creatorTaskView.body?.data?.tasks?.find((task) => task.id === "task-bean-question")?.status === "IN_PROGRESS"
+    ? "PASS" : "FAIL",
+});
+const taskReviewDenied = await request(
+  taskStart.cookie,
+  "POST",
+  "/api/v1/creator/operations",
+  {
+    action: "UPDATE_TASK_STATUS",
+    payload: {
+      campaignId: "cmp_orbit",
+      taskId: "task-bean-question",
+      status: "IN_REVIEW",
+    },
+  },
+);
+results.push({
+  test: "Collaborator không tự đặt trạng thái chờ duyệt",
+  http: taskReviewDenied.status,
+  code: taskReviewDenied.code,
+  result: taskReviewDenied.status === 403 ? "PASS" : "FAIL",
+});
+
 const taskWrite = await request(
   collaborator,
   "POST",
@@ -395,6 +442,59 @@ results.push({
     taskWrite.status === 200 && persistedTask?.status === "DONE"
       ? "PASS"
       : "FAIL",
+});
+
+const taskReopen = await request(
+  taskWrite.cookie,
+  "POST",
+  "/api/v1/creator/operations",
+  {
+    action: "UPDATE_TASK_STATUS",
+    payload: {
+      campaignId: "cmp_orbit",
+      taskId: "task-bean-question",
+      status: "IN_PROGRESS",
+    },
+  },
+);
+const reopenedCreatorView = await request(
+  sharedLocalDb ? creator : taskReopen.cookie,
+  "GET",
+  "/api/v1/creator/operations?slug=orbit-one-ca-phe-thong-minh",
+);
+results.push({
+  test: sharedLocalDb ? "Collaborator mở lại việc đã xong, Creator đọc được" : "Collaborator mở lại việc đã xong",
+  http: taskReopen.status,
+  code: reopenedCreatorView.body?.data?.tasks?.find((task) => task.id === "task-bean-question")?.status ?? "MISSING",
+  result: taskReopen.status === 200 &&
+    reopenedCreatorView.body?.data?.tasks?.find((task) => task.id === "task-bean-question")?.status === "IN_PROGRESS"
+    ? "PASS" : "FAIL",
+});
+const taskReset = await request(
+  taskReopen.cookie,
+  "POST",
+  "/api/v1/creator/operations",
+  {
+    action: "UPDATE_TASK_STATUS",
+    payload: {
+      campaignId: "cmp_orbit",
+      taskId: "task-bean-question",
+      status: "TODO",
+    },
+  },
+);
+const resetView = await request(
+  sharedLocalDb ? creator : taskReset.cookie,
+  "GET",
+  "/api/v1/creator/operations?slug=orbit-one-ca-phe-thong-minh",
+);
+results.push({
+  test: "Collaborator đưa việc của mình về cần làm",
+  http: taskReset.status,
+  code: resetView.body?.data?.tasks?.find((task) => task.id === "task-bean-question")?.status ?? "MISSING",
+  result: taskReset.status === 200 &&
+    resetView.body?.data?.tasks?.find((task) => task.id === "task-bean-question")?.status === "TODO"
+    ? "PASS" : "FAIL",
 });
 
 const reviewWrite = await request(admin, "POST", "/api/v1/admin/actions", {

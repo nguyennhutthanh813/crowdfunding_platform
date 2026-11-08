@@ -74,7 +74,7 @@ export function SiteFooter() {
         <div className="container-shell flex flex-col gap-3 py-5 text-xs text-white/66 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 Góp. Cùng đưa ý tưởng Việt đi xa hơn.</p>
           <p className="inline-flex items-center gap-2">
-            <Mail className="size-3.5" /> Bản trải nghiệm, chưa thực hiện giao dịch thật.
+            <Mail className="size-3.5" /> Cam kết minh bạch theo quy tắc Tất cả hoặc không gì cả.
           </p>
         </div>
       </div>

@@ -73,7 +73,14 @@ export default async function CreatorPage() {
             ).length,
             teamSize: operations.team.length,
           }
-        : item,
+        : platformState.campaignDrafts[item.id]
+          ? {
+              ...item,
+              openTaskCount: (platformState.campaignTasks ?? []).filter((task) =>
+                task.campaignId === item.id && task.status !== "DONE").length,
+              teamSize: 1 + (platformState.acceptedCollaborators[item.id] ?? []).length,
+            }
+          : item,
     ),
   };
   const givenName = session ? getFriendlyName(session.user.name) : "bạn";
@@ -142,10 +149,8 @@ export default async function CreatorPage() {
       </div>
 
       <div className="container-shell min-w-0 pt-5 sm:pt-8">
-        <CreatorCampaignTree portfolio={portfolio} localDbAvailable={localDbEnabled()} />
-        <CreatorPortfolioBoard portfolio={portfolio} showTimeline={localDbEnabled()} />
         {draftReview ? (
-          <article className="mb-5 mt-6 grid gap-4 rounded-[18px] border border-[#cbd7bd] bg-[#f4f7ed] p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
+          <article className="mb-6 grid gap-4 rounded-[18px] border border-[#cbd7bd] bg-[#f4f7ed] p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
             <div className="flex items-start gap-3">
               <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-forest text-lime">
                 <FileCheck2 className="size-5" />
@@ -173,7 +178,8 @@ export default async function CreatorPage() {
             </Link>
           </article>
         ) : null}
-        <div className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
               label: "Đã cam kết",
@@ -183,7 +189,7 @@ export default async function CreatorPage() {
               href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=overview",
             },
             {
-              label: "Phát sinh tại mốc mẫu",
+              label: "Cam kết mới ghi nhận",
               value: formatVnd(operations.today.pledgedAmount, true),
               detail: `+${formatNumber(operations.today.backerCount)} người ủng hộ`,
               icon: WalletCards,
@@ -437,6 +443,11 @@ export default async function CreatorPage() {
               </p>
             </article>
           </aside>
+        </div>
+
+        <div className="mt-8 space-y-6">
+          <CreatorPortfolioBoard portfolio={portfolio} showTimeline={localDbEnabled()} />
+          <CreatorCampaignTree portfolio={portfolio} localDbAvailable={localDbEnabled()} />
         </div>
       </div>
     </section>

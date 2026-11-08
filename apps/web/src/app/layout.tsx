@@ -4,11 +4,8 @@ import { AuthProvider } from "@/components/auth/auth-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { ConnectivityBanner } from "@/components/ui/connectivity-banner";
-import { DemoContextNotice } from "@/components/ui/demo-context-notice";
 import { siteConfig } from "@/config/site";
-import { DEMO_SNAPSHOT_LABEL } from "@/lib/api/mock/relational-store";
 import { getServerSession } from "@/lib/auth/server-session";
-import { localDbEnabled } from "@/lib/local-db/database";
 import "./globals.css";
 
 const beVietnam = Be_Vietnam_Pro({
@@ -77,7 +74,6 @@ export default async function RootLayout({
           </a>
           <ConnectivityBanner />
           <SiteHeader connectedEnabled={Boolean(process.env.GOP_BACKEND_URL)} />
-          <DemoContextNotice localDbAvailable={localDbEnabled()} snapshotLabel={DEMO_SNAPSHOT_LABEL} />
           <main id="noi-dung-chinh" tabIndex={-1}>
             {children}
           </main>

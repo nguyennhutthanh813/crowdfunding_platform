@@ -71,6 +71,12 @@ function DraftOrReviewWorkspace({
     tone: "success" | "error";
     message: string;
   } | null>(null);
+  const [selectedReviewStep, setSelectedReviewStep] = useState<{
+    step: string;
+    label: string;
+    detail: string;
+    done: boolean;
+  } | null>(null);
   const isReviewing = status === "IN_REVIEW";
   const isReady = status === "PRE_LAUNCH";
   const isLaunched = status === "LIVE";
@@ -315,11 +321,53 @@ function DraftOrReviewWorkspace({
                 </span>
                 <p className="mt-4 text-sm font-extrabold">{label}</p>
                 <p className="mt-2 text-xs leading-5 text-ink-muted">{detail}</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedReviewStep({
+                      step: String(step),
+                      label: String(label),
+                      detail: String(detail),
+                      done: Boolean(done),
+                    })
+                  }
+                  className="mt-3 inline-flex min-h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[11px] font-bold text-ink-soft hover:border-forest hover:text-forest"
+                >
+                  <Eye className="size-3" /> Chi tiết mốc {step}
+                </button>
               </li>
             ))}
           </ol>
         </section>
       )}
+      <Modal
+        open={Boolean(selectedReviewStep)}
+        onClose={() => setSelectedReviewStep(null)}
+        badge={selectedReviewStep ? `Mốc ${selectedReviewStep.step}/4 · Luồng xét duyệt` : "Chi tiết mốc duyệt"}
+        title={selectedReviewStep?.label ?? "Chi tiết mốc xét duyệt"}
+        description={selectedReviewStep?.detail}
+      >
+        {selectedReviewStep ? (
+          <div className="space-y-4 text-sm leading-6 text-ink-soft">
+            <div className="rounded-xl border border-line bg-surface-muted p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-ink">
+                Trạng thái tại {campaign.title}
+              </p>
+              <p className="mt-1.5">
+                {selectedReviewStep.done
+                  ? "Mốc này đã hoàn tất và được ghi nhận vào hồ sơ chiến dịch."
+                  : "Mốc này đang chờ bước trước hoàn tất hoặc chờ quyết định từ Quản trị viên."}
+              </p>
+            </div>
+            <div className="rounded-xl border border-line p-4">
+              <p className="text-xs font-bold text-ink">Quy tắc kiểm soát dữ liệu</p>
+              <p className="mt-1 text-xs leading-5 text-ink-soft">
+                Mỗi lần gửi duyệt tạo một bản ghi riêng trong hàng chờ của Admin kèm ảnh chụp nội dung câu chuyện, rủi ro và gói quà tại thời điểm gửi.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

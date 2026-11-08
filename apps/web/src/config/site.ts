@@ -29,7 +29,7 @@ export const siteConfig = {
         href: "/projects/orbit-one-ca-phe-thong-minh?tab=faq",
         label: "Câu hỏi thường gặp",
       },
-      { href: "/auth", label: "Tài khoản dùng thử" },
+      { href: "/auth", label: "Chuyển đổi tài khoản" },
       { href: "/huong-dan", label: "Hướng dẫn từng bước" },
     ],
   },

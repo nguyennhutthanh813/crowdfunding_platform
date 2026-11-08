@@ -30,7 +30,7 @@ import {
 import { isPreviewCampaignId, previewCampaignStatus } from "@/lib/creator/preview-campaigns";
 import { campaignDetailsBySlug } from "@/lib/api/mock/campaign-details";
 import { getSampleCoverArt } from "@/lib/campaign/sample-cover-art";
-import { localSchema } from "./schema";
+import { activeMembershipGuards, localSchema } from "./schema";
 
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
@@ -115,7 +115,7 @@ function seedDatabase(db: SqliteDb) {
     insertMany(db, "INSERT INTO campaigns VALUES (?,?,?,?,?,?,?,?,?)", mockCampaigns, (row) =>
       [row.id, row.creatorId, row.categoryId, row.title, row.slug, row.status,
         row.goalAmount, row.pledgedAmount, "SEED"]);
-    insertMany(db, "INSERT INTO campaign_members VALUES (?,?,?)", mockCampaignMembers, (row) =>
+    insertMany(db, "INSERT INTO campaign_members (campaign_id,user_id,role) VALUES (?,?,?)", mockCampaignMembers, (row) =>
       [row.campaignId, row.userId, row.role]);
     insertMany(db, "INSERT INTO reward_tiers VALUES (?,?,?,?,?)", mockRewards, (row) =>
       [row.id, row.campaignId, row.title, row.amount, "SEED"]);
@@ -140,10 +140,13 @@ function seedDatabase(db: SqliteDb) {
     insertMany(db, "INSERT INTO campaign_reviews VALUES (?,?,?,?,?,?,?)", mockCampaignReviews, (row) =>
       [row.id, row.campaignId, row.reviewerId, row.decision, null,
         row.submissionVersion, "SEED"]);
-    insertMany(db, "INSERT INTO campaign_tasks VALUES (?,?,?,?,?,?)", mockCampaignTasks, (row) =>
-      [row.id, row.campaignId, row.assigneeUserId, row.createdByUserId, row.title, row.status]);
-    insertMany(db, "INSERT INTO campaign_task_handoffs VALUES (?,?,?,?,?)", mockTaskHandoffs, (row) =>
-      [row.id, row.taskId, row.fromUserId, row.toUserId, row.note]);
+    insertMany(db, `INSERT INTO campaign_tasks
+      (id,campaign_id,assignee_user_id,created_by_user_id,title,status,detail)
+      VALUES (?,?,?,?,?,?,?)`, mockCampaignTasks, (row) =>
+      [row.id, row.campaignId, row.assigneeUserId, row.createdByUserId, row.title, row.status, row.detail]);
+    insertMany(db, `INSERT INTO campaign_task_handoffs
+      (id,task_id,from_user_id,to_user_id,note,created_at) VALUES (?,?,?,?,?,?)`, mockTaskHandoffs, (row) =>
+      [row.id, row.taskId, row.fromUserId, row.toUserId, row.note, row.createdAt]);
     insertMany(db, "INSERT INTO messages VALUES (?,?,?,?,?,?,?)", mockMessages, (row) =>
       [row.id, row.campaignId, row.senderId, row.recipientId, row.subject, row.body, "SEED"]);
     insertMany(db, "INSERT INTO fraud_alerts VALUES (?,?,?,?,?,?)", mockFraudAlerts, (row) =>
@@ -194,6 +197,24 @@ function ensureQuestionAssignmentReadAt(db: SqliteDb) {
   }
 }
 
+function ensureCampaignTaskColumns(db: SqliteDb) {
+  const columns = db.prepare("PRAGMA table_info(campaign_tasks)").all();
+  if (!columns.some((column) => column.name === "detail")) {
+    db.exec("ALTER TABLE campaign_tasks ADD COLUMN detail TEXT NOT NULL DEFAULT ''");
+  }
+  if (!columns.some((column) => column.name === "created_at")) {
+    db.exec("ALTER TABLE campaign_tasks ADD COLUMN created_at TEXT");
+  }
+  const updateSeed = db.prepare("UPDATE campaign_tasks SET detail = ? WHERE id = ?");
+  for (const task of mockCampaignTasks) updateSeed.run(task.detail, task.id);
+  const handoffColumns = db.prepare("PRAGMA table_info(campaign_task_handoffs)").all();
+  if (!handoffColumns.some((column) => column.name === "created_at")) {
+    db.exec("ALTER TABLE campaign_task_handoffs ADD COLUMN created_at TEXT");
+  }
+  const updateHandoff = db.prepare("UPDATE campaign_task_handoffs SET created_at = ? WHERE id = ?");
+  for (const handoff of mockTaskHandoffs) updateHandoff.run(handoff.createdAt, handoff.id);
+}
+
 function ensurePlatformStateRevision(db: SqliteDb) {
   const columns = db.prepare("PRAGMA table_info(platform_state)").all();
   if (!columns.some((column) => column.name === "revision")) {
@@ -201,16 +222,26 @@ function ensurePlatformStateRevision(db: SqliteDb) {
   }
 }
 
+function ensureCampaignMemberStatus(db: SqliteDb) {
+  const columns = db.prepare("PRAGMA table_info(campaign_members)").all();
+  if (!columns.some((column) => column.name === "status")) {
+    db.exec("ALTER TABLE campaign_members ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','REVOKED'))");
+  }
+  db.exec(activeMembershipGuards);
+}
+
 function getDatabase(): SqliteDb {
   if (localRuntime.gopLocalDb) {
     // Dev hot reload giữ connection cũ; chạy phần CREATE IF NOT EXISTS một lần khi schema đổi.
-    if (localRuntime.gopLocalDbSchemaVersion !== 9) {
+    if (localRuntime.gopLocalDbSchemaVersion !== 17) {
       localRuntime.gopLocalDb.exec(localSchema);
+      ensureCampaignMemberStatus(localRuntime.gopLocalDb);
       ensureAddressColumns(localRuntime.gopLocalDb);
       ensureQuestionAssignmentReadAt(localRuntime.gopLocalDb);
+      ensureCampaignTaskColumns(localRuntime.gopLocalDb);
       ensurePlatformStateRevision(localRuntime.gopLocalDb);
       seedCommentTargets(localRuntime.gopLocalDb);
-      localRuntime.gopLocalDbSchemaVersion = 9;
+      localRuntime.gopLocalDbSchemaVersion = 17;
     }
     return localRuntime.gopLocalDb;
   }
@@ -219,13 +250,15 @@ function getDatabase(): SqliteDb {
   const db = new DatabaseSync(databasePath) as SqliteDb;
   db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
   db.exec(localSchema);
+  ensureCampaignMemberStatus(db);
   ensureAddressColumns(db);
   ensureQuestionAssignmentReadAt(db);
+  ensureCampaignTaskColumns(db);
   ensurePlatformStateRevision(db);
   seedDatabase(db);
   seedCommentTargets(db);
   localRuntime.gopLocalDb = db;
-  localRuntime.gopLocalDbSchemaVersion = 9;
+  localRuntime.gopLocalDbSchemaVersion = 17;
   return db;
 }
 
@@ -243,6 +276,7 @@ export function readLocalPlatformState(fallback: PlatformPreviewState): Platform
 
 function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
   db.exec(`
+    DELETE FROM user_status_events;
     DELETE FROM question_assignments;
     DELETE FROM campaign_media WHERE source = 'LOCAL';
     DELETE FROM campaign_updates WHERE source = 'LOCAL';
@@ -255,11 +289,22 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
     DELETE FROM pledges WHERE source = 'LOCAL';
     DELETE FROM addresses WHERE source = 'LOCAL';
     DELETE FROM campaign_reviews WHERE source = 'LOCAL';
+    DELETE FROM campaign_invitations;
     DELETE FROM reward_tiers WHERE source = 'LOCAL';
     DELETE FROM add_ons WHERE source = 'LOCAL';
     DELETE FROM shipping_options WHERE source = 'LOCAL';
     DELETE FROM campaign_members WHERE campaign_id IN (SELECT id FROM campaigns WHERE source = 'LOCAL');
+    DELETE FROM campaign_task_handoffs WHERE task_id IN
+      (SELECT id FROM campaign_tasks WHERE campaign_id IN (SELECT id FROM campaigns WHERE source = 'LOCAL'));
+    DELETE FROM campaign_tasks WHERE campaign_id IN (SELECT id FROM campaigns WHERE source = 'LOCAL');
   `);
+
+  // Nháp chưa từng gửi duyệt có thể bị xóa; phần còn lại vẫn do platform_state quản lý.
+  const removeDraft = db.prepare("DELETE FROM campaigns WHERE id = ? AND source = 'LOCAL'");
+  const oldDrafts = db.prepare("SELECT id FROM campaigns WHERE source = 'LOCAL'").all();
+  for (const row of oldDrafts) {
+    if (!state.campaignDrafts[String(row.id)]) removeDraft.run(String(row.id));
+  }
 
   // Giữ nguyên dòng user: xóa rồi chèn lại sẽ kéo theo user_preview_state qua ON DELETE CASCADE.
   const addUser = db.prepare(`INSERT INTO users VALUES (?,?,?,?,?,?)
@@ -272,6 +317,12 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
     removeRoles.run(account.id);
     for (const role of account.roles) addRole.run(account.id, role);
   }
+  const addUserStatusEvent = db.prepare(`INSERT INTO user_status_events
+    (id,user_id,actor_user_id,status,reason,changed_at) VALUES (?,?,?,?,?,?)`);
+  for (const change of state.userStatusHistory ?? []) {
+    addUserStatusEvent.run(change.id, change.userId, change.actorId,
+      change.status, change.reason, change.changedAt);
+  }
 
   const categoryIdByName = new Map(mockCategories.map((row) => [row.name, row.id]));
   const addCampaign = db.prepare(`INSERT INTO campaigns VALUES (?,?,?,?,?,?,?,?,?)
@@ -279,11 +330,15 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
       title=excluded.title, status=excluded.status,
       goal_amount=excluded.goal_amount, pledged_amount=excluded.pledged_amount
     WHERE campaigns.source='LOCAL'`);
-  const addMember = db.prepare("INSERT INTO campaign_members VALUES (?,?,?)");
+  const addMember = db.prepare("INSERT INTO campaign_members (campaign_id,user_id,role) VALUES (?,?,?)");
+  const addInvitation = db.prepare(`INSERT OR IGNORE INTO campaign_invitations
+    (campaign_id,email,invitee_user_id,display_name,can_post_updates,can_reply_comments,can_view_ai,status)
+    VALUES (?,?,?,?,?,?,?,?)`);
   const addMedia = db.prepare("INSERT INTO campaign_media VALUES (?,?,?,?,?,?,?)");
   const addReward = db.prepare("INSERT INTO reward_tiers VALUES (?,?,?,?,?)");
   const addAddOn = db.prepare("INSERT INTO add_ons VALUES (?,?,?,?,?)");
   const addShipping = db.prepare("INSERT INTO shipping_options VALUES (?,?,?,?,?)");
+  const revokedMembers: Array<{ campaignId: string; userId: string }> = [];
   for (const snapshot of Object.values(state.campaignDrafts)) {
     const fields = snapshot.draft;
     const cover = getSampleCoverArt(fields.coverAssetId);
@@ -297,15 +352,43 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
         state.pledges.filter((pledge) => pledge.campaignId === snapshot.campaignId)
           .reduce((sum, pledge) => sum + pledge.totalAmount, 0), "LOCAL");
       addMember.run(snapshot.campaignId, snapshot.ownerId, "OWNER");
+      const accounts = [...mockUsers.map((user) => ({ id: user.id, email: user.email })),
+        ...state.registeredAccounts.map((user) => ({ id: user.id, email: user.email }))];
+      for (const invite of snapshot.collaborators ?? []) {
+        const email = invite.email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+        const account = accounts.find((user) => user.email?.toLowerCase() === email);
+        const accepted = Boolean(account && (state.acceptedCollaborators[snapshot.campaignId] ?? []).includes(account.id));
+        addInvitation.run(snapshot.campaignId, email, accepted ? account!.id : null,
+          invite.name, Number(invite.canUpdate), Number(invite.canReply), Number(invite.canViewAi),
+          accepted ? "ACCEPTED" : "PENDING");
+      }
+      const activeUserIds = new Set<string>();
       for (const userId of state.acceptedCollaborators[snapshot.campaignId] ?? []) {
-        const account = [...mockUsers.map((user) => ({ id: user.id, email: user.email })),
-          ...state.registeredAccounts.map((user) => ({ id: user.id, email: user.email }))]
-          .find((user) => user.id === userId);
+        const account = accounts.find((user) => user.id === userId);
         const acceptedEmail = account?.email?.toLowerCase();
         if (acceptedEmail && snapshot.collaborators?.some((member) =>
           member.email.toLowerCase() === acceptedEmail)) {
           addMember.run(snapshot.campaignId, userId, "COLLABORATOR");
+          activeUserIds.add(userId);
         }
+      }
+      // Dòng thành viên đã rời nhóm vẫn giữ khóa ngoại cho việc và bản tin cũ.
+      const formerUserIds = new Set<string>([
+        ...(state.campaignTasks ?? []).filter((task) => task.campaignId === snapshot.campaignId)
+          .flatMap((task) => [task.assigneeUserId, task.createdByUserId]),
+        ...(state.campaignTaskHandoffs ?? []).filter((handoff) => handoff.campaignId === snapshot.campaignId)
+          .flatMap((handoff) => [handoff.fromUserId, handoff.toUserId]),
+        ...(state.questionAssignments ?? []).filter((assignment) => assignment.campaignId === snapshot.campaignId)
+          .flatMap((assignment) => [assignment.assigneeUserId, assignment.assignedByUserId]),
+        ...state.publishedUpdates.filter((update) => update.campaignId === snapshot.campaignId && update.authorId)
+          .map((update) => update.authorId!),
+      ]);
+      for (const userId of formerUserIds) {
+        if (userId === snapshot.ownerId || activeUserIds.has(userId)) continue;
+        if (!accounts.some((account) => account.id === userId)) continue;
+        addMember.run(snapshot.campaignId, userId, "COLLABORATOR");
+        revokedMembers.push({ campaignId: snapshot.campaignId, userId });
       }
     }
     if (cover) addMedia.run(`media_${snapshot.campaignId}_cover`, snapshot.campaignId,
@@ -322,6 +405,22 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
       addShipping.run(`shipping_${snapshot.campaignId}`, snapshot.campaignId,
         "Giao tại Việt Nam", Number(fields.shippingFee), "LOCAL");
     }
+  }
+
+  const addPreviewTask = db.prepare(`INSERT INTO campaign_tasks
+    (id,campaign_id,assignee_user_id,created_by_user_id,title,status,detail,created_at)
+    VALUES (?,?,?,?,?,?,?,?)`);
+  for (const task of state.campaignTasks ?? []) {
+    if (!isPreviewCampaignId(task.campaignId) || !state.campaignDrafts[task.campaignId]) continue;
+    addPreviewTask.run(task.id, task.campaignId, task.assigneeUserId,
+      task.createdByUserId, task.title, task.status, task.detail, task.createdAt);
+  }
+  const addPreviewHandoff = db.prepare(`INSERT INTO campaign_task_handoffs
+    (id,task_id,from_user_id,to_user_id,note,created_at) VALUES (?,?,?,?,?,?)`);
+  for (const handoff of state.campaignTaskHandoffs ?? []) {
+    if (!state.campaignTasks.some((task) => task.id === handoff.taskId && task.campaignId === handoff.campaignId)) continue;
+    addPreviewHandoff.run(handoff.id, handoff.taskId, handoff.fromUserId,
+      handoff.toUserId, handoff.note, handoff.createdAt);
   }
 
   const addReview = db.prepare("INSERT INTO campaign_reviews VALUES (?,?,?,?,?,?,?)");
@@ -415,6 +514,9 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
       update.body ?? "", update.publishedAt ?? new Date().toISOString(), "LOCAL");
   }
 
+  const revokeMember = db.prepare("UPDATE campaign_members SET status = 'REVOKED' WHERE campaign_id = ? AND user_id = ?");
+  for (const member of revokedMembers) revokeMember.run(member.campaignId, member.userId);
+
   const setUserStatus = db.prepare("UPDATE users SET status = ? WHERE id = ?");
   for (const user of mockUsers) setUserStatus.run(state.userStatuses[user.id] ?? user.status, user.id);
   const setCampaignStatus = db.prepare("UPDATE campaigns SET status = ? WHERE id = ?");
@@ -502,7 +604,7 @@ export function hydrateLocalSession(session: SessionResult): SessionResult {
 }
 
 const inspectTables = [
-  "users", "user_roles", "categories", "campaigns", "campaign_media", "campaign_members",
+  "users", "user_roles", "user_status_events", "categories", "campaigns", "campaign_media", "campaign_members", "campaign_invitations",
   "reward_tiers", "add_ons", "shipping_options", "addresses", "pledges",
   "pledge_add_ons", "payment_authorizations", "fulfillments", "campaign_reviews",
   "campaign_events",
@@ -546,6 +648,22 @@ export function inspectLocalDatabase() {
     JOIN campaigns c ON c.id = q.campaign_id
     JOIN users u ON u.id = q.assignee_user_id
     ORDER BY q.assigned_at DESC LIMIT 8`).all();
+  const recentTasks = db.prepare(`SELECT t.id, t.campaign_id AS campaignId,
+    c.title AS campaignTitle, t.title, t.detail, t.status,
+    u.display_name AS assignee, owner.display_name AS createdBy,
+    t.created_at AS createdAt
+    FROM campaign_tasks t JOIN campaigns c ON c.id = t.campaign_id
+    JOIN users u ON u.id = t.assignee_user_id
+    JOIN users owner ON owner.id = t.created_by_user_id
+    WHERE c.source = 'LOCAL' ORDER BY t.created_at DESC LIMIT 8`).all();
+  const recentHandoffs = db.prepare(`SELECT h.id, t.campaign_id AS campaignId,
+    t.title AS taskTitle, old.display_name AS fromName, new.display_name AS toName,
+    h.note, h.created_at AS createdAt
+    FROM campaign_task_handoffs h JOIN campaign_tasks t ON t.id = h.task_id
+    JOIN campaigns c ON c.id = t.campaign_id
+    JOIN users old ON old.id = h.from_user_id
+    JOIN users new ON new.id = h.to_user_id
+    WHERE c.source = 'LOCAL' ORDER BY h.created_at DESC LIMIT 8`).all();
   const recentCampaignMedia = db.prepare(`SELECT m.id, m.url, m.alt_text AS altText,
     c.id AS campaignId, c.slug AS campaignSlug, c.title AS campaignTitle,
     c.status AS campaignStatus
@@ -555,7 +673,7 @@ export function inspectLocalDatabase() {
     c.goal_amount AS goalAmount, c.pledged_amount AS pledgedAmount,
     u.display_name AS owner, COUNT(e.id) AS eventCount,
     MAX(e.created_at) AS lastEventAt,
-    (SELECT COUNT(*) FROM campaign_members m WHERE m.campaign_id = c.id) AS memberCount,
+    (SELECT COUNT(*) FROM campaign_members m WHERE m.campaign_id = c.id AND m.status = 'ACTIVE') AS memberCount,
     (SELECT COUNT(*) FROM reward_tiers r WHERE r.campaign_id = c.id) AS rewardCount,
     (SELECT COUNT(*) FROM campaign_reviews v WHERE v.campaign_id = c.id) AS reviewCount,
     (SELECT COUNT(*) FROM pledges p WHERE p.campaign_id = c.id) AS pledgeCount
@@ -581,6 +699,8 @@ export function inspectLocalDatabase() {
     recentPledges,
     recentComments,
     recentQuestionAssignments,
+    recentTasks,
+    recentHandoffs,
     recentCampaignMedia,
     foreignKeyErrors,
     updatedAt: state?.updated_at ?? null,
@@ -609,14 +729,13 @@ export function getLocalCampaignTimeline(
   if (!row) return null;
   const isAdmin = Boolean(user?.roles.includes("ADMIN"));
   const isOwner = Boolean(user && row.creatorId === user.id && user.roles.includes("CREATOR"));
-  const isCollaborator = Boolean(user?.roles.includes("COLLABORATOR") &&
+  const isCollaborator = Boolean(user &&
     db.prepare(`SELECT 1 AS found FROM campaign_members
-      WHERE campaign_id = ? AND user_id = ? AND role = 'COLLABORATOR'`).get(campaignId, user?.id ?? ""));
-  const isPublicCampaign = row.source === "SEED" &&
-    new Set(["PRE_LAUNCH", "LIVE", "SUCCESSFUL", "FAILED"]).has(String(row.status));
+      WHERE campaign_id = ? AND user_id = ? AND role = 'COLLABORATOR' AND status = 'ACTIVE'`).get(campaignId, user?.id ?? ""));
+  const isPublicCampaign = new Set(["PRE_LAUNCH", "LIVE", "SUCCESSFUL", "FAILED"])
+    .has(String(row.status));
   const isBacker = Boolean(user?.roles.includes("BACKER") && isPublicCampaign);
-  const isGuest = !user && isPublicCampaign;
-  if (!isAdmin && !isOwner && !isCollaborator && !isBacker && !isGuest) return null;
+  if (!isAdmin && !isOwner && !isCollaborator && !isPublicCampaign) return null;
   const viewer = isAdmin ? "ADMIN" : isOwner ? "OWNER" : isCollaborator ? "COLLABORATOR"
     : isBacker ? "BACKER" : "GUEST";
   const all = db.prepare(`SELECT e.id, e.actor_user_id AS actorUserId,

@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   findMockCampaign,
@@ -9,14 +8,11 @@ import {
   mockUsers,
 } from "@/lib/api/mock/relational-store";
 import { getEffectivePreviewState } from "@/lib/auth/preview-state";
-import {
-  decodePlatformPreview,
-  PLATFORM_PREVIEW_COOKIE_NAME,
-  writePlatformPreviewCookie,
-} from "@/lib/auth/platform-preview-cookie";
+import { getServerPlatformPreviewState, writePlatformPreviewCookie } from "@/lib/auth/platform-preview-cookie";
 import { requireSession } from "@/lib/auth/require-session";
+import { previewAccounts } from "@/lib/auth/preview-accounts";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
-import type { LocalCampaignEventInput } from "@/lib/local-db/database";
+import { localDbEnabled, type LocalCampaignEventInput } from "@/lib/local-db/database";
 import { isPreviewCampaignId, previewCampaignStatus } from "@/lib/creator/preview-campaigns";
 
 const allowedActions = new Set([
@@ -40,10 +36,7 @@ function asPayload(value: unknown): Record<string, unknown> {
 export async function POST(request: Request) {
   const access = await requireSession(["ADMIN"]);
   if (access.response) return access.response;
-  const cookieStore = await cookies();
-  const platformState = decodePlatformPreview(
-    cookieStore.get(PLATFORM_PREVIEW_COOKIE_NAME)?.value,
-  );
+  const platformState = await getServerPlatformPreviewState();
 
   let rawBody: unknown;
   try {
@@ -145,18 +138,26 @@ export async function POST(request: Request) {
     const status = typeof payload.status === "string" ? payload.status : "";
     const reason =
       typeof payload.reason === "string" ? payload.reason.trim() : "";
-    if (
-      !mockUsers.some((user) => user.id === userId) &&
-      !platformState.registeredAccounts.some((user) => user.id === userId)
-    ) {
+    if (!mockUsers.some((user) => user.id === userId) &&
+      !platformState.registeredAccounts.some((user) => user.id === userId)) {
       return apiError(404, "USER_NOT_FOUND", "Không tìm thấy tài khoản.");
     }
-    if (!new Set(["ACTIVE", "SUSPENDED"]).has(status) || !reason) {
+    if (!previewAccounts.some((user) => user.id === userId) &&
+      !platformState.registeredAccounts.some((user) => user.id === userId)) {
+      return apiError(422, "SAMPLE_PROFILE_ONLY", "Hồ sơ này chỉ dùng làm dữ liệu mẫu, chưa có tài khoản đăng nhập để khóa.");
+    }
+    if (!new Set(["ACTIVE", "SUSPENDED"]).has(status) || !reason || reason.length > 240) {
       return apiError(
         422,
         "USER_STATUS_INVALID",
         "Cần chọn trạng thái và nêu lý do cập nhật tài khoản.",
       );
+    }
+    if (userId === access.session!.user.id && status === "SUSPENDED") {
+      return apiError(409, "CANNOT_SUSPEND_SELF", "Không thể khóa chính tài khoản quản trị đang đăng nhập.");
+    }
+    if ((platformState.userStatuses[userId] ?? "ACTIVE") === status) {
+      return apiError(409, "USER_STATUS_UNCHANGED", "Tài khoản đã ở trạng thái này.");
     }
   }
 
@@ -228,6 +229,14 @@ export async function POST(request: Request) {
       ...platformState.userStatuses,
       [payload.userId as string]: payload.status as "ACTIVE" | "SUSPENDED",
     };
+    platformState.userStatusHistory = [{
+      id: `user_status_${crypto.randomUUID()}`,
+      userId: payload.userId as string,
+      actorId: access.session!.user.id,
+      status: payload.status as "ACTIVE" | "SUSPENDED",
+      reason: String(payload.reason).trim(),
+      changedAt: new Date().toISOString(),
+    }, ...(platformState.userStatusHistory ?? [])].slice(0, localDbEnabled() ? undefined : 12);
   }
 
   if (action === "SET_CAMPAIGN_STATUS") {

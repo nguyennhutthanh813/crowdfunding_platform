@@ -198,7 +198,7 @@ export const mockApi: PlatformApi = {
         previewState: getInitialPreviewState(account.id),
         expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
         notice:
-          "Phiên trải nghiệm đã sẵn sàng. Các thao tác được lưu trong thời gian đăng nhập.",
+          "Đăng nhập thành công.",
       };
     }
 
@@ -220,7 +220,7 @@ export const mockApi: PlatformApi = {
       previewState: getInitialPreviewState(registeredId),
       expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
       notice:
-        "Tài khoản trải nghiệm đã được tạo. Bạn có thể bắt đầu lưu và ủng hộ dự án.",
+        "Tài khoản đã được tạo. Bạn có thể bắt đầu lưu và ủng hộ dự án.",
     };
   },
 };

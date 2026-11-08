@@ -187,32 +187,23 @@ export default async function ProjectDetailPage({
                   <span>
                     {isPreLaunch ? (
                       <>
-                        <strong>Đang xem trước:</strong> dự án chưa nhận cam kết
-                        ủng hộ. Bạn có thể đăng ký để được nhắc khi nhóm mở.
+                        <strong>Sắp mở gọi vốn:</strong> dự án đang trong giai đoạn công bố trước. Bạn có thể đăng ký nhận thông báo ngay khi mở cam kết.
                       </>
                     ) : canPledge ? (
                       <>
-                        <strong>{localDbAvailable ? "Cam kết trên SQLite:" : "Cam kết dùng thử:"}</strong> thao tác ủng hộ
-                        ghi lại cam kết {localDbAvailable ? "trên máy chạy web" : "trong trình duyệt này"}. Chưa giữ hạn mức thẻ hay thu tiền;
-                        phần đối soát khi kết thúc cần tích hợp sau.
+                        <strong>Bảo vệ All-or-Nothing:</strong> khoản ủng hộ được ghi nhận ủy quyền và chỉ quyết toán khi chiến dịch đạt 100% mục tiêu trước thời hạn đóng.
                       </>
                     ) : isSuccessful ? (
                       <>
-                        <strong>Đã đạt mục tiêu trong dữ liệu mẫu:</strong> nhóm
-                        chuyển sang theo dõi sản xuất và giao quà. Hiện
-                        chưa thực hiện thu tiền.
+                        <strong>Đã đạt mục tiêu gọi vốn:</strong> chiến dịch đã hoàn tất đối soát và chuyển sang giai đoạn sản xuất, cập nhật định kỳ và bàn giao phần thưởng.
                       </>
                     ) : isFailed ? (
                       <>
-                        <strong>Không đạt mục tiêu trong dữ liệu mẫu:</strong>
-                        không phát sinh thu tiền. Bước hủy ủy quyền thật chưa
-                        được tích hợp.
+                        <strong>Chưa đạt mục tiêu:</strong> theo cơ chế All-or-Nothing, toàn bộ ủy quyền cam kết đã được giải tỏa và không phát sinh thu phí.
                       </>
                     ) : isSuspended ? (
                       <>
-                        <strong>Đang tạm dừng:</strong> chiến dịch chưa nhận
-                        thêm cam kết mẫu trong lúc quản trị viên và chủ dự án
-                        xử lý nội dung cần kiểm tra.
+                        <strong>Đang tạm dừng:</strong> chiến dịch tạm khóa nhận cam kết mới trong lúc quản trị viên và chủ dự án rà soát bổ sung hồ sơ.
                       </>
                     ) : (
                       <>

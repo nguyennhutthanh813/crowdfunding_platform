@@ -18,6 +18,8 @@ File được tạo tại `.local-data/gop-mock.sqlite`. Thư mục này đượ
 
 Hai loại dữ liệu dễ nhầm: `src/lib/api/mock/relational-store.ts` là seed nạp vào SQLite lần đầu; `src/components/creator/campaign-wizard-samples.ts` chỉ chứa ví dụ để bấm **Điền thử ví dụ Bếp Mây** trong form. Ví dụ này chưa nằm trong DB cho đến khi chủ dự án bấm **Lưu bản nháp**. Việc tách file ví dụ khỏi component không chuyển hay xóa `.local-data/gop-mock.sqlite`.
 
+Quyền Cộng tác viên nằm ở từng chiến dịch: lời mời được chiếu vào `campaign_invitations`, sau khi đúng tài khoản nhận lời mới có dòng trong `campaign_members`. Khi chủ dự án thu hồi người đã có việc/bản tin, dòng thành viên đổi thành `REVOKED` để giữ quan hệ lịch sử; quyền hiện tại bị bỏ và việc cũ cần giao lại. `memberCount` chỉ tính dòng `ACTIVE`. Lý do Admin khóa/mở tài khoản được chiếu vào `user_status_events`. Các bảng này giúp kiểm tra quan hệ trong SQLite; `platform_state` vẫn là nguồn ghi của bản demo local. Kịch bản thử ở `scripts/check-team-membership-flow.mjs`; chỉ chạy với `GOP_PREVIEW_URL` trỏ server test và `GOP_EXPECT_LOCAL_DB_NAME` là tên DB riêng, không dùng `gop-mock`.
+
 Chạy kiểm tra tự động khi server đang mở: `pnpm test:local-db`; bài `pnpm test:comment-flow` kiểm thêm bình luận, trả lời, lượt thích và khóa ngoại. Các bài này **ghi thêm** dữ liệu mẫu; không tự xóa dữ liệu bạn đã làm. Với bài comment, đặt `GOP_PREVIEW_URL` và `GOP_EXPECT_LOCAL_DB_NAME` đúng tên DB test riêng trước khi chạy. Ở `/local-data`, quản trị viên có nút **Đặt lại dữ liệu đã thử** với bước xác nhận. Nút này chỉ xóa phần phát sinh, giữ bộ seed ban đầu và tăng `platform_state.revision` để lượt gửi dùng dữ liệu cũ không thể ghi trả lại. Nếu muốn giữ kịch bản vừa thử, hãy sao chép file SQLite trước khi đặt lại.
 
 Khi chạy bộ test, nên mở server bằng một tên DB riêng, ví dụ PowerShell: `$env:GOP_LOCAL_DB_NAME='gop-test-rieng'; pnpm dev --port 3102`, sau đó đặt `$env:GOP_PREVIEW_URL='http://localhost:3102'` trong cửa sổ chạy test. Chạy `test:role-navigation` và `test:role-permissions` trên DB sạch trước những bài cố ý thu hồi quyền; nếu dùng lại DB đã bị thay quyền, hai bài có thể thất bại đúng theo trạng thái đang lưu. `test:audit-regressions` được viết cho cookie cô lập: hãy chạy nó trên một server khác với `GOP_LOCAL_DB=0`, không trộn vào DB SQLite của buổi demo.
@@ -79,7 +81,7 @@ JOIN users u ON u.id = e.actor_user_id
 WHERE e.campaign_id = 'cmp_orbit'
 ORDER BY e.created_at DESC;
 
-SELECT c.title, u.display_name AS thanh_vien, m.role
+SELECT c.title, u.display_name AS thanh_vien, m.role, m.status
 FROM campaign_members m
 JOIN campaigns c ON c.id = m.campaign_id
 JOIN users u ON u.id = m.user_id

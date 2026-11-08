@@ -170,6 +170,16 @@ export function AuthPanel({
 
   if (status === "authenticated" && session) {
     const destination = destinationAfterQuickSignIn(nextPath, session);
+    const requestedArea: UserRole | null = nextPath?.startsWith("/admin") ? "ADMIN"
+      : nextPath?.startsWith("/collaborator") ? "COLLABORATOR"
+      : nextPath?.startsWith("/creator") ? "CREATOR"
+      : nextPath?.startsWith("/dashboard") || nextPath?.startsWith("/pledge") ? "BACKER"
+      : null;
+    const needsAnotherAccount = Boolean(
+      requestedArea &&
+      !session.user.roles.includes(requestedArea) &&
+      !(requestedArea === "CREATOR" && session.user.roles.includes("BACKER")),
+    );
     return (
       <div className="mx-auto max-w-xl rounded-[20px] border border-emerald-200 bg-white p-7 text-center shadow-[var(--shadow-card)] sm:p-10">
         <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-lime font-display text-lg font-extrabold text-forest">
@@ -180,7 +190,9 @@ export function AuthPanel({
           Chào {session.user.name}
         </h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-ink-soft">
-          {isCreatorDestination(destination) && !session.user.roles.includes("CREATOR")
+          {needsAnotherAccount && requestedArea
+            ? `Trang bạn muốn mở dành cho ${roleLabels[requestedArea]}. Tài khoản hiện tại chưa có quyền này; hãy đổi tài khoản để tiếp tục.`
+            : isCreatorDestination(destination) && !session.user.roles.includes("CREATOR")
             ? "Tài khoản này đang là Người ủng hộ. Chọn tiếp tục để xác nhận thêm vai trò Chủ dự án trước khi tạo chiến dịch."
             : `${session.user.headline}. Bạn có thể mở khu vực đang dùng hoặc chỉnh lại thông tin tài khoản.`}
         </p>
@@ -199,7 +211,9 @@ export function AuthPanel({
             href={destination}
             className="button-dark"
           >
-            {destination.startsWith("/creator/campaigns/new")
+            {needsAnotherAccount
+              ? "Mở khu vực hiện tại"
+              : destination.startsWith("/creator/campaigns/new")
               ? "Tiếp tục tạo chiến dịch"
               : "Mở không gian làm việc"}{" "}
             <ArrowRight className="size-4" />
@@ -209,10 +223,10 @@ export function AuthPanel({
           </Link>
           <button
             type="button"
-            onClick={() => void signOut("/auth")}
-            className="button-ghost"
+            onClick={() => void signOut(nextPath ? `/auth?next=${encodeURIComponent(nextPath)}` : "/auth")}
+            className={needsAnotherAccount ? "button-primary" : "button-ghost"}
           >
-            Đổi tài khoản
+            {needsAnotherAccount ? "Đổi tài khoản có quyền" : "Đổi tài khoản"}
           </button>
         </div>
       </div>
@@ -267,6 +281,11 @@ export function AuthPanel({
           {mode === "SIGN_IN" ? (
             <a
               href="#tai-khoan-mau"
+              onClick={() => {
+                const summary = document.getElementById("tai-khoan-mau");
+                const details = summary?.closest("details");
+                if (details) details.open = true;
+              }}
               className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-coral/25 bg-[#fff5eb] px-4 text-sm font-bold text-coral-dark hover:bg-[#ffebdc] lg:hidden"
             >
               Chọn tài khoản mẫu để đăng nhập nhanh

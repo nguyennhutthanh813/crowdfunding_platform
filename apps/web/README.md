@@ -8,6 +8,10 @@ Trang `/du-lieu-chung` đã nối một luồng Creator → Admin → Backer →
 
 Tab **Dự án đã ủng hộ** cũng có cây riêng: một khoản cam kết dẫn đến đúng dự án, trạng thái dòng tiền và gói quà của tài khoản đang đăng nhập. Bản mobile chuyển cây thành các nút lớn; cả hai góc nhìn dùng các mã và quan hệ trong dữ liệu hiện có. Các trạng thái thu/giao trên dữ liệu mẫu chỉ để kiểm tra quy trình, chưa có tiền hoặc đơn giao thật.
 
+Ở chiến dịch tạo mới, Chủ dự án có thể giao/sửa/bàn giao/xóa công việc cho thành viên đã nhận lời mời; Cộng tác viên cập nhật việc của mình. Mỗi lần đổi người phụ trách cần ghi lý do và có lịch sử riêng. Bản tin Live có thể đăng, sửa, gỡ theo quyền tác giả. Chi tiết phần đã có và còn thiếu nằm trong [bảng đối chiếu CRUD giữa các vai trò](docs/project-control/23-doi-chieu-crud-lien-vai-tro.md).
+
+Chủ dự án có thể mời, đổi quyền và thu hồi cộng tác viên trong từng chiến dịch đã duyệt. Nếu người đó từng nhận việc hoặc đăng bản tin, SQLite giữ dòng thành viên ở trạng thái `REVOKED` để không mất lịch sử, còn quyền làm việc hiện tại bị chặn. Chủ dự án thấy việc nào cần giao lại. Cách kiểm tra quan hệ và giới hạn bản local ở [quan hệ vai trò và CRUD](docs/project-control/24-quan-he-vai-tro-va-crud.md).
+
 Tổng quan **Quản trị viên** có cây theo từng hồ sơ gửi duyệt: chủ dự án, mã chiến dịch, lần gửi, checklist và người phụ trách. Chọn hồ sơ rồi bấm **Mở đúng hồ sơ này** để tới thẻ cần đọc. Hồ sơ đã yêu cầu bổ sung phải chờ chủ dự án gửi lại; API chặn duyệt lặp. Cảnh báo gian lận là hàng chờ khác và không được ghép vào một hồ sơ chỉ vì cùng đứng đầu danh sách.
 
 Đây là phần web của đồ án **Nghiên cứu và xây dựng nền tảng gọi vốn cộng đồng tích hợp trí tuệ nhân tạo hỗ trợ đánh giá và tối ưu hóa chiến dịch**.
@@ -50,13 +54,13 @@ pnpm test:new-campaign-flow
 | Đường dẫn                                               | Nội dung                                                                                                 |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `/`                                                     | Trang chủ, dự án nổi bật, gợi ý cá nhân hóa, dự án sắp mở và cơ chế All-or-Nothing.                      |
-| `/huong-dan`                                            | Hướng dẫn từng bước cho Khách, Người ủng hộ, Chủ dự án, Cộng tác viên và Quản trị viên.                   |
+| `/huong-dan`                                            | Các bước sử dụng cho từng vai trò và đường dẫn đến màn hình tương ứng.                                  |
 | `/discover`                                             | Tìm kiếm, lọc, sắp xếp, hiển thị chip đang áp dụng và trạng thái không có kết quả.                       |
 | `/projects/orbit-one-ca-phe-thong-minh`                 | Trang dự án với đủ 7 phần: câu chuyện, gói ủng hộ, chủ dự án, hỏi đáp, cập nhật, bình luận và cộng đồng. |
 | `/pledge/orbit-one-ca-phe-thong-minh`                   | Luồng cam kết mẫu: 3 bước cho quà số/không quà, 4 bước khi cần giao hàng tại Việt Nam; không nhập thẻ.   |
 | `/dashboard`                                            | Khu vực của người ủng hộ: dự án đã góp, đã lưu, theo dõi, tin nhắn, hoạt động và cài đặt.                |
 | `/collaborator`                                         | Việc ORBIT được giao và lời mời cộng tác vào chiến dịch mới theo email tài khoản.                        |
-| `/collaborator/campaigns/[id]/manage`                  | Phần việc của chiến dịch mới: quyền đã nhận và đăng cập nhật khi được cấp quyền.                         |
+| `/collaborator/campaigns/[id]/manage`                  | Việc được giao, tiến độ, quyền tham gia và bản tin cập nhật của chiến dịch mới.                            |
 | `/creator/campaigns/new`                                | Tạo hồ sơ chiến dịch riêng, lưu nháp và gửi duyệt; local lưu vào SQLite.                                  |
 | `/creator/campaigns/[id]/manage`                        | Tiến độ hồ sơ mới, phản hồi duyệt, mở gọi vốn, cam kết và hộp tin của đúng chủ dự án.                    |
 | `/projects/[id]`, `/pledge/[id]`                        | Trang công khai và cam kết mẫu cho chiến dịch mới đã được duyệt/mở.                                     |
@@ -195,6 +199,8 @@ pnpm exec tsc --noEmit
 pnpm build
 # Mở server ở terminal khác rồi chạy các test HTTP sau:
 pnpm test:local-db          # pnpm dev: SQLite local, ghi thêm dữ liệu test
+pnpm test:team-membership   # cần GOP_EXPECT_LOCAL_DB_NAME của DB test; kiểm lời mời, quyền và khóa tài khoản
+pnpm test:local-schema-guards # SQLite trong bộ nhớ; kiểm trigger của owner, task, bàn giao, bản tin
 pnpm test:comment-flow      # Cần GOP_PREVIEW_URL và GOP_EXPECT_LOCAL_DB_NAME của DB test
 pnpm test:new-campaign-flow # pnpm dev: luồng hồ sơ mới
 pnpm test:role-navigation
@@ -204,7 +210,9 @@ pnpm docs:sync
 pnpm test:docs-sync
 ```
 
-Hai bài `test:audit-regressions` và `test:role-permissions` cũ giả định mọi trạng thái nằm trong cookie riêng của tiến trình test; không dùng chúng để kết luận về chế độ SQLite dùng chung. Muốn chạy hai bài đó, mở server riêng với `GOP_LOCAL_DB=0`, rồi trỏ `GOP_PREVIEW_URL` vào server đó. `test:local-db` và `test:new-campaign-flow` ghi thêm dữ liệu thử; sau khi xem kết quả có thể đặt lại tại `/local-data`. Các kiểm tra schema/control là kiểm tra source tĩnh; kết quả đạt không thay cho kiểm thử bảo mật hay thao tác toàn bộ website. `docs:sync` cập nhật các bản Markdown được xuất trong trang hồ sơ/bài nộp, không vẽ đè sơ đồ Draw.io đã chỉnh tay.
+Quy tắc sở hữu chiến dịch, lời mời theo email và quyền CRUD từng vai trò được đối chiếu trong [Quan hệ vai trò và CRUD](docs/project-control/24-quan-he-vai-tro-va-crud.md).
+
+`test:role-permissions` hiện đọc chế độ của server: nếu bật SQLite local, bài kiểm tra còn xác nhận Cộng tác viên đổi trạng thái việc và Chủ dự án đọc lại được; khi tắt SQLite, nó chỉ kiểm tra trạng thái trong phiên. `test:audit-regressions` vẫn chủ yếu kiểm luồng cookie riêng. Chạy các bài có ghi dữ liệu trên server test với `GOP_LOCAL_DB_NAME` riêng, không trỏ vào `gop-mock` đang dùng. `test:local-db` và `test:new-campaign-flow` cũng ghi thêm dữ liệu thử. Các kiểm tra schema/control là kiểm tra source tĩnh; kết quả đạt không thay cho kiểm thử bảo mật hay thao tác toàn bộ website. `docs:sync` cập nhật các bản Markdown được xuất trong trang hồ sơ/bài nộp, không vẽ đè sơ đồ Draw.io đã chỉnh tay.
 
 ## Phần chưa nối thật
 

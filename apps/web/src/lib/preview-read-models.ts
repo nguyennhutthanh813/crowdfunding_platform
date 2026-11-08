@@ -7,6 +7,7 @@ import type {
   SessionResult,
 } from "@/lib/api/contracts";
 import type { PlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
+import { previewAccounts } from "@/lib/auth/preview-accounts";
 import { buildPreviewComments } from "@/lib/campaign/comments-preview";
 import { previewCampaignsForOwner } from "@/lib/creator/preview-campaigns";
 import { publicPreviewCampaigns } from "@/lib/creator/public-preview-campaigns";
@@ -16,6 +17,8 @@ import {
   DEMO_SNAPSHOT_AT,
   getMockPledgeTotal,
   mockCampaigns,
+  mockCampaignMembers,
+  mockUserRoles,
   mockPledges,
 } from "@/lib/api/mock/relational-store";
 
@@ -464,6 +467,7 @@ export function applyAdminPreviewState(
     roles: account.roles.map((role) => accountRoleLabels[role]),
     status: platform?.userStatuses[account.id] ?? "ACTIVE",
     lastSeen: "Vừa hoạt động trong bản demo",
+    accountKind: "REGISTERED" as const,
   }));
   const users = [
     ...data.users,
@@ -472,10 +476,37 @@ export function applyAdminPreviewState(
     ),
   ].map((user) => ({
     ...user,
+    roles: user.accountKind === "REGISTERED" ? user.roles
+      : mockUserRoles.filter((role) => role.userId === user.id).map((role) => accountRoleLabels[role.role]),
+    accountKind: user.accountKind ?? (previewAccounts.some((account) => account.id === user.id)
+      ? "DEMO_LOGIN" as const : "SAMPLE_PROFILE" as const),
+    lastSeen: user.accountKind === "REGISTERED" || previewAccounts.some((account) => account.id === user.id)
+      ? user.lastSeen : "Hồ sơ dữ liệu mẫu",
     status:
       platform?.userStatuses[user.id] ??
       state?.userStatuses?.[user.id] ??
       user.status,
+    campaignRelations: [
+      ...mockCampaignMembers.filter((member) => member.userId === user.id).map((member) => ({
+        campaignId: member.campaignId,
+        title: mockCampaigns.find((campaign) => campaign.id === member.campaignId)?.title ?? member.campaignId,
+        kind: member.role,
+      })),
+      ...Object.values(platform?.campaignDrafts ?? {}).flatMap<NonNullable<AdminDashboardData["users"][number]["campaignRelations"]>[number]>((snapshot) => {
+        if (snapshot.ownerId === user.id) return [{
+          campaignId: snapshot.campaignId, title: snapshot.draft.title || "Hồ sơ chưa đặt tên",
+          kind: "OWNER" as const,
+        }];
+        if (snapshot.collaborators?.some((item) => item.email.trim().toLowerCase() === user.email.toLowerCase())) {
+          return [{ campaignId: snapshot.campaignId,
+            title: snapshot.draft.title || "Hồ sơ chưa đặt tên",
+            kind: (platform?.acceptedCollaborators[snapshot.campaignId] ?? []).includes(user.id)
+              ? "COLLABORATOR" as const : "INVITED" as const }];
+        }
+        return [];
+      }),
+    ],
+    lastStatusChange: (platform?.userStatusHistory ?? []).find((change) => change.userId === user.id),
   }));
   const pledgeChange = mockCampaigns.reduce(
     (sum, campaign) => {

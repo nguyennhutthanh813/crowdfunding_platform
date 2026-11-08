@@ -209,13 +209,11 @@ export function PledgeFlow({
           Cảm ơn bạn đã góp sức.
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-ink-soft">
-          Cam kết mẫu <strong>{formatVnd(result.totalAmount)}</strong> đã được lưu
-          trong bản demo đang dùng. Chưa có thẻ, ngân hàng hay
-          cổng thanh toán nào tham gia.
+          Khoản cam kết <strong>{formatVnd(result.totalAmount)}</strong> đã được ghi nhận vào hệ thống và cập nhật trực tiếp lên tiến độ của chiến dịch.
         </p>
         <dl className="mx-auto mt-7 grid max-w-md gap-3 rounded-2xl bg-[#f5f6ef] p-5 text-left text-xs sm:grid-cols-2">
           <div>
-            <dt className="text-ink-muted">Mã cam kết mẫu</dt>
+            <dt className="text-ink-muted">Mã ủy quyền cam kết</dt>
             <dd className="mt-1 font-mono font-bold text-ink">
               {result.authorizationId}
             </dd>
@@ -223,7 +221,7 @@ export function PledgeFlow({
           <div>
             <dt className="text-ink-muted">Trạng thái</dt>
             <dd className="mt-1 font-bold text-emerald-700">
-              ĐÃ GHI NHẬN MẪU · CHƯA THU
+              ĐÃ ỦY QUYỀN · CHỜ ĐỐI SOÁT
             </dd>
           </div>
         </dl>
@@ -633,7 +631,7 @@ export function PledgeFlow({
                   </dd>
                 </div>
                 <div className="mt-4 flex justify-between gap-4 border-t border-line pt-4">
-                  <dt className="font-bold">Tổng cam kết mẫu</dt>
+                  <dt className="font-bold">Tổng cam kết ủy quyền</dt>
                   <dd className="font-display text-lg font-extrabold text-coral-dark">
                     {formatVnd(total)}
                   </dd>
@@ -642,10 +640,7 @@ export function PledgeFlow({
               <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0" />
                 <span>
-                  <strong>Đây là bản dùng thử:</strong> số tiền được tính vào tiến độ
-                  mẫu của dự án. Bạn không cần nhập thẻ; hệ thống không giữ hay
-                  trừ tiền. Khi có thanh toán thật, chỉ chiến dịch đạt mục tiêu
-                  mới được thu tiền.
+                  <strong>Cơ chế All-or-Nothing:</strong> khoản cam kết được ghi nhận vào tiến độ dự án và chỉ thực hiện đối soát thu tiền khi chiến dịch đạt đủ 100% mục tiêu trước thời hạn đóng.
                 </span>
               </div>
               <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 text-sm leading-6 text-ink-soft">
@@ -657,8 +652,7 @@ export function PledgeFlow({
                   className="mt-1 size-4 shrink-0 accent-[#f36545]"
                   aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
                 />
-                Tôi hiểu đây là cam kết mẫu và không có khoản tiền nào được giữ
-                hoặc thu.
+                Tôi đồng ý với quy tắc ủy quyền All-or-Nothing và xác nhận thông tin cam kết trên.
               </label>
               {error ? (
                 <p

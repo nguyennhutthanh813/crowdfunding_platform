@@ -4,9 +4,17 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CreatorCampaignStageWorkspace } from "@/components/creator/creator-campaign-stage-workspace";
 import { CampaignAccessNotice } from "@/components/auth/campaign-access-notice";
+import {
+  PreviewCampaignPledgeList,
+  PreviewCampaignUpdateHistory,
+  PublishPreviewUpdate,
+} from "@/components/collaborator/preview-campaign-actions";
 import { LaunchPreviewCampaign } from "@/components/creator/launch-preview-campaign";
+import { DeletePreviewDraftButton } from "@/components/creator/delete-preview-draft-button";
 import { ReplyPreviewMessage } from "@/components/creator/reply-preview-message";
 import { CampaignDiscussionDesk } from "@/components/campaign/campaign-discussion-desk";
+import { PreviewTaskBoard } from "@/components/campaign/preview-task-board";
+import { CampaignTeamManager } from "@/components/creator/campaign-team-manager";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { api } from "@/lib/api";
 import { buildMockCreatorPortfolio } from "@/lib/api/mock/creator-portfolio";
@@ -18,6 +26,7 @@ import { publicPreviewCampaignDetail } from "@/lib/creator/public-preview-campai
 import { previewQuestionResponders } from "@/lib/campaign/question-assignments";
 import { formatVnd } from "@/lib/format";
 import { localDbEnabled } from "@/lib/local-db/database";
+import { mockUsers } from "@/lib/api/mock/relational-store";
 import {
   applyCreatorPortfolioPreviewState,
   applyOperationsPreviewState,
@@ -133,6 +142,33 @@ export default async function CreatorCampaignStagePage({
     const feedback = review ? platformState.reviewFeedback[review.id] : null;
     const needsRevision = status === "DRAFT" && Boolean(feedback);
     const pledges = platformState.pledges.filter((item) => item.campaignId === slug);
+    const publishedUpdates = platformState.publishedUpdates.filter(
+      (item) => item.campaignId === slug,
+    );
+    const acceptedUserIds = platformState.acceptedCollaborators[slug] ?? [];
+    const acceptedEmails = new Set(acceptedUserIds.flatMap((id) => {
+      const member = mockUsers.find((item) => item.id === id) ??
+        platformState.registeredAccounts.find((item) => item.id === id);
+      return member?.email ? [member.email.toLowerCase()] : [];
+    }));
+    const taskPeople = [
+      { id: session.user.id, name: session.user.name },
+      ...acceptedUserIds.flatMap((id) => {
+        const member = mockUsers.find((item) => item.id === id) ??
+          platformState.registeredAccounts.find((item) => item.id === id);
+        return member ? [{ id, name: "displayName" in member ? member.displayName : member.name }] : [];
+      }),
+    ];
+    const formerPeople = [...new Set([
+      ...platformState.campaignTasks.filter((task) => task.campaignId === slug)
+        .flatMap((task) => [task.assigneeUserId, task.createdByUserId]),
+      ...platformState.campaignTaskHandoffs.filter((handoff) => handoff.campaignId === slug)
+        .flatMap((handoff) => [handoff.fromUserId, handoff.toUserId]),
+    ])].filter((id) => !taskPeople.some((person) => person.id === id)).flatMap((id) => {
+      const member = mockUsers.find((item) => item.id === id) ??
+        platformState.registeredAccounts.find((item) => item.id === id);
+      return member ? [{ id, name: "displayName" in member ? member.displayName : member.name }] : [];
+    });
     const inbox = platformState.messages.filter((item) =>
       item.campaignId === slug && item.recipientId === session.user.id);
     const amount = pledges.reduce((sum, item) => sum + item.totalAmount, 0);
@@ -171,9 +207,60 @@ export default async function CreatorCampaignStagePage({
             <p className="mt-4 text-sm leading-7 text-ink-soft">{snapshot.draft.blurb}</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-[#f6f7f1] p-4"><p className="text-xs text-ink-muted">Mục tiêu</p><p className="mt-1 font-bold">{formatVnd(Number(snapshot.draft.goal) || 0)}</p></div><div className="rounded-xl bg-[#f6f7f1] p-4"><p className="text-xs text-ink-muted">Đã cam kết mẫu</p><p className="mt-1 font-bold">{formatVnd(amount)}</p></div><div className="rounded-xl bg-[#f6f7f1] p-4"><p className="text-xs text-ink-muted">Người ủng hộ</p><p className="mt-1 font-bold">{new Set(pledges.map((item) => item.backerId)).size}</p></div></div>
             <h3 className="mt-7 text-sm font-bold">Gói ủng hộ</h3><ul className="mt-3 divide-y divide-line border-y border-line">{(snapshot.rewards ?? []).map((reward) => <li key={reward.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{reward.title}</span><b>{formatVnd(Number(reward.amount))}</b></li>)}</ul>
+            {(status === "PRE_LAUNCH" || status === "LIVE") ? <CampaignTeamManager
+              campaignId={slug} members={snapshot.collaborators ?? []}
+              acceptedEmails={[...acceptedEmails]}
+            /> : null}
             {feedback && !needsRevision ? <p className="mt-5 rounded-xl border border-[#d9e2d4] bg-[#f5f8f0] p-4 text-sm leading-6">Phản hồi xét duyệt: {feedback}</p> : null}
           </section>
-          {status === "LIVE" ? <section className="rounded-[20px] border border-line bg-white p-5 sm:p-7"><h2 className="font-display text-xl font-extrabold">Cam kết vừa ghi</h2>{pledges.length ? <ul className="mt-4 divide-y divide-line">{pledges.map((pledge) => <li key={pledge.authorizationId} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{pledge.backerName} · {pledge.rewardTitle}</span><b>{formatVnd(pledge.totalAmount)}</b></li>)}</ul> : <p className="mt-3 text-sm text-ink-muted">Chưa có cam kết. Bạn có thể mở trang dự án để xem trải nghiệm của người ủng hộ.</p>}</section> : null}
+          {status === "LIVE" ? (
+            <section className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <p className="eyebrow text-coral-dark">Bản tin công khai</p>
+                  <h2 className="mt-2 font-display text-xl font-extrabold">
+                    Đăng cập nhật tiến độ chiến dịch
+                  </h2>
+                </div>
+                <span className="text-xs text-ink-muted">
+                  {publishedUpdates.length} bản tin đã đăng
+                </span>
+              </div>
+              <div className="mt-5">
+                <PublishPreviewUpdate
+                  campaignId={slug}
+                  endpoint="/api/v1/creator/campaigns"
+                />
+              </div>
+              {publishedUpdates.length ? (
+                <div className="mt-6 border-t border-line pt-5">
+                  <h3 className="text-sm font-bold">Lịch sử cập nhật của chiến dịch</h3>
+                  <PreviewCampaignUpdateHistory
+                    campaignId={slug}
+                    updates={publishedUpdates}
+                    manager={{ role: "creator", userId: session.user.id }}
+                  />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+          {(status === "PRE_LAUNCH" || status === "LIVE") ? <PreviewTaskBoard
+            campaignId={slug} role="creator" viewerId={session.user.id}
+            tasks={(platformState.campaignTasks ?? []).filter((item) => item.campaignId === slug)}
+            handoffs={(platformState.campaignTaskHandoffs ?? []).filter((item) => item.campaignId === slug)}
+            people={taskPeople} formerPeople={formerPeople} /> : null}
+          {status === "LIVE" ? (
+            <section className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
+              <h2 className="font-display text-xl font-extrabold">Cam kết vừa ghi</h2>
+              {pledges.length ? (
+                <PreviewCampaignPledgeList campaignId={slug} pledges={pledges} />
+              ) : (
+                <p className="mt-3 text-sm text-ink-muted">
+                  Chưa có cam kết. Bạn có thể mở trang dự án để xem trải nghiệm của người ủng hộ.
+                </p>
+              )}
+            </section>
+          ) : null}
           {status === "LIVE" ? <section className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
             <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="eyebrow text-coral-dark">Kết nối với Backer</p><h2 className="mt-2 font-display text-xl font-extrabold">Tin nhắn cần trả lời</h2></div><span className="text-xs text-ink-muted">{inbox.length} tin trong chiến dịch</span></div>
             {inbox.length ? <ul className="mt-5 space-y-3">{inbox.map((message) => <li key={message.id} className="rounded-xl border border-line bg-[#fdfcf8] p-4">
@@ -194,6 +281,7 @@ export default async function CreatorCampaignStagePage({
           <div className="mt-5 flex flex-col gap-2">{status === "DRAFT" || status === "IN_REVIEW" ? <Link className="button-secondary" href={`/creator/campaigns/new?draft=${slug}`}>{status === "DRAFT" ? "Tiếp tục chỉnh hồ sơ" : "Xem bản đã gửi"}</Link> : null}
             {status === "PRE_LAUNCH" || status === "LIVE" ? <Link className="button-secondary" href={`/projects/${slug}`}>Xem trang cộng đồng</Link> : null}
             {status === "PRE_LAUNCH" ? <LaunchPreviewCampaign campaignId={slug} /> : null}
+            {status === "DRAFT" && !review ? <DeletePreviewDraftButton campaignId={slug} title={snapshot.draft.title || "Bản nháp chưa đặt tên"} /> : null}
             {localDbEnabled() ? <Link className="button-secondary" href={`/campaigns/${slug}/timeline`}>Xem lịch sử thao tác</Link> : null}
           </div>
         </aside>

@@ -107,6 +107,21 @@ export function CreatorCampaignOperations({
   const [orders, setOrders] = useState(
     operations.fulfillment.previousCampaign.orders,
   );
+  const [tasks, setTasks] = useState(operations.tasks);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedUpdateKey, setSelectedUpdateKey] = useState<string | null>(
+    null,
+  );
+  const [selectedReservationId, setSelectedReservationId] = useState<
+    string | null
+  >(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [communityFocus, setCommunityFocus] = useState<
+    "all" | "discussions" | "updates"
+  >("all");
+  const [orderStageFilter, setOrderStageFilter] = useState<
+    "ALL" | FulfillmentStatus
+  >("ALL");
   const [members, setMembers] = useState(
     operations.team.filter((member) => member.id !== "usr_hoang_linh"),
   );
@@ -140,10 +155,18 @@ export function CreatorCampaignOperations({
   const selectedCommentReply = selectedComment
     ? commentReplies.find((item) => item.commentId === selectedComment.id)
     : undefined;
-  const collaboratorOpenTasks = operations.tasks.filter(
+  const collaboratorOpenTasks = tasks.filter(
     (task) =>
       task.assigneeId === "usr_gia_huy" && task.status !== "DONE",
   );
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId);
+  const selectedUpdate = updates.find(
+    (item) => (item.id ?? `${item.title}-${item.when}`) === selectedUpdateKey,
+  );
+  const selectedReservation = operations.reservations.find(
+    (item) => item.id === selectedReservationId,
+  );
+  const selectedOrder = orders.find((item) => item.id === selectedOrderId);
 
   const focusReplyComposer = () => {
     requestAnimationFrame(() => {
@@ -211,6 +234,27 @@ export function CreatorCampaignOperations({
         );
       },
       `Đã cập nhật ${orderId}`,
+    );
+  };
+
+  const toggleTaskStatus = (taskId: string) => {
+    const currentTask = tasks.find((item) => item.id === taskId);
+    if (!currentTask) return;
+    const nextStatus = currentTask.status === "DONE" ? "TODO" : "DONE";
+    void runOperation(
+      `task-${taskId}`,
+      "UPDATE_TASK_STATUS",
+      { campaignId: operations.campaignId, taskId, status: nextStatus },
+      () => {
+        setTasks((current) =>
+          current.map((item) =>
+            item.id === taskId ? { ...item, status: nextStatus } : item,
+          ),
+        );
+      },
+      nextStatus === "DONE"
+        ? `Đã đánh dấu hoàn tất: ${currentTask.title}`
+        : `Đã mở lại đầu việc: ${currentTask.title}`,
     );
   };
 
@@ -439,12 +483,21 @@ export function CreatorCampaignOperations({
         </section>
       ) : (
         <div
-          className="flex gap-1 overflow-x-auto rounded-[14px] border border-line bg-white p-2"
+          className="flex gap-1.5 overflow-x-auto rounded-[16px] border border-line bg-white p-2 shadow-2xs"
           role="tablist"
           aria-label="Quản lý chiến dịch"
         >
           {visibleTabs.map((item) => {
             const Icon = item.icon;
+            const badgeCount =
+              item.id === "overview"
+                ? tasks.filter((t) => t.status !== "DONE").length
+                : item.id === "content"
+                  ? members.length
+                  : item.id === "community"
+                    ? operations.communityMessages.length +
+                      assistantData.priorities.length
+                    : orders.length;
             return (
               <button
                 key={item.id}
@@ -452,12 +505,27 @@ export function CreatorCampaignOperations({
                 role="tab"
                 aria-selected={tab === item.id}
                 onClick={() => setTab(item.id)}
-                className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-colors ${tab === item.id ? "bg-forest text-white" : "text-ink-soft hover:bg-forest/5"}`}
+                className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-all ${
+                  tab === item.id
+                    ? "bg-forest text-white shadow-xs"
+                    : "text-ink-soft hover:bg-forest/5"
+                }`}
               >
                 <Icon
-                  className={`size-4 ${tab === item.id ? "text-lime" : "text-ink-muted"}`}
+                  className={`size-4 ${
+                    tab === item.id ? "text-lime" : "text-ink-muted"
+                  }`}
                 />{" "}
-                {item.label}
+                <span>{item.label}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                    tab === item.id
+                      ? "bg-white/15 text-lime"
+                      : "bg-[#f2f3ee] text-ink-muted"
+                  }`}
+                >
+                  {badgeCount}
+                </span>
               </button>
             );
           })}
@@ -592,14 +660,25 @@ export function CreatorCampaignOperations({
 
           <div className="grid gap-4 sm:grid-cols-2 xl:col-span-2 xl:grid-cols-4">
             {[
-              { label: "Đã cam kết", value: "636,8 triệu", icon: Gift },
-              { label: "Người ủng hộ", value: "1.284", icon: Users },
-              { label: "Đăng ký nhận nhắc", value: "742", icon: Bell },
+              {
+                label: "Đã cam kết",
+                value: formatVnd(operations.today.pledgedAmount, true),
+                icon: Gift,
+              },
+              {
+                label: "Người ủng hộ",
+                value: operations.today.backerCount.toLocaleString("vi-VN"),
+                icon: Users,
+              },
+              {
+                label: "Bình quân / cam kết",
+                value: formatVnd(operations.today.averagePledgeAmount, true),
+                icon: Bell,
+              },
               {
                 label: "Việc đang mở",
                 value: String(
-                  operations.tasks.filter((task) => task.status !== "DONE")
-                    .length,
+                  tasks.filter((task) => task.status !== "DONE").length,
                 ),
                 icon: Clock3,
               },
@@ -621,6 +700,124 @@ export function CreatorCampaignOperations({
               );
             })}
           </div>
+
+          <article className="rounded-[20px] border border-line bg-white p-6 xl:col-span-2">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+              <div>
+                <p className="eyebrow text-coral">
+                  <Clock3 className="size-4" /> Đầu việc & bàn giao ca
+                </p>
+                <h2 className="mt-2 font-display text-2xl font-extrabold">
+                  Phối hợp giữa chủ dự án và cộng tác viên
+                </h2>
+                <p className="mt-1.5 text-xs leading-5 text-ink-muted">
+                  Trạng thái việc liên thông trực tiếp với không gian làm việc của Gia Huy và Minh Trang.
+                </p>
+              </div>
+              <span className="w-fit rounded-full bg-[#f2f6e8] px-3 py-1.5 text-[11px] font-bold text-[#566c27]">
+                {tasks.filter((item) => item.status === "DONE").length}/{tasks.length} đã hoàn tất
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="space-y-2.5">
+                {tasks.map((task) => {
+                  const done = task.status === "DONE";
+                  return (
+                    <div
+                      key={task.id}
+                      className={`flex flex-col justify-between gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center ${
+                        done
+                          ? "border-emerald-200 bg-emerald-50/45"
+                          : "border-line bg-[#fbfaf7]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              done
+                                ? "bg-emerald-100 text-emerald-800"
+                                : task.status === "IN_PROGRESS"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-stone-200 text-stone-700"
+                            }`}
+                          >
+                            {done
+                              ? "HOÀN TẤT"
+                              : task.status === "IN_PROGRESS"
+                                ? "ĐANG XỬ LÝ"
+                                : "CHỜ LÀM"}
+                          </span>
+                          <span className="text-[11px] font-semibold text-ink-muted">
+                            Phụ trách: {task.assigneeName} · hạn {task.dueLabel}
+                          </span>
+                        </div>
+                        <p
+                          className={`mt-2 text-sm font-bold ${
+                            done ? "line-through text-ink-muted" : "text-ink"
+                          }`}
+                        >
+                          {task.title}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTaskId(task.id)}
+                          className="button-ghost min-h-10 px-3 text-xs"
+                        >
+                          Chi tiết
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy === `task-${task.id}`}
+                          onClick={() => toggleTaskStatus(task.id)}
+                          className="button-secondary min-h-10 px-3 text-xs"
+                        >
+                          {busy === `task-${task.id}` ? (
+                            <LoaderCircle className="size-3.5 animate-spin" />
+                          ) : (
+                            <Check className="size-3.5" />
+                          )}
+                          {done ? "Mở lại" : "Chốt xong"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-2xl border border-line bg-[#f7f5f0] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.08em] text-ink-muted">
+                  Nhật ký bàn giao giữa các vai trò
+                </p>
+                <div className="mt-3 space-y-2.5">
+                  {operations.handoffs.map((handoff) => (
+                    <div
+                      key={handoff.id}
+                      className="rounded-xl border border-line bg-white p-3.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-bold leading-5 text-ink">
+                          {handoff.title}
+                        </p>
+                        <span className="shrink-0 text-[11px] font-semibold text-coral">
+                          {handoff.at}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs leading-5 text-ink-soft">
+                        {handoff.note}
+                      </p>
+                      <p className="mt-2 text-[11px] font-bold text-ink-muted">
+                        {handoff.from} → {handoff.to}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
       ) : null}
 
@@ -756,12 +953,49 @@ export function CreatorCampaignOperations({
               : "xl:grid-cols-[1fr_0.9fr]"
           }`}
         >
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 xl:col-span-2">
+            <div>
+              <p className="text-xs font-extrabold text-ink">
+                Chế độ tập trung trong ca
+              </p>
+              <p className="text-[11px] text-ink-muted">
+                Lọc nhanh luồng cần xử lý để giao diện gọn gàng hơn khi trực ca.
+              </p>
+            </div>
+            <div
+              className="flex flex-wrap rounded-xl bg-[#f3f4ef] p-1"
+              aria-label="Lọc khu vực cộng đồng"
+            >
+              {(
+                [
+                  ["all", "Tất cả luồng"],
+                  ["discussions", "Hộp thư & Bình luận"],
+                  ["updates", "Bản tin tiến độ"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setCommunityFocus(mode)}
+                  aria-pressed={communityFocus === mode}
+                  className={`min-h-9 rounded-lg px-3 text-[11px] font-bold transition ${
+                    communityFocus === mode
+                      ? "bg-white text-forest shadow-xs"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <article
             className={`rounded-[20px] border bg-white p-6 xl:col-span-2 ${
               isCollaborator
                 ? "border-[#bcd4ea] bg-[#f8fbff]"
                 : "border-line"
-            }`}
+            } ${communityFocus === "updates" ? "hidden" : ""}`}
           >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
@@ -849,7 +1083,11 @@ export function CreatorCampaignOperations({
               </div>
             )}
           </article>
-          <div className={isCollaborator ? "xl:order-2" : ""}>
+          <div
+            className={`${isCollaborator ? "xl:order-2" : ""} ${
+              communityFocus === "updates" ? "hidden" : ""
+            }`}
+          >
             <CommentInsights
               data={assistantData}
               viewerRole={viewerRole}
@@ -863,6 +1101,12 @@ export function CreatorCampaignOperations({
               isCollaborator
                 ? "border-[#bcd4ea] bg-[#f8fbff] xl:order-1"
                 : "border-line"
+            } ${
+              communityFocus === "discussions"
+                ? "hidden"
+                : communityFocus === "updates"
+                  ? "xl:col-span-2"
+                  : ""
             }`}
           >
             <p className={`eyebrow ${isCollaborator ? "text-[#2869ac]" : "text-coral"}`}>
@@ -879,6 +1123,35 @@ export function CreatorCampaignOperations({
                 đang chia sẻ tiến độ.
               </p>
             ) : null}
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-ink-muted">
+                Điền nhanh mẫu:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setUpdateTitle("Hoàn tất 200 chu kỳ đo áp suất cụm van ORB-P4");
+                  setUpdateBody(
+                    "Nhóm kỹ thuật đã chạy thử liên tục 200 chu kỳ chiết xuất ở 9 bar và 93°C. Độ lệch nhiệt độ duy trì dưới ±0.4°C, sẵn sàng khóa thông số cho lô linh kiện đầu tiên.",
+                  );
+                }}
+                className="rounded-lg border border-line bg-[#f7f6f1] px-2.5 py-1 text-[11px] font-semibold text-ink-soft transition hover:border-coral/40 hover:bg-white hover:text-ink"
+              >
+                + Mốc thử nghiệm áp suất
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUpdateTitle("Cập nhật lịch đóng gói & xác nhận địa chỉ đợt 1");
+                  setUpdateBody(
+                    "Hiện đã có hơn 94% người ủng hộ hoàn tất xác nhận địa chỉ nhận máy. Nhóm đang rà soát hộp chống sốc 2 lớp trước khi bàn giao đơn vị vận chuyển.",
+                  );
+                }}
+                className="rounded-lg border border-line bg-[#f7f6f1] px-2.5 py-1 text-[11px] font-semibold text-ink-soft transition hover:border-coral/40 hover:bg-white hover:text-ink"
+              >
+                + Lịch đóng gói đợt 1
+              </button>
+            </div>
             <form
               className="mt-6 space-y-4"
               noValidate
@@ -961,23 +1234,34 @@ export function CreatorCampaignOperations({
             <div className="mt-7 border-t border-line pt-5">
               <p className="text-xs font-bold">Lịch sử gần đây</p>
               <div className="mt-3 space-y-2">
-                {updates.map((update) => (
-                  <div
-                    key={update.id ?? `${update.title}-${update.when}`}
-                    className="rounded-xl bg-[#f6f5f0] p-3"
-                  >
-                    <p className="text-xs font-bold">{update.title}</p>
-                    {update.body ? (
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-soft">
-                        {update.body}
+                {updates.map((update) => {
+                  const updateKey =
+                    update.id ?? `${update.title}-${update.when}`;
+                  return (
+                    <button
+                      key={updateKey}
+                      type="button"
+                      onClick={() => setSelectedUpdateKey(updateKey)}
+                      className="w-full rounded-xl border border-transparent bg-[#f6f5f0] p-3 text-left transition hover:border-coral/40 hover:bg-white"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-bold">{update.title}</p>
+                        <span className="shrink-0 text-[10px] font-bold text-coral">
+                          Xem bản tin
+                        </span>
+                      </div>
+                      {update.body ? (
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-soft">
+                          {update.body}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-[11px] text-ink-muted">
+                        {update.when}
+                        {update.author ? ` · ${update.author}` : ""}
                       </p>
-                    ) : null}
-                    <p className="mt-1 text-[11px] text-ink-muted">
-                      {update.when}
-                      {update.author ? ` · ${update.author}` : ""}
-                    </p>
-                  </div>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </article>
@@ -987,7 +1271,7 @@ export function CreatorCampaignOperations({
               isCollaborator
                 ? "border-[#bcd4ea] ring-1 ring-blue-100 xl:order-3 xl:col-span-2"
                 : ""
-            }`}
+            } ${communityFocus === "updates" ? "hidden" : ""}`}
           >
             <p className="eyebrow text-coral">
               <MessageSquareText className="size-4" /> Hộp thư bình luận
@@ -1262,9 +1546,11 @@ export function CreatorCampaignOperations({
               </div>
               <div className="mt-5 divide-y divide-line border-y border-line">
                 {operations.reservations.map((reservation) => (
-                  <div
+                  <button
                     key={reservation.id}
-                    className="grid gap-2 py-4 sm:grid-cols-[1fr_auto] sm:items-center"
+                    type="button"
+                    onClick={() => setSelectedReservationId(reservation.id)}
+                    className="grid w-full gap-2 py-4 text-left transition hover:bg-[#fbfaf7] sm:grid-cols-[1fr_auto] sm:items-center"
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -1277,13 +1563,13 @@ export function CreatorCampaignOperations({
                         {reservation.id} · {reservation.reward} · {reservation.city}
                       </p>
                       <p className="mt-1 text-[11px] text-ink-muted">
-                        {reservation.authorizedAt}
+                        {reservation.authorizedAt} · Nhấn xem biên nhận ủy quyền
                       </p>
                     </div>
                     <p className="font-display text-base font-extrabold text-coral-dark">
                       {formatVnd(reservation.amount)}
                     </p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </article>
@@ -1310,7 +1596,59 @@ export function CreatorCampaignOperations({
                 <Download className="size-4" /> Xuất CSV giao hàng
               </button>
             </div>
-            <div className="mt-5 overflow-x-auto rounded-[16px] border border-line bg-white">
+            <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+              {(
+                [
+                  ["ALL", "Tất cả đơn", orders.length],
+                  [
+                    "PENDING",
+                    fulfillmentLabels.PENDING,
+                    orders.filter((o) => o.status === "PENDING").length,
+                  ],
+                  [
+                    "PREPARING",
+                    fulfillmentLabels.PREPARING,
+                    orders.filter((o) => o.status === "PREPARING").length,
+                  ],
+                  [
+                    "SHIPPED",
+                    fulfillmentLabels.SHIPPED,
+                    orders.filter((o) => o.status === "SHIPPED").length,
+                  ],
+                  [
+                    "DELIVERED",
+                    fulfillmentLabels.DELIVERED,
+                    orders.filter((o) => o.status === "DELIVERED").length,
+                  ],
+                ] as const
+              ).map(([stageKey, label, count]) => {
+                const active = orderStageFilter === stageKey;
+                return (
+                  <button
+                    key={stageKey}
+                    type="button"
+                    onClick={() => setOrderStageFilter(stageKey)}
+                    className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-left text-xs font-bold transition ${
+                      active
+                        ? "border-forest bg-forest text-white shadow-xs"
+                        : "border-line bg-white text-ink-soft hover:border-coral/40"
+                    }`}
+                  >
+                    <span>{label}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                        active
+                          ? "bg-white/15 text-lime"
+                          : "bg-[#f3f3ed] text-ink-muted"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-[16px] border border-line bg-white">
               <table className="w-full min-w-[820px] text-left text-xs">
                 <thead className="bg-[#f3f3ed] text-[11px] uppercase tracking-wider text-ink-muted">
                   <tr>
@@ -1322,9 +1660,23 @@ export function CreatorCampaignOperations({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {orders.map((order) => (
+                  {orders
+                    .filter(
+                      (order) =>
+                        orderStageFilter === "ALL" ||
+                        order.status === orderStageFilter,
+                    )
+                    .map((order) => (
                     <tr key={order.id}>
-                      <td className="px-5 py-4 font-bold">{order.id}</td>
+                      <td className="px-5 py-4 font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOrderId(order.id)}
+                          className="text-left font-bold text-ink underline-offset-4 hover:text-coral hover:underline"
+                        >
+                          {order.id}
+                        </button>
+                      </td>
                       <td className="px-5 py-4">{order.backer}</td>
                       <td className="px-5 py-4 text-ink-soft">{order.reward}</td>
                       <td className="px-5 py-4 text-ink-muted">{order.city}</td>
@@ -1360,6 +1712,13 @@ export function CreatorCampaignOperations({
                           ) : (
                             <Clock3 className="size-4 text-ink-muted" />
                           )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrderId(order.id)}
+                            className="button-ghost min-h-9 px-2.5 text-[11px]"
+                          >
+                            Chi tiết
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1370,6 +1729,271 @@ export function CreatorCampaignOperations({
           </section>
         </div>
       ) : null}
+
+      <Modal
+        open={Boolean(selectedTask)}
+        badge={
+          selectedTask?.status === "DONE"
+            ? "ĐÃ HOÀN TẤT"
+            : selectedTask?.status === "IN_PROGRESS"
+              ? "ĐANG XỬ LÝ"
+              : "ĐẦU VIỆC NHÓM"
+        }
+        title={selectedTask?.title ?? "Chi tiết đầu việc"}
+        description={
+          selectedTask
+            ? `Phụ trách: ${selectedTask.assigneeName} · Hạn xử lý: ${selectedTask.dueLabel}`
+            : undefined
+        }
+        onClose={() => setSelectedTaskId(null)}
+        footer={
+          selectedTask ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Link
+                href={`/campaigns/${operations.campaignId}/timeline`}
+                className="button-secondary min-h-10 px-4 text-xs"
+              >
+                Mở nhật ký chiến dịch
+              </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy === `task-${selectedTask.id}`}
+                  onClick={() => toggleTaskStatus(selectedTask.id)}
+                  className="button-primary min-h-10 px-4 text-xs"
+                >
+                  {selectedTask.status === "DONE"
+                    ? "Mở lại đầu việc"
+                    : "Đánh dấu hoàn tất"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTaskId(null)}
+                  className="button-ghost min-h-10 px-4 text-xs"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          ) : undefined
+        }
+      >
+        {selectedTask ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 rounded-2xl border border-line bg-[#f7f5f0] p-4 sm:grid-cols-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Mã đầu việc
+                </p>
+                <p className="mt-1 font-mono text-xs font-bold text-ink">
+                  {selectedTask.id}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Thành viên nhận việc
+                </p>
+                <p className="mt-1 text-xs font-bold text-ink">
+                  {selectedTask.assigneeName}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Trạng thái đồng bộ
+                </p>
+                <p className="mt-1 text-xs font-bold text-emerald-800">
+                  {selectedTask.status === "DONE"
+                    ? "Đã đồng bộ trên hệ thống"
+                    : "Đang mở trên bàn cộng tác viên"}
+                </p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-line bg-white p-4">
+              <p className="text-xs font-bold text-ink">
+                Luồng phối hợp giữa Chủ dự án và Cộng tác viên
+              </p>
+              <p className="mt-1.5 text-xs leading-6 text-ink-soft">
+                Khi đầu việc này đổi trạng thái, cả bàn điều hành của Hoàng Linh lẫn bảng việc của {selectedTask.assigneeName} đều cập nhật ngay trên cùng bản ghi chiến dịch.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(selectedUpdate)}
+        badge="BẢN TIN TIẾN ĐỘ"
+        title={selectedUpdate?.title ?? "Chi tiết cập nhật"}
+        description={
+          selectedUpdate
+            ? `${selectedUpdate.when}${selectedUpdate.author ? ` · Đăng bởi ${selectedUpdate.author}` : ""}`
+            : undefined
+        }
+        onClose={() => setSelectedUpdateKey(null)}
+        footer={
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link
+              href={`/campaigns/${operations.slug}#updates`}
+              className="button-secondary min-h-10 px-4 text-xs"
+            >
+              Xem trên trang công khai
+            </Link>
+            <button
+              type="button"
+              onClick={() => setSelectedUpdateKey(null)}
+              className="button-dark min-h-10 px-4 text-xs"
+            >
+              Đóng
+            </button>
+          </div>
+        }
+      >
+        {selectedUpdate ? (
+          <div className="rounded-2xl border border-line bg-[#f7f5f0] p-4">
+            <p className="whitespace-pre-line text-sm leading-7 text-ink-soft">
+              {selectedUpdate.body ||
+                "Bản tin đã được hiển thị công khai trên dòng cập nhật của chiến dịch."}
+            </p>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(selectedReservation)}
+        badge="ỦY QUYỀN · CHƯA THU TIỀN"
+        title={
+          selectedReservation
+            ? `Cam kết ${selectedReservation.id} · ${selectedReservation.backer}`
+            : "Chi tiết cam kết"
+        }
+        description={
+          selectedReservation
+            ? `${selectedReservation.authorizedAt} · Khu vực giao: ${selectedReservation.city}`
+            : undefined
+        }
+        onClose={() => setSelectedReservationId(null)}
+        footer={
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link
+              href={`/campaigns/${operations.campaignId}/timeline`}
+              className="button-secondary min-h-10 px-4 text-xs"
+            >
+              Đối chiếu nhật ký chiến dịch
+            </Link>
+            <button
+              type="button"
+              onClick={() => setSelectedReservationId(null)}
+              className="button-dark min-h-10 px-4 text-xs"
+            >
+              Đóng
+            </button>
+          </div>
+        }
+      >
+        {selectedReservation ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 rounded-2xl border border-line bg-[#f7f5f0] p-4 sm:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Gói phần thưởng đã chọn
+                </p>
+                <p className="mt-1 text-sm font-bold text-ink">
+                  {selectedReservation.reward}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Số tiền giữ chỗ
+                </p>
+                <p className="mt-1 font-display text-lg font-extrabold text-coral-dark">
+                  {formatVnd(selectedReservation.amount)}
+                </p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs leading-6 text-amber-950">
+              Theo cơ chế tất cả hoặc không gì cả, khoản cam kết này đang ở trạng thái <strong>ủy quyền giữ chỗ</strong>. Đơn giao hàng chỉ mở khóa khi chiến dịch chạm 100% mục tiêu đúng hạn.
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(selectedOrder)}
+        badge={selectedOrder ? fulfillmentLabels[selectedOrder.status] : undefined}
+        title={
+          selectedOrder
+            ? `Đơn giao quà ${selectedOrder.id} · ${selectedOrder.backer}`
+            : "Chi tiết đơn giao quà"
+        }
+        description={
+          selectedOrder
+            ? `${operations.fulfillment.previousCampaign.title} · Giao tới ${selectedOrder.city}`
+            : undefined
+        }
+        onClose={() => setSelectedOrderId(null)}
+        footer={
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setSelectedOrderId(null)}
+              className="button-dark min-h-10 px-4 text-xs"
+            >
+              Đóng
+            </button>
+          </div>
+        }
+      >
+        {selectedOrder ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 rounded-2xl border border-line bg-[#f7f5f0] p-4 sm:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Người nhận
+                </p>
+                <p className="mt-1 text-sm font-bold text-ink">
+                  {selectedOrder.backer}
+                </p>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Khu vực: {selectedOrder.city}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Gói phần thưởng
+                </p>
+                <p className="mt-1 text-sm font-bold text-ink">
+                  {selectedOrder.reward}
+                </p>
+              </div>
+            </div>
+            <label className="block rounded-2xl border border-line bg-white p-4">
+              <span className="text-xs font-bold text-ink-soft">
+                Cập nhật trạng thái vận chuyển
+              </span>
+              <select
+                name={`modal-fulfillment-status-${selectedOrder.id}`}
+                value={selectedOrder.status}
+                disabled={busy === `order-${selectedOrder.id}`}
+                onChange={(event) =>
+                  updateFulfillment(
+                    selectedOrder.id,
+                    event.target.value as FulfillmentStatus,
+                  )
+                }
+                className="input-field mt-2"
+              >
+                {(
+                  Object.keys(fulfillmentLabels) as FulfillmentStatus[]
+                ).map((status) => (
+                  <option key={status} value={status}>
+                    {fulfillmentLabels[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

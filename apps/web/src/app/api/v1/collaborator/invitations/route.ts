@@ -4,7 +4,7 @@ import { getServerPlatformPreviewState, writePlatformPreviewCookie } from "@/lib
 import { previewInvitationForUser } from "@/lib/auth/preview-collaborators";
 
 export async function POST(request: Request) {
-  const access = await requireSession(["COLLABORATOR"]);
+  const access = await requireSession();
   if (access.response) return access.response;
   let body: unknown;
   try { body = await request.json(); } catch {
