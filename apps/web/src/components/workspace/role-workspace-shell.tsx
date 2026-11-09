@@ -550,33 +550,18 @@ function MobileRoleNav({
   const searchParams = useSearchParams();
   const theme = shellTheme[role];
   const items = workspaceNavigation(role, snapshot);
-  const activeItem = items.find((item) => navIsActive(item, pathname, searchParams));
-  const quickItems = activeItem && activeItem.href !== items[0]?.href
-    ? [items[0], activeItem]
-    : items.slice(0, 1);
+  const activeItem = items.find((item) => navIsActive(item, pathname, searchParams)) ?? items[0];
+  const ActiveIcon = activeItem.icon;
 
   return (
     <div className={`sticky top-[72px] z-40 border-b px-3 py-2 lg:hidden ${theme.mobile}`}>
       <div className="flex items-center gap-2">
-        <nav
-          className="flex min-w-0 flex-1 gap-2"
-          aria-label={`Điều hướng nhanh ${roleLabels[role]}`}
+        <div
+          className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[9px] px-3 text-xs font-bold ${role === "ADMIN" ? "bg-[#22252e] text-white" : role === "COLLABORATOR" ? "bg-[#173d65] text-white" : role === "CREATOR" ? "bg-[#102a22] text-white" : "bg-[#56352b] text-white"}`}
         >
-          {quickItems.map((item) => {
-            const Icon = item.icon;
-            const active = navIsActive(item, pathname, searchParams);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={`inline-flex min-h-11 min-w-0 items-center gap-2 rounded-[9px] px-3 text-xs font-bold ${active ? role === "ADMIN" ? "bg-[#22252e] text-white" : role === "COLLABORATOR" ? "bg-[#173d65] text-white" : role === "CREATOR" ? "bg-[#102a22] text-white" : "bg-[#56352b] text-white" : "border border-black/8 bg-white/70 text-ink-soft"}`}
-              >
-                <Icon className="size-4 shrink-0" /> <span className="truncate">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+          <ActiveIcon className="size-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 truncate">{activeItem.label}</span>
+        </div>
         <details
           key={`${pathname}?${searchParams.toString()}`}
           className="group/menu shrink-0"
