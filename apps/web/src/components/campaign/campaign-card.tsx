@@ -10,6 +10,7 @@ import {
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CampaignVisual } from "./campaign-visual";
+import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 
 export function CampaignCard({
   campaign,
@@ -22,6 +23,7 @@ export function CampaignCard({
 }) {
   const percent = fundingPercent(campaign.pledgedAmount, campaign.goalAmount);
   const upcoming = campaign.status === "PRE_LAUNCH";
+  const isLocalCampaign = isPreviewCampaignId(campaign.id);
   return (
     <article className="card-lift group overflow-hidden rounded-[18px] border border-line bg-white">
       <Link
@@ -67,11 +69,9 @@ export function CampaignCard({
                 Mở gọi vốn
               </p>
               <p className="mt-1 text-sm font-bold text-ink">
-                {formatDate(campaign.launchDate, {
-                  day: "2-digit",
-                  month: "long",
-                  year: "numeric",
-                })}
+                {isLocalCampaign
+                  ? formatDate(campaign.launchDate, { day: "2-digit", month: "long", year: "numeric" })
+                  : "Chờ nhóm công bố lịch"}
               </p>
             </div>
             <Link
@@ -98,12 +98,12 @@ export function CampaignCard({
               </div>
               <div className="text-right">
                 <p className="text-sm font-bold text-ink">
-                  {campaign.daysLeft > 0
+                  {isLocalCampaign && campaign.daysLeft > 0
                     ? `${campaign.daysLeft} ngày`
                     : formatNumber(campaign.backerCount)}
                 </p>
                 <p className="mt-0.5 text-[11px] text-ink-muted">
-                  {campaign.daysLeft > 0 ? "còn lại" : "người ủng hộ"}
+                  {isLocalCampaign && campaign.daysLeft > 0 ? "còn lại" : "người ủng hộ"}
                 </p>
               </div>
             </div>

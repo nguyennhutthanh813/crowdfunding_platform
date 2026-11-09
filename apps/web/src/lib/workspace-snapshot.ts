@@ -67,8 +67,8 @@ export function buildCreatorWorkspaceSnapshot(
     entityCode: `CMP · ${campaign.id.replace("cmp_", "").toUpperCase()}`,
     contextTitle: campaign.title,
     contextDetail: portfolio
-      ? `${portfolio.summary.total} chiến dịch · Đang chọn ${campaign.daysLeft} ngày còn lại`
-      : `${campaign.daysLeft} ngày còn lại · ${campaign.backerCount.toLocaleString("vi-VN")} người ủng hộ`,
+      ? `${portfolio.summary.total} chiến dịch · ${campaign.backerCount.toLocaleString("vi-VN")} người ủng hộ ở chiến dịch chọn`
+      : `${campaign.backerCount.toLocaleString("vi-VN")} người ủng hộ`,
     statusLabel: campaign.status === "LIVE" ? "ĐANG GỌI VỐN" : campaign.status,
     primaryMetric: {
       label: "đã cam kết",

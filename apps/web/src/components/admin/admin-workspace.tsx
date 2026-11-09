@@ -1549,7 +1549,7 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
       </div>
 
       <div id="workspace-content" className="container-shell scroll-mt-28 pt-6">
-        <div className="mb-5 grid overflow-hidden rounded-[16px] border border-line bg-white sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-5">
           {metrics.map((metric) => {
             const Icon = metric.icon;
             const active = tab === metric.tab;
@@ -1558,15 +1558,15 @@ export function AdminWorkspace({ data, localDbAvailable = false }: { data: Admin
                 key={metric.label}
                 type="button"
                 onClick={() => setTab(metric.tab)}
-                aria-current={active ? "page" : undefined}
-                className={`flex cursor-pointer items-center gap-4 border-b border-line p-4 text-left transition-colors last:border-b-0 hover:bg-[#f8f8f5] sm:border-r xl:border-b-0 xl:last:border-r-0 ${active ? "bg-[#f3f0f0] shadow-[inset_3px_0_0_#bd3038]" : "bg-white"}`}
+                aria-pressed={active}
+                className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-line p-3 text-left transition-colors hover:bg-[#f8f8f5] sm:gap-3 sm:p-4 ${metric.label === "Hồ sơ người dùng" ? "col-span-2 xl:col-span-1" : ""} ${active ? "bg-[#f3f0f0] shadow-[inset_3px_0_0_#bd3038]" : "bg-white"}`}
               >
-                <span className={`grid size-10 shrink-0 place-items-center rounded-[9px] ${metric.tone}`}>
-                  <Icon className="size-5" />
+                <span className={`grid size-9 shrink-0 place-items-center rounded-[9px] sm:size-10 ${metric.tone}`}>
+                  <Icon className="size-4 sm:size-5" />
                 </span>
                 <div className="min-w-0">
-                  <p className="font-display text-xl font-extrabold">{metric.value}</p>
-                  <p className="mt-1 truncate text-xs text-ink-muted">{metric.label}</p>
+                  <p className="font-display text-lg font-extrabold sm:text-xl">{metric.value}</p>
+                  <p className="mt-1 text-xs leading-4 text-ink-muted">{metric.label}</p>
                   <p className="mt-0.5 text-[11px] leading-4 text-ink-muted">{metric.detail}</p>
                 </div>
               </button>

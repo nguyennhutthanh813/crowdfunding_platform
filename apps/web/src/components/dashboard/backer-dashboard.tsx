@@ -1355,6 +1355,7 @@ export function BackerDashboard({
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
                 {currentTab.description}
               </p>
+              <p className="mt-2 text-xs text-ink-muted">Các hạn và tiến độ của chiến dịch mẫu được tính tại ngày 13/09/2026.</p>
             </div>
             <div className="flex w-fit items-center gap-3 rounded-[12px] border border-[#dfcdbd] bg-white px-4 py-3">
               <span className="grid size-10 place-items-center rounded-[9px] bg-[#f1c98a] font-display text-sm font-extrabold text-[#56352b]">
@@ -1373,7 +1374,7 @@ export function BackerDashboard({
       </div>
 
       <div id="workspace-content" className="container-shell scroll-mt-28 pt-6">
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
           {stats.map((stat) => {
             const Icon = stat.icon;
             const active = tab === stat.tab;
@@ -1382,14 +1383,14 @@ export function BackerDashboard({
                 key={stat.label}
                 type="button"
                 onClick={() => setTab(stat.tab)}
-                aria-current={active ? "page" : undefined}
-                className={`flex cursor-pointer items-center gap-4 rounded-[14px] border bg-white p-4 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-[#c79869] ${active ? "border-[#9f5c3e] shadow-[0_8px_20px_rgba(121,75,52,0.08)]" : "border-line"}`}
+                aria-pressed={active}
+                className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-[14px] border bg-white p-3 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-[#c79869] sm:gap-4 sm:p-4 ${active ? "border-[#9f5c3e] shadow-[0_8px_20px_rgba(121,75,52,0.08)]" : "border-line"}`}
               >
-                <span className="grid size-10 place-items-center rounded-[9px] bg-forest text-lime">
+                <span className="grid size-9 shrink-0 place-items-center rounded-[9px] bg-forest text-lime sm:size-10">
                   <Icon className="size-4" />
                 </span>
-                <div>
-                  <p className="font-display text-2xl font-extrabold">
+                <div className="min-w-0">
+                  <p className="font-display text-xl font-extrabold sm:text-2xl">
                     {stat.value}
                   </p>
                   <p className="text-xs text-ink-muted">{stat.label}</p>

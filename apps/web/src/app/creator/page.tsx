@@ -180,7 +180,7 @@ export default async function CreatorPage() {
           </article>
         ) : null}
 
-        <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
           {[
             {
               label: "Đã cam kết",
@@ -216,17 +216,17 @@ export default async function CreatorPage() {
               <Link
                 key={metric.label}
                 href={metric.href}
-                className="group min-w-0 rounded-[16px] border border-line bg-white p-5 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-forest/25"
+                className="group min-w-0 rounded-[16px] border border-line bg-white p-3 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-forest/25 sm:p-5"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs font-bold text-ink-muted">
+                  <p className="text-[11px] font-bold leading-4 text-ink-muted sm:text-xs">
                     {metric.label}
                   </p>
-                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#edf1e3] text-forest transition-transform group-hover:scale-105">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#edf1e3] text-forest transition-transform group-hover:scale-105 sm:size-9">
                     <Icon className="size-4" />
                   </span>
                 </div>
-                <p className="mt-4 truncate font-display text-2xl font-extrabold tracking-[-0.04em]">
+                <p className="mt-3 font-display text-lg font-extrabold leading-tight tracking-[-0.04em] sm:mt-4 sm:text-2xl">
                   {metric.value}
                 </p>
                 <p className="mt-1 text-xs text-ink-muted">

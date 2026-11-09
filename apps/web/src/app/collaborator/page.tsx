@@ -187,6 +187,7 @@ export default async function CollaboratorPage() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
                 Thực hiện các đầu việc được phân công, đăng bản tin tiến độ và phản hồi câu hỏi cộng đồng.
               </p>
+              <p className="mt-2 text-xs text-ink-muted">Các hạn của chiến dịch ORBIT mẫu được tính tại ngày 13/09/2026.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
