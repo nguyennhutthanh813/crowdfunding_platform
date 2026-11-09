@@ -53,7 +53,7 @@ campaigns.cmp_orbit
               ├── add_ons.ad_milk
               ├── shipping_options.shp_orbit_standard
               ├── daily_campaign_metrics (24/08 → 12/09)
-              ├── campaign_predictions (model v1.4.0, score 82)
+              ├── campaign_predictions (kịch bản mẫu 82%, chưa có model huấn luyện)
               │     └── prediction_factors
               ├── comments / updates / FAQs
               ├── campaign_tasks.task-thermal-update

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import {
   ArrowLeft,
   BrainCircuit,
-  ChevronDown,
   Eye,
   FolderKanban,
 } from "lucide-react";
@@ -13,6 +12,7 @@ import { CampaignAccessNotice } from "@/components/auth/campaign-access-notice";
 import { resolveCampaignAccess } from "@/lib/auth/campaign-access";
 import { getServerSession } from "@/lib/auth/server-session";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
+import { formatDate } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Dự báo ORBIT One",
@@ -34,6 +34,7 @@ export default async function CollaboratorForecastPage() {
     );
   }
   const data = await api.getCreatorAiDashboard();
+  const isMock = data.model.status === "MOCK";
 
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
@@ -51,10 +52,12 @@ export default async function CollaboratorForecastPage() {
                 <BrainCircuit className="size-4" /> Dự báo được chia sẻ
               </span>
               <h1 className="mt-3 max-w-3xl font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
-                Dữ liệu đang nói gì về ORBIT One?
+                {isMock ? "Kịch bản dự báo ORBIT One" : "Dữ liệu đang nói gì về ORBIT One?"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-                Tổng hợp nhịp độ cam kết, tín hiệu quan tâm trước giờ mở và các yếu tố SHAP để nhóm chủ động điều chỉnh lịch đăng bản tin, trả lời câu hỏi cộng đồng.
+                {isMock
+                  ? "Đây là kịch bản dữ liệu mẫu của ORBIT One, không phải kết quả mô hình đã huấn luyện. Nhóm có thể dùng màn này để hình dung các yếu tố cần theo dõi khi có dữ liệu thật."
+                  : "Dự báo được chủ dự án chia sẻ để nhóm xem nhịp cam kết và các yếu tố cần theo dõi. Trao đổi với chủ dự án trước khi đổi kế hoạch."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -74,12 +77,12 @@ export default async function CollaboratorForecastPage() {
           </div>
           <div className="mt-7 flex max-w-xl items-center justify-between rounded-[12px] border border-[#c8d9ec] bg-white px-4 py-3">
             <div>
-              <p className="text-[11px] font-bold text-ink-muted">
-                Đang phân tích
-              </p>
+              <p className="text-[11px] font-bold text-ink-muted">Kịch bản đang xem</p>
               <p className="mt-1 text-sm font-bold">{data.campaign.title}</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                {isMock ? "Dữ liệu mẫu" : "Dữ liệu đầu vào"} chốt ngày {formatDate(data.model.inputSnapshotAt, { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" })}
+              </p>
             </div>
-            <ChevronDown className="size-4 text-ink-muted" />
           </div>
         </div>
       </div>

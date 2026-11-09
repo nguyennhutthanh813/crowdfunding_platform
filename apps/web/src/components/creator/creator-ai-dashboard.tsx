@@ -1,6 +1,5 @@
 import {
   AlertTriangle,
-  ArrowUpRight,
   BarChart3,
   Bell,
   CheckCircle2,
@@ -13,7 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import type { CreatorAiDashboardData } from "@/lib/api";
-import { formatNumber } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 
 const priorityLabels = {
   HIGH: "Cần làm sớm",
@@ -21,7 +20,7 @@ const priorityLabels = {
   LOW: "Theo dõi",
 };
 
-function FundingChart({ data }: { data: CreatorAiDashboardData["timeline"] }) {
+function FundingChart({ data, isMock }: { data: CreatorAiDashboardData["timeline"]; isMock: boolean }) {
   const width = 620;
   const height = 230;
   const pad = 28;
@@ -40,7 +39,7 @@ function FundingChart({ data }: { data: CreatorAiDashboardData["timeline"] }) {
         viewBox={`0 0 ${width} ${height}`}
         className="min-w-[560px]"
         role="img"
-        aria-label="Biểu đồ phần trăm mục tiêu thực tế so với kỳ vọng"
+        aria-label={isMock ? "Biểu đồ mô phỏng phần trăm mục tiêu so với đường tham chiếu" : "Biểu đồ phần trăm mục tiêu so với đường tham chiếu"}
       >
         {[0, 25, 50, 75, 100].map((value) => {
           const y = height - pad - (value / 100) * (height - pad * 2);
@@ -118,16 +117,28 @@ export function CreatorAiDashboard({
       : data.score >= 55
         ? "text-amber-700"
         : "text-red-700";
+  const isMock = data.model.status === "MOCK";
+  const snapshotDate = formatDate(data.model.inputSnapshotAt, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Ho_Chi_Minh",
+  });
+  const riskLabel = `${isMock ? "Rủi ro giả định" : "Rủi ro dự báo"} ${{
+    LOW: "thấp",
+    MEDIUM: "vừa",
+    HIGH: "cao",
+  }[data.riskLevel]}`;
   return (
     <div className="container-shell -mt-4 relative z-10 pt-0">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <article className="min-w-0 rounded-[20px] border border-line bg-white p-6 sm:p-7">
           <div className="flex items-center justify-between">
             <span className="eyebrow text-coral">
-              <BarChart3 className="size-4" /> Dự báo hôm nay
+              <BarChart3 className="size-4" /> {isMock ? "Kịch bản mẫu" : "Dự báo chiến dịch"}
             </span>
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-              RỦI RO THẤP
+              {riskLabel}
             </span>
           </div>
           <div
@@ -144,19 +155,18 @@ export function CreatorAiDashboard({
                   {data.score}%
                 </p>
                 <p className="mt-1 text-xs font-bold text-ink-soft">
-                  khả năng đạt mục tiêu
+                  {isMock ? "xác suất minh họa" : "khả năng đạt mục tiêu"}
                 </p>
               </div>
             </div>
           </div>
           <p className="mt-7 text-center text-xs leading-5 text-ink-muted">
-            Điểm dự báo hiện cao hơn{" "}
-            <strong className="text-ink">14 điểm</strong> so với mốc cơ sở
-            trước khi mở gọi vốn.
+            {isMock
+              ? `Mốc dữ liệu giả định: ${snapshotDate}. Số ${data.score}% chỉ minh họa cách trình bày; nhóm chưa đo độ chính xác của mô hình.`
+              : `Dữ liệu đầu vào chốt ngày ${snapshotDate}. Xem thêm kết quả đánh giá trước khi dùng dự báo.`}
           </p>
           <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#f2f6e8] p-4 text-xs leading-5 text-[#53622f]">
-            <Info className="mt-0.5 size-4 shrink-0" /> Dự báo không phải lời
-            đảm bảo.{" "}
+            <Info className="mt-0.5 size-4 shrink-0" /> {isMock ? "Đây chưa phải xác suất tính từ mô hình đã huấn luyện." : "Dự báo không đảm bảo chiến dịch sẽ đạt mục tiêu."}{" "}
             {variant === "collaborator"
               ? "Nhóm vẫn cần trao đổi với chủ dự án trước khi đổi kế hoạch."
               : "Chủ dự án vẫn cần công khai rủi ro và cập nhật tiến độ."}
@@ -170,20 +180,20 @@ export function CreatorAiDashboard({
                 <TrendingUp className="size-4" /> Nhịp gọi vốn
               </p>
               <h2 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
-                Tiến độ vốn so với đường kỳ vọng
+                {isMock ? "Tiến độ vốn trong kịch bản mẫu" : "Tiến độ vốn so với tham chiếu"}
               </h2>
             </div>
             <div className="flex gap-4 text-[11px] text-ink-muted">
               <span className="inline-flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-coral" /> Thực tế
+                <span className="size-2 rounded-full bg-coral" /> {isMock ? "Dữ liệu mẫu" : "Đã ghi nhận"}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-px w-4 border-t-2 border-dashed border-[#9ca8a2]" />{" "}
-                Kỳ vọng
+                Đường tham chiếu
               </span>
             </div>
           </div>
-          <FundingChart data={data.timeline} />
+          <FundingChart data={data.timeline} isMock={isMock} />
         </article>
       </div>
 
@@ -195,11 +205,11 @@ export function CreatorAiDashboard({
                 <BarChart3 className="size-4" /> Yếu tố ảnh hưởng
               </p>
               <h2 className="mt-2 font-display text-2xl font-extrabold">
-                Yếu tố đang tác động đến dự báo
+                {isMock ? "Giả định về các yếu tố ảnh hưởng" : "Yếu tố ảnh hưởng đến dự báo"}
               </h2>
             </div>
             <span className="hidden rounded-full border border-line px-3 py-1.5 text-[11px] font-bold text-ink-muted sm:block">
-              SHAP · giải thích từng yếu tố
+              {isMock ? "Chưa có giải thích từ mô hình" : "Diễn giải của mô hình"}
             </span>
           </div>
           <div className="mt-7 space-y-6">
@@ -216,7 +226,7 @@ export function CreatorAiDashboard({
                     className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${factor.direction === "positive" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
                   >
                     {factor.direction === "positive" ? "+" : "−"}
-                    {factor.impact} điểm
+                    {factor.impact} điểm{isMock ? " giả định" : ""}
                   </span>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-forest/7">
@@ -238,7 +248,7 @@ export function CreatorAiDashboard({
                   <Users className="size-4" /> Tín hiệu trước khi mở
                 </p>
                 <h2 className="mt-2 font-display text-xl font-extrabold">
-                  Mức quan tâm trước ngày gọi vốn
+                  {isMock ? "Mức quan tâm trong bộ mẫu" : "Mức quan tâm trước khi mở"}
                 </h2>
               </div>
               <CheckCircle2 className="size-5 text-lime" />
@@ -278,11 +288,12 @@ export function CreatorAiDashboard({
           </article>
           <article className="rounded-[20px] border border-line bg-white p-6">
             <p className="eyebrow text-coral">
-              <ShieldCheck className="size-4" /> Mô hình dự kiến
+              <ShieldCheck className="size-4" /> {isMock ? "Mô hình dự kiến" : "Thông tin mô hình"}
             </p>
             <p className="mt-3 text-xs leading-5 text-ink-muted">
-              Số liệu dưới đây dùng để minh họa giao diện, chưa phải kết quả
-              huấn luyện hoặc kiểm thử mô hình của nhóm.
+              {isMock
+                ? "Nhóm dự kiến huấn luyện mô hình phân loại. Bản đang xem chỉ là dữ liệu minh họa, chưa có kết quả đánh giá trên tập kiểm thử."
+                : "Thông tin kết quả đánh giá cần đi cùng tập dữ liệu và cách chia tập kiểm thử."}
             </p>
             <dl className="mt-5 space-y-3 text-xs">
               <div className="flex justify-between gap-4">
@@ -290,18 +301,16 @@ export function CreatorAiDashboard({
                 <dd className="text-right font-bold">{data.model.name}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink-muted">Phiên bản</dt>
+                <dt className="text-ink-muted">{isMock ? "Mã bộ mẫu" : "Phiên bản"}</dt>
                 <dd className="font-mono font-bold">{data.model.version}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-ink-muted">ROC-AUC minh họa</dt>
-                <dd className="font-bold text-emerald-700">
-                  {data.model.rocAuc}
-                </dd>
+                <dt className="text-ink-muted">ROC-AUC</dt>
+                <dd className="font-bold">{data.model.status === "EVALUATED" && data.model.rocAuc !== null ? data.model.rocAuc : "Chưa đo"}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-ink-muted">Nguồn dữ liệu</dt>
-                <dd className="font-bold">Nhật ký chiến dịch</dd>
+                <dd className="text-right font-bold">{isMock ? "Bộ mẫu ORBIT One" : "Dữ liệu đầu vào"} · {snapshotDate}</dd>
               </div>
             </dl>
           </article>
@@ -315,11 +324,11 @@ export function CreatorAiDashboard({
               <Lightbulb className="size-4" /> Việc nên làm tiếp
             </p>
             <h2 className="mt-2 font-display text-2xl font-extrabold">
-              Việc nên làm từ các yếu tố ảnh hưởng
+              {isMock ? "Gợi ý để nhóm thảo luận" : "Việc nên cân nhắc"}
             </h2>
           </div>
           <p className="text-[11px] text-ink-muted">
-            Xác suất minh họa, không dùng để quyết định góp tiền
+            {isMock ? "Chưa có bằng chứng đo tác động của từng gợi ý" : "Nhóm cần kiểm tra trước khi áp dụng"}
           </p>
         </div>
         <div className="mt-6 grid gap-3 lg:grid-cols-3">
@@ -346,9 +355,8 @@ export function CreatorAiDashboard({
               <p className="mt-2 text-xs leading-5 text-ink-soft">
                 {suggestion.detail}
               </p>
-              <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-bold text-coral-dark">
-                Căn cứ từ dữ liệu chiến dịch
-                <ArrowUpRight className="size-3.5" aria-hidden="true" />
+              <p className="mt-4 text-[11px] font-bold text-coral-dark">
+                {isMock ? "Ghi chú theo kịch bản mẫu" : "Ghi chú từ dữ liệu chiến dịch"}
               </p>
             </div>
           ))}

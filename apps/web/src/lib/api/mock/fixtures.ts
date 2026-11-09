@@ -633,41 +633,42 @@ export const creatorAiDashboard: CreatorAiDashboardData = {
   score: 82,
   riskLevel: "LOW",
   model: {
-    name: "XGBoost Campaign Classifier",
-    version: "v1.4.0",
-    evaluatedAt: "2026-09-12T06:00:00+07:00",
-    rocAuc: 0.87,
+    name: "Phân loại thành công (dự kiến)",
+    version: "mock-orbit-2026-09",
+    inputSnapshotAt: "2026-09-12T06:00:00+07:00",
+    status: "MOCK",
+    rocAuc: null,
   },
   factors: [
     {
       label: "Tốc độ cam kết trong 7 ngày",
       impact: 24,
       direction: "positive",
-      detail: "Cao hơn trung vị danh mục 1,8 lần",
+      detail: "Giả định nhịp cam kết tăng nhanh trong bộ dữ liệu mẫu",
     },
     {
       label: "Tín hiệu trước khi mở",
       impact: 17,
       direction: "positive",
-      detail: "742 lượt đăng ký nhận nhắc trước khi mở",
+      detail: "742 lượt nhận nhắc trong kịch bản ORBIT One",
     },
     {
       label: "Độ đa dạng gói ủng hộ",
       impact: 11,
       direction: "positive",
-      detail: "Ba mốc giá phủ đủ nhóm nhu cầu",
+      detail: "Ba mốc giá được dùng để minh họa cách chia gói",
     },
     {
       label: "Mục tiêu gọi vốn",
       impact: 13,
       direction: "negative",
-      detail: "Cao hơn 22% so với dự án tương tự",
+      detail: "Mục tiêu lớn có thể cần nhiều người ủng hộ hơn",
     },
     {
       label: "Thời lượng chiến dịch",
       impact: 7,
       direction: "negative",
-      detail: "Dài hơn vùng tối ưu khoảng 5 ngày",
+      detail: "Thời lượng dài cần thêm mốc cập nhật để theo dõi",
     },
   ],
   suggestions: [
@@ -675,7 +676,7 @@ export const creatorAiDashboard: CreatorAiDashboardData = {
       id: "sg_1",
       title: "Giữ nhịp cập nhật 3 ngày/lần",
       detail:
-        "Các mốc cập nhật gần nhất giúp số cam kết tăng trung bình 12% trong 24 giờ.",
+        "Có thể thử lịch cập nhật đều rồi theo dõi số cam kết sau từng bản tin. Bộ mẫu chưa chứng minh cập nhật làm tăng cam kết.",
       priority: "HIGH",
     },
     {
@@ -689,7 +690,7 @@ export const creatorAiDashboard: CreatorAiDashboardData = {
       id: "sg_3",
       title: "Chưa nên mở thêm gói mới",
       detail:
-        "Ba gói hiện tại đang có tỷ lệ chuyển đổi tốt; thêm lựa chọn có thể khiến người ủng hộ khó quyết định hơn.",
+        "Ba gói hiện có đủ để trình bày bản mẫu. Cần xem dữ liệu chọn gói thật trước khi mở thêm lựa chọn.",
       priority: "LOW",
     },
   ],

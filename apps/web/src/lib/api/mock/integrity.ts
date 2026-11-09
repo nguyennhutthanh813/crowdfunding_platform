@@ -153,6 +153,10 @@ export function auditMockData() {
     "CREATOR_AI_CAMPAIGN",
   );
   expect(creatorAiDashboard.model.version.length > 0, "CREATOR_AI_MODEL_VERSION");
+  expect(
+    creatorAiDashboard.model.status === "MOCK" && creatorAiDashboard.model.rocAuc === null,
+    "CREATOR_AI_NO_UNMEASURED_METRIC",
+  );
   expect(creatorAiDashboard.factors.length > 0, "CREATOR_AI_FACTORS");
   expect(
     creatorAssistantData.content.runMeta.promptVersion.startsWith("content.vi."),

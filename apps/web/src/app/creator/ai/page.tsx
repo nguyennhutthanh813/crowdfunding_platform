@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import {
   BrainCircuit,
-  ChevronDown,
   Eye,
   FileText,
   FolderKanban,
@@ -15,6 +14,7 @@ import { CampaignAccessNotice } from "@/components/auth/campaign-access-notice";
 import { resolveCampaignAccess } from "@/lib/auth/campaign-access";
 import { getServerSession } from "@/lib/auth/server-session";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
+import { formatDate } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Dự báo chiến dịch",
@@ -39,6 +39,7 @@ export default async function CreatorAiPage() {
     api.getCreatorAiDashboard(),
     api.getCreatorAssistantData(),
   ]);
+  const isMock = data.model.status === "MOCK";
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
       <div className="border-b border-forest/10 bg-[#e5ebe5] py-8 sm:py-10">
@@ -49,12 +50,12 @@ export default async function CreatorAiPage() {
                 <BrainCircuit className="size-4" /> Dữ liệu chiến dịch
               </span>
               <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">
-                Dự báo tiến độ của ORBIT One
+                {isMock ? "Mô phỏng dự báo ORBIT One" : "Dự báo tiến độ ORBIT One"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-                Đây là bộ dự báo minh họa cho ORBIT One, chưa chạy mô hình AI
-                thật. Các xác suất và chỉ số không phải kết quả đánh giá của
-                nhóm.
+                {isMock
+                  ? "Đây là kịch bản minh họa cho ORBIT One. Nhóm chưa chạy mô hình dự báo hoặc đánh giá xác suất trên dữ liệu kiểm thử."
+                  : "Dự báo giúp nhóm xem các yếu tố ảnh hưởng tới mục tiêu gọi vốn. Cần đối chiếu kết quả với dữ liệu và đánh giá của mô hình."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -86,12 +87,12 @@ export default async function CreatorAiPage() {
           </div>
           <div className="mt-7 flex max-w-xl items-center justify-between rounded-[12px] border border-line bg-white px-4 py-3">
             <div>
-              <p className="text-[11px] font-bold text-ink-muted">
-                Đang phân tích
-              </p>
+              <p className="text-[11px] font-bold text-ink-muted">Kịch bản đang xem</p>
               <p className="mt-1 text-sm font-bold">{data.campaign.title}</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                {isMock ? "Dữ liệu mẫu" : "Dữ liệu đầu vào"} chốt ngày {formatDate(data.model.inputSnapshotAt, { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Ho_Chi_Minh" })}
+              </p>
             </div>
-            <ChevronDown className="size-4 text-ink-muted" />
           </div>
         </div>
       </div>

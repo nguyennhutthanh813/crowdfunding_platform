@@ -271,7 +271,13 @@ export interface CreatorAiDashboardData {
   campaign: CampaignCardData;
   score: number;
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
-  model: { name: string; version: string; evaluatedAt: string; rocAuc: number };
+  model: {
+    name: string;
+    version: string;
+    inputSnapshotAt: string;
+    status: "MOCK" | "EVALUATED";
+    rocAuc: number | null;
+  };
   factors: PredictionFactor[];
   suggestions: Array<{
     id: string;
