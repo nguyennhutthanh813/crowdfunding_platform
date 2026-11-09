@@ -94,7 +94,9 @@ Mock data phải có timestamp, số tiền, địa điểm và tên người h�
 
 ## 6. Một chỗ nhóm cần xác nhận trước khi nộp
 
-Yêu cầu logo trước đây nhắc **Phước Thịnh và Trọng Nghĩa**, còn bản tổng hợp đề tài và hai transcript ghi **Võ Phước Thịnh – Nhật Thanh Nguyễn**. Sau góp ý mới, bản logo đang chạy thử dùng chữ tắt `PT/NT` và hiện tên theo bản tổng hợp đề tài. Đây là lựa chọn tạm để xem bố cục, **không phải xác nhận thông tin cá nhân**. Nhóm cần đối chiếu đúng người và mã sinh viên trước khi in báo cáo hoặc công bố web; xem `docs/brand/nhan-dien-hai-thanh-vien-2026-10-22.md`.
+Yêu cầu logo trước đây nhắc **Phước Thịnh và Trọng Nghĩa**, còn bản tổng hợp đề tài và hai transcript ghi **Võ Phước Thịnh – Nhật Thanh Nguyễn**. Ở bản logo cũ, nhóm dùng `PT/NT` theo bản tổng hợp để xem bố cục, **chưa coi đó là xác nhận thông tin cá nhân**. Nhóm vẫn cần đối chiếu mã sinh viên trước khi in báo cáo; xem `docs/brand/nhan-dien-hai-thanh-vien-2026-10-22.md`.
+
+Cập nhật 10/11/2026: người dùng xác nhận tên thành viên thứ hai dùng trên logo là **Nguyễn Nhựt Thanh**. Bộ nhận diện web được sửa theo tên này. Các file đề tài/transcript gốc vẫn giữ nguyên để nhóm tự đối chiếu và sửa thông tin hành chính khi nộp.
 
 ## 7. Cách trình bày khi demo
 

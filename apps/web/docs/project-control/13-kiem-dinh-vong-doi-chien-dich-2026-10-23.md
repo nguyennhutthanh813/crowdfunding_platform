@@ -73,7 +73,7 @@ Mức chắc chắn của 5 hàng đầu dựa vào source, HTTP test và màn t
 
 - Chưa triển khai PostgreSQL, AI thật, thanh toán Sandbox, webhook, upload, email và giao quà cho chiến dịch tạo mới. Không dùng số liệu mô phỏng để báo cáo độ chính xác model.
 - Một số tính năng của chiến dịch seed (như lượt thích bình luận) vẫn phản hồi mô phỏng/chỉ giữ tại màn; phải kiểm từng action trước khi nói toàn bộ website hoàn chỉnh.
-- Tên thành viên thứ hai: bản tổng hợp ghi **Nhật Thanh Nguyễn**, một yêu cầu logo trước đó ghi **Trọng Nghĩa**. Logo hiện dùng `PT/NT` theo bản tổng hợp; nhóm cần chốt trước khi nộp.
+- Tại thời điểm viết bản kiểm định này, tên thành viên thứ hai còn chưa chốt: bản tổng hợp ghi **Nhật Thanh Nguyễn**, một yêu cầu logo trước đó ghi **Trọng Nghĩa**. Cập nhật 10/11/2026: người dùng xác nhận tên dùng trên logo là **Nguyễn Nhựt Thanh**; nhóm vẫn cần đối chiếu hồ sơ hành chính trước khi nộp.
 - Nhóm cần xác nhận quyền sử dụng ảnh, quy định khai báo hỗ trợ AI và nội dung hồ sơ hành chính. Ảnh minh họa do công cụ tạo trước đây có ghi trong `docs/nguon-tai-nguyen-va-cong-cu.md`; không gọi đó là ảnh hiện trường hoặc ảnh sản phẩm đã làm.
 
 ## 7. Chạy và trình bày

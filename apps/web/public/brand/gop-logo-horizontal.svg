@@ -1,10 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="432" height="80" viewBox="0 0 432 80" role="img" aria-labelledby="title desc">
-  <title id="title">Góp — Võ Phước Thịnh và Nhật Thanh Nguyễn</title>
-  <desc id="desc">Dấu nhóm PT và NT bên cạnh tên sản phẩm Góp và tên hai thành viên.</desc>
-  <rect x="2" y="6" width="68" height="68" rx="12" fill="#f2eadb" stroke="#17392f" stroke-width="2"/>
-  <text x="36" y="36" text-anchor="middle" fill="#17392f" font-family="Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="-1">PT</text>
-  <path d="M15 42h42" stroke="#c95339" stroke-width="3" stroke-linecap="round"/>
-  <text x="36" y="66" text-anchor="middle" fill="#17392f" font-family="Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="-1">NT</text>
+  <title id="title">Góp — Võ Phước Thịnh và Nguyễn Nhựt Thanh</title>
+  <desc id="desc">Hai ô PT và NT nối về một điểm góp, bên cạnh tên Góp và tên hai thành viên.</desc>
+  <svg x="2" y="6" width="68" height="68" viewBox="0 0 64 64">
+    <rect x="1.5" y="1.5" width="61" height="61" rx="15" fill="#f7f3e8" stroke="#17392f" stroke-width="2"/>
+    <rect x="7.5" y="10" width="23" height="32" rx="9" fill="#17392f"/>
+    <rect x="33.5" y="10" width="23" height="32" rx="9" fill="#b74934"/>
+    <text x="19" y="31" text-anchor="middle" fill="#fffef7" font-family="Arial,sans-serif" font-size="14" font-weight="800" letter-spacing="-1">PT</text>
+    <text x="45" y="31" text-anchor="middle" fill="#fffef7" font-family="Arial,sans-serif" font-size="14" font-weight="800" letter-spacing="-1">NT</text>
+    <path d="M19 45L32 55L45 45" fill="none" stroke="#17392f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="32" cy="54" r="3.5" fill="#b74934"/>
+  </svg>
   <text x="90" y="39" fill="#17392f" font-family="Arial,sans-serif" font-size="37" font-weight="800" letter-spacing="-2">Góp</text>
-  <text x="91" y="65" fill="#9c3d2b" font-family="Arial,sans-serif" font-size="16" font-weight="700">Võ Phước Thịnh  ×  Nhật Thanh Nguyễn</text>
+  <text x="91" y="65" fill="#9c3d2b" font-family="Arial,sans-serif" font-size="16" font-weight="700">Võ Phước Thịnh  ×  Nguyễn Nhựt Thanh</text>
 </svg>

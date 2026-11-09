@@ -1,10 +1,13 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
-export const alt = "Góp — dự án của Võ Phước Thịnh và Nhật Thanh Nguyễn";
+export const alt = "Góp — dự án của Võ Phước Thịnh và Nguyễn Nhựt Thanh";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpenGraphImage() {
+export default async function OpenGraphImage() {
+  const mark = await readFile(join(process.cwd(), "public", "brand", "gop-mark-512.png"));
   return new ImageResponse(
     <div
       style={{
@@ -39,29 +42,13 @@ export default function OpenGraphImage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                flexShrink: 0,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "2px solid #17392f",
-                borderRadius: 12,
-                background: "#f2eadb",
-                color: "#17392f",
-              }}
-            >
-              <div style={{ fontSize: 23, lineHeight: 1, fontWeight: 800 }}>PT</div>
-              <div style={{ width: 44, height: 3, marginTop: 3, marginBottom: 3, borderRadius: 3, background: "#c95339" }} />
-              <div style={{ fontSize: 23, lineHeight: 1, fontWeight: 800 }}>NT</div>
-            </div>
+            {/* Ảnh OG đọc PNG đã xuất từ cùng SVG với favicon. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`data:image/png;base64,${mark.toString("base64")}`} alt="" width={72} height={72} style={{ flexShrink: 0 }} />
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               <div style={{ fontSize: 34, fontWeight: 800 }}>Góp</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#9c3d2b" }}>
-                Võ Phước Thịnh × Nhật Thanh Nguyễn
+                Võ Phước Thịnh × Nguyễn Nhựt Thanh
               </div>
             </div>
           </div>

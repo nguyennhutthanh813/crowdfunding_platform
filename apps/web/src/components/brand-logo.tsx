@@ -10,10 +10,13 @@ export function BrandMark({ className = "size-10" }: BrandMarkProps) {
       aria-hidden="true"
       focusable="false"
     >
-      <rect x="1" y="1" width="62" height="62" rx="11" fill="#f2eadb" stroke="#17392f" strokeWidth="2" />
-      <text x="32" y="28" textAnchor="middle" fill="#17392f" fontFamily="Arial, sans-serif" fontSize="22" fontWeight="800" letterSpacing="-1">PT</text>
-      <path d="M12 33h40" stroke="#c95339" strokeWidth="3" strokeLinecap="round" />
-      <text x="32" y="55" textAnchor="middle" fill="#17392f" fontFamily="Arial, sans-serif" fontSize="22" fontWeight="800" letterSpacing="-1">NT</text>
+      <rect x="1.5" y="1.5" width="61" height="61" rx="15" fill="#f7f3e8" stroke="#17392f" strokeWidth="2" />
+      <rect x="7.5" y="10" width="23" height="32" rx="9" fill="#17392f" />
+      <rect x="33.5" y="10" width="23" height="32" rx="9" fill="#b74934" />
+      <text x="19" y="31" textAnchor="middle" fill="#fffef7" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="800" letterSpacing="-1">PT</text>
+      <text x="45" y="31" textAnchor="middle" fill="#fffef7" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="800" letterSpacing="-1">NT</text>
+      <path d="M19 45L32 55L45 45" fill="none" stroke="#17392f" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="32" cy="54" r="3.5" fill="#b74934" />
     </svg>
   );
 }
@@ -40,8 +43,8 @@ export function BrandLogo({
           <span
             className={`mt-1 block whitespace-nowrap text-[11px] font-bold ${light ? "text-[#efb29d]" : "text-[#9c3d2b]"}`}
           >
-            <span className="xl:hidden">Phước Thịnh × Nhật Thanh</span>
-            <span className="hidden xl:inline">Võ Phước Thịnh × Nhật Thanh Nguyễn</span>
+            <span className="xl:hidden">Phước Thịnh × Nhựt Thanh</span>
+            <span className="hidden xl:inline">Võ Phước Thịnh × Nguyễn Nhựt Thanh</span>
           </span>
         </span>
       ) : null}

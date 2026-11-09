@@ -60,7 +60,7 @@ export function SiteFooter() {
             {siteConfig.description}
           </p>
           <p className="mt-3 text-xs leading-5 text-white/75">
-            Đồ án của Võ Phước Thịnh và Nhật Thanh Nguyễn.
+            Đồ án của Võ Phước Thịnh và Nguyễn Nhựt Thanh.
           </p>
           <span className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/62">
             <HeartHandshake className="size-3.5 text-lime" /> {siteConfig.slogan}

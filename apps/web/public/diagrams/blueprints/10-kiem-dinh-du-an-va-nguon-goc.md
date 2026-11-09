@@ -170,7 +170,7 @@ Giới hạn kiểm thử: chưa chạy PostgreSQL, sandbox thanh toán, AI trai
 1. Hướng dẫn ngày 15/09 dùng snapshot cũ. Không thay số liệu trong chú thích ảnh cũ rồi coi ảnh là bản mới; cần chụp và thay cả ảnh nếu cập nhật màn hình.
 2. Số lượng hiện tại dùng bảng integrity ở mục 7, không dùng 23 user/16 nhóm/6 read model của tài liệu cũ.
 3. Đổi mật khẩu, account đăng ký, lưu nháp và upload phải ghi đúng giới hạn ở A03/A11/A12; account/nháp chỉ được giữ trong preview cùng trình duyệt, không mô tả như backend đã chạy.
-4. Word/transcript ghi **Võ Phước Thịnh – Nhật Thanh Nguyễn**, hướng dẫn/ý tưởng thương hiệu nhắc **Phước Thịnh – Trọng Nghĩa**. Chưa rõ đây là đổi thành viên hay chỉ ý tưởng tên. Giữ nguyên các file gốc chờ xác nhận.
+4. Word/transcript ghi **Võ Phước Thịnh – Nhật Thanh Nguyễn**, hướng dẫn/ý tưởng thương hiệu nhắc **Phước Thịnh – Trọng Nghĩa**. Tại thời điểm kiểm định chưa rõ đây là đổi thành viên hay chỉ ý tưởng tên. Cập nhật 10/11/2026: người dùng xác nhận **Nguyễn Nhựt Thanh** cho logo web. Giữ nguyên các file gốc; nhóm đối chiếu hồ sơ hành chính trước khi nộp.
 5. Trường creator/lastModifiedBy và ngày 2013 trong metadata là giá trị quan sát được, không đủ để kết luận ai làm bài hay thời điểm bắt đầu. Có chuỗi `python-docx` nhưng điều đó chỉ cho thấy công cụ tạo tài liệu, không chứng minh toàn bộ nội dung do AI tạo.
 6. Cần nhóm xác nhận chính sách khoa về ghi công công cụ AI, nguồn dataset, nguồn từng ảnh, và ma trận quyền Admin chính thức. Chưa có dữ liệu để viết thay cam kết liêm chính hoặc phân công quá khứ.
 
