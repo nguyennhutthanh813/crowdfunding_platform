@@ -130,6 +130,7 @@ export default async function CreatorPage() {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft sm:mt-4 sm:leading-7">
               Chọn một chiến dịch bên dưới để xem tiến độ và việc cần làm.
             </p>
+            <p className="mt-2 text-xs text-ink-muted">Các mốc thời gian của chiến dịch mẫu được tính tại ngày 13/09/2026.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -189,16 +190,16 @@ export default async function CreatorPage() {
               href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=overview",
             },
             {
-              label: "Cam kết mới ghi nhận",
+              label: "Cam kết ở mốc dữ liệu",
               value: formatVnd(operations.today.pledgedAmount, true),
               detail: `+${formatNumber(operations.today.backerCount)} người ủng hộ`,
               icon: WalletCards,
               href: "/creator/campaigns/orbit-one-ca-phe-thong-minh/manage?tab=community",
             },
             {
-              label: "Dự báo đạt mục tiêu",
+              label: "Dự báo tham khảo",
               value: `${prediction.score}%`,
-              detail: "Cập nhật 12/09 lúc 06:00",
+              detail: "Dữ liệu ngày 12/09/2026",
               icon: BarChart3,
               href: "/creator/ai",
             },
@@ -250,7 +251,7 @@ export default async function CreatorPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={campaign.status} />
                     <span className="rounded-full bg-[#eef3df] px-2.5 py-1 text-xs font-bold text-[#587024]">
-                      {campaign.daysLeft} ngày còn lại
+                      Còn {campaign.daysLeft} ngày tại mốc mẫu
                     </span>
                   </div>
                   <h2 className="mt-4 font-display text-2xl font-extrabold leading-tight tracking-[-0.04em]">
@@ -274,17 +275,17 @@ export default async function CreatorPage() {
                     <div>
                       <p className="text-xs text-ink-muted">Còn thiếu</p>
                       <p className="mt-1 font-bold">
-                        {formatVnd(operations.funding.remainingAmount, true)}
+                        {formatVnd(Math.max(0, campaign.goalAmount - campaign.pledgedAmount), true)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-ink-muted">Nhịp cần giữ</p>
+                      <p className="text-xs text-ink-muted">Người ủng hộ</p>
                       <p className="mt-1 font-bold">
-                        {formatVnd(operations.funding.neededPerDay, true)}/ngày
+                        {formatNumber(campaign.backerCount)} người
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-ink-muted">Chốt chiến dịch</p>
+                      <p className="text-xs text-ink-muted">Mốc kết thúc trong mẫu</p>
                       <p className="mt-1 font-bold">01/10 · 23:59</p>
                     </div>
                   </div>

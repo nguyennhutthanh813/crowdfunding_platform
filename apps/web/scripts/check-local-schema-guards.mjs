@@ -46,7 +46,23 @@ try {
     .run("up_revoked", "c_one", "u_team", "Tin sai quyền", "Nội dung", "2026-11-09", "LOCAL"),
     /update author revoked/);
   assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
-  console.log("PASS SQLite schema guards: owner trùng creator, việc/bản tin chặn người ngoài và thành viên đã thu hồi, FK sạch.");
+  const addPledge = db.prepare(`INSERT INTO pledges
+    (id,campaign_id,backer_id,status,total_amount,source) VALUES (?,?,?,?,?,?)`);
+  addPledge.run("p_seed", "c_one", "u_team", "AUTHORIZED", 100000, "SEED");
+  addPledge.run("p_local", "c_one", "u_team", "AUTHORIZED", 150000, "LOCAL");
+  assert.deepEqual(db.prepare("SELECT id FROM effective_pledges WHERE campaign_id='c_one'").all().map((row) => row.id),
+    ["p_local"], "Cam kết mới phải thay bản seed trong phép đếm hiện hành.");
+  db.prepare("INSERT INTO reward_tiers (id,campaign_id,title,amount,source) VALUES ('rw_other','c_two','Gói khác',100000,'LOCAL')").run();
+  db.prepare("INSERT INTO shipping_options (id,campaign_id,name,fee_amount,source) VALUES ('sh_other','c_two','Giao khác',15000,'LOCAL')").run();
+  db.prepare("INSERT INTO addresses (id,user_id,recipient_name,province,source) VALUES ('addr_other','u_other','Người khác','Hà Nội','LOCAL')").run();
+  assert.throws(() => db.prepare("UPDATE pledges SET reward_tier_id='rw_other' WHERE id='p_local'").run(), /reward outside campaign/);
+  assert.throws(() => db.prepare("UPDATE pledges SET shipping_option_id='sh_other' WHERE id='p_local'").run(), /shipping outside campaign/);
+  assert.throws(() => db.prepare("UPDATE pledges SET shipping_address_id='addr_other' WHERE id='p_local'").run(), /address belongs to another backer/);
+  db.prepare("INSERT INTO add_ons (id,campaign_id,title,amount,source) VALUES ('addon_one','c_one','Phụ kiện',25000,'LOCAL')").run();
+  assert.throws(() => db.prepare("INSERT INTO pledge_add_ons (pledge_id,campaign_id,add_on_id,quantity) VALUES ('p_local','c_two','addon_one',1)").run(), /add-on outside pledge campaign/);
+  db.prepare("INSERT INTO pledge_add_ons (pledge_id,campaign_id,add_on_id,quantity) VALUES ('p_local','c_one','addon_one',1)").run();
+  assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
+  console.log("PASS SQLite schema guards: owner/nhóm, cam kết cùng chiến dịch và đúng địa chỉ, FK sạch.");
 } finally {
   db.close();
 }

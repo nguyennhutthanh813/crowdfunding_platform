@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 
 const baseUrl = process.env.GOP_PREVIEW_URL ?? "http://localhost:3000";
+const dbName = process.env.GOP_EXPECT_LOCAL_DB_NAME;
 if (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(baseUrl).hostname)) {
   throw new Error("Bộ test SQLite chỉ được gọi vào server trên máy.");
+}
+if (!dbName || !/^[a-z0-9_-]+$/i.test(dbName) || dbName === "gop-mock") {
+  throw new Error("Đặt GOP_EXPECT_LOCAL_DB_NAME là tên DB test riêng trước khi chạy.");
 }
 
 function browser() {
@@ -53,6 +57,7 @@ await login(admin, "quantri@gop.vn");
 
 const before = await admin("/api/v1/local-db");
 assert.equal(before.status, 200, "Server chưa bật SQLite local");
+assert.equal(before.data.data.file, `.local-data/${dbName}.sqlite`, "Server đang trỏ nhầm DB.");
 assert.deepEqual(before.data.data.foreignKeyErrors, []);
 assert.equal((await admin("/api/v1/local-db", "POST", { action: "RESET" })).status, 422);
 
@@ -158,6 +163,11 @@ assert.ok((await backerAgain("/api/v1/auth/session")).data.data.previewState.sav
 const after = await admin("/api/v1/local-db");
 assert.equal(after.status, 200);
 assert.deepEqual(after.data.data.foreignKeyErrors, []);
+const beforeOrbit = before.data.data.campaigns.find((item) => item.id === "cmp_orbit");
+const afterOrbit = after.data.data.campaigns.find((item) => item.id === "cmp_orbit");
+assert.equal(afterOrbit.pledgedAmount, beforeOrbit.pledgedAmount + pledge.data.totalAmount,
+  "Tổng cam kết SQLite phải khớp số vừa ghi ở màn Backer.");
+assert.equal(afterOrbit.pledgeCount, beforeOrbit.pledgeCount + 1);
 assert.ok(after.data.data.previewCampaigns.some((item) => item.id === campaignId));
 assert.ok(after.data.data.recentPledges.some((item) => item.id === pledge.data.authorizationId));
 assert.ok(after.data.data.campaigns.find((item) => item.id === campaignId).eventCount >= 6,
@@ -166,13 +176,15 @@ assert.ok(after.data.data.campaigns.find((item) => item.id === "cmp_orbit").even
   "Cam kết mẫu chưa được ghi vào nhật ký ORBIT.");
 assert.equal((await creatorAgain(`/campaigns/${campaignId}/timeline`)).status, 200);
 assert.equal((await admin(`/campaigns/${campaignId}/timeline`)).status, 200);
-const deniedTimeline = await backer(`/campaigns/${campaignId}/timeline`);
-assert.ok(!deniedTimeline.data.includes(title),
-  "Người ủng hộ không được xem tên hồ sơ local chưa mở gọi vốn.");
-assert.ok(deniedTimeline.data.includes("404") || deniedTimeline.status === 404,
-  "Trang hồ sơ chưa mở cần hiển thị trạng thái không tìm thấy.");
-const guestDenied = await anonymous(`/campaigns/${campaignId}/timeline`);
-assert.ok(!guestDenied.data.includes(title), "Khách không được đọc tên hồ sơ local chưa mở.");
+const backerPrelaunch = await backer(`/campaigns/${campaignId}/timeline`);
+assert.equal(backerPrelaunch.status, 200);
+assert.ok(backerPrelaunch.data.includes(title), "Hồ sơ đã duyệt ở Pre-launch phải xem công khai được.");
+assert.ok(!backerPrelaunch.data.includes("Gửi hồ sơ xét duyệt lần 1"),
+  "Người ủng hộ không được đọc nhật ký nội bộ của nhóm.");
+const guestPrelaunch = await anonymous(`/campaigns/${campaignId}/timeline`);
+assert.equal(guestPrelaunch.status, 200);
+assert.ok(!guestPrelaunch.data.includes("Gửi hồ sơ xét duyệt lần 1"),
+  "Khách không được đọc nhật ký nội bộ của nhóm.");
 const backerTimeline = await backer(`/campaigns/cmp_orbit/timeline`);
 assert.equal(backerTimeline.status, 200);
 assert.ok(backerTimeline.data.includes("Ghi cam kết ủng hộ mẫu"));

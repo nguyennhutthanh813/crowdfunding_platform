@@ -1,6 +1,6 @@
 # Thử dữ liệu mock bằng SQLite trên máy
 
-Phần này dùng để kiểm tra luồng giữa các tài khoản khi chưa có PostgreSQL và cổng thanh toán. Nó **không phải** database production và cũng chưa thay thế toàn bộ 39 bảng trong `database/schema.sql`. SQLite local có **29 bảng vật lý**: 27 bảng dữ liệu được liệt kê ở `/local-data`, thêm `local_meta` và `platform_state` để giữ phiên bản và snapshot. `comment_targets` nối bình luận mẫu với bình luận vừa đăng, `comment_likes` giữ người đã thích, `question_assignments` ghi người phụ trách câu hỏi và `campaign_media` nối ảnh minh họa mẫu với hồ sơ mới. Đây là bản chiếu SQLite, không phải migration PostgreSQL đã triển khai.
+Phần này dùng để kiểm tra luồng giữa các tài khoản khi chưa có PostgreSQL và cổng thanh toán. Nó **không phải** database production và cũng chưa thay thế toàn bộ 39 bảng trong `database-schema.sql` ở gốc repo (bản trùng với `public/diagrams/erd/database-schema.sql`). SQLite local có **29 bảng vật lý**: 27 bảng dữ liệu được liệt kê ở `/local-data`, thêm `local_meta` và `platform_state` để giữ phiên bản và snapshot. `comment_targets` nối bình luận mẫu với bình luận vừa đăng, `comment_likes` giữ người đã thích, `question_assignments` ghi người phụ trách câu hỏi và `campaign_media` nối ảnh minh họa mẫu với hồ sơ mới. Đây là bản chiếu SQLite, không phải migration PostgreSQL đã triển khai.
 
 ## Chạy thử
 
@@ -19,6 +19,8 @@ File được tạo tại `.local-data/gop-mock.sqlite`. Thư mục này đượ
 Hai loại dữ liệu dễ nhầm: `src/lib/api/mock/relational-store.ts` là seed nạp vào SQLite lần đầu; `src/components/creator/campaign-wizard-samples.ts` chỉ chứa ví dụ để bấm **Điền thử ví dụ Bếp Mây** trong form. Ví dụ này chưa nằm trong DB cho đến khi chủ dự án bấm **Lưu bản nháp**. Việc tách file ví dụ khỏi component không chuyển hay xóa `.local-data/gop-mock.sqlite`.
 
 Quyền Cộng tác viên nằm ở từng chiến dịch: lời mời được chiếu vào `campaign_invitations`, sau khi đúng tài khoản nhận lời mới có dòng trong `campaign_members`. Khi chủ dự án thu hồi người đã có việc/bản tin, dòng thành viên đổi thành `REVOKED` để giữ quan hệ lịch sử; quyền hiện tại bị bỏ và việc cũ cần giao lại. `memberCount` chỉ tính dòng `ACTIVE`. Lý do Admin khóa/mở tài khoản được chiếu vào `user_status_events`. Các bảng này giúp kiểm tra quan hệ trong SQLite; `platform_state` vẫn là nguồn ghi của bản demo local. Kịch bản thử ở `scripts/check-team-membership-flow.mjs`; chỉ chạy với `GOP_PREVIEW_URL` trỏ server test và `GOP_EXPECT_LOCAL_DB_NAME` là tên DB riêng, không dùng `gop-mock`.
+
+`campaigns.creator_id` cho phép **một chủ dự án sở hữu nhiều chiến dịch**. `campaign_members` nối người làm việc với từng chiến dịch; `pledges` nối người ủng hộ với chiến dịch. Mỗi cặp người ủng hộ và chiến dịch hiện có một cam kết hiệu lực để có thể sửa gói. Seed và bản sửa local được giữ riêng; view `effective_pledges` ưu tiên bản local khi đếm, còn `campaigns.pledged_amount` là tổng seed đã công bố cộng phần chênh lệch do cam kết local, vì seed chỉ chứa một số dòng cam kết đại diện. Trigger chặn gói quà/tùy chọn giao của chiến dịch khác, địa chỉ không thuộc người ủng hộ và phụ kiện không thuộc chiến dịch của cam kết. `PRAGMA foreign_key_check` vẫn cần trả 0 dòng.
 
 Chạy kiểm tra tự động khi server đang mở: `pnpm test:local-db`; bài `pnpm test:comment-flow` kiểm thêm bình luận, trả lời, lượt thích và khóa ngoại. Các bài này **ghi thêm** dữ liệu mẫu; không tự xóa dữ liệu bạn đã làm. Với bài comment, đặt `GOP_PREVIEW_URL` và `GOP_EXPECT_LOCAL_DB_NAME` đúng tên DB test riêng trước khi chạy. Ở `/local-data`, quản trị viên có nút **Đặt lại dữ liệu đã thử** với bước xác nhận. Nút này chỉ xóa phần phát sinh, giữ bộ seed ban đầu và tăng `platform_state.revision` để lượt gửi dùng dữ liệu cũ không thể ghi trả lại. Nếu muốn giữ kịch bản vừa thử, hãy sao chép file SQLite trước khi đặt lại.
 
@@ -63,7 +65,7 @@ FROM campaign_reviews r JOIN campaigns c ON c.id = r.campaign_id
 WHERE r.source = 'LOCAL';
 
 SELECT u.display_name AS nguoi_ung_ho, c.title, p.total_amount, p.status
-FROM pledges p
+FROM effective_pledges p
 JOIN users u ON u.id = p.backer_id
 JOIN campaigns c ON c.id = p.campaign_id
 WHERE p.source = 'LOCAL';

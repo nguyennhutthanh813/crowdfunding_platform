@@ -30,6 +30,7 @@ import {
 import { isPreviewCampaignId, previewCampaignStatus } from "@/lib/creator/preview-campaigns";
 import { campaignDetailsBySlug } from "@/lib/api/mock/campaign-details";
 import { getSampleCoverArt } from "@/lib/campaign/sample-cover-art";
+import { previewFundingChange } from "@/lib/campaign/funding-change";
 import { activeMembershipGuards, localSchema } from "./schema";
 
 type Cell = string | number | null;
@@ -230,10 +231,25 @@ function ensureCampaignMemberStatus(db: SqliteDb) {
   db.exec(activeMembershipGuards);
 }
 
+function reconcileSeedFunding(db: SqliteDb) {
+  const row = db.prepare("SELECT value_json FROM platform_state WHERE id = 1").get();
+  if (!row) return;
+  const saved = JSON.parse(String(row.value_json)) as Partial<PlatformPreviewState>;
+  const platform = { pledges: Array.isArray(saved.pledges) ? saved.pledges : [] };
+  const update = db.prepare(`UPDATE campaigns SET pledged_amount = ?
+    WHERE id = ? AND source = 'SEED' AND pledged_amount <> ?`);
+  transaction(db, () => {
+    for (const campaign of mockCampaigns) {
+      const amount = campaign.pledgedAmount + previewFundingChange(campaign.id, platform).amount;
+      update.run(amount, campaign.id, amount);
+    }
+  });
+}
+
 function getDatabase(): SqliteDb {
   if (localRuntime.gopLocalDb) {
     // Dev hot reload giữ connection cũ; chạy phần CREATE IF NOT EXISTS một lần khi schema đổi.
-    if (localRuntime.gopLocalDbSchemaVersion !== 17) {
+    if (localRuntime.gopLocalDbSchemaVersion !== 19) {
       localRuntime.gopLocalDb.exec(localSchema);
       ensureCampaignMemberStatus(localRuntime.gopLocalDb);
       ensureAddressColumns(localRuntime.gopLocalDb);
@@ -241,7 +257,8 @@ function getDatabase(): SqliteDb {
       ensureCampaignTaskColumns(localRuntime.gopLocalDb);
       ensurePlatformStateRevision(localRuntime.gopLocalDb);
       seedCommentTargets(localRuntime.gopLocalDb);
-      localRuntime.gopLocalDbSchemaVersion = 17;
+      reconcileSeedFunding(localRuntime.gopLocalDb);
+      localRuntime.gopLocalDbSchemaVersion = 19;
     }
     return localRuntime.gopLocalDb;
   }
@@ -257,8 +274,9 @@ function getDatabase(): SqliteDb {
   ensurePlatformStateRevision(db);
   seedDatabase(db);
   seedCommentTargets(db);
+  reconcileSeedFunding(db);
   localRuntime.gopLocalDb = db;
-  localRuntime.gopLocalDbSchemaVersion = 17;
+  localRuntime.gopLocalDbSchemaVersion = 19;
   return db;
 }
 
@@ -520,9 +538,11 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
 
   const setUserStatus = db.prepare("UPDATE users SET status = ? WHERE id = ?");
   for (const user of mockUsers) setUserStatus.run(state.userStatuses[user.id] ?? user.status, user.id);
-  const setCampaignStatus = db.prepare("UPDATE campaigns SET status = ? WHERE id = ?");
+  const setCampaignStatus = db.prepare("UPDATE campaigns SET status = ?, pledged_amount = ? WHERE id = ?");
   for (const campaign of mockCampaigns) {
-    setCampaignStatus.run(state.campaignStatuses[campaign.id] ?? campaign.status, campaign.id);
+    const funding = previewFundingChange(campaign.id, state);
+    setCampaignStatus.run(state.campaignStatuses[campaign.id] ?? campaign.status,
+      campaign.pledgedAmount + funding.amount, campaign.id);
   }
   const setTaskStatus = db.prepare("UPDATE campaign_tasks SET status = ? WHERE id = ?");
   for (const task of mockCampaignTasks) setTaskStatus.run(state.taskStatuses[task.id] ?? task.status, task.id);
@@ -677,7 +697,7 @@ export function inspectLocalDatabase() {
     (SELECT COUNT(*) FROM campaign_members m WHERE m.campaign_id = c.id AND m.status = 'ACTIVE') AS memberCount,
     (SELECT COUNT(*) FROM reward_tiers r WHERE r.campaign_id = c.id) AS rewardCount,
     (SELECT COUNT(*) FROM campaign_reviews v WHERE v.campaign_id = c.id) AS reviewCount,
-    (SELECT COUNT(*) FROM pledges p WHERE p.campaign_id = c.id) AS pledgeCount
+    (SELECT COUNT(*) FROM effective_pledges p WHERE p.campaign_id = c.id) AS pledgeCount
     FROM campaigns c JOIN users u ON u.id = c.creator_id
     LEFT JOIN campaign_events e ON e.campaign_id = c.id
     GROUP BY c.id

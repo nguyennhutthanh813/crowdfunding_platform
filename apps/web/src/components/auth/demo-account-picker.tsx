@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import type { ComponentType } from "react";
+import { useEffect, useRef } from "react";
 import type { UserRole } from "@/lib/api";
 import {
   previewAccounts,
@@ -55,9 +56,15 @@ export function DemoAccountPicker({
   disabled: boolean;
   onSelect: (account: PreviewAccount) => void;
 }) {
+  const accountListRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    if (localDbAvailable) accountListRef.current?.setAttribute("open", "");
+  }, [localDbAvailable]);
+
   return (
     <aside className="border-t border-line bg-[#f8f6ef] p-6 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
-      <div className="relative isolate h-56 overflow-hidden rounded-2xl bg-forest">
+      <div className="relative isolate h-44 overflow-hidden rounded-2xl bg-forest sm:h-48">
         <Image
           src="/images/editorial/nhom-lam-san-pham-v4.webp"
           alt="Nhóm làm sản phẩm đang trao đổi bên bản mẫu"
@@ -77,9 +84,9 @@ export function DemoAccountPicker({
       <p className="mt-5 text-sm leading-7 text-ink-soft">
         Một tài khoản theo dõi các khoản ủng hộ của mình. Khi cần làm dự án, bạn có thể mở thêm vai trò Chủ dự án trên chính tài khoản đó.
       </p>
-      <details className="group/sample mt-6 rounded-2xl border border-[#d3decf] bg-white p-4">
+      <details ref={accountListRef} className="group/sample mt-5 rounded-2xl border border-[#d3decf] bg-white p-4">
         <summary id="tai-khoan-mau" className="flex min-h-11 scroll-mt-24 cursor-pointer list-none items-center justify-between gap-3 font-bold text-forest [&::-webkit-details-marker]:hidden">
-          Thử Góp bằng tài khoản mẫu
+          {localDbAvailable ? "Chọn nhanh một vai trò để xem thử" : "Thử Góp bằng tài khoản mẫu"}
           <ChevronDown className="size-4 shrink-0 transition-transform group-open/sample:rotate-180" />
         </summary>
         <p className="mt-2 text-xs leading-5 text-ink-muted">

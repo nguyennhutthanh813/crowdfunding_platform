@@ -3,6 +3,7 @@ import { ArrowRight, CircleHelp, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { localDbEnabled } from "@/lib/local-db/database";
+import { ProjectJourneyPreview } from "@/components/home/project-journey-preview";
 
 export const metadata: Metadata = {
   title: "Hướng dẫn dùng Góp",
@@ -119,6 +120,7 @@ export default async function GuidePage() {
               : { title: "Xem sơ đồ dữ liệu", detail: "Bản web triển khai không lưu SQLite. Sơ đồ cho biết các bảng và quan hệ dự kiến; dữ liệu đang thử chỉ nằm trong phiên trình duyệt.", href: "/system-design", action: "Xem sơ đồ dữ liệu" },
           ]} />
       </div>
+      {example ? <ProjectJourneyPreview campaignId={example.id} localDbAvailable={hasLocalDb} /> : null}
     </div>
   );
 }

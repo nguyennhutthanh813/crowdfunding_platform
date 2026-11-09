@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeftRight,
   Bell,
   ChevronDown,
   LayoutDashboard,
@@ -235,14 +234,6 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void signOut("/auth")}
-                    className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-ink-soft hover:bg-canvas-soft hover:text-ink disabled:cursor-wait"
-                  >
-                    <ArrowLeftRight className="size-4" /> Đăng xuất để đổi tài khoản
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
                     onClick={() => void signOut()}
                     className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-wait"
                   >
@@ -365,17 +356,6 @@ export function SiteHeader({ connectedEnabled }: { connectedEnabled: boolean }) 
                 >
                   Hồ sơ và cài đặt
                 </Link>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setMobileOpen(false);
-                    void signOut("/auth");
-                  }}
-                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-ink-soft hover:bg-canvas-soft"
-                >
-                  <ArrowLeftRight className="size-4" /> Đổi tài khoản
-                </button>
                 <button
                   type="button"
                   disabled={busy}

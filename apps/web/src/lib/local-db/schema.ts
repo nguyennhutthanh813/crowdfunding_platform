@@ -1,4 +1,4 @@
-// CSDL này dành cho bản chạy trên máy. PostgreSQL của đồ án vẫn nằm ở database/schema.sql.
+// CSDL này dành cho bản chạy trên máy. Bản PostgreSQL tham chiếu ở database-schema.sql (gốc repo).
 export const localSchema = `
 PRAGMA foreign_keys = ON;
 
@@ -128,6 +128,14 @@ CREATE TABLE IF NOT EXISTS pledges (
   UNIQUE (campaign_id, backer_id, source)
 );
 CREATE INDEX IF NOT EXISTS idx_pledges_backer ON pledges(backer_id);
+-- Khi Backer cập nhật cam kết mẫu, chỉ bản LOCAL được tính là hiện hành.
+CREATE VIEW IF NOT EXISTS effective_pledges AS
+  SELECT p.* FROM pledges p
+  WHERE p.source = 'LOCAL' OR NOT EXISTS (
+    SELECT 1 FROM pledges newer
+    WHERE newer.campaign_id = p.campaign_id
+      AND newer.backer_id = p.backer_id AND newer.source = 'LOCAL'
+  );
 CREATE TABLE IF NOT EXISTS pledge_add_ons (
   pledge_id TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
   campaign_id TEXT NOT NULL REFERENCES campaigns(id),
@@ -136,6 +144,35 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
   PRIMARY KEY (pledge_id, add_on_id),
   FOREIGN KEY (add_on_id, campaign_id) REFERENCES add_ons(id, campaign_id)
 );
+-- Bảo vệ quan hệ cùng chiến dịch/chủ địa chỉ trên cả file SQLite đã có từ trước.
+CREATE TRIGGER IF NOT EXISTS trg_pledge_relations_insert BEFORE INSERT ON pledges
+BEGIN
+  SELECT RAISE(ABORT, 'reward outside campaign') WHERE NEW.reward_tier_id IS NOT NULL AND
+    NOT EXISTS (SELECT 1 FROM reward_tiers WHERE id=NEW.reward_tier_id AND campaign_id=NEW.campaign_id);
+  SELECT RAISE(ABORT, 'shipping outside campaign') WHERE NEW.shipping_option_id IS NOT NULL AND
+    NOT EXISTS (SELECT 1 FROM shipping_options WHERE id=NEW.shipping_option_id AND campaign_id=NEW.campaign_id);
+  SELECT RAISE(ABORT, 'address belongs to another backer') WHERE NEW.shipping_address_id IS NOT NULL AND
+    NOT EXISTS (SELECT 1 FROM addresses WHERE id=NEW.shipping_address_id AND user_id=NEW.backer_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_pledge_relations_update BEFORE UPDATE OF campaign_id, backer_id, reward_tier_id, shipping_option_id, shipping_address_id ON pledges
+BEGIN
+  SELECT RAISE(ABORT, 'reward outside campaign') WHERE NEW.reward_tier_id IS NOT NULL AND
+    NOT EXISTS (SELECT 1 FROM reward_tiers WHERE id=NEW.reward_tier_id AND campaign_id=NEW.campaign_id);
+  SELECT RAISE(ABORT, 'shipping outside campaign') WHERE NEW.shipping_option_id IS NOT NULL AND
+    NOT EXISTS (SELECT 1 FROM shipping_options WHERE id=NEW.shipping_option_id AND campaign_id=NEW.campaign_id);
+  SELECT RAISE(ABORT, 'address belongs to another backer') WHERE NEW.shipping_address_id IS NOT NULL AND
+    NOT EXISTS (SELECT 1 FROM addresses WHERE id=NEW.shipping_address_id AND user_id=NEW.backer_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_pledge_add_on_campaign_insert BEFORE INSERT ON pledge_add_ons
+BEGIN
+  SELECT RAISE(ABORT, 'add-on outside pledge campaign') WHERE
+    NOT EXISTS (SELECT 1 FROM pledges WHERE id=NEW.pledge_id AND campaign_id=NEW.campaign_id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_pledge_add_on_campaign_update BEFORE UPDATE OF pledge_id, campaign_id ON pledge_add_ons
+BEGIN
+  SELECT RAISE(ABORT, 'add-on outside pledge campaign') WHERE
+    NOT EXISTS (SELECT 1 FROM pledges WHERE id=NEW.pledge_id AND campaign_id=NEW.campaign_id);
+END;
 CREATE TABLE IF NOT EXISTS payment_authorizations (
   id TEXT PRIMARY KEY,
   pledge_id TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,

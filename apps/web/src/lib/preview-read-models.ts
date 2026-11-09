@@ -13,41 +13,13 @@ import { previewCampaignsForOwner } from "@/lib/creator/preview-campaigns";
 import { publicPreviewCampaigns } from "@/lib/creator/public-preview-campaigns";
 import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import { campaignMemberKey } from "@/lib/auth/campaign-permissions";
+import { previewFundingChange } from "@/lib/campaign/funding-change";
 import {
-  DEMO_SNAPSHOT_AT,
-  getMockPledgeTotal,
   mockCampaigns,
   mockCampaignMembers,
   mockUserRoles,
   mockPledges,
 } from "@/lib/api/mock/relational-store";
-
-function previewFundingChange(
-  campaignId: string,
-  platform?: PlatformPreviewState,
-) {
-  return (platform?.pledges ?? [])
-    .filter((pledge) => pledge.campaignId === campaignId)
-    .reduce(
-      (change, pledge) => {
-        const original = mockPledges.find(
-          (item) =>
-            item.campaignId === campaignId && item.backerId === pledge.backerId,
-        );
-        const originalIsToday = original?.pledgedAt.slice(0, 10) ===
-          DEMO_SNAPSHOT_AT.slice(0, 10);
-        return {
-          amount: change.amount + pledge.totalAmount -
-            (original ? getMockPledgeTotal(original) : 0),
-          backers: change.backers + (original ? 0 : 1),
-          todayAmount: change.todayAmount + pledge.totalAmount -
-            (originalIsToday && original ? getMockPledgeTotal(original) : 0),
-          todayBackers: change.todayBackers + (originalIsToday ? 0 : 1),
-        };
-      },
-      { amount: 0, backers: 0, todayAmount: 0, todayBackers: 0 },
-    );
-}
 
 export function applyCampaignCardPreviewState(
   campaign: CampaignCardData,

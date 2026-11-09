@@ -237,13 +237,12 @@ export function AuthPanel({
     <div className="mx-auto grid max-w-5xl overflow-hidden rounded-[22px] border border-line bg-white shadow-[var(--shadow-soft)] lg:grid-cols-[1.06fr_0.94fr]">
       <div className="p-6 sm:p-10 lg:p-12">
         <div
-          role="tablist"
-          aria-label="Chọn chế độ tài khoản"
+          role="group"
+          aria-label="Chọn đăng nhập hoặc tạo tài khoản"
           className="inline-flex rounded-xl border border-line bg-canvas-soft p-1"
         >
           <button
-            role="tab"
-            aria-selected={mode === "SIGN_IN"}
+            aria-pressed={mode === "SIGN_IN"}
             type="button"
             onClick={() => changeMode("SIGN_IN")}
             className={`min-h-11 cursor-pointer rounded-[9px] px-5 text-xs font-bold transition-[background-color,color,box-shadow] ${mode === "SIGN_IN" ? "bg-white text-forest shadow-sm" : "text-ink-muted"}`}
@@ -251,8 +250,7 @@ export function AuthPanel({
             Đăng nhập
           </button>
           <button
-            role="tab"
-            aria-selected={mode === "REGISTER"}
+            aria-pressed={mode === "REGISTER"}
             type="button"
             onClick={() => changeMode("REGISTER")}
             className={`min-h-11 cursor-pointer rounded-[9px] px-5 text-xs font-bold transition-[background-color,color,box-shadow] ${mode === "REGISTER" ? "bg-white text-forest shadow-sm" : "text-ink-muted"}`}

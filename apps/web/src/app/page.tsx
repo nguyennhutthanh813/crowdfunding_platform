@@ -2,18 +2,17 @@ import { ArrowRight, Bell, MapPin } from "lucide-react";
 import Link from "next/link";
 import { CampaignCard } from "@/components/campaign/campaign-card";
 import { CampaignVisual } from "@/components/campaign/campaign-visual";
+import { CampaignRoleMap } from "@/components/home/campaign-role-map";
 import { CategoryLinks } from "@/components/home/category-links";
 import { CreatorInvitation } from "@/components/home/creator-invitation";
 import { FeaturedCampaign } from "@/components/home/featured-campaign";
 import { FundingGuide } from "@/components/home/funding-guide";
-import { ProjectJourneyPreview } from "@/components/home/project-journey-preview";
 import { NotifyButton } from "@/components/notify-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { api } from "@/lib/api";
 import { getServerPlatformPreviewState } from "@/lib/auth/platform-preview-cookie";
 import { getFriendlyName } from "@/lib/auth/roles";
 import { getServerSession } from "@/lib/auth/server-session";
-import { formatDate } from "@/lib/format";
 import { applyCampaignCardPreviewState } from "@/lib/preview-read-models";
 import { localDbEnabled } from "@/lib/local-db/database";
 
@@ -26,12 +25,11 @@ export default async function HomePage() {
   const campaigns = baseCampaigns.map((campaign) =>
     applyCampaignCardPreviewState(campaign, platformState),
   );
-  const featured = campaigns[0];
+  const featured = campaigns.find((campaign) => campaign.status === "LIVE") ?? campaigns[0];
   const activeCampaigns = campaigns
     .filter((campaign) => campaign.status === "LIVE" && campaign.id !== featured.id)
     .slice(0, 3);
-  const upcoming =
-    campaigns.find((campaign) => campaign.status === "PRE_LAUNCH") ?? campaigns[3];
+  const upcoming = campaigns.find((campaign) => campaign.status === "PRE_LAUNCH");
   const showRecommendations = Boolean(
     session?.user.roles.includes("BACKER"),
   );
@@ -41,6 +39,7 @@ export default async function HomePage() {
   return (
     <>
       <FeaturedCampaign campaign={featured} localDbAvailable={localDbAvailable} />
+      <CampaignRoleMap campaign={featured} userRoles={session?.user.roles} />
       <CategoryLinks />
 
       <section className="page-section">
@@ -75,8 +74,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <ProjectJourneyPreview campaignId={featured.id} localDbAvailable={localDbAvailable} />
-
+      {upcoming ? (
       <section className="border-y border-line bg-[#ebe7dc] py-14 sm:py-18">
         <div className="container-shell grid overflow-hidden rounded-[22px] border border-line bg-white lg:grid-cols-[0.85fr_1.15fr]">
           <div className="flex flex-col justify-center p-7 sm:p-9 lg:p-11">
@@ -90,15 +88,7 @@ export default async function HomePage() {
               {upcoming.blurb}
             </p>
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-muted">
-              <span className="font-bold text-ink-soft">
-                Mốc mở theo dữ liệu mẫu: {formatDate(upcoming.launchDate, {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })}
-              </span>
+              <span className="font-bold text-ink-soft">Nhận thông báo khi nhóm mở gọi vốn</span>
               <span className="inline-flex items-center gap-1.5">
                 <MapPin className="size-3.5" /> {upcoming.location}
               </span>
@@ -122,6 +112,7 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
+      ) : null}
 
       <FundingGuide localDbAvailable={localDbAvailable} />
       <CreatorInvitation />
