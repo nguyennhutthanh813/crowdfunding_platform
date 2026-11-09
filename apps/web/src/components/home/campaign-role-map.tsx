@@ -72,6 +72,9 @@ export function CampaignRoleMap({ campaign, userRoles = [] }: { campaign: Campai
           <p className="mt-4 max-w-xl text-sm leading-7 text-ink-soft">
             Dự án, lời mời nhóm, cam kết và lần xét duyệt đều gắn với cùng một mã chiến dịch. Bạn không cần học sơ đồ dữ liệu để biết bước tiếp theo.
           </p>
+          <Link href="/huong-dan#hanh-trinh-chien-dich" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-forest underline-offset-4 hover:underline">
+            Xem hành trình 4 chặng dạng tương tác <ArrowRight className="size-4" />
+          </Link>
           <div key={activeRole} className="role-map-detail mt-7 rounded-2xl border border-[#d5dfd2] bg-[#f5f8f1] p-5 sm:p-6" aria-live="polite">
             <p className="text-xs font-bold text-forest">{selected.relation}</p>
             <h3 className="mt-2 font-display text-lg font-extrabold leading-snug">{selected.title}</h3>

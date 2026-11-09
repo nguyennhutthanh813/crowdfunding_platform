@@ -310,7 +310,8 @@ export function ProjectJourneyPreview({
 
   return (
     <section
-      className="border-y border-[#d9e4d5] bg-[#f2f5ec] py-12 sm:py-16"
+      id="hanh-trinh-chien-dich"
+      className="scroll-mt-24 border-y border-[#d9e4d5] bg-[#f2f5ec] py-12 sm:py-16"
       aria-labelledby="journey-heading"
     >
       <div className="container-shell">
