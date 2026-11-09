@@ -959,6 +959,19 @@ function FraudPanel({ data }: { data: AdminDashboardData }) {
   );
 }
 
+function relationSummary(relations: NonNullable<AdminDashboardData["users"][number]["campaignRelations"]>) {
+  const labels = [
+    ["OWNER", "sở hữu"],
+    ["COLLABORATOR", "cộng tác"],
+    ["INVITED", "lời mời"],
+    ["REVOKED", "đã rời nhóm"],
+  ] as const;
+  return labels.flatMap(([kind, label]) => {
+    const count = relations.filter((item) => item.kind === kind).length;
+    return count ? [`${count} ${label}`] : [];
+  }).join(" · ");
+}
+
 function UsersPanel({ data }: { data: AdminDashboardData }) {
   const { session } = useAuth();
   const [users, setUsers] = useState(data.users);
@@ -1091,12 +1104,12 @@ function UsersPanel({ data }: { data: AdminDashboardData }) {
                 <td className="px-5 py-4 text-ink-soft">
                   {user.campaignRelations?.length ? <details className="group max-w-52">
                     <summary className="cursor-pointer font-bold text-forest underline-offset-2 hover:underline">
-                      {user.campaignRelations.filter((item) => item.kind === "OWNER").length} sở hữu · {user.campaignRelations.filter((item) => item.kind === "COLLABORATOR").length} cộng tác{user.campaignRelations.some((item) => item.kind === "INVITED") ? ` · ${user.campaignRelations.filter((item) => item.kind === "INVITED").length} lời mời` : ""}
+                      {relationSummary(user.campaignRelations)}
                     </summary>
                     <ul className="mt-2 space-y-1.5 border-l-2 border-line pl-2">
                       {user.campaignRelations.map((item) => <li key={`${item.campaignId}:${item.kind}`}>
                         <Link href={`/campaigns/${item.campaignId}/timeline`} className="block hover:text-forest hover:underline">
-                          {item.title} <span className="text-[10px] text-ink-muted">· {item.kind === "OWNER" ? "Chủ dự án" : item.kind === "COLLABORATOR" ? "Thành viên" : "Chưa nhận lời"}</span>
+                          {item.title} <span className="text-[10px] text-ink-muted">· {item.kind === "OWNER" ? "Chủ dự án" : item.kind === "COLLABORATOR" ? "Thành viên" : item.kind === "REVOKED" ? "Đã rời nhóm" : "Chưa nhận lời"}</span>
                         </Link>
                       </li>)}
                     </ul>

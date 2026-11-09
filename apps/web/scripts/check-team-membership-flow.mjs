@@ -65,6 +65,13 @@ const created = await creator("/api/v1/creator/campaigns", "POST", {
 });
 assert.equal(created.status, 201, JSON.stringify(created.data));
 const campaignId = created.data.data.campaignId;
+function memberStatus() {
+  const database = new DatabaseSync(join(process.cwd(), ".local-data", `${dbName}.sqlite`), { readOnly: true });
+  try {
+    return database.prepare("SELECT status FROM campaign_members WHERE campaign_id=? AND user_id=?")
+      .get(campaignId, invitedId)?.status;
+  } finally { database.close(); }
+}
 assert.equal((await creator("/api/v1/creator/campaigns", "POST", { action: "SUBMIT", campaignId })).status, 200);
 const queue = await admin("/api/v1/admin/overview");
 const review = queue.data.reviewQueue.find((item) => item.title === title);
@@ -78,6 +85,18 @@ assert.equal((await stranger(teamUrl, "POST", { action: "INVITE", campaignId, em
 assert.equal((await creator(teamUrl, "POST", { action: "INVITE", campaignId, email, name: "Nguyễn Thu An" })).status, 200);
 assert.equal((await stranger("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 403);
 assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 200);
+assert.equal(memberStatus(), "ACTIVE");
+assert.equal((await creator(teamUrl, "POST", { action: "REMOVE", campaignId, email })).status, 200);
+assert.equal(memberStatus(), "REVOKED", "Rời nhóm khi chưa có việc vẫn phải giữ quan hệ cũ.");
+const afterRemoval = await admin("/api/v1/admin/overview");
+assert.equal(afterRemoval.data.users.find((user) => user.id === invitedId)?.campaignRelations
+  ?.find((relation) => relation.campaignId === campaignId)?.kind, "REVOKED");
+assert.equal((await creator(teamUrl, "POST", { action: "INVITE", campaignId, email, name: "Nguyễn Thu An" })).status, 200);
+assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 200);
+assert.equal(memberStatus(), "ACTIVE", "Nhận lời mời lại phải khôi phục quyền thành viên.");
+const afterRejoin = await admin("/api/v1/admin/overview");
+assert.equal(afterRejoin.data.users.find((user) => user.id === invitedId)?.campaignRelations
+  ?.find((relation) => relation.campaignId === campaignId)?.kind, "COLLABORATOR");
 const task = await creator("/api/v1/campaign-tasks", "POST", {
   action: "CREATE", campaignId, title: "Kiểm tra mẫu lõi lọc", detail: "Ghi kết quả thử tại Đà Nẵng.", assigneeUserId: invitedId,
 });
@@ -140,4 +159,4 @@ try {
       "usr_hoang_linh", "Việc sai quyền", "TODO", "", new Date().toISOString()),
     /task member revoked/);
 } finally { dbWrite.close(); }
-console.log(`PASS team membership: Backer nhận lời mời, thu hồi quyền giữ lịch sử, Admin khóa tài khoản, SQLite FK hợp lệ. ${campaignId}`);
+console.log(`PASS team membership: rời nhóm, mời lại, giữ lịch sử việc, Admin khóa tài khoản, SQLite FK hợp lệ. ${campaignId}`);

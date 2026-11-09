@@ -67,6 +67,12 @@ export async function POST(request: Request) {
     const userId = account?.id;
     snapshot.collaborators = members.filter((item) => item !== found);
     if (userId) {
+      if ((platform.acceptedCollaborators[campaignId] ?? []).includes(userId)) {
+        platform.formerCollaborators ??= {};
+        platform.formerCollaborators[campaignId] = [
+          ...new Set([...(platform.formerCollaborators[campaignId] ?? []), userId]),
+        ];
+      }
       platform.acceptedCollaborators[campaignId] = (platform.acceptedCollaborators[campaignId] ?? [])
         .filter((id) => id !== userId);
     }

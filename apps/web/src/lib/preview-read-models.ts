@@ -503,6 +503,11 @@ export function applyAdminPreviewState(
             kind: (platform?.acceptedCollaborators[snapshot.campaignId] ?? []).includes(user.id)
               ? "COLLABORATOR" as const : "INVITED" as const }];
         }
+        if ((platform?.formerCollaborators?.[snapshot.campaignId] ?? []).includes(user.id)) {
+          return [{ campaignId: snapshot.campaignId,
+            title: snapshot.draft.title || "Hồ sơ chưa đặt tên",
+            kind: "REVOKED" as const }];
+        }
         return [];
       }),
     ],

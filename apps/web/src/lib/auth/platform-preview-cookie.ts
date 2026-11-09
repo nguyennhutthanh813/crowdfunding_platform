@@ -131,6 +131,7 @@ export interface PlatformPreviewState {
   questionAssignments: SharedQuestionAssignment[];
   commentLikes: Record<string, string[]>;
   acceptedCollaborators: Record<string, string[]>;
+  formerCollaborators: Record<string, string[]>;
   userStatusHistory: Array<{
     id: string;
     userId: string;
@@ -165,6 +166,7 @@ export function createEmptyPlatformPreviewState(): PlatformPreviewState {
     questionAssignments: [],
     commentLikes: {},
     acceptedCollaborators: {},
+    formerCollaborators: {},
     userStatusHistory: [],
   };
 }
@@ -239,6 +241,12 @@ export function decodePlatformPreview(
         ]),
       ),
       acceptedCollaborators: { ...(parsed.acceptedCollaborators ?? {}) },
+      formerCollaborators: Object.fromEntries(
+        Object.entries(parsed.formerCollaborators ?? {}).slice(0, 4).map(([campaignId, userIds]) => [
+          campaignId,
+          Array.isArray(userIds) ? userIds.filter((id): id is string => typeof id === "string").slice(0, 5) : [],
+        ]),
+      ),
       userStatusHistory: Array.isArray(parsed.userStatusHistory)
         ? parsed.userStatusHistory.slice(0, 12) : [],
     };

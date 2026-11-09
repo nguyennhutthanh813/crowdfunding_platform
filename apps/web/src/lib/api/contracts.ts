@@ -604,7 +604,7 @@ export interface AdminDashboardData {
     campaignRelations?: Array<{
       campaignId: string;
       title: string;
-      kind: "OWNER" | "COLLABORATOR" | "INVITED";
+      kind: "OWNER" | "COLLABORATOR" | "INVITED" | "REVOKED";
     }>;
     lastStatusChange?: { reason: string; changedAt: string };
   }>;

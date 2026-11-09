@@ -375,6 +375,7 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
       }
       // Dòng thành viên đã rời nhóm vẫn giữ khóa ngoại cho việc và bản tin cũ.
       const formerUserIds = new Set<string>([
+        ...(state.formerCollaborators?.[snapshot.campaignId] ?? []),
         ...(state.campaignTasks ?? []).filter((task) => task.campaignId === snapshot.campaignId)
           .flatMap((task) => [task.assigneeUserId, task.createdByUserId]),
         ...(state.campaignTaskHandoffs ?? []).filter((handoff) => handoff.campaignId === snapshot.campaignId)
