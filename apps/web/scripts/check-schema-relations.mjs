@@ -36,6 +36,13 @@ const checks = [
       /WHERE role = 'OWNER'/.test(schema),
   },
   {
+    name: "Lời mời khớp email tài khoản, thành viên có trạng thái thu hồi",
+    pass:
+      /CREATE TYPE global_role AS ENUM \('BACKER', 'CREATOR', 'ADMIN'\)/.test(schema) &&
+      /CREATE TABLE campaign_invitations \([\s\S]*?FOREIGN KEY \(invitee_user_id, email\) REFERENCES users\(id, email\)/.test(schema) &&
+      /CREATE TABLE campaign_members \([\s\S]*?status campaign_member_status NOT NULL DEFAULT 'ACTIVE'[\s\S]*?revoked_at TIMESTAMPTZ/.test(schema),
+  },
+  {
     name: "OWNER luôn trùng creator_id",
     pass:
       /sync_campaign_owner_membership/.test(schema) &&

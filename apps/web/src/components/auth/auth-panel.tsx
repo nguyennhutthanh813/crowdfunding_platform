@@ -53,6 +53,7 @@ function destinationAfterQuickSignIn(
 
   return !area ||
     session.user.roles.includes(area.role) ||
+    (area.role === "COLLABORATOR" && session.user.roles.includes("BACKER")) ||
     (area.role === "CREATOR" && session.user.roles.includes("BACKER"))
     ? destination
     : fallback;
@@ -178,7 +179,8 @@ export function AuthPanel({
     const needsAnotherAccount = Boolean(
       requestedArea &&
       !session.user.roles.includes(requestedArea) &&
-      !(requestedArea === "CREATOR" && session.user.roles.includes("BACKER")),
+      !(requestedArea === "CREATOR" && session.user.roles.includes("BACKER")) &&
+      !(requestedArea === "COLLABORATOR" && session.user.roles.includes("BACKER")),
     );
     return (
       <div className="mx-auto max-w-xl rounded-[20px] border border-emerald-200 bg-white p-7 text-center shadow-[var(--shadow-card)] sm:p-10">
@@ -274,7 +276,7 @@ export function AuthPanel({
                 : "Tiếp tục theo dõi dự án bạn quan tâm hoặc quản lý công việc đang làm."
               : creatorIntent
                 ? "Tạo tài khoản trước, sau đó xác nhận vai trò Chủ dự án để vào hồ sơ chiến dịch mới."
-                : "Bạn sẽ bắt đầu với vai trò Người ủng hộ và có thể mở thêm quyền Chủ dự án khi cần."}
+                : "Bạn bắt đầu là Người ủng hộ. Khi muốn tạo chiến dịch, mở thêm quyền Chủ dự án; muốn cộng tác, dùng đúng email được chủ chiến dịch mời."}
           </p>
           {mode === "SIGN_IN" ? (
             <a

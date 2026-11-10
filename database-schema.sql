@@ -10,6 +10,8 @@ CREATE TYPE account_status AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED');
 CREATE TYPE global_role AS ENUM ('BACKER', 'CREATOR', 'ADMIN');
 CREATE TYPE campaign_status AS ENUM ('DRAFT', 'IN_REVIEW', 'PRE_LAUNCH', 'LIVE', 'SUCCESSFUL', 'FAILED', 'SUSPENDED');
 CREATE TYPE campaign_member_role AS ENUM ('OWNER', 'COLLABORATOR');
+CREATE TYPE campaign_member_status AS ENUM ('ACTIVE', 'REVOKED');
+CREATE TYPE campaign_invitation_status AS ENUM ('PENDING', 'ACCEPTED');
 CREATE TYPE media_type AS ENUM ('IMAGE', 'VIDEO');
 CREATE TYPE pledge_status AS ENUM ('PENDING', 'AUTHORIZED', 'CAPTURED', 'CANCELED', 'FAILED', 'REFUNDED');
 CREATE TYPE payment_status AS ENUM ('REQUIRES_ACTION', 'AUTHORIZED', 'CAPTURED', 'CANCELED', 'FAILED', 'REFUNDED');
@@ -36,7 +38,8 @@ CREATE TABLE users (
   email_verified_at TIMESTAMPTZ,
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (id, email)
 );
 
 CREATE TABLE user_roles (
@@ -91,17 +94,41 @@ CREATE TABLE campaign_members (
   campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role campaign_member_role NOT NULL,
+  status campaign_member_status NOT NULL DEFAULT 'ACTIVE',
   can_post_updates BOOLEAN NOT NULL DEFAULT true,
   can_reply_comments BOOLEAN NOT NULL DEFAULT true,
   can_view_ai_dashboard BOOLEAN NOT NULL DEFAULT true,
   invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
   joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (campaign_id, user_id)
+  revoked_at TIMESTAMPTZ,
+  PRIMARY KEY (campaign_id, user_id),
+  CHECK (role <> 'OWNER' OR status = 'ACTIVE'),
+  CHECK ((status = 'REVOKED') = (revoked_at IS NOT NULL))
 );
 
 CREATE UNIQUE INDEX uq_campaign_single_owner
   ON campaign_members(campaign_id)
   WHERE role = 'OWNER';
+
+-- Lời mời thuộc chiến dịch, chưa tạo quyền thành viên trước khi người nhận xác nhận.
+CREATE TABLE campaign_invitations (
+  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  email CITEXT NOT NULL,
+  invitee_user_id UUID,
+  invited_by UUID NOT NULL REFERENCES users(id),
+  display_name VARCHAR(120) NOT NULL DEFAULT '',
+  can_post_updates BOOLEAN NOT NULL DEFAULT true,
+  can_reply_comments BOOLEAN NOT NULL DEFAULT true,
+  can_view_ai_dashboard BOOLEAN NOT NULL DEFAULT false,
+  status campaign_invitation_status NOT NULL DEFAULT 'PENDING',
+  invited_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  accepted_at TIMESTAMPTZ,
+  PRIMARY KEY (campaign_id, email),
+  UNIQUE (campaign_id, invitee_user_id),
+  FOREIGN KEY (invitee_user_id, email) REFERENCES users(id, email),
+  CHECK ((status = 'ACCEPTED') = (accepted_at IS NOT NULL)),
+  CHECK (status <> 'ACCEPTED' OR invitee_user_id IS NOT NULL)
+);
 
 CREATE TABLE campaign_tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -558,7 +585,10 @@ CREATE INDEX idx_campaigns_live_end ON campaigns(ends_at) WHERE status = 'LIVE';
 CREATE INDEX idx_user_roles_granted_by ON user_roles(granted_by) WHERE granted_by IS NOT NULL;
 CREATE INDEX idx_categories_parent ON categories(parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX idx_campaign_members_user ON campaign_members(user_id, campaign_id);
+CREATE INDEX idx_campaign_members_active_user ON campaign_members(user_id, campaign_id) WHERE status = 'ACTIVE';
 CREATE INDEX idx_campaign_members_invited_by ON campaign_members(invited_by) WHERE invited_by IS NOT NULL;
+CREATE INDEX idx_campaign_invitations_user ON campaign_invitations(invitee_user_id, status) WHERE invitee_user_id IS NOT NULL;
+CREATE INDEX idx_campaign_invitations_status ON campaign_invitations(campaign_id, status);
 CREATE INDEX idx_campaign_media_campaign ON campaign_media(campaign_id, sort_order);
 CREATE INDEX idx_rewards_campaign_active ON reward_tiers(campaign_id, sort_order) WHERE is_active = true;
 CREATE INDEX idx_add_ons_campaign_active ON add_ons(campaign_id) WHERE is_active = true;
@@ -639,6 +669,8 @@ BEGIN
   VALUES (NEW.id, NEW.creator_id, 'OWNER', true, true, true)
   ON CONFLICT (campaign_id, user_id) DO UPDATE
   SET role = 'OWNER',
+      status = 'ACTIVE',
+      revoked_at = NULL,
       can_post_updates = true,
       can_reply_comments = true,
       can_view_ai_dashboard = true;
@@ -663,9 +695,9 @@ BEGIN
 
   IF EXISTS (SELECT 1 FROM campaigns WHERE id = v_campaign_id) THEN
     SELECT
-      COUNT(*) FILTER (WHERE cm.role = 'OWNER'),
+      COUNT(*) FILTER (WHERE cm.role = 'OWNER' AND cm.status = 'ACTIVE'),
       COUNT(*) FILTER (
-        WHERE cm.role = 'OWNER' AND cm.user_id = c.creator_id
+        WHERE cm.role = 'OWNER' AND cm.status = 'ACTIVE' AND cm.user_id = c.creator_id
       )
     INTO v_owner_count, v_matching_owner_count
     FROM campaigns c

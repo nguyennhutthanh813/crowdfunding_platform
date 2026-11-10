@@ -18,6 +18,7 @@ package "CAMPAIGN" as Campaign #FFF0E8 {
   entity categories
   entity campaigns
   entity campaign_members
+  entity campaign_invitations
   entity campaign_media
   entity reward_tiers
   entity add_ons
@@ -69,8 +70,10 @@ users ||--o{ user_roles
 users ||--o{ addresses
 users ||--o{ campaigns : owns (1:N)
 users ||--o{ campaign_members
+users |o--o{ campaign_invitations : invitee
 categories ||--o{ campaigns
 campaigns ||--o{ campaign_members
+campaigns ||--o{ campaign_invitations
 campaigns ||--o{ campaign_media
 campaigns ||--o{ reward_tiers
 campaigns ||--o{ add_ons

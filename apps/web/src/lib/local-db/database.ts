@@ -333,7 +333,9 @@ function refreshPreviewRows(db: SqliteDb, state: PlatformPreviewState) {
   for (const account of state.registeredAccounts) {
     addUser.run(account.id, account.name, account.email, "", state.userStatuses[account.id] ?? "ACTIVE", "LOCAL");
     removeRoles.run(account.id);
-    for (const role of account.roles) addRole.run(account.id, role);
+    for (const role of account.roles) {
+      if (role !== "COLLABORATOR") addRole.run(account.id, role);
+    }
   }
   const addUserStatusEvent = db.prepare(`INSERT INTO user_status_events
     (id,user_id,actor_user_id,status,reason,changed_at) VALUES (?,?,?,?,?,?)`);

@@ -30,7 +30,17 @@ Bản **ĐỀ TÀI - BẢN CẬP NHẬT.docx**, mục 4, nói một tài khoản
 
 Trước lượt này, route quản trị và đăng nhập gọi `decodePlatformPreview(cookie)`. Hàm đó đã tự đọc SQLite khi bật chế độ local, vì vậy **không có bằng chứng** cookie từng ghi đè DB. Các route đã chuyển sang `getServerPlatformPreviewState()` để thể hiện rõ nguồn dữ liệu dùng chung và giảm cách đọc khác nhau giữa màn hình/API. Lời mời trước đây chỉ mở cho người đã mang role `COLLABORATOR`; hiện kiểm bằng email, trạng thái lời mời và quan hệ chiến dịch. Tài khoản Backer được mời vẫn giữ quyền Backer của mình.
 
-Tài khoản đăng nhập nhanh Gia Huy còn nhãn không gian `COLLABORATOR` trong phiên để mở thẳng bảng việc mẫu cũ. Đây là lựa chọn điều hướng của bản demo, không phải quyền trên mọi dự án. Cột Vai trò ở Admin đọc `user_roles` toàn cục; tư cách cộng tác nằm ở cột Quan hệ dự án. Khi thay phần đăng nhập mẫu bằng backend chung, nên bỏ nhãn phiên cũ này và dựng lối vào bảng việc từ `campaign_members`/lời mời.
+Tài khoản đăng nhập nhanh Gia Huy có một quan hệ cộng tác seed ở ORBIT One. Lúc đăng nhập, ứng dụng dựng lối vào khu Cộng tác viên từ quan hệ này; `user_roles` của Gia Huy chỉ giữ `BACKER`. Với chiến dịch mới, lối vào đó chỉ xuất hiện khi người được mời đã chấp nhận. Khi chủ thu hồi lời mời, phiên đọc lại sẽ bỏ lối vào cộng tác. Cột Vai trò ở Admin đọc quyền tài khoản; tư cách cộng tác nằm ở Quan hệ dự án.
+
+## Tạo tài khoản và tham gia nhóm
+
+1. Người dùng tự đăng ký bằng họ tên, email, mật khẩu; tài khoản bắt đầu là `BACKER`. Không có biểu mẫu tự đăng ký Admin hay Cộng tác viên.
+2. Trong trang Tài khoản hoặc khi bắt đầu chiến dịch, người dùng mở thêm quyền `CREATOR` trên cùng tài khoản. Một Creator có thể tạo nhiều chiến dịch, nhưng chỉ sửa hồ sơ mình sở hữu.
+3. Sau khi hồ sơ được duyệt, chủ dự án vào mục Nhóm, nhập email người muốn mời và chọn quyền đăng cập nhật, trả lời, xem dự báo. Lúc này chỉ có lời mời `PENDING`.
+4. Người được mời đăng nhập hoặc đăng ký bằng đúng email đó, vào khu Cộng tác viên và bấm chấp nhận. Ứng dụng mới ghi thành viên `ACTIVE` cho chiến dịch ấy. Nếu email không khớp, API từ chối.
+5. Chủ có thể sửa quyền hoặc thu hồi. Khi thu hồi, quan hệ cũ giữ `REVOKED` để các việc và bản tin đã làm còn truy ra người thực hiện; tài khoản vẫn dùng được với vai trò Backer/Creator ở nơi khác. Mời lại và chấp nhận sẽ khôi phục quyền trong chính chiến dịch đó.
+
+DDL PostgreSQL tham chiếu hiện có `campaign_invitations`, `campaign_members.status` và `revoked_at`; email người nhận đã có tài khoản được ràng buộc với `users(id,email)`. Việc chuyển từ lời mời sang thành viên cần một transaction ở backend thật. Bản SQLite local hiện vẫn chiếu các quan hệ này từ `platform_state`, không phải backend PostgreSQL.
 
 Màn Admin trước đây trộn tài khoản đăng nhập được với hồ sơ seed dùng làm dữ liệu minh họa. Tab Người dùng nay tách hai nhóm; hồ sơ mẫu chỉ xem quan hệ, không có nút khóa có hiệu lực giả. Mỗi người thấy số dự án sở hữu/cộng tác/lời mời và có thể mở timeline tương ứng. Khi khóa/mở một tài khoản, lý do được ghi trong `user_status_events` và hiện lại trong danh sách.
 

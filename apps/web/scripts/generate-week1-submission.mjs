@@ -988,7 +988,7 @@ function makeErdOverviewDrawio() {
     height: 2000,
   });
   page.title(
-    "ERD TỔNG QUAN - 37 BẢNG",
+    "ERD TỔNG QUAN - 40 BẢNG",
     "Chia theo nhóm nghiệp vụ để nhìn phạm vi trước; hai sơ đồ sau có cột và khóa chi tiết",
   );
 
@@ -1005,7 +1005,7 @@ function makeErdOverviewDrawio() {
     },
     {
       key: "campaign",
-      title: "CAMPAIGN · 9",
+      title: "CAMPAIGN · 10",
       x: 740,
       y: 160,
       w: 1040,
@@ -1015,6 +1015,7 @@ function makeErdOverviewDrawio() {
         "categories",
         "campaigns",
         "campaign_members",
+        "campaign_invitations",
         "campaign_media",
         "reward_tiers",
         "add_ons",
@@ -1266,6 +1267,7 @@ function makeErdDrawios() {
       categories: { x: 820, y: 250, w: 560 },
       campaigns: { x: 1450, y: 250, w: 600 },
       campaign_members: { x: 820, y: 600, w: 560 },
+      campaign_invitations: { x: 820, y: 1120, w: 560 },
       campaign_media: { x: 1450, y: 650, w: 600 },
       campaign_reviews: { x: 820, y: 900, w: 560 },
       campaign_status_history: { x: 1450, y: 900, w: 600 },
@@ -1571,7 +1573,7 @@ Folder này gom riêng phần cần nộp trong tuần, không trộn với sour
 - File \`.png\`: mở xem nhanh, chèn vào báo cáo hoặc slide.
 - File \`.drawio\`: mở trực tiếp tại diagrams.net/draw.io để sửa actor, use case, màu và đường nối. Các thành phần trong file là shape chỉnh sửa được, không phải ảnh PNG nhúng vào.
 - File \`.puml\` trong \`03_NGUON_PLANTUML\`: nguồn phụ để sinh lại PNG nếu cần.
-- File \`database-schema.sql\`: DDL PostgreSQL thiết kế gồm 39 bảng.
+- File \`database-schema.sql\`: DDL PostgreSQL thiết kế gồm 40 bảng.
 
 ## Phạm vi đã chốt
 
@@ -1611,7 +1613,7 @@ Các mã chi tiết từ UC-G01 đến UC-S08 nằm trong \`danh-sach-va-dac-ta-
 
 ## Database
 
-- ERD tổng quan có đủ tên 39 bảng, chia theo 6 nhóm nghiệp vụ.
+- ERD tổng quan có đủ tên 40 bảng, chia theo 6 nhóm nghiệp vụ.
 - ERD nghiệp vụ lõi đi sâu vào campaign, reward, pledge, payment và fulfillment.
 - ERD AI - cộng đồng đi sâu vào interaction log, recommendation, prediction, fraud, comment và message.
 - DDL PostgreSQL giữ ràng buộc tiền VND bằng \`BIGINT\`, snapshot giá pledge và webhook idempotent.

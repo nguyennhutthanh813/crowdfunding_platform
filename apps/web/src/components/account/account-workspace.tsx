@@ -34,7 +34,15 @@ const tabs = [
 type AccountTab = (typeof tabs)[number]["id"];
 const accountTabIds = tabs.map((tab) => tab.id);
 
-const allRoles: UserRole[] = ["BACKER", "CREATOR", "COLLABORATOR", "ADMIN"];
+const accountRoles: UserRole[] = ["BACKER", "CREATOR"];
+type TeamCampaign = { campaignId: string; title: string; accepted: boolean };
+
+function teamCampaignHref(team: TeamCampaign) {
+  if (!team.accepted) return "/collaborator#loi-moi";
+  return team.campaignId.startsWith("cmp_preview_")
+    ? `/collaborator/campaigns/${team.campaignId}/manage`
+    : "/collaborator";
+}
 
 async function saveAccountAction(
   action: string,
@@ -159,7 +167,7 @@ function ProfilePanel() {
   );
 }
 
-function RolesPanel() {
+function RolesPanel({ teamCampaigns }: { teamCampaigns: TeamCampaign[] }) {
   const { session, busy, switchRole, activateCreatorRole } = useAuth();
   const [notice, setNotice] = useState("");
   if (!session) return null;
@@ -177,12 +185,12 @@ function RolesPanel() {
         Vai trò và phạm vi truy cập
       </h2>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-muted">
-        Một tài khoản có thể mang nhiều vai trò. Riêng Cộng tác viên chỉ có hiệu
-        lực trong chiến dịch đã được mời; quyền Quản trị viên do hệ thống cấp.
+        Bạn dùng một tài khoản để ủng hộ, tạo dự án và tham gia nhóm được mời.
+        Quyền cộng tác chỉ áp dụng cho chiến dịch cụ thể.
       </p>
 
       <div className="mt-7 grid gap-3 sm:grid-cols-2">
-        {allRoles.map((role) => {
+        {(session.user.roles.includes("ADMIN") ? ["ADMIN" as const] : accountRoles).map((role) => {
           const enabled = session.user.roles.includes(role);
           const active = session.user.activeRole === role;
           const canRequest =
@@ -205,7 +213,7 @@ function RolesPanel() {
                 <span
                   className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${active ? "bg-lime text-forest" : enabled ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-ink-muted"}`}
                 >
-                  {active ? "Đang sử dụng" : enabled ? "Đã cấp" : role === "COLLABORATOR" ? "Theo lời mời" : "Chưa có"}
+                  {active ? "Đang sử dụng" : enabled ? "Đã cấp" : "Chưa có"}
                 </span>
               </div>
               <h3 className="mt-4 font-display text-lg font-extrabold">
@@ -224,7 +232,6 @@ function RolesPanel() {
                   Chuyển sang vai trò này
                 </button>
               ) : null}
-              {role === "COLLABORATOR" && !enabled ? <a href="/collaborator" className="button-secondary mt-4 inline-flex min-h-11 items-center px-4 text-xs">Xem lời mời của tôi</a> : null}
               {!enabled && canRequest ? (
                 <button
                   type="button"
@@ -235,17 +242,64 @@ function RolesPanel() {
                   Mở quyền Chủ dự án
                 </button>
               ) : null}
-              {!enabled && !canRequest ? (
-                <p className="mt-4 text-[11px] font-semibold text-ink-muted">
-                  {role === "COLLABORATOR"
-                    ? "Cần lời mời từ một chủ dự án."
-                    : "Chỉ quản trị hệ thống có thể cấp."}
-                </p>
-              ) : null}
             </article>
           );
         })}
       </div>
+      {!session.user.roles.includes("ADMIN") ? (
+        <section
+          className="mt-8 rounded-2xl border border-[#bfd4e7] bg-[#f5f9fc] p-5"
+          aria-labelledby="team-role-title"
+        >
+          <p className="eyebrow text-[#2869ac]">Theo từng chiến dịch</p>
+          <h3 id="team-role-title" className="mt-2 font-display text-xl font-extrabold">
+            Làm cộng tác viên
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-ink-soft">
+            Chủ dự án nhập email của bạn trong mục Nhóm. Bạn đăng nhập bằng đúng
+            email đó, xem lời mời và tự chấp nhận. Khi chủ thu hồi quyền, bạn
+            không còn sửa nội dung của chiến dịch.
+          </p>
+          {teamCampaigns.length ? (
+            <ul className="mt-4 space-y-2">
+              {teamCampaigns.map((team) => (
+                <li
+                  key={team.campaignId}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d4e2ed] bg-white p-3"
+                >
+                  <span className="text-sm font-semibold">
+                    {team.title}{" "}
+                    <span className="ml-1 text-xs font-normal text-ink-muted">
+                      · {team.accepted ? "Đang tham gia" : "Chờ bạn xác nhận"}
+                    </span>
+                  </span>
+                  <Link
+                    className="text-sm font-bold text-[#225b86] underline-offset-2 hover:underline"
+                    href={teamCampaignHref(team)}
+                  >
+                    {team.accepted ? "Mở công việc" : "Xem lời mời"}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 rounded-xl border border-dashed border-[#bfd4e7] bg-white p-4 text-sm text-ink-muted">
+              Chưa có lời mời trong tài khoản này. Bạn có thể gửi email đăng
+              nhập cho chủ chiến dịch để họ mời.
+            </p>
+          )}
+          <Link
+            href="/collaborator#loi-moi"
+            className="mt-4 inline-flex min-h-11 items-center text-sm font-bold text-[#225b86] underline-offset-2 hover:underline"
+          >
+            Xem tất cả lời mời và việc nhóm →
+          </Link>
+        </section>
+      ) : (
+        <p className="mt-5 text-sm text-ink-muted">
+          Quyền Quản trị viên do hệ thống cấp, không mở từ trang đăng ký.
+        </p>
+      )}
       <p className="mt-4 text-xs text-red-600" role="status">
         {notice}
       </p>
@@ -584,7 +638,7 @@ function SecurityPanel() {
   );
 }
 
-export function AccountWorkspace() {
+export function AccountWorkspace({ teamCampaigns }: { teamCampaigns: TeamCampaign[] }) {
   const { session } = useAuth();
   const [activeTab, setActiveTab] = useQueryTab<AccountTab>(
     accountTabIds,
@@ -600,20 +654,20 @@ export function AccountWorkspace() {
 
   return (
     <div className="container-shell grid min-w-0 gap-6 py-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:py-12">
-      <aside className="min-w-0 rounded-[18px] bg-forest p-4 text-white lg:sticky lg:top-24 lg:self-start">
-        <div className="flex items-center gap-3 border-b border-white/9 p-3 pb-5">
+      <aside className="min-w-0 rounded-[18px] border border-line bg-white p-3 text-ink lg:sticky lg:top-24 lg:self-start lg:border-0 lg:bg-forest lg:p-4 lg:text-white">
+        <div className="flex items-center gap-3 border-b border-line px-2 pb-3 lg:border-white/9 lg:p-3 lg:pb-5">
           <span className="grid size-12 place-items-center rounded-2xl bg-lime font-display text-xs font-extrabold text-forest">
             {session.user.initials}
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{session.user.name}</p>
-            <p className="mt-1 truncate text-[11px] text-white/45">
+            <p className="mt-1 truncate text-[11px] text-ink-muted lg:text-white/45">
               {session.user.email}
             </p>
           </div>
         </div>
         <nav
-          className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-col"
+          className="mt-2 grid grid-cols-3 gap-1 lg:mt-3 lg:flex lg:flex-col lg:gap-2"
           aria-label="Cài đặt tài khoản"
         >
           {visibleTabs.map((tab) => {
@@ -624,7 +678,7 @@ export function AccountWorkspace() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex min-h-12 min-w-0 cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-xs font-bold transition-colors ${active ? "bg-lime text-forest" : "text-white/62 hover:bg-white/7 hover:text-white"}`}
+                className={`flex min-h-14 min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[11px] font-bold transition-colors lg:min-h-12 lg:w-full lg:flex-row lg:justify-start lg:gap-2 lg:px-3 lg:text-left lg:text-xs ${active ? "bg-forest text-white lg:bg-lime lg:text-forest" : "text-ink-muted hover:bg-stone-100 lg:text-white/62 lg:hover:bg-white/7 lg:hover:text-white"}`}
               >
                 <Icon className="size-4" /> {tab.label}
               </button>
@@ -636,7 +690,7 @@ export function AccountWorkspace() {
       <section className="surface-card min-w-0 rounded-[20px] p-5 sm:p-8 lg:p-10">
         {visibleActiveTab === "profile" ? <ProfilePanel /> : null}
         {visibleActiveTab === "interests" ? <InterestPreferences /> : null}
-        {visibleActiveTab === "roles" ? <RolesPanel /> : null}
+        {visibleActiveTab === "roles" ? <RolesPanel teamCampaigns={teamCampaigns} /> : null}
         {visibleActiveTab === "notifications" ? <NotificationsPanel /> : null}
         {visibleActiveTab === "security" ? <SecurityPanel /> : null}
       </section>

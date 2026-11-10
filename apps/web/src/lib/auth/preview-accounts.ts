@@ -42,7 +42,7 @@ export const previewAccounts: PreviewAccount[] = [
     password: "gop12345",
     initials: "GH",
     headline: "Cộng tác viên phần cứng · ORBIT One",
-    roles: ["BACKER", "COLLABORATOR"],
+    roles: ["BACKER"],
     activeRole: "COLLABORATOR",
     description: "Đăng cập nhật và phản hồi trong chiến dịch được mời.",
   },

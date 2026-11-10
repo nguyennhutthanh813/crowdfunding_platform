@@ -68,7 +68,12 @@ export default async function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body>
-        <AuthProvider initialSession={initialSession}>
+        <AuthProvider
+          key={initialSession
+            ? `${initialSession.user.id}:${initialSession.user.activeRole}:${initialSession.user.roles.join(",")}`
+            : "guest"}
+          initialSession={initialSession}
+        >
           <a href="#noi-dung-chinh" className="skip-link">
             Bỏ qua phần điều hướng
           </a>

@@ -86,8 +86,15 @@ assert.equal((await creator(teamUrl, "POST", { action: "INVITE", campaignId, ema
 assert.equal((await stranger("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 403);
 assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 200);
 assert.equal(memberStatus(), "ACTIVE");
+const joinedSession = await invited("/api/v1/auth/session");
+assert.ok(joinedSession.data.data.user.roles.includes("COLLABORATOR"));
+assert.equal((await invited("/api/v1/auth/session", "PATCH", { activeRole: "COLLABORATOR" })).status, 200);
 assert.equal((await creator(teamUrl, "POST", { action: "REMOVE", campaignId, email })).status, 200);
 assert.equal(memberStatus(), "REVOKED", "Rời nhóm khi chưa có việc vẫn phải giữ quan hệ cũ.");
+const revokedSession = await invited("/api/v1/auth/session");
+assert.ok(!revokedSession.data.data.user.roles.includes("COLLABORATOR"));
+assert.equal(revokedSession.data.data.user.activeRole, "BACKER");
+assert.equal((await invited("/api/v1/auth/session", "PATCH", { activeRole: "COLLABORATOR" })).status, 403);
 const afterRemoval = await admin("/api/v1/admin/overview");
 assert.equal(afterRemoval.data.users.find((user) => user.id === invitedId)?.campaignRelations
   ?.find((relation) => relation.campaignId === campaignId)?.kind, "REVOKED");
@@ -139,6 +146,8 @@ try {
   const membership = db.prepare("SELECT role,status FROM campaign_members WHERE campaign_id=? AND user_id=?").get(campaignId, invitedId);
   assert.equal(membership?.role, "COLLABORATOR");
   assert.equal(membership?.status, "REVOKED");
+  assert.deepEqual(db.prepare("SELECT role FROM user_roles WHERE user_id=? ORDER BY role").all(invitedId)
+    .map((row) => row.role), ["BACKER"], "Cộng tác viên không được lưu thành quyền tài khoản toàn cục.");
   assert.equal(db.prepare("SELECT status FROM campaign_tasks WHERE id=?").get(task.data.data.taskId)?.status, "IN_PROGRESS");
   const statusEvent = db.prepare("SELECT status, reason, actor_user_id AS actorId FROM user_status_events WHERE user_id=? ORDER BY changed_at DESC LIMIT 1").get(invitedId);
   assert.equal(statusEvent?.status, "SUSPENDED");

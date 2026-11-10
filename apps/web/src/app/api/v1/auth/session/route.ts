@@ -27,6 +27,7 @@ import {
   verifyRegisteredPreviewPassword,
 } from "@/lib/auth/preview-registered-accounts";
 import { hydrateLocalSession, localDbEnabled, localSessionUserExists } from "@/lib/local-db/database";
+import { campaignWorkspaceSession } from "@/lib/auth/campaign-workspace-session";
 
 export const runtime = "nodejs";
 
@@ -82,15 +83,16 @@ export async function GET() {
     clearPreviewSessionCookie(response);
     return response;
   }
-  if (session) {
-    const platformState = await getServerPlatformPreviewState();
+  const platformState = session ? await getServerPlatformPreviewState() : null;
+  if (session && platformState) {
     if (platformState.userStatuses[session.user.id] === "SUSPENDED") {
       const response = NextResponse.json({ data: null });
       clearPreviewSessionCookie(response);
       return response;
     }
   }
-  return NextResponse.json({ data: session ? hydrateLocalSession(session) : null });
+  return NextResponse.json({ data: session && platformState
+    ? campaignWorkspaceSession(hydrateLocalSession(session), platformState) : null });
 }
 
 export async function POST(request: Request) {
@@ -180,7 +182,7 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
-    result = hydrateLocalSession(result);
+    result = campaignWorkspaceSession(hydrateLocalSession(result), platformState);
     const response = NextResponse.json(result, {
       status: body.mode === "REGISTER" ? 201 : 200,
     });
@@ -336,8 +338,9 @@ export async function PATCH(request: Request) {
       name: nextSession.user.name,
       initials: nextSession.user.initials,
       headline: nextSession.user.headline,
-      roles: [...nextSession.user.roles],
-      activeRole: nextSession.user.activeRole,
+      roles: nextSession.user.roles.filter((role) => role !== "COLLABORATOR"),
+      activeRole: nextSession.user.activeRole === "COLLABORATOR"
+        ? "BACKER" : nextSession.user.activeRole,
     };
     const platformFailure = writePlatformPreviewCookie(response, platformState);
     if (platformFailure) return platformFailure;

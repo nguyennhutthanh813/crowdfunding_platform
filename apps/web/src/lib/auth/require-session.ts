@@ -5,6 +5,7 @@ import { decodeSession, SESSION_COOKIE_NAME } from "./session-cookie";
 import { getServerPlatformPreviewState } from "./platform-preview-cookie";
 import { clearPreviewSessionCookie } from "./write-session-cookie";
 import { hydrateLocalSession, localSessionUserExists } from "@/lib/local-db/database";
+import { campaignWorkspaceSession } from "./campaign-workspace-session";
 
 export async function requireSession(allowedRoles?: UserRole[]) {
   const cookieStore = await cookies();
@@ -38,9 +39,10 @@ export async function requireSession(allowedRoles?: UserRole[]) {
     return { session: null, response };
   }
 
+  const effectiveSession = campaignWorkspaceSession(hydrateLocalSession(session), platformState);
   if (
     allowedRoles?.length &&
-    !allowedRoles.some((role) => session.user.roles.includes(role))
+    !allowedRoles.some((role) => effectiveSession.user.roles.includes(role))
   ) {
     return {
       session: null,
@@ -56,5 +58,5 @@ export async function requireSession(allowedRoles?: UserRole[]) {
     };
   }
 
-  return { session: hydrateLocalSession(session), response: null };
+  return { session: effectiveSession, response: null };
 }

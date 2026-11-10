@@ -7,6 +7,8 @@ import { Check, Pencil, Send, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatVnd } from "@/lib/format";
+import { useAuth } from "@/components/auth/auth-provider";
+import type { SessionResult } from "@/lib/api/contracts";
 
 export interface PreviewUpdateItem {
   id: string;
@@ -41,6 +43,7 @@ export interface PreviewPledgeItem {
 
 export function AcceptPreviewInvitation({ campaignId }: { campaignId: string }) {
   const router = useRouter();
+  const { establishSession } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function accept() {
@@ -50,6 +53,8 @@ export function AcceptPreviewInvitation({ campaignId }: { campaignId: string }) 
       await clientRequest("/api/v1/collaborator/invitations", {
         method: "POST", body: JSON.stringify({ action: "ACCEPT", campaignId }),
       });
+      const refreshed = await clientRequest<{ data: SessionResult }>("/api/v1/auth/session");
+      establishSession(refreshed.data);
       router.refresh();
     } catch (cause) {
       setError(clientRequestMessage(cause, "Chưa nhận được lời mời. Bạn thử lại nhé."));

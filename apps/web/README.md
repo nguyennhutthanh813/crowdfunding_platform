@@ -133,7 +133,7 @@ Hai chỗ chứa “dữ liệu mẫu” có mục đích khác nhau: `src/lib/a
 
 Riêng câu chuyện ORBIT dùng chung một mốc dữ liệu vận hành: cam kết của Phạm Minh Anh xuất hiện ở sổ người ủng hộ và danh sách cam kết của chủ dự án; việc của Gia Huy xuất hiện đồng thời ở bàn giao và khu cộng tác. Cam kết mới hoặc thay đổi mức ủng hộ được đọc lại ở Backer, Creator, Admin từ cùng dữ liệu phát sinh; một người ủng hộ một chiến dịch chỉ tính một lần. ORBIT One đang gọi vốn tại mốc mẫu nên chưa có đơn giao hàng, còn bảng giao quà thuộc ORBIT Drip đã thành công. Các trạng thái thanh toán là dữ liệu mô phỏng, không chứng minh Stripe hay ngân hàng đã giữ tiền.
 
-Có thể mở `/api/v1/health/data-integrity` để kiểm tra 20 nhóm bản ghi, 9 bộ dữ liệu tổng hợp, số tiền, trạng thái thanh toán/giao quà, thành viên của công việc/bàn giao, hồ sơ duyệt và cảnh báo. Kho dữ liệu mẫu có 27 người dùng và 14 chiến dịch; trong đó 6 chiến dịch có bộ chi tiết công khai. Đây là kiểm tra dữ liệu mẫu, không phải bằng chứng 39 bảng PostgreSQL đã được chạy.
+Có thể mở `/api/v1/health/data-integrity` để kiểm tra 20 nhóm bản ghi, 9 bộ dữ liệu tổng hợp, số tiền, trạng thái thanh toán/giao quà, thành viên của công việc/bàn giao, hồ sơ duyệt và cảnh báo. Kho dữ liệu mẫu có 27 người dùng và 14 chiến dịch; trong đó 6 chiến dịch có bộ chi tiết công khai. Đây là kiểm tra dữ liệu mẫu, không phải bằng chứng 40 bảng PostgreSQL đã được chạy.
 
 Hai luồng AI mở rộng dùng `/api/v1/creator/assistant`. Route hỗ trợ kiểm tra bản nháp, gom nhóm bình luận và tạo câu trả lời gợi ý. Quick Reply chỉ đưa chữ vào ô soạn; Creator/Collaborator vẫn phải kiểm tra và tự bấm gửi.
 
@@ -163,7 +163,7 @@ Các form phía client dùng chung `clientRequest`: request có timeout, lỗi A
 - `docs/diagrams/*.puml`: mã nguồn PlantUML cho Use Case và ERD.
 - `public/diagrams/roles`: 7 cặp PNG + Draw.io gồm tổng quan, từng role và System Worker.
 - `public/diagrams/*.png`: các bản Use Case ghép nhóm và 3 ảnh ERD dùng để xem trên web.
-- `database/schema.sql`: PostgreSQL DDL thiết kế 39 bảng, gồm constraint, index, trigger và funding view.
+- `database/schema.sql`: PostgreSQL DDL thiết kế 40 bảng, gồm constraint, index, trigger và funding view.
 
 Tạo lại file Draw.io sau khi sửa danh mục Use Case:
 

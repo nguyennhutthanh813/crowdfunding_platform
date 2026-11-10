@@ -40,9 +40,19 @@ entity campaign_members {
   * campaign_id : uuid <<PK,FK>>
   * user_id : uuid <<PK,FK>>
   * role : campaign_member_role
+  * status : campaign_member_status
+  revoked_at : timestamptz
   can_post_updates : boolean
   can_reply_comments : boolean
   can_view_ai_dashboard : boolean
+}
+entity campaign_invitations {
+  * campaign_id : uuid <<PK,FK>>
+  * email : citext <<PK>>
+  invitee_user_id : uuid <<FK>>
+  * invited_by : uuid <<FK>>
+  * status : campaign_invitation_status
+  accepted_at : timestamptz
 }
 entity campaign_media {
   * id : uuid <<PK>>
@@ -143,6 +153,9 @@ users ||--o{ campaigns : owns (1:N)
 categories ||--o{ campaigns
 campaigns ||--o{ campaign_members
 users ||--o{ campaign_members
+campaigns ||--o{ campaign_invitations
+users |o--o{ campaign_invitations : invitee
+users ||--o{ campaign_invitations : inviter
 campaigns ||--o{ campaign_media
 campaigns ||--o{ reward_tiers
 campaigns ||--o{ add_ons
