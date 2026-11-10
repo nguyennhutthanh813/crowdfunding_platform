@@ -34,7 +34,7 @@ Tài khoản đăng nhập nhanh Gia Huy có một quan hệ cộng tác seed �
 
 ## Tạo tài khoản và tham gia nhóm
 
-1. Người dùng tự đăng ký bằng họ tên, email, mật khẩu; tài khoản bắt đầu là `BACKER`. Không có biểu mẫu tự đăng ký Admin hay Cộng tác viên.
+1. Người dùng tự đăng ký bằng họ tên, email, mật khẩu; tài khoản bắt đầu là `BACKER`. Không có biểu mẫu tự đăng ký Admin hay Cộng tác viên. Nếu đi từ lời mời, người đó vào khu cộng tác ngay; bước chọn sở thích cho gợi ý có thể bỏ qua.
 2. Trong trang Tài khoản hoặc khi bắt đầu chiến dịch, người dùng mở thêm quyền `CREATOR` trên cùng tài khoản. Một Creator có thể tạo nhiều chiến dịch, nhưng chỉ sửa hồ sơ mình sở hữu.
 3. Sau khi hồ sơ được duyệt, chủ dự án vào mục Nhóm, nhập email người muốn mời và chọn quyền đăng cập nhật, trả lời, xem dự báo. Lúc này chỉ có lời mời `PENDING`.
 4. Người được mời đăng nhập hoặc đăng ký bằng đúng email đó, vào khu Cộng tác viên và bấm chấp nhận. Ứng dụng mới ghi thành viên `ACTIVE` cho chiến dịch ấy. Nếu email không khớp, API từ chối.

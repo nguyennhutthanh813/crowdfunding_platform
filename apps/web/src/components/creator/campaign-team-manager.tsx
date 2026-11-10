@@ -23,6 +23,8 @@ export function CampaignTeamManager({ campaignId, members, acceptedEmails }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const accepted = new Set(acceptedEmails);
+  const inviteReady = name.trim().length >= 2 && name.trim().length <= 80 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   function open(nextMode: Mode, member?: CampaignDraftCollaborator) {
     setMode(nextMode);
@@ -56,10 +58,11 @@ export function CampaignTeamManager({ campaignId, members, acceptedEmails }: {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 id="team-title" className="text-base font-bold">Nhóm cộng tác viên</h3>
-        <p className="mt-1 text-xs leading-5 text-ink-muted">Mời bằng email. Người được mời tự chấp nhận trên tài khoản của họ; quyền chỉ áp dụng cho chiến dịch này.</p>
+        <p className="mt-1 text-xs leading-5 text-ink-muted">Nhập đúng email người tham gia, chọn quyền rồi tạo lời mời. Người đó đăng nhập và tự chấp nhận; quyền chỉ thuộc chiến dịch này.</p>
       </div>
       <button type="button" className="button-secondary min-h-10" onClick={() => open("INVITE")} disabled={members.length >= 5}>Mời thành viên</button>
     </div>
+    {members.length >= 5 ? <p className="mt-3 text-xs text-ink-muted">Chiến dịch mẫu nhận tối đa 5 cộng tác viên. Thu hồi một lời mời cũ nếu cần đổi người.</p> : null}
     {members.length ? <ul className="mt-4 grid gap-2 sm:grid-cols-2">{members.map((member) => {
       const granted = [member.canUpdate && "Đăng cập nhật", member.canReply && "Trả lời", member.canViewAi && "Xem dự báo"].filter(Boolean);
       return <li key={member.id} className="rounded-xl border border-line bg-white p-3.5 text-sm">
@@ -78,11 +81,11 @@ export function CampaignTeamManager({ campaignId, members, acceptedEmails }: {
       </li>;
     })}</ul> : <p className="mt-4 rounded-xl border border-dashed border-line bg-white p-4 text-sm text-ink-muted">Chưa mời ai. Chủ dự án vẫn có thể tự vận hành chiến dịch.</p>}
     <Modal open={mode !== null} title={mode === "INVITE" ? "Mời người vào nhóm" : mode === "REMOVE" ? "Thu hồi quyền cộng tác?" : "Chỉnh quyền thành viên"}
-      description={mode === "INVITE" ? "Lời mời sẽ xuất hiện khi tài khoản có cùng email đăng nhập." : email}
+      description={mode === "INVITE" ? "Lời mời hiện trong web khi người được mời đăng nhập bằng đúng email. Bản local chưa gửi email tự động." : email}
       onClose={() => { if (!busy) setMode(null); }} locked={busy} size="sm">
       {mode === "INVITE" ? <div className="grid gap-3">
-        <label className="text-sm font-semibold">Tên thành viên<input name="memberName" className="input-field mt-1 w-full" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} autoComplete="name" /></label>
-        <label className="text-sm font-semibold">Email tài khoản<input name="memberEmail" className="input-field mt-1 w-full" type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} autoComplete="email" /></label>
+        <label className="text-sm font-semibold">Tên thành viên<input name="memberName" className="input-field mt-1 w-full" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} autoComplete="name" required /></label>
+        <label className="text-sm font-semibold">Email tài khoản<input name="memberEmail" className="input-field mt-1 w-full" type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} autoComplete="email" required /></label>
       </div> : null}
       {mode === "INVITE" || mode === "UPDATE_PERMISSIONS" ? <fieldset className="mt-4 grid gap-2 rounded-xl bg-[#f6f7f1] p-4 text-sm">
         <legend className="font-bold">Được phép làm gì</legend>
@@ -94,7 +97,7 @@ export function CampaignTeamManager({ campaignId, members, acceptedEmails }: {
       {error ? <p role="alert" className="mt-3 text-sm text-red-700">{error}</p> : null}
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" className="button-secondary" disabled={busy} onClick={() => setMode(null)}>Để sau</button>
-        <button type="button" className={mode === "REMOVE" ? "button-dark" : "button-primary"} disabled={busy} onClick={() => void save()}>{busy ? "Đang lưu…" : mode === "REMOVE" ? "Thu hồi" : "Lưu thay đổi"}</button>
+        <button type="button" className={mode === "REMOVE" ? "button-dark" : "button-primary"} disabled={busy || (mode === "INVITE" && !inviteReady)} onClick={() => void save()}>{busy ? "Đang lưu…" : mode === "REMOVE" ? "Thu hồi" : mode === "INVITE" ? "Tạo lời mời" : "Lưu quyền"}</button>
       </div>
     </Modal>
   </section>;

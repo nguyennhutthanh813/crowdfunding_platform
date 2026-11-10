@@ -64,7 +64,7 @@ const interests = [
 ] as const;
 
 function safeDestination(nextPath?: string) {
-  if (nextPath?.startsWith("/") && !nextPath.startsWith("//")) return nextPath;
+  if (nextPath?.startsWith("/") && !nextPath.startsWith("//") && !nextPath.includes("\\")) return nextPath;
   return "/dashboard";
 }
 
@@ -200,6 +200,16 @@ export function InterestPreferences({
               ? "Lưu và vào Góp"
               : "Lưu sở thích"}
         </button>
+        {onboarding ? (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => router.replace(safeDestination(nextPath))}
+            className="button-secondary"
+          >
+            Bỏ qua, làm sau
+          </button>
+        ) : null}
         <p
           className={`text-xs ${notice.startsWith("Chưa") ? "text-red-600" : "text-ink-muted"}`}
           role={notice.startsWith("Chưa") ? "alert" : "status"}

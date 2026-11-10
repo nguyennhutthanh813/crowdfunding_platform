@@ -171,6 +171,9 @@ function RolesPanel({ teamCampaigns }: { teamCampaigns: TeamCampaign[] }) {
   const { session, busy, switchRole, activateCreatorRole } = useAuth();
   const [notice, setNotice] = useState("");
   if (!session) return null;
+  const visibleAccountRoles = session.user.roles.includes("ADMIN")
+    ? [...accountRoles.filter((role) => session.user.roles.includes(role)), "ADMIN" as const]
+    : accountRoles;
 
   const activateCreator = async () => {
     setNotice("");
@@ -190,7 +193,7 @@ function RolesPanel({ teamCampaigns }: { teamCampaigns: TeamCampaign[] }) {
       </p>
 
       <div className="mt-7 grid gap-3 sm:grid-cols-2">
-        {(session.user.roles.includes("ADMIN") ? ["ADMIN" as const] : accountRoles).map((role) => {
+        {visibleAccountRoles.map((role) => {
           const enabled = session.user.roles.includes(role);
           const active = session.user.activeRole === role;
           const canRequest =

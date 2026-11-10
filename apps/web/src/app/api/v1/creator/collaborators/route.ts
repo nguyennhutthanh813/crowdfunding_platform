@@ -36,8 +36,14 @@ export async function POST(request: Request) {
   let eventTitle = "";
   if (action === "INVITE") {
     const name = typeof input.name === "string" ? input.name.trim() : "";
+    const canUpdate = input.canUpdate ?? true;
+    const canReply = input.canReply ?? true;
+    const canViewAi = input.canViewAi ?? false;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || name.length < 2 || name.length > 80) {
       return fail(422, "INVITATION_INVALID", "Nhập email hợp lệ và tên người được mời từ 2 đến 80 ký tự.");
+    }
+    if ([canUpdate, canReply, canViewAi].some((value) => typeof value !== "boolean")) {
+      return fail(422, "PERMISSIONS_INVALID", "Ba quyền cộng tác cần được chọn rõ ràng.");
     }
     if (email === access.session!.user.email.toLowerCase() || found) {
       return fail(409, "INVITATION_DUPLICATE", "Email này đã là chủ dự án hoặc đã có trong nhóm.");
@@ -46,7 +52,9 @@ export async function POST(request: Request) {
     snapshot.collaborators = [...members, {
       id: Math.max(0, ...members.map((item) => item.id)) + 1,
       email, name,
-      canUpdate: true, canReply: true, canViewAi: false,
+      canUpdate: canUpdate as boolean,
+      canReply: canReply as boolean,
+      canViewAi: canViewAi as boolean,
     }];
     eventTitle = "Mời cộng tác viên";
   } else if (action === "UPDATE_PERMISSIONS") {

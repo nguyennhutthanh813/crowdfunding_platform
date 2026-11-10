@@ -26,8 +26,8 @@ export default async function OnboardingPage({
             Để Góp hiểu bạn quan tâm điều gì.
           </h1>
           <p className="mt-4 text-sm leading-7 text-ink-soft">
-            Chọn ít nhất hai lĩnh vực. Bạn có thể đổi lại bất cứ lúc nào trong
-            phần cài đặt tài khoản.
+            Nếu muốn lưu sở thích, bạn chọn ít nhất hai lĩnh vực. Bạn cũng có
+            thể bỏ qua và cập nhật trong phần tài khoản sau.
           </p>
           <div className="mt-7 border-l-2 border-forest/25 pl-4 text-xs leading-6 text-ink-soft">
             Với thành viên mới chưa có lịch sử hoạt động, các lựa chọn này giúp

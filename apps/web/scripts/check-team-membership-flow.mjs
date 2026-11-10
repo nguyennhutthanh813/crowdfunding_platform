@@ -82,7 +82,21 @@ assert.equal((await admin("/api/v1/admin/actions", "POST", {
 
 const teamUrl = "/api/v1/creator/collaborators";
 assert.equal((await stranger(teamUrl, "POST", { action: "INVITE", campaignId, email })).status, 403);
-assert.equal((await creator(teamUrl, "POST", { action: "INVITE", campaignId, email, name: "Nguyễn Thu An" })).status, 200);
+assert.equal((await creator(teamUrl, "POST", {
+  action: "INVITE", campaignId, email, name: "Nguyễn Thu An", canUpdate: "yes",
+})).status, 422);
+assert.equal((await creator(teamUrl, "POST", {
+  action: "INVITE", campaignId, email, name: "Nguyễn Thu An",
+  canUpdate: false, canReply: false, canViewAi: true,
+})).status, 200);
+const permissionDb = new DatabaseSync(join(process.cwd(), ".local-data", `${dbName}.sqlite`), { readOnly: true });
+try {
+  const permission = permissionDb.prepare(`SELECT can_post_updates,can_reply_comments,can_view_ai
+    FROM campaign_invitations WHERE campaign_id=? AND email=?`).get(campaignId, email);
+  assert.equal(permission?.can_post_updates, 0);
+  assert.equal(permission?.can_reply_comments, 0);
+  assert.equal(permission?.can_view_ai, 1);
+} finally { permissionDb.close(); }
 assert.equal((await stranger("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 403);
 assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 200);
 assert.equal(memberStatus(), "ACTIVE");

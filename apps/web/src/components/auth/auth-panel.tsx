@@ -32,6 +32,10 @@ function isCreatorDestination(path: string) {
   return /^\/creator(?:\/|\?|$)/.test(path);
 }
 
+function isCollaboratorDestination(path: string) {
+  return /^\/collaborator(?:\/|\?|$)/.test(path);
+}
+
 function destinationAfterQuickSignIn(
   nextPath: string | undefined,
   session: SessionResult,
@@ -97,7 +101,8 @@ export function AuthPanel({
       safeDestination(nextPath, roleDestinations[nextSession.user.activeRole]);
 
     // Điều hướng lại toàn trang để server đọc cookie mới trước khi dựng khu làm việc.
-    if (destinationOverride || (registered && isCreatorDestination(destination))) {
+    if (destinationOverride || (registered &&
+      (isCreatorDestination(destination) || isCollaboratorDestination(destination)))) {
       window.location.replace(destination);
       return;
     }
