@@ -13,7 +13,7 @@ import {
   readJsonObject,
   requestError,
 } from "@/lib/api/request-validation";
-import { previewAccounts } from "@/lib/auth/preview-accounts";
+import { changeRegisteredPreviewPassword, verifyRegisteredPreviewPassword } from "@/lib/auth/preview-registered-accounts";
 import { isNotificationPreferences } from "@/lib/auth/notification-preferences";
 import {
   getServerPlatformPreviewState,
@@ -106,30 +106,32 @@ export async function POST(request: Request) {
         "Nhập mật khẩu hiện tại và mật khẩu mới từ 8–128 ký tự.",
       );
     }
-    const account = previewAccounts.find(
+    const platform = await getServerPlatformPreviewState();
+    const index = platform.registeredAccounts.findIndex(
       (item) => item.id === access.session.user.id,
     );
-    if (!account)
+    if (index < 0)
       return requestError(
         409,
         "PREVIEW_ACCOUNT_ONLY",
-        "Tài khoản tạo tạm chưa có mật khẩu lưu trữ để kiểm tra.",
+        "Tài khoản mẫu dùng mật khẩu cố định. Hãy đăng ký tài khoản riêng để thử đổi mật khẩu.",
       );
-    if (account.password !== currentPassword)
+    const account = platform.registeredAccounts[index];
+    if (!verifyRegisteredPreviewPassword(account, currentPassword))
       return requestError(
         422,
         "CURRENT_PASSWORD_INCORRECT",
         "Mật khẩu hiện tại chưa đúng.",
       );
-    return NextResponse.json({
-      data: {
-        action: body.action,
-        persisted: false,
-        simulation: true,
-        message:
-          "Đã kiểm tra thông tin hợp lệ. Bản dùng thử không đổi mật khẩu; tài khoản mẫu vẫn dùng mật khẩu cũ.",
-      },
-    });
+    if (currentPassword === newPassword) {
+      return requestError(422, "PASSWORD_UNCHANGED", "Mật khẩu mới cần khác mật khẩu hiện tại.");
+    }
+    platform.registeredAccounts[index] = changeRegisteredPreviewPassword(account, newPassword);
+    const response = NextResponse.json({ data: {
+      action: body.action, persisted: true,
+      message: "Đã đổi mật khẩu. Từ lần đăng nhập sau, hãy dùng mật khẩu mới.",
+    } });
+    return writePlatformPreviewCookie(response, platform) ?? response;
   }
 
   let nextSession = access.session;

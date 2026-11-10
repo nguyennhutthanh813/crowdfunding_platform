@@ -77,6 +77,11 @@ assert.ok(portfolio.data.campaigns.some((item) => item.id === campaignId && item
 
 const missing = await request(campaignPath, "POST", { action: "CREATE", draft: { title: "Ý tưởng còn thiếu" } });
 assert.equal(missing.status, 201);
+assert.equal((await request(campaignPath, "POST", {
+  action: "SAVE", campaignId: missing.data.data.campaignId,
+  draft: { title: "Ý tưởng còn thiếu" }, rewards: [], addOns: [],
+  collaborators: [{ id: 1, name: "", email: "", canUpdate: true, canReply: true, canViewAi: false }],
+})).status, 200, "Bản nháp phải lưu được khi dòng cộng tác viên còn đang nhập dở");
 assert.equal((await request(campaignPath, "POST", { action: "SUBMIT", campaignId: missing.data.data.campaignId })).status, 422);
 
 const submitted = await request(campaignPath, "POST", { action: "SUBMIT", campaignId });
@@ -269,7 +274,7 @@ const notificationRoute = "/api/v1/notifications";
 assert.equal((await request(questionAssignmentRoute, "POST", {
   campaignId, commentId: comment.data.data.recordId, assigneeUserId: "usr_gia_huy",
 })).status, 403, "Backer không được phân công câu hỏi");
-assert.equal((await request(notificationRoute)).status, 403, "Backer không được xem việc của cộng tác viên");
+assert.deepEqual((await request(notificationRoute)).data.data.items, [], "Backer không được xem việc của cộng tác viên");
 const message = await request("/api/v1/me/dashboard", "POST", {
   action: "SEND_MESSAGE", payload: { campaignId, recipientUserId: "usr_hoang_linh",
     subject: "Hỏi về lõi lọc", body: "Nhóm có bán lõi thay thế sau khi giao không?" },
@@ -294,7 +299,7 @@ const assigned = await request(questionAssignmentRoute, "POST", {
 });
 assert.equal(assigned.status, 200, JSON.stringify(assigned.data));
 assert.ok((await readPage(`/creator/campaigns/${campaignId}/manage`)).html.includes("Người phụ trách: Lê Gia Huy"));
-assert.equal((await request(notificationRoute)).status, 403, "Chủ dự án không được xem thông báo riêng của cộng tác viên");
+assert.deepEqual((await request(notificationRoute)).data.data.items, [], "Chủ dự án không được xem thông báo riêng của cộng tác viên");
 assert.equal((await request(questionAssignmentRoute, "POST", {
   campaignId, commentId: comment.data.data.recordId, assigneeUserId: "usr_gia_huy",
 })).status, 200, "Giao lại cùng người phải là thao tác idempotent");

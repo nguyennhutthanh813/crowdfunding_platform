@@ -46,6 +46,7 @@ export function AcceptPreviewInvitation({ campaignId }: { campaignId: string }) 
   const { establishSession } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmDecline, setConfirmDecline] = useState(false);
   async function accept() {
     setBusy(true);
     setError("");
@@ -60,9 +61,30 @@ export function AcceptPreviewInvitation({ campaignId }: { campaignId: string }) 
       setError(clientRequestMessage(cause, "Chưa nhận được lời mời. Bạn thử lại nhé."));
     } finally { setBusy(false); }
   }
-  return <div><button type="button" className="button-primary min-h-11" disabled={busy} onClick={() => void accept()}>
+  async function decline() {
+    setBusy(true);
+    setError("");
+    try {
+      await clientRequest("/api/v1/collaborator/invitations", {
+        method: "POST", body: JSON.stringify({ action: "DECLINE", campaignId }),
+      });
+      setConfirmDecline(false);
+      router.refresh();
+    } catch (cause) {
+      setError(clientRequestMessage(cause, "Chưa từ chối được lời mời. Bạn thử lại nhé."));
+    } finally { setBusy(false); }
+  }
+  return <div><div className="flex flex-wrap items-center gap-3"><button type="button" className="button-primary min-h-11" disabled={busy} onClick={() => void accept()}>
     <Check className="size-4" /> {busy ? "Đang lưu…" : "Chấp nhận tham gia"}
-  </button>{error ? <p role="alert" className="mt-2 text-sm text-red-700">{error}</p> : null}</div>;
+  </button><button type="button" className="min-h-11 text-sm font-bold text-ink-soft underline-offset-2 hover:underline" disabled={busy} onClick={() => setConfirmDecline(true)}>Từ chối</button></div>
+    {error ? <p role="alert" className="mt-2 text-sm text-red-700">{error}</p> : null}
+    <Modal open={confirmDecline} title="Từ chối lời mời?"
+      description="Lời mời này sẽ biến mất khỏi bảng việc. Chủ dự án có thể xem lịch sử và mời lại bạn sau."
+      onClose={() => { if (!busy) setConfirmDecline(false); }} locked={busy} size="sm">
+      <div className="flex justify-end gap-2"><button type="button" className="button-secondary" disabled={busy} onClick={() => setConfirmDecline(false)}>Giữ lời mời</button>
+        <button type="button" className="button-dark" disabled={busy} onClick={() => void decline()}>{busy ? "Đang lưu…" : "Xác nhận từ chối"}</button></div>
+    </Modal>
+  </div>;
 }
 
 export function PublishPreviewUpdate({

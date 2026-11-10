@@ -52,7 +52,8 @@ export default async function AccountPage() {
             </p>
           </div>
         </div>
-        <AccountWorkspace teamCampaigns={teamCampaigns} />
+        <AccountWorkspace teamCampaigns={teamCampaigns}
+          registeredAccount={Boolean(session && platform.registeredAccounts.some((account) => account.id === session.user.id))} />
       </section>
     </RoleGate>
   );

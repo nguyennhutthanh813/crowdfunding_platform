@@ -50,6 +50,30 @@ const registered = await invited("/api/v1/auth/session", "POST", {
 });
 assert.equal(registered.status, 201, JSON.stringify(registered.data));
 const invitedId = registered.data.user.id;
+const oldPassword = "thu-an-demo-2026";
+const newPassword = "thu-an-moi-2027";
+const preferences = {
+  projectUpdates: false, pledgeStatus: true, recommendations: false,
+  creatorTasks: true, moderationAlerts: false,
+};
+assert.equal((await invited("/api/v1/auth/session", "PATCH", {
+  notificationPreferences: preferences,
+})).status, 200);
+assert.equal((await invited("/api/v1/me/dashboard", "POST", {
+  action: "CHANGE_PASSWORD", payload: { currentPassword: "sai-mat-khau", newPassword },
+})).status, 422);
+assert.equal((await invited("/api/v1/me/dashboard", "POST", {
+  action: "CHANGE_PASSWORD", payload: { currentPassword: oldPassword, newPassword },
+})).status, 200);
+assert.equal((await invited("/api/v1/auth/session", "DELETE")).status, 200);
+assert.equal((await invited("/api/v1/auth/session", "POST", {
+  mode: "SIGN_IN", email, password: oldPassword,
+})).status, 401);
+const signedInAgain = await invited("/api/v1/auth/session", "POST", {
+  mode: "SIGN_IN", email, password: newPassword,
+});
+assert.equal(signedInAgain.status, 200);
+assert.deepEqual(signedInAgain.data.previewState.notificationPreferences, preferences);
 const title = `Bếp Mây ${Date.now().toString().slice(-6)} — bộ lọc nước nhỏ`;
 const created = await creator("/api/v1/creator/campaigns", "POST", {
   action: "CREATE",
@@ -98,7 +122,14 @@ try {
   assert.equal(permission?.can_view_ai, 1);
 } finally { permissionDb.close(); }
 assert.equal((await stranger("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 403);
+assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "DECLINE", campaignId })).status, 200);
+assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 403);
+assert.equal((await creator(teamUrl, "POST", {
+  action: "INVITE", campaignId, email, name: "Nguyễn Thu An",
+  canUpdate: false, canReply: false, canViewAi: true,
+})).status, 200);
 assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "ACCEPT", campaignId })).status, 200);
+assert.equal((await invited("/api/v1/collaborator/invitations", "POST", { action: "DECLINE", campaignId })).status, 409);
 assert.equal(memberStatus(), "ACTIVE");
 const joinedSession = await invited("/api/v1/auth/session");
 assert.ok(joinedSession.data.data.user.roles.includes("COLLABORATOR"));

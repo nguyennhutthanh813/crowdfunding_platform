@@ -210,10 +210,16 @@ export function CampaignWizard({
         issues.push("Phí giao hàng không được để trống hoặc nhỏ hơn 0.");
       }
       collaborators.forEach((member, index) => {
+        if (member.name.trim().length < 2 || member.name.trim().length > 80) {
+          issues.push(`Tên người dự kiến mời #${index + 1} cần từ 2 đến 80 ký tự.`);
+        }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(member.email.trim())) {
           issues.push(`Email cộng tác viên #${index + 1} chưa đúng định dạng.`);
         }
       });
+      if (new Set(collaborators.map((member) => member.email.trim().toLowerCase())).size !== collaborators.length) {
+        issues.push("Mỗi người chỉ cần ghi một lần theo email.");
+      }
     }
     if (step === 4 && readiness < 70) {
       issues.push("Bản nháp cần đạt ít nhất 70/100 trước khi gửi xét duyệt.");
@@ -1077,18 +1083,19 @@ export function CampaignWizard({
                       <UserPlus className="size-4" /> Cộng tác viên
                     </p>
                     <p className="mt-2 text-sm text-ink-soft">
-                      Quyền chỉ có hiệu lực trong chiến dịch này.
+                      Có thể để trống. Đây là danh sách dự kiến; sau khi hồ sơ được duyệt,
+                      người có đúng email mới thấy lời mời và tự xác nhận tham gia.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() =>
-                      setCollaborators((current) => [
+                      setCollaborators((current) => current.length >= 5 ? current : [
                         ...current,
                         {
                           id: Date.now(),
                           email: "",
-                          name: "Thành viên mới",
+                          name: "",
                           canUpdate: true,
                           canReply: true,
                           canViewAi: false,
@@ -1096,8 +1103,9 @@ export function CampaignWizard({
                       ])
                     }
                     className="button-secondary"
+                    disabled={collaborators.length >= 5}
                   >
-                    <Plus className="size-4" /> Mời thành viên
+                    <Plus className="size-4" /> Thêm người dự kiến
                   </button>
                 </div>
                 <div className="mt-4 space-y-4">
@@ -1109,11 +1117,11 @@ export function CampaignWizard({
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 flex-1 items-center gap-3">
                           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-forest font-display text-xs font-extrabold text-lime">
-                            {member.name
+                            {member.name.trim() ? member.name
                               .split(" ")
                               .slice(-2)
                               .map((part) => part[0])
-                              .join("")}
+                              .join("") : "?"}
                           </span>
                           <label className="min-w-0 flex-1">
                             <span className={inputLabel}>Email thành viên</span>
@@ -1151,15 +1159,22 @@ export function CampaignWizard({
                             )
                           }
                           className="grid size-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-red-50 hover:text-red-600"
-                          aria-label={`Gỡ ${member.name}`}
+                          aria-label={`Gỡ ${member.name || member.email || "người dự kiến mời"}`}
                         >
                           <Trash2 className="size-4" />
                         </button>
                       </div>
+                      <label className="mt-4 block">
+                        <span className={inputLabel}>Tên người dự kiến mời</span>
+                        <input name={`collaborator-name-${member.id}`} className="input-field mt-2"
+                          value={member.name} maxLength={80} minLength={2}
+                          onChange={(event) => updateCollaborator(member.id, "name", event.target.value)}
+                          placeholder="Ví dụ: Nguyễn Thu An" />
+                      </label>
                       <div className="mt-4 flex flex-wrap gap-2">
                         {[
-                          ["canUpdate", "Đăng update"],
-                          ["canReply", "Trả lời comment"],
+                          ["canUpdate", "Đăng cập nhật"],
+                          ["canReply", "Trả lời bình luận"],
                           ["canViewAi", "Xem dự báo"],
                         ].map(([key, label]) => (
                           <label
@@ -1416,7 +1431,7 @@ export function CampaignWizard({
                   </>
                 ) : (
                   <>
-                    <p>• Readiness đã vượt ngưỡng gửi duyệt.</p>
+                    <p>• Bản nháp đã đạt mức nội dung tối thiểu để gửi duyệt.</p>
                     <p>
                       • Quản trị viên vẫn là người quyết định cho giai đoạn chờ
                       mở.

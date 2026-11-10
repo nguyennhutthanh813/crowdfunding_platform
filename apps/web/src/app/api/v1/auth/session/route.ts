@@ -341,6 +341,8 @@ export async function PATCH(request: Request) {
       roles: nextSession.user.roles.filter((role) => role !== "COLLABORATOR"),
       activeRole: nextSession.user.activeRole === "COLLABORATOR"
         ? "BACKER" : nextSession.user.activeRole,
+      ...(isNotificationPreferences(body.notificationPreferences)
+        ? { notificationPreferences: body.notificationPreferences } : {}),
     };
     const platformFailure = writePlatformPreviewCookie(response, platformState);
     if (platformFailure) return platformFailure;

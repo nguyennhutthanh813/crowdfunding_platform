@@ -57,7 +57,7 @@ async function saveAccountAction(
   );
 }
 
-function ProfilePanel() {
+function ProfilePanel({ registeredAccount }: { registeredAccount: boolean }) {
   const { session, busy, updateProfile } = useAuth();
   const [name, setName] = useState(session?.user.name ?? "");
   const [headline, setHeadline] = useState(session?.user.headline ?? "");
@@ -83,8 +83,9 @@ function ProfilePanel() {
         Hồ sơ hiển thị trên Góp
       </h2>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-muted">
-        Bạn có thể sửa tên và giới thiệu cho lần dùng thử hiện tại. Thông tin
-        trong dữ liệu mẫu của các dự án chưa được thay đổi theo hồ sơ này.
+        {registeredAccount
+          ? "Tên và giới thiệu sẽ được giữ khi bạn đăng nhập lại trên máy này. Nội dung các dự án đã tạo không tự đổi theo hồ sơ."
+          : "Bạn có thể sửa tên và giới thiệu trong phiên dùng thử này. Dữ liệu mẫu của các dự án vẫn giữ nguyên."}
       </p>
 
       <form onSubmit={saveProfile} className="mt-7 max-w-2xl space-y-5">
@@ -310,7 +311,7 @@ function RolesPanel({ teamCampaigns }: { teamCampaigns: TeamCampaign[] }) {
   );
 }
 
-function NotificationsPanel() {
+function NotificationsPanel({ registeredAccount }: { registeredAccount: boolean }) {
   const { session, establishSession } = useAuth();
   const canSeeWork = Boolean(session);
   const [inbox, setInbox] = useState<Array<{
@@ -373,7 +374,9 @@ function NotificationsPanel() {
         },
       );
       establishSession(nextSession);
-      setNotice("Đã lưu lựa chọn trong phiên đăng nhập này.");
+      setNotice(registeredAccount
+        ? "Đã lưu lựa chọn cho tài khoản này."
+        : "Đã lưu lựa chọn cho phiên đăng nhập hiện tại.");
     } catch (error) {
       setNotice(
         clientRequestMessage(error, "Chưa thể lưu. Bạn thử lại sau nhé."),
@@ -504,7 +507,7 @@ function NotificationsPanel() {
   );
 }
 
-function SecurityPanel() {
+function SecurityPanel({ registeredAccount }: { registeredAccount: boolean }) {
   const { session } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -530,9 +533,11 @@ function SecurityPanel() {
         currentPassword,
         newPassword,
       });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
+      if (result.data.persisted) {
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
       setNotice(result.data.message);
     } catch (error) {
       setNotice(
@@ -571,10 +576,11 @@ function SecurityPanel() {
       </div>
 
       <p className="mt-5 max-w-2xl text-sm leading-6 text-ink-muted">
-        Đây là biểu mẫu thử, không đổi mật khẩu tài khoản mẫu. Chỉ dùng mật khẩu
-        dùng thử; không nhập mật khẩu bạn đang dùng ở dịch vụ khác.
+        {registeredAccount
+          ? "Tài khoản bạn tự đăng ký có thể đổi mật khẩu lưu trong dữ liệu local. Các phiên đã mở ở thiết bị khác chưa được thu hồi."
+          : "Tài khoản mẫu có mật khẩu cố định. Hãy đăng ký tài khoản riêng nếu muốn thử đổi mật khẩu."}
       </p>
-      <form onSubmit={changePassword} className="mt-7 max-w-2xl space-y-4">
+      {registeredAccount ? <form onSubmit={changePassword} className="mt-7 max-w-2xl space-y-4">
         <label className="block">
           <span className="text-xs font-bold text-ink-soft">
             Mật khẩu hiện tại
@@ -627,7 +633,7 @@ function SecurityPanel() {
             ) : (
               <KeyRound className="size-4" />
             )}
-            Kiểm tra biểu mẫu
+            Đổi mật khẩu
           </button>
           <p
             className={`text-xs ${notice.includes("Đã") ? "text-emerald-700" : "text-red-600"}`}
@@ -636,12 +642,12 @@ function SecurityPanel() {
             {notice}
           </p>
         </div>
-      </form>
+      </form> : <Link className="button-secondary mt-5" href="/auth?mode=register">Tạo tài khoản riêng</Link>}
     </div>
   );
 }
 
-export function AccountWorkspace({ teamCampaigns }: { teamCampaigns: TeamCampaign[] }) {
+export function AccountWorkspace({ teamCampaigns, registeredAccount }: { teamCampaigns: TeamCampaign[]; registeredAccount: boolean }) {
   const { session } = useAuth();
   const [activeTab, setActiveTab] = useQueryTab<AccountTab>(
     accountTabIds,
@@ -691,11 +697,11 @@ export function AccountWorkspace({ teamCampaigns }: { teamCampaigns: TeamCampaig
       </aside>
 
       <section className="surface-card min-w-0 rounded-[20px] p-5 sm:p-8 lg:p-10">
-        {visibleActiveTab === "profile" ? <ProfilePanel /> : null}
+        {visibleActiveTab === "profile" ? <ProfilePanel registeredAccount={registeredAccount} /> : null}
         {visibleActiveTab === "interests" ? <InterestPreferences /> : null}
         {visibleActiveTab === "roles" ? <RolesPanel teamCampaigns={teamCampaigns} /> : null}
-        {visibleActiveTab === "notifications" ? <NotificationsPanel /> : null}
-        {visibleActiveTab === "security" ? <SecurityPanel /> : null}
+        {visibleActiveTab === "notifications" ? <NotificationsPanel registeredAccount={registeredAccount} /> : null}
+        {visibleActiveTab === "security" ? <SecurityPanel registeredAccount={registeredAccount} /> : null}
       </section>
     </div>
   );

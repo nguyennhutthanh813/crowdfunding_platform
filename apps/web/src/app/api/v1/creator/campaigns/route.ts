@@ -46,8 +46,9 @@ function reviewProblem(draft: NonNullable<ReturnType<typeof buildCampaignDraftSn
   if (fields.shippingFee === undefined || !/^\d+$/.test(fields.shippingFee)) {
     return "Hãy nhập phí giao hàng bằng số không âm.";
   }
-  if (draft.collaborators?.some((item) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item.email))) {
-    return "Email cộng tác viên chưa hợp lệ.";
+  if (draft.collaborators?.some((item) =>
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item.email) || item.name.trim().length < 2)) {
+    return "Tên hoặc email người dự kiến mời chưa hợp lệ.";
   }
   return null;
 }

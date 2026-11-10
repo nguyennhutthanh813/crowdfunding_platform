@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { SessionResult, UserRole } from "@/lib/api/contracts";
 import { getInitialPreviewState } from "./preview-state";
+import type { NotificationPreferences } from "./notification-preferences";
 
 export interface StoredPreviewAccount {
   id: string;
@@ -15,6 +16,7 @@ export interface StoredPreviewAccount {
   passwordSalt: string;
   passwordHash: string;
   createdAt: string;
+  notificationPreferences?: NotificationPreferences;
 }
 
 function passwordHash(password: string, salt: string) {
@@ -48,6 +50,14 @@ export function verifyRegisteredPreviewPassword(
   );
 }
 
+export function changeRegisteredPreviewPassword(
+  account: StoredPreviewAccount,
+  newPassword: string,
+): StoredPreviewAccount {
+  const passwordSalt = randomBytes(16).toString("base64url");
+  return { ...account, passwordSalt, passwordHash: passwordHash(newPassword, passwordSalt) };
+}
+
 export function createRegisteredPreviewSession(
   account: StoredPreviewAccount,
   remember = false,
@@ -66,7 +76,12 @@ export function createRegisteredPreviewSession(
       roles: [...account.roles],
       activeRole: account.activeRole,
     },
-    previewState: getInitialPreviewState(account.id),
+    previewState: {
+      ...getInitialPreviewState(account.id),
+      ...(account.notificationPreferences
+        ? { notificationPreferences: { ...account.notificationPreferences } }
+        : {}),
+    },
     expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
     notice: "Đã đăng nhập lại tài khoản dùng thử vừa tạo.",
   };
