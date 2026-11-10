@@ -17,6 +17,7 @@ export interface StoredPreviewAccount {
   passwordHash: string;
   createdAt: string;
   notificationPreferences?: NotificationPreferences;
+  interests?: string[];
 }
 
 function passwordHash(password: string, salt: string) {
@@ -78,6 +79,7 @@ export function createRegisteredPreviewSession(
     },
     previewState: {
       ...getInitialPreviewState(account.id),
+      ...(account.interests ? { interests: [...account.interests] } : {}),
       ...(account.notificationPreferences
         ? { notificationPreferences: { ...account.notificationPreferences } }
         : {}),

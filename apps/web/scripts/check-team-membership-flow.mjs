@@ -56,8 +56,12 @@ const preferences = {
   projectUpdates: false, pledgeStatus: true, recommendations: false,
   creatorTasks: true, moderationAlerts: false,
 };
+const interests = ["green-living", "design"];
 assert.equal((await invited("/api/v1/auth/session", "PATCH", {
   notificationPreferences: preferences,
+})).status, 200);
+assert.equal((await invited("/api/v1/me/dashboard", "POST", {
+  action: "UPDATE_INTERESTS", payload: { interests },
 })).status, 200);
 assert.equal((await invited("/api/v1/me/dashboard", "POST", {
   action: "CHANGE_PASSWORD", payload: { currentPassword: "sai-mat-khau", newPassword },
@@ -74,6 +78,7 @@ const signedInAgain = await invited("/api/v1/auth/session", "POST", {
 });
 assert.equal(signedInAgain.status, 200);
 assert.deepEqual(signedInAgain.data.previewState.notificationPreferences, preferences);
+assert.deepEqual(signedInAgain.data.previewState.interests, interests);
 const title = `Bếp Mây ${Date.now().toString().slice(-6)} — bộ lọc nước nhỏ`;
 const created = await creator("/api/v1/creator/campaigns", "POST", {
   action: "CREATE",

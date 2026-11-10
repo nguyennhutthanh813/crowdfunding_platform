@@ -187,6 +187,16 @@ export async function POST(request: Request) {
       );
     }
     previewState.interests = [...new Set(interests)];
+    const accountIndex = platformState.registeredAccounts.findIndex(
+      (account) => account.id === access.session.user.id,
+    );
+    if (accountIndex >= 0) {
+      platformState.registeredAccounts[accountIndex] = {
+        ...platformState.registeredAccounts[accountIndex],
+        interests: [...previewState.interests],
+      };
+      platformPersisted = true;
+    }
   }
 
   if (body.action === "SAVE_PROJECT") {
