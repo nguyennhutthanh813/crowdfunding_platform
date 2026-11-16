@@ -10,7 +10,6 @@ import {
 } from "@xyflow/react";
 import {
   ArrowRight,
-  Box,
   CheckCircle2,
   ClipboardList,
   GitBranch,
@@ -23,10 +22,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
-import {
-  RoleStage3DScene,
-  type StageStepItem,
-} from "@/components/visuals/role-stage-3d-scene";
 import type { CampaignWorkspaceTask } from "@/lib/api";
 
 export type CollaboratorCampaignNodeItem = {
@@ -70,23 +65,23 @@ type TreeFocusItem = {
   timelineHref?: string;
 };
 
-const edgeColor = "#2869ac";
+const edgeColor = "#047857";
 
 function nodeStyle(selected: boolean, accent = false) {
   return {
     width: 224,
     borderRadius: 16,
     border: selected
-      ? "2px solid #173d65"
+      ? "2px solid #047857"
       : accent
-        ? "1px solid #8ab4da"
-        : "1px solid #c8d9ec",
-    background: selected ? "#173d65" : accent ? "#eaf3fb" : "#ffffff",
-    color: selected ? "#ffffff" : "#152b40",
+        ? "1px solid #A7F3D0"
+        : "1px solid #E2E8F0",
+    background: selected ? "#047857" : accent ? "#ECFDF5" : "#ffffff",
+    color: selected ? "#ffffff" : "#0F172A",
     padding: "12px 14px",
     boxShadow: selected
-      ? "0 14px 30px rgba(23, 61, 101, 0.2)"
-      : "0 8px 20px rgba(23, 61, 101, 0.06)",
+      ? "0 14px 30px rgba(4, 120, 87, 0.2)"
+      : "0 8px 20px rgba(15, 23, 42, 0.06)",
     cursor: "pointer",
   };
 }
@@ -106,7 +101,7 @@ function NodeLabel({
     <div className="text-left">
       <p
         className={`text-[10px] font-bold uppercase tracking-[0.14em] ${
-          selected ? "text-[#b8e3fb]" : "text-[#2869ac]"
+          selected ? "text-emerald-200" : "text-[#047857]"
         }`}
       >
         {step}
@@ -116,7 +111,7 @@ function NodeLabel({
       </p>
       <p
         className={`mt-1 line-clamp-2 text-[11px] leading-4 ${
-          selected ? "text-white/80" : "text-[#4f6781]"
+          selected ? "text-white/80" : "text-slate-600"
         }`}
       >
         {detail}
@@ -241,9 +236,9 @@ export function CollaboratorTaskTree({
 
   const [selectedId, setSelectedId] = useState(items[0]?.id ?? "");
   const [selectedNodeId, setSelectedNodeId] = useState("task");
-  const [displayMode, setDisplayMode] = useState<"flow" | "stage3d">("stage3d");
+  const [displayMode, setDisplayMode] = useState<"flow" | "cards">("flow");
   const [openModalNodeId, setOpenModalNodeId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const current = items.find((item) => item.id === selectedId) ?? items[0];
   if (!current) return null;
@@ -425,7 +420,7 @@ export function CollaboratorTaskTree({
     },
   ];
 
-  const collaboratorSteps: StageStepItem[] = (
+  const collaboratorSteps = (
     ["source", "task", "permission", "stage3d", "impact"] as const
   ).map((nodeKey, index) => ({
     id: nodeKey,
@@ -444,59 +439,56 @@ export function CollaboratorTaskTree({
   return (
     <section
       aria-label="Cây tác vụ và phân quyền cộng tác"
-      className="overflow-hidden rounded-[22px] border border-[#bfd4e7] bg-[#f4f8fc] p-5 text-[#152b40] shadow-[0_14px_34px_rgba(23,61,101,0.08)] sm:p-6"
+      className="overflow-hidden rounded-[20px] border border-line bg-surface p-5 text-ink shadow-card sm:p-6"
     >
-      <div className="flex flex-col justify-between gap-4 border-b border-[#d5e3f0] pb-5 lg:flex-row lg:items-end">
+      <div className="flex flex-col justify-between gap-4 border-b border-line pb-4 lg:flex-row lg:items-end">
         <div>
-          <p className="eyebrow text-[#2869ac]">
-            <GitBranch className="size-4" /> Cây tác vụ logic & phân quyền
+          <p className="eyebrow text-[#047857]">
+            <GitBranch className="size-4" /> Cây tác vụ logic &amp; phân quyền
           </p>
-          <h2 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em] sm:text-3xl">
+          <h2 className="mt-1.5 font-display text-xl font-extrabold tracking-[-0.03em] sm:text-2xl">
             Bản đồ tác vụ cộng tác của {collaboratorName}
           </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#48617a]">
-            Chọn một đầu việc hoặc chiến dịch được mời để xem luồng giao việc từ
-            Chủ dự án, phạm vi quyền trong chiến dịch, vị trí trên mô hình hành
-            trình và nơi nhận kết quả bàn giao.
+          <p className="mt-1.5 max-w-2xl text-xs leading-5 text-ink-soft">
+            Chọn một đầu việc hoặc chiến dịch được mời để xem luồng giao việc từ Chủ dự án, phạm vi quyền và nơi nhận kết quả bàn giao.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-xl border border-[#c8d9ec] bg-white p-1" role="group" aria-label="Chế độ hiển thị tác vụ cộng tác">
+          <div className="inline-flex rounded-xl border border-line bg-canvas-soft p-1" role="group" aria-label="Chế độ hiển thị tác vụ cộng tác">
             <button
               type="button"
               aria-pressed={displayMode === "flow" && expanded}
               onClick={() => { setDisplayMode("flow"); setExpanded(true); }}
               className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
-                displayMode === "flow" && expanded ? "bg-[#173d65] text-white" : "text-[#1f4263] hover:bg-[#eaf3fb]"
+                displayMode === "flow" && expanded ? "bg-[#047857] text-white" : "text-ink-soft hover:bg-surface hover:text-ink"
               }`}
             >
               <GitBranch className="size-3.5" /> Sơ đồ cây
             </button>
             <button
               type="button"
-              aria-pressed={displayMode === "stage3d" && expanded}
-              onClick={() => { setDisplayMode("stage3d"); setExpanded(true); }}
+              aria-pressed={displayMode === "cards" && expanded}
+              onClick={() => { setDisplayMode("cards"); setExpanded(true); }}
               className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
-                displayMode === "stage3d" && expanded ? "bg-[#173d65] text-white" : "text-[#1f4263] hover:bg-[#eaf3fb]"
+                displayMode === "cards" && expanded ? "bg-[#047857] text-white" : "text-ink-soft hover:bg-surface hover:text-ink"
               }`}
             >
-              <Box className="size-3.5" /> Sa bàn 3D
+              <Layers className="size-3.5" /> Danh sách thẻ
             </button>
           </div>
           <button
             type="button"
             aria-expanded={expanded}
             onClick={() => setExpanded((current) => !current)}
-            className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#173d65] bg-[#173d65] px-3.5 text-xs font-bold text-white hover:bg-[#102c49]"
+            className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#047857] bg-[#047857] px-3.5 text-xs font-bold text-white hover:bg-[#065F46]"
           >
-            {expanded ? "Thu gọn sơ đồ" : "Mở sơ đồ cây & Sa bàn 3D"}
+            {expanded ? "Thu gọn sơ đồ" : "Mở sơ đồ quy trình"}
           </button>
-          <span className="w-fit rounded-lg border border-[#bfd4e7] bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#173d65]">
-            {current.code}
-          </span>
         </div>
       </div>
 
+      {expanded ? (
+      <>
       <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Chọn tác vụ hoặc chiến dịch cộng tác">
         {items.map((item) => {
           const active = item.id === current.id;
@@ -513,8 +505,8 @@ export function CollaboratorTaskTree({
               }}
               className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3.5 py-2 text-left text-xs font-bold transition ${
                 active
-                  ? "border-[#173d65] bg-[#173d65] text-white"
-                  : "border-[#c8d9ec] bg-white text-[#1f4263] hover:border-[#2869ac]"
+                  ? "border-[#047857] bg-[#047857] text-white"
+                  : "border-line bg-canvas-soft text-ink-soft hover:border-[#059669] hover:text-ink"
               }`}
             >
               {item.kind === "TASK" ? (
@@ -528,28 +520,87 @@ export function CollaboratorTaskTree({
         })}
       </div>
 
-      {expanded ? (
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
-          {displayMode === "stage3d" ? (
-            <RoleStage3DScene
-              tone="blue"
-              eyebrow="Phần việc được giao"
-              title="Sân khấu 5 chặng bàn giao tác vụ cộng tác"
-              centerLabel={current.title}
-              centerSubtext={`${current.campaignTitle} · ${current.statusLabel}`}
-              steps={collaboratorSteps}
-              activeStepId={selectedNodeId}
-              onSelectStep={(stepId) => setSelectedNodeId(stepId)}
-              onInspectStep={(stepId) => {
-                setSelectedNodeId(stepId);
-                setOpenModalNodeId(stepId);
-              }}
-              compact
-            />
+          {displayMode === "cards" ? (
+            <div className="rounded-2xl border border-line bg-canvas-soft/60 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#047857]">
+                    Phần việc được giao · {current.statusLabel}
+                  </p>
+                  <h4 className="mt-0.5 text-sm font-bold text-ink">
+                    {current.title}
+                  </h4>
+                </div>
+                <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 text-[11px] font-bold text-[#047857]">
+                  {current.campaignTitle}
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {collaboratorSteps.map((step) => {
+                  const isActive = selectedNodeId === step.id;
+                  return (
+                    <div
+                      key={step.id}
+                      className={`flex flex-col justify-between rounded-xl border p-3.5 transition ${
+                        isActive
+                          ? "border-[#047857] bg-[#ECFDF5]/60"
+                          : "border-line bg-surface hover:border-[#059669]/45"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="rounded-md bg-[#047857]/10 px-2 py-0.5 text-[11px] font-extrabold text-[#047857]">
+                            Chặng {step.code}
+                          </span>
+                          {step.metric ? (
+                            <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-[#047857] ring-1 ring-line">
+                              {step.metric}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs font-bold uppercase tracking-[0.1em] text-[#047857]">
+                          {step.title}
+                        </p>
+                        <p className="mt-0.5 text-sm font-bold text-ink">
+                          {step.subtitle}
+                        </p>
+                        <p className="mt-1.5 text-xs leading-5 text-ink-soft">
+                          {step.detail}
+                        </p>
+                      </div>
+                      <div className="mt-3 flex items-center gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNodeId(step.id)}
+                          className={`inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-bold transition ${
+                            isActive
+                              ? "bg-[#047857] text-white"
+                              : "border border-line bg-surface text-ink-soft hover:bg-canvas-soft"
+                          }`}
+                        >
+                          {isActive ? "Đang chọn" : "Chọn chặng"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedNodeId(step.id);
+                            setOpenModalNodeId(step.id);
+                          }}
+                          className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-xs font-bold text-ink-soft hover:bg-canvas-soft"
+                        >
+                          Chi tiết <ArrowRight className="size-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
             <>
-              <div className="hidden h-[300px] overflow-hidden rounded-2xl border border-[#c8d9ec] bg-white lg:block">
+              <div className="hidden h-[300px] overflow-hidden rounded-2xl border border-line bg-surface lg:block">
                 <ReactFlow
                   key={current.id}
                   nodes={nodes}
@@ -570,7 +621,7 @@ export function CollaboratorTaskTree({
                     setOpenModalNodeId(node.id);
                   }}
                 >
-                  <Background color="#d9e6f2" gap={18} />
+                  <Background color="#cbd5e1" gap={18} />
                 </ReactFlow>
               </div>
 
@@ -587,13 +638,13 @@ export function CollaboratorTaskTree({
                       }}
                       className={`rounded-xl border p-3.5 text-left transition ${
                         selected
-                          ? "border-[#173d65] bg-[#173d65] text-white"
-                          : "border-[#c8d9ec] bg-white text-[#152b40]"
+                          ? "border-[#047857] bg-[#047857] text-white"
+                          : "border-line bg-surface text-ink"
                       }`}
                     >
                       <p
                         className={`text-[10px] font-bold uppercase tracking-[0.14em] ${
-                          selected ? "text-[#b8e3fb]" : "text-[#2869ac]"
+                          selected ? "text-emerald-200" : "text-[#047857]"
                         }`}
                       >
                         {item.step}
@@ -603,7 +654,7 @@ export function CollaboratorTaskTree({
                       </p>
                       <p
                         className={`mt-1 text-xs leading-5 ${
-                          selected ? "text-white/80" : "text-[#48617a]"
+                          selected ? "text-white/80" : "text-ink-soft"
                         }`}
                       >
                         {item.summary}
@@ -616,28 +667,28 @@ export function CollaboratorTaskTree({
           )}
         </div>
 
-        <aside className="flex flex-col justify-between rounded-2xl border border-[#c8d9ec] bg-white p-4 sm:p-5">
+        <aside className="flex flex-col justify-between rounded-2xl border border-line bg-canvas-soft/60 p-4 sm:p-5">
           <div>
             <div className="flex items-center justify-between gap-2">
-              <span className="rounded-md bg-[#e8f1fa] px-2.5 py-1 text-[11px] font-bold text-[#1f568b]">
+              <span className="rounded-md bg-[#ECFDF5] px-2.5 py-1 text-[11px] font-bold text-[#047857]">
                 {activeNode.step}
               </span>
-              <span className="text-[11px] font-semibold text-[#557089]">
-                Xem chi tiết
+              <span className="text-[11px] font-semibold text-ink-muted">
+                {current.code}
               </span>
             </div>
-            <h3 className="mt-3 font-display text-lg font-extrabold leading-snug">
+            <h3 className="mt-3 font-display text-lg font-extrabold leading-snug text-ink">
               {activeNode.title}
             </h3>
-            <p className="mt-2 text-xs leading-6 text-[#48617a]">
+            <p className="mt-2 text-xs leading-6 text-ink-soft">
               {activeNode.detail}
             </p>
 
-            <div className="mt-4 overflow-hidden rounded-xl border border-[#d7e5f2] bg-[#f4f8fc] p-3">
+            <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface p-3">
               <div className="flex items-center gap-3">
-                <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg border border-[#c8d9ec] bg-white">
+                <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg border border-line bg-canvas-soft">
                   <Image
-                    src="/images/editorial/hanh-trinh-du-an-3d.png"
+                    src="/images/3d/ecosystem-launchpad-3d.jpg"
                     alt="Minh họa 3D hành trình bốn chặng của dự án"
                     fill
                     sizes="80px"
@@ -645,13 +696,13 @@ export function CollaboratorTaskTree({
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#2869ac]">
-                    <Layers className="size-3" /> Vị trí trên mô hình 3D
+                  <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#047857]">
+                    <Layers className="size-3" /> Giai đoạn thực hiện
                   </p>
-                  <p className="mt-0.5 truncate text-xs font-extrabold text-[#152b40]">
+                  <p className="mt-0.5 truncate text-xs font-extrabold text-ink">
                     {current.stageLabel}
                   </p>
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#48617a]">
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-ink-soft">
                     {current.dueOrMeta}
                   </p>
                 </div>
@@ -659,23 +710,24 @@ export function CollaboratorTaskTree({
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-[#e2ecf5] pt-4">
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
             <button
               type="button"
               onClick={() => setOpenModalNodeId(selectedNodeId)}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#b7cee5] bg-[#f4f8fc] px-3.5 text-xs font-bold text-[#173d65] hover:bg-[#e6f0f9]"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-xs font-bold text-ink hover:border-[#047857]"
             >
-              <Sparkles className="size-3.5" /> Chi tiết nút & mô hình 3D
+              <Sparkles className="size-3.5 text-[#7C3AED]" /> Chi tiết nút 3D
             </button>
             <Link
               href={current.actionHref}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-[#173d65] px-3.5 text-xs font-bold text-white hover:bg-[#215080]"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-[#047857] px-3.5 text-xs font-bold text-white hover:bg-[#065F46]"
             >
               {current.actionLabel} <ArrowRight className="size-3.5" />
             </Link>
           </div>
         </aside>
       </div>
+      </>
       ) : null}
 
       <Modal
@@ -708,10 +760,10 @@ export function CollaboratorTaskTree({
         <div className="space-y-4 text-sm leading-6 text-ink-soft">
           <div className="overflow-hidden rounded-2xl border border-[#c8d9ec] bg-[#f4f8fc] p-3.5">
             <div className="grid gap-4 sm:grid-cols-[180px_1fr] sm:items-center">
-              <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-[#c8d9ec] bg-white">
+              <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-line bg-surface">
                 <Image
-                  src="/images/editorial/hanh-trinh-du-an-3d.png"
-                  alt="Mô hình 3D bốn chặng của dự án trên Góp"
+                  src="/images/3d/ecosystem-launchpad-3d.jpg"
+                  alt="Mô hình 3D bốn chặng của dự án trên FundViet"
                   fill
                   sizes="180px"
                   className="object-cover"

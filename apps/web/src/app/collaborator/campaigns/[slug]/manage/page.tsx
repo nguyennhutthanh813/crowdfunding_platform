@@ -53,7 +53,7 @@ export default async function PreviewCollaboratorPage({ params }: {
   });
 
   return <section className="min-h-screen bg-[var(--canvas)] pb-16">
-    <div className="border-b border-[#c8d9ec] bg-[#e8f0f8] py-8 sm:py-10"><div className="container-shell">
+    <div className="border-b border-slate-200 bg-surface py-8 sm:py-10"><div className="container-shell">
       <Link href="/collaborator" className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-[#315b86]"><ArrowLeft className="size-4" /> Về bảng việc</Link>
       <div className="mt-3 flex flex-wrap items-center gap-2"><StatusBadge status={campaign.status} /><span className="text-xs text-[#315b86]">Cộng tác viên · đã nhận lời mời</span></div>
       <h1 className="mt-4 max-w-3xl font-display text-3xl font-extrabold tracking-tight sm:text-4xl">{campaign.title}</h1>
@@ -84,24 +84,27 @@ export default async function PreviewCollaboratorPage({ params }: {
         </section> : <section className="rounded-[20px] border border-dashed border-[#c8d9ec] bg-white p-5 text-sm text-ink-soft">
           {campaign.status !== "LIVE" ? "Chiến dịch chưa mở hoặc đang tạm dừng, nên chưa đăng cập nhật." : "Chủ dự án chưa cấp quyền đăng cập nhật cho bạn."}
         </section>}
-        <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 sm:p-7">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <details className="group/ctv-upd rounded-[20px] border border-[#c8d9ec] bg-white p-5 sm:p-7">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
             <h2 className="font-display text-xl font-extrabold">
-              Bản tin cập nhật của chiến dịch
+              Bản tin cập nhật của chiến dịch ({updates.length} bản tin)
             </h2>
-            <span className="text-xs text-ink-muted">
-              {updates.length} bản tin đã đăng
+            <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+              <span className="group-open/ctv-upd:hidden">Mở lịch sử bản tin ↓</span>
+              <span className="hidden group-open/ctv-upd:inline">Thu gọn ↑</span>
             </span>
+          </summary>
+          <div className="mt-4 border-t border-line pt-4">
+            {updates.length ? (
+              <PreviewCampaignUpdateHistory campaignId={slug} updates={updates}
+                manager={{ role: "collaborator", userId: session.user.id }} />
+            ) : (
+              <p className="text-sm text-ink-muted">
+                Chưa có bài cập nhật nào được đăng trong hồ sơ này.
+              </p>
+            )}
           </div>
-          {updates.length ? (
-            <PreviewCampaignUpdateHistory campaignId={slug} updates={updates}
-              manager={{ role: "collaborator", userId: session.user.id }} />
-          ) : (
-            <p className="mt-3 text-sm text-ink-muted">
-              Chưa có bài cập nhật nào được đăng trong hồ sơ này.
-            </p>
-          )}
-        </section>
+        </details>
         <CampaignDiscussionDesk campaignId={slug} comments={campaign.comments} role="COLLABORATOR"
           canReply={invitation.permissions.canReply && campaign.status !== "SUSPENDED"} paused={campaign.status === "SUSPENDED"}
           viewerId={session.user.id}

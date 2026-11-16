@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import type { CreatorPortfolioData } from "@/lib/api/contracts";
 import { CreatorCampaignTree } from "@/components/creator/creator-campaign-tree";
+import { QuickRoleDock } from "@/components/workspace/quick-role-switcher";
 
 const onboardingSteps = [
   {
@@ -44,13 +45,13 @@ export function CreatorOnboarding({
   const campaigns = portfolio.campaigns;
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
-      <div className={`border-b border-forest/10 bg-[#e5ece3] text-ink ${campaigns.length ? "py-7 sm:py-10" : "py-12 sm:py-16"}`}>
+      <div className={`border-b border-line bg-surface text-ink ${campaigns.length ? "py-7 sm:py-10" : "py-12 sm:py-16"}`}>
         <div className={campaigns.length ? "container-shell" : "container-shell grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center"}>
           <div>
-            <span className="eyebrow text-forest">
+            <span className="eyebrow text-[#047857]">
               <Rocket className="size-4" /> Không gian Chủ dự án
             </span>
-            <h1 className={`mt-3 max-w-3xl font-display font-extrabold tracking-[-0.055em] ${campaigns.length ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"}`}>
+            <h1 className={`mt-3 max-w-3xl font-display font-extrabold tracking-[-0.04em] ${campaigns.length ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"}`}>
               {campaigns.length
                 ? `Chào ${givenName}, bạn có ${campaigns.length} chiến dịch.`
                 : `Chào ${givenName}, vai trò Chủ dự án đã sẵn sàng.`}
@@ -58,30 +59,36 @@ export function CreatorOnboarding({
             <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
               {campaigns.length
                 ? "Mỗi chiến dịch có hồ sơ, thành viên nhóm và tiến độ vận hành riêng biệt."
-                : "Bạn chưa có chiến dịch. Hãy bắt đầu bằng một hồ sơ ngắn; có thể lưu nháp trước khi gửi xét duyệt."}
+                : "Bạn chưa có chiến dịch. Hãy bắt đầu tạo mới hoặc chọn hồ sơ Chủ dự án Hoàng Linh để xem chiến dịch đang chạy."}
             </p>
             {campaigns.length ? <div className="mt-5 flex flex-wrap gap-2.5">
               <Link href="#my-campaigns" className="button-dark min-h-11">Xem chiến dịch của tôi <ArrowRight className="size-4" /></Link>
               <Link href="/creator/campaigns/new" className="button-secondary min-h-11">Tạo chiến dịch mới <Plus className="size-4" /></Link>
             </div> : null}
           </div>
-          {!campaigns.length ? <div className="rounded-[16px] border border-forest/12 bg-white p-5">
-            <p className="text-[11px] font-bold text-forest">
+          {!campaigns.length ? <div className="rounded-[16px] border border-line bg-canvas-soft p-5">
+            <p className="text-[11px] font-bold text-[#047857]">
               Trạng thái tài khoản
             </p>
             <p className="mt-3 font-display text-xl font-extrabold">
-              Chưa có chiến dịch của bạn
+              Chưa có chiến dịch riêng
             </p>
             <p className="mt-2 text-xs leading-6 text-ink-muted">
-              {localDbAvailable
-                ? "Hồ sơ nháp, gói quà và kết quả xét duyệt được lưu trong SQLite trên máy này, theo tài khoản của bạn."
-                : "Hồ sơ nháp và gói quà chỉ được lưu tạm trong trình duyệt này để bạn thử quy trình."}
+              Bấm Tạo chiến dịch mới hoặc chọn vai trò Chủ dự án Hoàng Linh bên dưới để trải nghiệm đầy đủ số liệu.
             </p>
           </div> : null}
         </div>
       </div>
 
       <div className="container-shell py-10 sm:py-14">
+        {!campaigns.length ? (
+          <div className="mb-6 rounded-2xl border border-line bg-surface p-5 shadow-card">
+            <p className="mb-3 text-xs font-extrabold uppercase tracking-wider text-[#047857]">
+              Chuyển nhanh 1 chạm theo vai trò mẫu:
+            </p>
+            <QuickRoleDock />
+          </div>
+        ) : null}
         {campaigns.length ? <div id="my-campaigns" className="scroll-mt-28"><CreatorCampaignTree portfolio={portfolio} localDbAvailable={localDbAvailable} /></div> : null}
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <article className="rounded-[20px] border border-line bg-white p-6 sm:p-8">

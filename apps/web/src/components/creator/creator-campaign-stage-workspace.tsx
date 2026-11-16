@@ -143,9 +143,9 @@ function DraftOrReviewWorkspace({
               role="tab"
               aria-selected={tab === item.id}
               onClick={() => setTab(item.id)}
-              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-xs font-bold ${tab === item.id ? "bg-forest text-white" : "text-ink-soft hover:bg-forest/5"}`}
+              className={`flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 text-xs font-bold ${tab === item.id ? "bg-[#047857] text-white" : "text-ink-soft hover:bg-[#ECFDF5]"}`}
             >
-              <Icon className={`size-4 ${tab === item.id ? "text-lime" : "text-ink-muted"}`} />
+              <Icon className={`size-4 ${tab === item.id ? "text-emerald-100" : "text-ink-muted"}`} />
               {item.label}
             </button>
           );
@@ -171,7 +171,7 @@ function DraftOrReviewWorkspace({
           <article className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
               <div>
-                <p className="eyebrow text-[#587024]">
+                <p className="eyebrow text-[#047857]">
                   <FilePenLine className="size-4" /> Hồ sơ đang chuẩn bị
                 </p>
                 <h2 className="mt-3 font-display text-2xl font-extrabold tracking-[-0.035em]">
@@ -186,44 +186,55 @@ function DraftOrReviewWorkspace({
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[14px] bg-[#f2f4eb] p-4">
+              <div className="rounded-[14px] bg-canvas-soft p-4">
                 <p className="text-xs text-ink-muted">Mục tiêu dự kiến</p>
                 <p className="mt-2 font-display text-xl font-extrabold tabular-nums">
                   {formatVnd(campaign.goalAmount, true)}
                 </p>
               </div>
-              <div className="rounded-[14px] bg-[#f2f4eb] p-4">
+              <div className="rounded-[14px] bg-canvas-soft p-4">
                 <p className="text-xs text-ink-muted">Nhóm hiện tại</p>
                 <p className="mt-2 font-display text-xl font-extrabold tabular-nums">
                   {campaign.teamSize} người
                 </p>
               </div>
-              <div className="rounded-[14px] bg-[#f2f4eb] p-4">
+              <div className="rounded-[14px] bg-canvas-soft p-4">
                 <p className="text-xs text-ink-muted">Cam kết</p>
                 <p className="mt-2 font-display text-xl font-extrabold tabular-nums">0</p>
                 <p className="mt-1 text-[11px] text-ink-muted">Chưa mở gọi vốn</p>
               </div>
             </div>
 
-            <div className="mt-7 space-y-1">
-              {checklist.map(([label, detail, done], index) => (
-                <div
-                  key={label}
-                  className="grid gap-3 border-b border-line py-4 last:border-b-0 sm:grid-cols-[36px_minmax(0,1fr)_auto] sm:items-center"
-                >
-                  <span className={`grid size-9 place-items-center rounded-full ${done ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                    {done ? <Check className="size-4" /> : index + 1}
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold">{label}</p>
-                    <p className="mt-1 text-xs leading-5 text-ink-muted">{detail}</p>
+            <details className="group/chk mt-7 rounded-2xl border border-slate-200 bg-canvas-soft/60 p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-bold text-ink [&::-webkit-details-marker]:hidden">
+                <span>
+                  Danh sách kiểm tra hồ sơ ({checklist.filter(([, , done]) => done).length}/{checklist.length} mục đạt)
+                </span>
+                <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+                  <span className="group-open/chk:hidden">Mở danh sách kiểm tra ↓</span>
+                  <span className="hidden group-open/chk:inline">Thu gọn ↑</span>
+                </span>
+              </summary>
+              <div className="mt-3 space-y-1 border-t border-line pt-2">
+                {checklist.map(([label, detail, done], index) => (
+                  <div
+                    key={label}
+                    className="grid gap-3 border-b border-line py-4 last:border-b-0 sm:grid-cols-[36px_minmax(0,1fr)_auto] sm:items-center"
+                  >
+                    <span className={`grid size-9 place-items-center rounded-full ${done ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                      {done ? <Check className="size-4" /> : index + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold">{label}</p>
+                      <p className="mt-1 text-xs leading-5 text-ink-muted">{detail}</p>
+                    </div>
+                    <span className="text-[11px] font-bold text-ink-muted">
+                      {done ? "Đã có dữ liệu" : "Cần xử lý"}
+                    </span>
                   </div>
-                  <span className="text-[11px] font-bold text-ink-muted">
-                    {done ? "Đã có dữ liệu" : "Cần xử lý"}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </details>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               {isReady ? (
@@ -292,9 +303,9 @@ function DraftOrReviewWorkspace({
           </aside>
         </div>
       ) : (
-        <section className="mt-5 overflow-hidden rounded-[20px] border border-line bg-white">
-          <div className="border-b border-line bg-[#f4f5ef] p-5 sm:p-7">
-            <p className="eyebrow text-[#587024]">
+        <section className="mt-5 overflow-hidden rounded-[20px] border border-line bg-surface">
+          <div className="border-b border-line bg-canvas-soft p-5 sm:p-7">
+            <p className="eyebrow text-[#047857]">
               <BadgeCheck className="size-4" /> Luồng duyệt có người quyết định
             </p>
             <h2 className="mt-3 font-display text-2xl font-extrabold">
@@ -316,7 +327,7 @@ function DraftOrReviewWorkspace({
                 key={String(step)}
                 className="border-b border-line p-5 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0"
               >
-                <span className={`grid size-9 place-items-center rounded-full text-xs font-extrabold ${done ? "bg-emerald-100 text-emerald-800" : "bg-[#eceee7] text-ink-muted"}`}>
+                <span className={`grid size-9 place-items-center rounded-full text-xs font-extrabold ${done ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-ink-muted"}`}>
                   {done ? <Check className="size-4" /> : index + 1}
                 </span>
                 <p className="mt-4 text-sm font-extrabold">{label}</p>
@@ -487,9 +498,9 @@ function SuccessfulWorkspace({
               role="tab"
               aria-selected={tab === item.id}
               onClick={() => setTab(item.id)}
-              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-xs font-bold ${tab === item.id ? "bg-forest text-white" : "text-ink-soft hover:bg-forest/5"}`}
+              className={`flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 text-xs font-bold ${tab === item.id ? "bg-[#047857] text-white" : "text-ink-soft hover:bg-[#ECFDF5]"}`}
             >
-              <Icon className={`size-4 ${tab === item.id ? "text-lime" : "text-ink-muted"}`} />
+              <Icon className={`size-4 ${tab === item.id ? "text-emerald-100" : "text-ink-muted"}`} />
               {item.label}
             </button>
           );
@@ -512,7 +523,7 @@ function SuccessfulWorkspace({
 
       {tab === "overview" ? (
         <div className="mt-5 space-y-5">
-          <section className="overflow-hidden rounded-[22px] bg-[#102a22] text-white">
+          <section className="overflow-hidden rounded-[22px] bg-[#0b1f16] text-white">
             <div className="grid lg:grid-cols-[1.2fr_0.8fr]">
               <div className="p-6 sm:p-8">
                 <div className="flex flex-wrap items-center gap-2">
@@ -558,10 +569,10 @@ function SuccessfulWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
+          <section className="rounded-[20px] border border-line bg-surface p-5 sm:p-7">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
-                <p className="eyebrow text-[#587024]">
+                <p className="eyebrow text-[#047857]">
                   <PackageCheck className="size-4" /> Bốn mốc sau gọi vốn
                 </p>
                 <h2 className="mt-3 font-display text-2xl font-extrabold">
@@ -583,8 +594,8 @@ function SuccessfulWorkspace({
                 ["03", "Xác nhận địa chỉ", `${addressPercent}% đã đủ`],
                 ["04", "Giao quà", "Theo dõi từng đơn"],
               ].map(([step, label, detail]) => (
-                <div key={step} className="border-l-2 border-[#cbdc72] bg-[#f5f6f0] p-4">
-                  <p className="text-[11px] font-extrabold text-[#71813a]">{step}</p>
+                <div key={step} className="rounded-r-xl border-l-2 border-[#059669] bg-canvas-soft p-4">
+                  <p className="text-[11px] font-extrabold text-[#047857]">{step}</p>
                   <p className="mt-3 text-sm font-extrabold">{label}</p>
                   <p className="mt-1 text-xs text-ink-muted">{detail}</p>
                 </div>
@@ -601,18 +612,18 @@ function SuccessfulWorkspace({
               { label: "Chờ phản hồi", value: formatNumber(operations.fulfillment.currentCampaign.surveyPendingCount), icon: AlertCircle },
               { label: "Đã giao trong mẫu", value: String(statusCounts.DELIVERED), icon: CheckCircle2 },
             ].map(({ label, value, icon: Icon }) => (
-              <div key={label} className="rounded-[16px] border border-line bg-white p-4">
-                <Icon className="size-4 text-[#687b31]" />
+              <div key={label} className="rounded-[16px] border border-line bg-surface p-4">
+                <Icon className="size-4 text-[#047857]" />
                 <p className="mt-4 font-display text-2xl font-extrabold tabular-nums">{value}</p>
                 <p className="mt-1 text-xs text-ink-muted">{label}</p>
               </div>
             ))}
           </div>
 
-          <article className="overflow-hidden rounded-[20px] border border-line bg-white">
+          <article className="overflow-hidden rounded-[20px] border border-line bg-surface">
             <div className="flex flex-col justify-between gap-4 border-b border-line p-5 sm:flex-row sm:items-end sm:p-6">
               <div>
-                <p className="eyebrow text-[#587024]">
+                <p className="eyebrow text-[#047857]">
                   <Truck className="size-4" /> Danh sách đối soát
                 </p>
                 <h2 className="mt-3 font-display text-2xl font-extrabold">
@@ -636,7 +647,7 @@ function SuccessfulWorkspace({
                       </p>
                       <p className="mt-1 text-sm font-extrabold">{order.id}</p>
                     </div>
-                    <span className="rounded-full bg-[#f1f4e7] px-3 py-1 text-[11px] font-extrabold text-[#587024]">
+                    <span className="rounded-full bg-[#ECFDF5] px-3 py-1 text-[11px] font-extrabold text-[#047857]">
                       {order.city}
                     </span>
                   </div>

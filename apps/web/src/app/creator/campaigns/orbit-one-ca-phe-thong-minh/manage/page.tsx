@@ -50,11 +50,11 @@ export default async function CreatorCampaignManagePage() {
 
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
-      <div className="border-b border-forest/10 bg-[#e5ebe5] py-8 sm:py-10">
+      <div className="border-b border-line bg-surface py-8 sm:py-10">
         <div className="container-shell">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <span className="eyebrow text-[#526827]">
+              <span className="eyebrow text-[#047857]">
                 <FolderKanban className="size-4" />
                 Vận hành chiến dịch
               </span>

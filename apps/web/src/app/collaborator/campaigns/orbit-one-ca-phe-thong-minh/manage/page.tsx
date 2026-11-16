@@ -53,17 +53,17 @@ export default async function CollaboratorCampaignManagePage() {
 
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
-      <div className="border-b border-[#c8d9ec] bg-[#e8f0f8] py-8 sm:py-10">
+      <div className="border-b border-line bg-surface py-8 sm:py-10">
         <div className="container-shell">
           <Link
             href="/collaborator"
-            className="inline-flex items-center gap-2 text-xs font-bold text-[#315b86] hover:text-blue-700"
+            className="inline-flex items-center gap-2 text-xs font-bold text-[#047857] hover:text-[#065f46]"
           >
             <ArrowLeft className="size-4" /> Trở về công việc được giao
           </Link>
           <div className="mt-7 flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <span className="eyebrow text-[#2869ac]">
+              <span className="eyebrow text-[#047857]">
                 <FolderKanban className="size-4" /> Nội dung được phân công
               </span>
               <h1 className="mt-3 max-w-3xl font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">

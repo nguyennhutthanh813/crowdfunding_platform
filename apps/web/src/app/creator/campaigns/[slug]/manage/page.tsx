@@ -181,7 +181,7 @@ export default async function CreatorCampaignStagePage({
       { label: "Theo dõi cam kết", state: pledges.length ? "done" : launched ? "current" : "waiting", note: pledges.length ? `${pledges.length} cam kết` : launched ? "Chưa có cam kết" : "Chưa đến bước này" },
     ];
     return <section className="min-h-screen bg-[var(--canvas)] pb-16">
-      <div className="border-b border-forest/10 bg-[#e5ebe5] py-8 sm:py-10">
+      <div className="border-b border-slate-200 bg-surface py-8 sm:py-10">
         <div className="container-shell">
           <Link href="/creator" className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-ink-soft hover:text-forest"><ArrowLeft className="size-4" /> Danh mục chiến dịch</Link>
           <div className="mt-3 flex flex-wrap items-center gap-3"><StatusBadge status={status} />{needsRevision ? <span className="rounded-md bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">Cần chỉnh theo phản hồi</span> : null}<span className="text-xs text-ink-muted">Mã hồ sơ {slug.slice(-6).toUpperCase()}</span></div>
@@ -206,7 +206,16 @@ export default async function CreatorCampaignStagePage({
             <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="eyebrow text-coral-dark">Nội dung đã lưu</p><h2 className="mt-2 font-display text-xl font-extrabold">{status === "DRAFT" || status === "IN_REVIEW" ? "Thông tin trong hồ sơ" : "Thông tin trên trang cộng đồng"}</h2></div><span className="text-xs text-ink-muted">{snapshot.draft.category} · {snapshot.draft.location}</span></div>
             <p className="mt-4 text-sm leading-7 text-ink-soft">{snapshot.draft.blurb}</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-[#f6f7f1] p-4"><p className="text-xs text-ink-muted">Mục tiêu</p><p className="mt-1 font-bold">{formatVnd(Number(snapshot.draft.goal) || 0)}</p></div><div className="rounded-xl bg-[#f6f7f1] p-4"><p className="text-xs text-ink-muted">Đã cam kết mẫu</p><p className="mt-1 font-bold">{formatVnd(amount)}</p></div><div className="rounded-xl bg-[#f6f7f1] p-4"><p className="text-xs text-ink-muted">Người ủng hộ</p><p className="mt-1 font-bold">{new Set(pledges.map((item) => item.backerId)).size}</p></div></div>
-            <h3 className="mt-7 text-sm font-bold">Gói ủng hộ</h3><ul className="mt-3 divide-y divide-line border-y border-line">{(snapshot.rewards ?? []).map((reward) => <li key={reward.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{reward.title}</span><b>{formatVnd(Number(reward.amount))}</b></li>)}</ul>
+            <details className="group/rewards mt-6 rounded-xl border border-line bg-canvas-soft/60 p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
+                <span>Gói ủng hộ ({(snapshot.rewards ?? []).length} mức)</span>
+                <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+                  <span className="group-open/rewards:hidden">Xem gói ↓</span>
+                  <span className="hidden group-open/rewards:inline">Thu gọn ↑</span>
+                </span>
+              </summary>
+              <ul className="mt-3 divide-y divide-line border-t border-line">{(snapshot.rewards ?? []).map((reward) => <li key={reward.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{reward.title}</span><b>{formatVnd(Number(reward.amount))}</b></li>)}</ul>
+            </details>
             {(status === "PRE_LAUNCH" || status === "LIVE") ? <CampaignTeamManager
               campaignId={slug} members={snapshot.collaborators ?? []}
               acceptedEmails={[...acceptedEmails]}
@@ -233,14 +242,22 @@ export default async function CreatorCampaignStagePage({
                 />
               </div>
               {publishedUpdates.length ? (
-                <div className="mt-6 border-t border-line pt-5">
-                  <h3 className="text-sm font-bold">Lịch sử cập nhật của chiến dịch</h3>
-                  <PreviewCampaignUpdateHistory
-                    campaignId={slug}
-                    updates={publishedUpdates}
-                    manager={{ role: "creator", userId: session.user.id }}
-                  />
-                </div>
+                <details className="group/upd-hist mt-6 border-t border-line pt-5">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
+                    <span>Lịch sử cập nhật của chiến dịch ({publishedUpdates.length} bản tin)</span>
+                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+                      <span className="group-open/upd-hist:hidden">Mở lịch sử ↓</span>
+                      <span className="hidden group-open/upd-hist:inline">Thu gọn ↑</span>
+                    </span>
+                  </summary>
+                  <div className="mt-3">
+                    <PreviewCampaignUpdateHistory
+                      campaignId={slug}
+                      updates={publishedUpdates}
+                      manager={{ role: "creator", userId: session.user.id }}
+                    />
+                  </div>
+                </details>
               ) : null}
             </section>
           ) : null}
@@ -250,25 +267,41 @@ export default async function CreatorCampaignStagePage({
             handoffs={(platformState.campaignTaskHandoffs ?? []).filter((item) => item.campaignId === slug)}
             people={taskPeople} formerPeople={formerPeople} /> : null}
           {status === "LIVE" ? (
-            <section className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
-              <h2 className="font-display text-xl font-extrabold">Cam kết vừa ghi</h2>
-              {pledges.length ? (
-                <PreviewCampaignPledgeList campaignId={slug} pledges={pledges} />
-              ) : (
-                <p className="mt-3 text-sm text-ink-muted">
-                  Chưa có cam kết. Bạn có thể mở trang dự án để xem trải nghiệm của người ủng hộ.
-                </p>
-              )}
-            </section>
+            <details className="group/pledges rounded-[20px] border border-line bg-white p-5 sm:p-7">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                <h2 className="font-display text-xl font-extrabold">Cam kết vừa ghi ({pledges.length})</h2>
+                <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+                  <span className="group-open/pledges:hidden">Xem danh sách ↓</span>
+                  <span className="hidden group-open/pledges:inline">Thu gọn ↑</span>
+                </span>
+              </summary>
+              <div className="mt-4 border-t border-line pt-4">
+                {pledges.length ? (
+                  <PreviewCampaignPledgeList campaignId={slug} pledges={pledges} />
+                ) : (
+                  <p className="text-sm text-ink-muted">
+                    Chưa có cam kết. Bạn có thể mở trang dự án để xem trải nghiệm của người ủng hộ.
+                  </p>
+                )}
+              </div>
+            </details>
           ) : null}
-          {status === "LIVE" ? <section className="rounded-[20px] border border-line bg-white p-5 sm:p-7">
-            <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="eyebrow text-coral-dark">Kết nối với Backer</p><h2 className="mt-2 font-display text-xl font-extrabold">Tin nhắn cần trả lời</h2></div><span className="text-xs text-ink-muted">{inbox.length} tin trong chiến dịch</span></div>
-            {inbox.length ? <ul className="mt-5 space-y-3">{inbox.map((message) => <li key={message.id} className="rounded-xl border border-line bg-[#fdfcf8] p-4">
-              <div className="flex flex-wrap justify-between gap-2"><p className="text-sm font-bold">{message.senderName} · {message.subject}</p><span className="text-xs text-ink-muted">{message.sentAt}</span></div>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">{message.body}</p>
-              <div className="mt-4"><ReplyPreviewMessage campaignId={slug} messageId={message.id} senderName={message.senderName} /></div>
-            </li>)}</ul> : <p className="mt-4 rounded-xl border border-dashed border-line bg-[#faf9f5] p-5 text-sm text-ink-muted">Chưa có tin nhắn từ người đã ủng hộ chiến dịch này.</p>}
-          </section> : null}
+          {status === "LIVE" ? <details className="group/inbox rounded-[20px] border border-line bg-white p-5 sm:p-7">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+              <div><p className="eyebrow text-[#047857]">Kết nối với Backer</p><h2 className="mt-1 font-display text-xl font-extrabold">Tin nhắn cần trả lời ({inbox.length})</h2></div>
+              <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+                <span className="group-open/inbox:hidden">Mở hộp thư ↓</span>
+                <span className="hidden group-open/inbox:inline">Thu gọn ↑</span>
+              </span>
+            </summary>
+            <div className="mt-4 border-t border-line pt-4">
+              {inbox.length ? <ul className="space-y-3">{inbox.map((message) => <li key={message.id} className="rounded-xl border border-line bg-[#fdfcf8] p-4">
+                <div className="flex flex-wrap justify-between gap-2"><p className="text-sm font-bold">{message.senderName} · {message.subject}</p><span className="text-xs text-ink-muted">{message.sentAt}</span></div>
+                <p className="mt-2 text-sm leading-6 text-ink-soft">{message.body}</p>
+                <div className="mt-4"><ReplyPreviewMessage campaignId={slug} messageId={message.id} senderName={message.senderName} /></div>
+              </li>)}</ul> : <p className="rounded-xl border border-dashed border-line bg-[#faf9f5] p-5 text-sm text-ink-muted">Chưa có tin nhắn từ người đã ủng hộ chiến dịch này.</p>}
+            </div>
+          </details> : null}
           {publicCampaign ?
             <CampaignDiscussionDesk campaignId={slug} comments={publicCampaign.comments}
               role="CREATOR" canReply={status !== "SUSPENDED"} paused={status === "SUSPENDED"}
@@ -315,11 +348,11 @@ export default async function CreatorCampaignStagePage({
 
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-16">
-      <div className="border-b border-forest/10 bg-[#e5ebe5] py-8 sm:py-10">
+      <div className="border-b border-slate-200 bg-surface py-8 sm:py-10">
         <div className="container-shell">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <span className="eyebrow text-[#526827]">
+              <span className="eyebrow text-[#047857]">
                 {isSuccessful ? (
                   <PackageCheck className="size-4" />
                 ) : (

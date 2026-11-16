@@ -259,7 +259,7 @@ function CreatorActions({
                     {
                       mediaType: 'IMAGE',
                       url: '/images/campaigns/bep-may-minh-hoa-v1.webp',
-                      altText: 'Minh họa dự án Bếp Mây trong bộ ảnh mẫu của Góp',
+                      altText: 'Minh họa dự án Bếp Mây trong bộ ảnh mẫu của FundViet',
                     },
                     'Đã dùng ảnh minh họa có sẵn.',
                     campaign.id,

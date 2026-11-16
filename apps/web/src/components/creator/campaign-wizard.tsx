@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   BadgeCheck,
   Check,
   CircleDollarSign,
+  Eye,
   FileText,
   Gift,
   ImagePlus,
@@ -17,16 +20,17 @@ import {
   Plus,
   Rocket,
   Save,
+  Sparkles,
   Target,
   Trash2,
   Truck,
   UserPlus,
-  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CampaignVisual } from "@/components/campaign/campaign-visual";
+import { Modal } from "@/components/ui/modal";
 import type {
   CampaignDraftAddOn,
   CampaignDraftCollaborator,
@@ -48,11 +52,12 @@ import {
 } from "./campaign-wizard-samples";
 
 const wizardSteps = [
-  { label: "Thông tin", mobileLabel: "Thông tin", icon: LayoutTemplate },
-  { label: "Câu chuyện", mobileLabel: "Câu chuyện", icon: FileText },
-  { label: "Quà & phần bổ sung", mobileLabel: "Quà tặng", icon: Gift },
-  { label: "Giao hàng & nhóm", mobileLabel: "Giao & nhóm", icon: Users },
-  { label: "Xem trước", mobileLabel: "Xem trước", icon: Rocket },
+  { label: "Cơ bản", mobileLabel: "Cơ bản", icon: LayoutTemplate },
+  { label: "Story", mobileLabel: "Story", icon: FileText },
+  { label: "Quà tặng", mobileLabel: "Quà tặng", icon: Gift },
+  { label: "Giao hàng", mobileLabel: "Giao hàng", icon: Truck },
+  { label: "Xem lại", mobileLabel: "Xem lại", icon: Eye },
+  { label: "Dự báo AI ✦", mobileLabel: "AI ✦", icon: Sparkles, isAi: true },
 ];
 
 type DraftReward = CampaignDraftReward;
@@ -111,9 +116,12 @@ export function CampaignWizard({
       : "",
   );
   const [saveFailed, setSaveFailed] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [dirtyTick, setDirtyTick] = useState(0);
   const [submittedCampaignId, setSubmittedCampaignId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [attemptedStep, setAttemptedStep] = useState<number | null>(null);
+  const savingRef = useRef(false);
   const [draft, setDraft] = useState<DraftCampaign>(() => ({
     ...(useSample ? sampleDraft : blankDraft),
     ...(savedDraft?.draft ?? {}),
@@ -169,7 +177,7 @@ export function CampaignWizard({
         issues.push("Mô tả ngắn cần ít nhất 30 ký tự để người xem hiểu ý tưởng.");
       }
       if (Number(draft.goal) < 10_000_000) {
-        issues.push("Mục tiêu gọi vốn tối thiểu trong bản dùng thử là 10 triệu đồng.");
+        issues.push("Mục tiêu gọi vốn tối thiểu là 10 triệu đồng.");
       }
       if (Number(draft.duration) < 15 || Number(draft.duration) > 60) {
         issues.push("Thời lượng chiến dịch phải từ 15 đến 60 ngày.");
@@ -221,13 +229,44 @@ export function CampaignWizard({
         issues.push("Mỗi người chỉ cần ghi một lần theo email.");
       }
     }
-    if (step === 4 && readiness < 70) {
+    if ((step === 4 || step === 5) && readiness < 70) {
       issues.push("Bản nháp cần đạt ít nhất 70/100 trước khi gửi xét duyệt.");
     }
     return issues;
   }, [addOns, collaborators, draft, readiness, rewards, step]);
   const canContinue = stepIssues.length === 0;
   const showStepErrors = attemptedStep === step && !canContinue;
+
+  const aiForecast = useMemo(() => {
+    const goalMillions = Math.max(10, Math.round(Number(draft.goal) / 1_000_000) || 100);
+    const goalFactor = goalMillions <= 180 ? 12 : goalMillions <= 350 ? 6 : -8;
+    const durationNum = Number(draft.duration) || 30;
+    const durationFactor = durationNum >= 25 && durationNum <= 45 ? 8 : 2;
+    const storyFactor = draft.story.trim().length >= 220 && draft.risks.trim().length >= 80 ? 14 : draft.story.trim().length >= 100 ? 6 : -6;
+    const rewardFactor = rewards.length >= 2 ? 10 : rewards.length === 1 ? 4 : -8;
+    const videoFactor = draft.hasVideo ? 8 : 0;
+    const baseScore = Math.round(readiness * 0.45 + 22 + goalFactor + durationFactor + storyFactor + rewardFactor + videoFactor);
+    const probability = Math.max(28, Math.min(94, baseScore));
+    const band = probability >= 72 ? "Khả quan cao" : probability >= 55 ? "Cần tối ưu thêm" : "Rủi ro cao";
+    const shapFactors = [
+      {
+        label: "Câu chuyện & minh bạch rủi ro",
+        impact: storyFactor,
+        detail: storyFactor >= 10 ? "Story đầy đủ vấn đề, giải pháp và phương án dự phòng." : "Bổ sung thêm chi tiết kế hoạch dùng vốn và rủi ro.",
+      },
+      {
+        label: "Mức mục tiêu & thời lượng",
+        impact: goalFactor + durationFactor,
+        detail: `${formatVnd(Number(draft.goal) || 0, true)} trong ${durationNum} ngày phù hợp nhóm ngành ${draft.category}.`,
+      },
+      {
+        label: "Cấu trúc gói quà & video giới thiệu",
+        impact: rewardFactor + videoFactor,
+        detail: `${rewards.length} gói quà${draft.hasVideo ? ", đã có video giới thiệu" : " — thêm video giúp tăng ~8% chuyển đổi"}.`,
+      },
+    ];
+    return { probability, band, shapFactors };
+  }, [draft, readiness, rewards.length]);
 
   const goNext = () => {
     if (!canContinue) {
@@ -238,11 +277,31 @@ export function CampaignWizard({
     setStep((value) => Math.min(wizardSteps.length - 1, value + 1));
   };
 
+  const markDirty = () => setDirtyTick((tick) => tick + 1);
+
   const updateDraft = <K extends keyof typeof draft>(
     key: K,
     value: (typeof draft)[K],
   ) => {
     setDraft((current) => ({ ...current, [key]: value }));
+    markDirty();
+  };
+  const appendStorySection = (heading: string, template: string) => {
+    setDraft((current) => {
+      const separator = current.story.trim() ? "\n\n" : "";
+      return { ...current, story: `${current.story}${separator}## ${heading}\n${template}` };
+    });
+    markDirty();
+  };
+  const appendRiskTemplate = () => {
+    setDraft((current) => {
+      const snippet =
+        "Nếu linh kiện sản xuất đến chậm hơn dự kiến 7-10 ngày, nhóm có sẵn hai nhà cung cấp dự phòng trong nước và cam kết cập nhật tiến độ hàng tuần cho toàn bộ người ủng hộ.";
+      if (current.risks.includes("nhà cung cấp dự phòng")) return current;
+      const separator = current.risks.trim() ? "\n\n" : "";
+      return { ...current, risks: `${current.risks}${separator}${snippet}` };
+    });
+    markDirty();
   };
   const loadSampleData = () => {
     setDraft({ ...newCampaignExample });
@@ -250,7 +309,8 @@ export function CampaignWizard({
     setAddOns([]);
     setCollaborators([]);
     setSaveFailed(false);
-    setSaveNotice("Đã điền ví dụ Bếp Mây vào form. Dữ liệu chưa lưu; bạn có thể sửa rồi bấm Lưu bản nháp.");
+    setSaveNotice("Đã điền ví dụ Bếp Mây vào hồ sơ. Nhấn Lưu bản nháp hoặc tiếp tục chỉnh sửa.");
+    markDirty();
   };
   const updateReward = (id: number, key: keyof DraftReward, value: string) => {
     setRewards((current) =>
@@ -258,6 +318,19 @@ export function CampaignWizard({
         reward.id === id ? { ...reward, [key]: value } : reward,
       ),
     );
+    markDirty();
+  };
+  const moveReward = (index: number, delta: -1 | 1) => {
+    setRewards((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      if (!moved) return current;
+      next.splice(target, 0, moved);
+      return next;
+    });
+    markDirty();
   };
   const updateAddOn = (id: number, key: keyof DraftAddOn, value: string) => {
     setAddOns((current) =>
@@ -265,6 +338,7 @@ export function CampaignWizard({
         addOn.id === id ? { ...addOn, [key]: value } : addOn,
       ),
     );
+    markDirty();
   };
   const updateCollaborator = <K extends keyof DraftCollaborator>(
     id: number,
@@ -276,6 +350,7 @@ export function CampaignWizard({
         member.id === id ? { ...member, [key]: value } : member,
       ),
     );
+    markDirty();
   };
   const persistDraft = async () => {
     if (mode === "create") {
@@ -308,26 +383,67 @@ export function CampaignWizard({
     });
     return campaignId;
   };
+  const persistDraftRef = useRef(persistDraft);
+  const readyForAutoSaveRef = useRef(false);
+  useEffect(() => {
+    persistDraftRef.current = persistDraft;
+    readyForAutoSaveRef.current =
+      mode === "edit" ||
+      Boolean(currentCampaignId) ||
+      (draft.title.trim().length >= 10 && Number(draft.goal) >= 10_000_000);
+  });
+
+  useEffect(() => {
+    if (dirtyTick === 0 || locked || submittedCampaignId) return;
+    const timer = window.setTimeout(async () => {
+      if (savingRef.current || !readyForAutoSaveRef.current) return;
+      savingRef.current = true;
+      setSaveNotice("Đang tự động lưu...");
+      try {
+        await persistDraftRef.current();
+        setSaveFailed(false);
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        setSaveNotice(`Đã tự động lưu lúc ${hh}:${mm}`);
+      } catch {
+        setSaveNotice("Chờ hoàn tất trường bắt buộc để tự động lưu");
+      } finally {
+        savingRef.current = false;
+      }
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [dirtyTick, locked, submittedCampaignId]);
+
   const saveDraft = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setSaveNotice("");
     setSaveFailed(false);
     try {
       await persistDraft();
       router.refresh();
-      setSaveNotice(localDbAvailable
-        ? "Đã lưu bản nháp vào SQLite trên máy."
-        : "Đã lưu bản nháp trong trình duyệt này.");
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      setSaveNotice(
+        localDbAvailable
+          ? `Đã lưu bản nháp lúc ${hh}:${mm}`
+          : `Đã lưu cục bộ lúc ${hh}:${mm}`,
+      );
     } catch (error) {
       setSaveFailed(true);
       setSaveNotice(clientRequestMessage(error, "Chưa thể lưu bản nháp"));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
   const submit = async () => {
     if (!canContinue) {
       setAttemptedStep(step);
+      setConfirmOpen(false);
       return;
     }
     setSaving(true);
@@ -355,10 +471,12 @@ export function CampaignWizard({
           }),
         });
       }
+      setConfirmOpen(false);
       setSaving(false);
       setSubmittedCampaignId(savedId);
       router.refresh();
     } catch (error) {
+      setConfirmOpen(false);
       setSaving(false);
       setSubmitError(clientRequestMessage(error, "Chưa thể gửi chiến dịch. Bạn vui lòng thử lại."));
     }
@@ -443,72 +561,80 @@ export function CampaignWizard({
 
   return (
     <section className="min-h-screen bg-[var(--canvas)] pb-20">
-      <div className="border-b border-forest/10 bg-[#e5ebe5] py-5 sm:py-8">
+      <div className="sticky top-0 z-30 border-b border-line bg-surface/95 py-3.5 backdrop-blur-md sm:py-4">
         <div className="container-shell">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center sm:gap-5">
-            <div>
-              <Link
-                href={
-                  campaignSlug
-                    ? `/creator/campaigns/${campaignSlug}/manage`
-                    : "/creator"
-                }
-                className="inline-flex items-center gap-2 text-xs font-bold text-ink-muted hover:text-forest"
-              >
-                <ArrowLeft className="size-4" />
-                {mode === "edit" ? "Quay lại hồ sơ" : "Quay lại danh mục"}
-              </Link>
-              <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
-                {mode === "edit" ? "Chỉnh sửa ORBIT Mini" : currentCampaignId ? "Hồ sơ chiến dịch của bạn" : "Tạo chiến dịch mới"}
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center sm:gap-5">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                <Link
+                  href={
+                    campaignSlug
+                      ? `/creator/campaigns/${campaignSlug}/manage`
+                      : "/creator"
+                  }
+                  className="inline-flex items-center gap-1.5 font-bold text-ink-muted hover:text-[#047857]"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  Thoát
+                </Link>
+                <span className="text-ink-muted">/</span>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-bold text-[#047857]">
+                  Studio khởi tạo · Bước {step + 1}/6
+                </span>
+              </div>
+              <h1 className="mt-1.5 truncate font-display text-2xl font-extrabold tracking-[-0.03em] text-ink sm:text-[26px]">
+                {mode === "edit"
+                  ? "Chỉnh sửa ORBIT Mini"
+                  : currentCampaignId
+                    ? "Hồ sơ chiến dịch của bạn"
+                    : "Tạo chiến dịch mới"}
               </h1>
-              {mode === "create" ? (
-                <p className="mt-2 max-w-xl text-sm leading-6 text-ink-soft">
-                  Điền thông tin theo từng bước và lưu bản nháp bất cứ lúc nào. Khi hoàn tất, gửi hồ sơ để quản trị viên duyệt rồi mở trang gọi vốn. Cam kết hiện chỉ để thử luồng, chưa thu tiền.
-                </p>
-              ) : null}
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line bg-canvas-soft px-3 text-xs text-ink-soft"
+                role={saveFailed ? "alert" : "status"}
+              >
+                <span
+                  className={`size-2 rounded-full ${saveFailed ? "bg-rose-500" : "bg-emerald-500"}`}
+                />
+                {saveNotice || (locked ? "Hồ sơ đang khóa chỉnh sửa" : "Tự động lưu sau 3s")}
+              </span>
               {canLoadSample ? (
                 <button
                   type="button"
                   onClick={loadSampleData}
                   aria-label="Điền thử ví dụ Bếp Mây"
-                  className="button-secondary min-h-11 justify-center px-3 text-xs sm:px-4"
+                  className="button-secondary min-h-10 justify-center px-3 text-xs"
                 >
-                  <FileText className="size-4" />
-                  <span className="sm:hidden">Điền ví dụ</span>
-                  <span className="hidden sm:inline">Điền thử ví dụ Bếp Mây</span>
+                  <FileText className="size-3.5" />
+                  <span>Điền mẫu Bếp Mây</span>
                 </button>
               ) : null}
               <button
                 type="button"
                 disabled={saving || locked}
                 onClick={() => void saveDraft()}
-                className={`button-dark min-h-11 justify-center px-3 text-xs sm:px-4 ${canLoadSample ? "" : "col-span-2 sm:col-auto"}`}
+                className="button-dark min-h-10 justify-center px-3.5 text-xs"
               >
                 {saving ? (
-                  <LoaderCircle className="size-4 animate-spin" />
+                  <LoaderCircle className="size-3.5 animate-spin" />
                 ) : (
-                  <Save className="size-4" />
+                  <Save className="size-3.5" />
                 )}{" "}
                 Lưu bản nháp
               </button>
-              <span
-                className="col-span-2 inline-flex min-h-10 items-center gap-2 rounded-[10px] border border-line bg-white px-4 text-xs text-ink-muted sm:col-auto"
-                role={saveFailed ? "alert" : "status"}
-              >
-                <span
-                  className={`size-1.5 rounded-full ${saveFailed ? "bg-red-500" : "bg-emerald-500"}`}
-                />
-                {saveNotice || (locked ? "Hồ sơ đang khóa chỉnh sửa" : "Bản nháp chưa có thay đổi mới")}
-              </span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container-shell py-4 sm:py-7">
-        <ol className="grid grid-cols-5 gap-1.5 sm:gap-2" aria-label="Các bước tạo chiến dịch">
+      <div className="container-shell py-5 sm:py-7">
+        <ol
+          className="mb-4 grid grid-cols-6 gap-1.5 lg:hidden"
+          aria-label="Các bước tạo chiến dịch"
+        >
           {wizardSteps.map((item, index) => {
             const Icon = item.icon;
             const active = index === step;
@@ -517,42 +643,162 @@ export function CampaignWizard({
               <li key={item.label}>
                 <button
                   type="button"
-                  disabled={index > step && !locked}
+                  disabled={index > step && !locked && readiness < 35}
                   onClick={() => {
                     setAttemptedStep(null);
                     setStep(index);
                   }}
                   aria-current={active ? "step" : undefined}
-                  aria-label={`Bước ${index + 1}: ${item.label}${active ? ", đang xem" : done ? ", đã qua" : ""}`}
-                  className={`flex min-h-16 w-full flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 text-center text-xs font-bold leading-tight sm:min-h-12 sm:flex-row sm:gap-2 sm:px-3 sm:text-left ${active ? "border-coral bg-[#fff5f0] text-coral-dark" : done ? "cursor-pointer border-forest bg-forest text-white" : "border-line bg-white/50 text-ink-muted"}`}
+                  aria-label={`Bước ${index + 1}: ${item.label}`}
+                  className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 text-center text-[11px] font-bold transition ${
+                    active
+                      ? item.isAi
+                        ? "border-violet-500 bg-violet-50 text-violet-700"
+                        : "border-[#059669] bg-emerald-50 text-[#047857]"
+                      : done
+                        ? "border-emerald-200 bg-emerald-600 text-white"
+                        : "border-line bg-surface text-ink-muted"
+                  }`}
                 >
-                  <span
-                    className={`grid size-7 shrink-0 place-items-center rounded-lg ${active ? "bg-coral text-white" : done ? "bg-lime text-forest" : "bg-forest/6"}`}
-                  >
-                    {done ? (
-                      <Check className="size-3.5" />
-                    ) : (
-                      <Icon className="size-3.5" />
-                    )}
-                  </span>
-                  <span className="sm:hidden">
-                    {item.mobileLabel}
-                  </span>
-                  <span className="hidden sm:inline">
-                    {index + 1}. {item.label}
-                  </span>
+                  {done ? <Check className="size-3.5" /> : <Icon className="size-3.5" />}
+                  <span className="truncate">{item.mobileLabel}</span>
                 </button>
               </li>
             );
           })}
         </ol>
 
-        <div className="mt-4 grid gap-6 sm:mt-6 xl:grid-cols-[1fr_320px] xl:items-start">
-          <fieldset disabled={locked} className="min-w-0 rounded-[20px] border border-line bg-white p-5 sm:p-8">
+        <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+          <aside className="hidden space-y-4 lg:sticky lg:top-24 lg:block">
+            <nav
+              aria-label="Danh sách 6 bước tạo chiến dịch"
+              className="rounded-[20px] border border-line bg-surface p-3 shadow-card"
+            >
+              <p className="px-2.5 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-ink-muted">
+                Lộ trình Studio
+              </p>
+              <ol className="space-y-1">
+                {wizardSteps.map((item, index) => {
+                  const Icon = item.icon;
+                  const active = index === step;
+                  const done = index < step;
+                  const lockedStep = index > step && !locked && !canContinue && index > step + 1;
+                  return (
+                    <li key={item.label}>
+                      <button
+                        type="button"
+                        disabled={lockedStep}
+                        onClick={() => {
+                          setAttemptedStep(null);
+                          setStep(index);
+                        }}
+                        aria-current={active ? "step" : undefined}
+                        className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
+                          active
+                            ? item.isAi
+                              ? "bg-violet-50 text-violet-700 ring-1 ring-violet-300"
+                              : "bg-emerald-50 text-[#047857] ring-1 ring-emerald-300"
+                            : done
+                              ? "text-ink hover:bg-canvas-soft"
+                              : "text-ink-muted hover:bg-canvas-soft hover:text-ink"
+                        } disabled:cursor-not-allowed disabled:opacity-45`}
+                      >
+                        <span
+                          className={`grid size-7 shrink-0 place-items-center rounded-lg ${
+                            active
+                              ? item.isAi
+                                ? "bg-violet-600 text-white"
+                                : "bg-[#059669] text-white"
+                              : done
+                                ? "bg-emerald-100 text-[#047857]"
+                                : "bg-canvas-soft text-ink-muted"
+                          }`}
+                        >
+                          {done ? <Check className="size-3.5" /> : <Icon className="size-3.5" />}
+                        </span>
+                        <span className="flex-1 truncate">
+                          {index + 1}. {item.label}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+
+            <div className="rounded-[20px] border border-line bg-surface p-5 shadow-card">
+              <div className="flex items-center justify-between gap-2">
+                <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#047857]">
+                  <BadgeCheck className="size-4" /> Hoàn thiện
+                </p>
+                <span className="font-display text-lg font-extrabold tabular-nums text-ink">
+                  {readiness}%
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas-soft">
+                <div
+                  className="h-full rounded-full bg-[#059669] transition-[width] duration-500"
+                  style={{ width: `${readiness}%` }}
+                />
+              </div>
+              <ul className="mt-4 space-y-2 text-[11px] text-ink-soft">
+                {checklist.map((item) => (
+                  <li key={item.label} className="flex items-start gap-2 leading-4">
+                    <span
+                      className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-full text-[10px] font-bold ${
+                        item.ok
+                          ? "bg-emerald-100 text-[#047857]"
+                          : item.optional
+                            ? "bg-canvas-soft text-ink-muted"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {item.ok ? <Check className="size-2.5" /> : item.optional ? "–" : "!"}
+                    </span>
+                    <span className={item.ok ? "text-ink" : "text-ink-muted"}>{item.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-[20px] border border-line bg-surface p-4 text-xs leading-5 text-ink-soft shadow-card">
+              <p className="inline-flex items-center gap-1.5 font-bold text-ink">
+                <Info className="size-3.5 text-[#047857]" /> Gợi ý bước {step + 1}
+              </p>
+              <p className="mt-2 flex items-start gap-2">
+                <Target className="mt-0.5 size-3.5 shrink-0 text-[#047857]" />
+                <span>
+                  {Number(draft.goal) > 0
+                    ? `Mục tiêu: ${formatVnd(Number(draft.goal), true)}`
+                    : "Đặt mục tiêu dựa trên chi phí sản xuất & vận hành thực tế."}
+                </span>
+              </p>
+              <p className="mt-1.5 flex items-start gap-2">
+                <CircleDollarSign className="mt-0.5 size-3.5 shrink-0 text-[#047857]" />
+                <span>Thời lượng 15–60 ngày; hỗ trợ giao hàng toàn quốc.</span>
+              </p>
+              <p className="mt-1.5 flex items-start gap-2">
+                <MapPin className="mt-0.5 size-3.5 shrink-0 text-[#047857]" />
+                <span>Địa điểm triển khai: {draft.location || "Chưa chọn"}</span>
+              </p>
+            </div>
+          </aside>
+
+          <fieldset disabled={locked} className="min-w-0 rounded-[20px] border border-line bg-surface p-5 shadow-card sm:p-8">
             {locked ? (
-              <div role="status" className="mb-6 rounded-xl border border-[#cbd7bd] bg-[#f4f7ed] p-4 text-xs leading-6 text-forest">
-                <strong>{reviewStatus === "IN_REVIEW" ? "Đang chờ quản trị viên duyệt" : reviewStatus === "LIVE" ? "Đang gọi vốn mẫu" : "Hồ sơ đã duyệt"}.</strong>{" "}
-                {reviewFeedback || (reviewStatus === "PRE_LAUNCH" ? "Bạn có thể xem trang cộng đồng trước khi mở gọi vốn." : "Bạn có thể xem lại các bước, nhưng chưa thể sửa lúc này.")}
+              <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-6 text-slate-900">
+                <strong>
+                  {reviewStatus === "IN_REVIEW"
+                    ? "Đang chờ quản trị viên duyệt"
+                    : reviewStatus === "LIVE"
+                      ? "Chiến dịch đang gọi vốn"
+                      : "Hồ sơ đã duyệt"}
+                  .
+                </strong>{" "}
+                {reviewFeedback ||
+                  (reviewStatus === "PRE_LAUNCH"
+                    ? "Bạn có thể xem trang cộng đồng trước khi mở gọi vốn."
+                    : "Bạn có thể xem lại các bước, nhưng chưa thể sửa lúc này.")}
                 {mode === "create" && currentCampaignId ? <Link className="ml-2 font-bold underline" href={`/creator/campaigns/${currentCampaignId}/manage`}>Xem tiến độ hồ sơ</Link> : null}
               </div>
             ) : reviewFeedback ? (
@@ -698,81 +944,124 @@ export function CampaignWizard({
 
             {step === 1 ? (
               <div>
-                <p className="eyebrow text-coral">Câu chuyện & media</p>
-                <h2 className="mt-2 font-display text-2xl font-extrabold">
+                <p className="eyebrow text-[#047857]">Câu chuyện & media</p>
+                <h2 className="mt-2 font-display text-2xl font-extrabold text-ink">
                   Cho cộng đồng thấy kế hoạch thật
                 </h2>
                 <div className="mt-7 space-y-5">
-                  <label>
-                    <span className={inputLabel}>Câu chuyện dự án</span>
-                    <textarea
-                      name="project-story"
-                      className="input-field mt-2 min-h-56 resize-y leading-7"
-                      value={draft.story}
-                      onChange={(event) =>
-                        updateDraft("story", event.target.value)
-                      }
-                      required
-                      aria-invalid={
-                        showStepErrors && draft.story.trim().length < 100
-                      }
-                      aria-describedby={
-                        showStepErrors ? "campaign-step-errors" : undefined
-                      }
-                    />
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className={inputLabel}>Câu chuyện dự án</span>
+                      <div
+                        role="toolbar"
+                        aria-label="Chèn nhanh cấu trúc Story"
+                        className="flex flex-wrap gap-1.5"
+                      >
+                        {[
+                          { label: "+ Vấn đề", heading: "Vấn đề thực tế", body: "Mô tả nỗi đau hiện tại mà người dùng gặp phải mỗi ngày." },
+                          { label: "+ Giải pháp", heading: "Giải pháp của nhóm", body: "Sản phẩm giải quyết vấn đề ra sao và điểm khác biệt cốt lõi." },
+                          { label: "+ Lộ trình", heading: "Lộ trình sản xuất", body: "Mốc thử nghiệm mẫu, sản xuất hàng loạt và giao hàng dự kiến." },
+                          { label: "+ Kêu gọi", heading: "Vì sao cần bạn lúc này", body: "Nguồn vốn cộng đồng sẽ được phân bổ minh bạch theo từng hạng mục." },
+                        ].map((snippet) => (
+                          <button
+                            key={snippet.heading}
+                            type="button"
+                            onClick={() => appendStorySection(snippet.heading, snippet.body)}
+                            className="rounded-lg border border-line bg-canvas-soft px-2.5 py-1 text-[11px] font-bold text-ink-soft transition hover:border-[#059669] hover:text-[#047857]"
+                          >
+                            {snippet.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <label className="block">
+                      <span className="sr-only">Nội dung câu chuyện dự án</span>
+                      <textarea
+                        name="project-story"
+                        className="input-field mt-2 min-h-56 resize-y leading-7"
+                        value={draft.story}
+                        onChange={(event) =>
+                          updateDraft("story", event.target.value)
+                        }
+                        required
+                        aria-invalid={
+                          showStepErrors && draft.story.trim().length < 100
+                        }
+                        aria-describedby={
+                          showStepErrors ? "campaign-step-errors" : undefined
+                        }
+                      />
+                    </label>
                     <span className="mt-1 block text-[11px] text-ink-muted">
                       {storyWordCount} từ · nên có vấn đề, giải pháp, bản mẫu và
                       kế hoạch dùng vốn.
                     </span>
-                  </label>
-                  <label>
-                    <span className={inputLabel}>Rủi ro và thách thức</span>
-                    <textarea
-                      name="project-risks"
-                      className="input-field mt-2 min-h-32 resize-y leading-7"
-                      value={draft.risks}
-                      onChange={(event) =>
-                        updateDraft("risks", event.target.value)
-                      }
-                      required
-                      aria-invalid={
-                        showStepErrors && draft.risks.trim().length < 50
-                      }
-                      aria-describedby={
-                        showStepErrors ? "campaign-step-errors" : undefined
-                      }
-                    />
-                  </label>
+                  </div>
+                  <div>
+                    <label className="block">
+                      <span className={inputLabel}>Rủi ro và thách thức</span>
+                      <textarea
+                        name="project-risks"
+                        className="input-field mt-2 min-h-32 resize-y leading-7"
+                        value={draft.risks}
+                        onChange={(event) =>
+                          updateDraft("risks", event.target.value)
+                        }
+                        required
+                        aria-invalid={
+                          showStepErrors && draft.risks.trim().length < 50
+                        }
+                        aria-describedby={
+                          showStepErrors ? "campaign-step-errors" : undefined
+                        }
+                      />
+                    </label>
+                    {!draft.risks.includes("nhà cung cấp dự phòng") && draft.risks.trim().length < 180 ? (
+                      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDD6FE] bg-[#F5F3FF] px-3.5 py-2.5 text-xs text-slate-800">
+                        <p className="flex items-center gap-2 font-medium">
+                          <span className="font-bold text-[#7C3AED]">✦ Gợi ý AI:</span>
+                          <span>Nên nêu rõ phương án dự phòng linh kiện và cam kết cập nhật tiến độ khi chậm trễ.</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={appendRiskTemplate}
+                          className="rounded-lg border border-[#7C3AED]/30 bg-white px-2.5 py-1 text-[11px] font-bold text-[#7C3AED] transition hover:bg-[#7C3AED] hover:text-white"
+                        >
+                          Thêm mẫu chuẩn
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                   <div role="group" aria-label="Ảnh minh họa cho chiến dịch">
                     <p className={inputLabel}>Ảnh minh họa (không bắt buộc)</p>
                     <div className="mt-2 grid gap-3 sm:grid-cols-2">
                       <button type="button" aria-pressed={!draft.coverAssetId}
                         onClick={() => updateDraft("coverAssetId", "")}
-                        className={`rounded-2xl border p-3 text-left ${!draft.coverAssetId ? "border-forest bg-[#f2f6e7]" : "border-line bg-white hover:border-forest/40"}`}>
-                        <span className="flex aspect-[16/9] items-center justify-center rounded-xl bg-[#e8eee5] text-forest"><ImagePlus className="size-8" /></span>
-                        <span className="mt-3 block text-sm font-bold">Chưa có ảnh</span>
+                        className={`rounded-2xl border p-3 text-left ${!draft.coverAssetId ? "border-[#059669] bg-emerald-50/70" : "border-line bg-surface hover:border-[#059669]/40"}`}>
+                        <span className="flex aspect-[16/9] items-center justify-center rounded-xl bg-canvas-soft text-[#047857]"><ImagePlus className="size-8" /></span>
+                        <span className="mt-3 block text-sm font-bold text-ink">Chưa có ảnh</span>
                         <span className="mt-1 block text-xs leading-5 text-ink-muted">Trang dự án dùng nền theo lĩnh vực, không mượn ảnh sản phẩm khác.</span>
                       </button>
                       <button type="button" aria-pressed={draft.coverAssetId === sampleCoverArt.id}
                         onClick={() => updateDraft("coverAssetId", sampleCoverArt.id)}
-                        className={`rounded-2xl border p-3 text-left ${draft.coverAssetId === sampleCoverArt.id ? "border-forest bg-[#f2f6e7]" : "border-line bg-white hover:border-forest/40"}`}>
+                        className={`rounded-2xl border p-3 text-left ${draft.coverAssetId === sampleCoverArt.id ? "border-[#059669] bg-emerald-50/70" : "border-line bg-surface hover:border-[#059669]/40"}`}>
                         <CampaignVisual motif="eco" palette="mint" label="Bếp Mây" imageSrc={sampleCoverArt.src}
                           imageAlt={sampleCoverArt.alt} imageNote={sampleCoverArt.note} compact className="aspect-[16/9] rounded-xl" />
-                        <span className="mt-3 block text-sm font-bold">Ảnh mẫu Bếp Mây</span>
-                        <span className="mt-1 block text-xs leading-5 text-ink-muted">Chỉ dùng nếu ảnh này hợp với nội dung của bạn.</span>
+                        <span className="mt-3 block text-sm font-bold text-ink">Ảnh bìa Bếp Mây</span>
+                        <span className="mt-1 block text-xs leading-5 text-ink-muted">Chọn khi nội dung phù hợp với hình minh họa sản phẩm này.</span>
                       </button>
                     </div>
-                    <p className="mt-2 text-xs leading-5 text-ink-muted">Ảnh trên được tạo để minh họa bản demo, không phải bằng chứng sản phẩm đã chế tạo. Bản này chưa nhận tệp tải lên.</p>
+                    <p className="mt-2 text-xs leading-5 text-ink-muted">Ảnh bìa rõ nét giúp tăng tỷ lệ nhấp xem dự án trên trang Khám phá.</p>
                   </div>
-                  <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-line p-4">
+                  <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-line bg-surface p-4">
                     <div className="flex items-center gap-3">
-                      <span className="grid size-10 place-items-center rounded-xl bg-forest text-lime">
+                      <span className="grid size-10 place-items-center rounded-xl bg-[#047857] text-white">
                         <ImagePlus className="size-4" />
                       </span>
                       <div>
-                        <p className="text-sm font-bold">Video giới thiệu</p>
+                        <p className="text-sm font-bold text-ink">Video giới thiệu</p>
                         <p className="mt-1 text-[11px] text-ink-muted">
-                          Đánh dấu nếu bạn đã chuẩn bị video. Bản dùng thử chưa tải tệp lên.
+                          Đánh dấu nếu bạn đã chuẩn bị video giới thiệu cho trang chiến dịch.
                         </p>
                       </div>
                     </div>
@@ -783,7 +1072,7 @@ export function CampaignWizard({
                       onChange={(event) =>
                         updateDraft("hasVideo", event.target.checked)
                       }
-                      className="size-5 accent-[#f36545]"
+                      className="size-5 accent-[#059669]"
                     />
                   </label>
                 </div>
@@ -824,23 +1113,44 @@ export function CampaignWizard({
                       key={reward.id}
                       className="rounded-[16px] border border-line bg-[#faf9f5] p-5"
                     >
-                      <div className="flex items-center justify-between">
-                        <p className="font-display font-extrabold">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-display font-extrabold text-ink">
                           Gói #{index + 1}
                         </p>
-                        <button
-                          type="button"
-                          disabled={rewards.length <= 1}
-                          onClick={() =>
-                            setRewards((current) =>
-                              current.filter((item) => item.id !== reward.id),
-                            )
-                          }
-                          className="grid size-11 cursor-pointer place-items-center rounded-full text-ink-muted hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
-                          aria-label={`Xóa gói ủng hộ ${index + 1}`}
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => moveReward(index, -1)}
+                            className="grid size-9 cursor-pointer place-items-center rounded-lg border border-line bg-surface text-ink-muted transition hover:border-[#059669] hover:text-[#047857] disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label={`Đưa gói ủng hộ ${index + 1} lên trên`}
+                          >
+                            <ArrowUp className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === rewards.length - 1}
+                            onClick={() => moveReward(index, 1)}
+                            className="grid size-9 cursor-pointer place-items-center rounded-lg border border-line bg-surface text-ink-muted transition hover:border-[#059669] hover:text-[#047857] disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label={`Đưa gói ủng hộ ${index + 1} xuống dưới`}
+                          >
+                            <ArrowDown className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={rewards.length <= 1}
+                            onClick={() => {
+                              setRewards((current) =>
+                                current.filter((item) => item.id !== reward.id),
+                              );
+                              markDirty();
+                            }}
+                            className="grid size-9 cursor-pointer place-items-center rounded-lg text-ink-muted hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label={`Xóa gói ủng hộ ${index + 1}`}
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
                         <label className="sm:col-span-2">
@@ -1199,7 +1509,7 @@ export function CampaignWizard({
                                   event.target.checked,
                                 )
                               }
-                              className="accent-[#f36545]"
+                              className="accent-[#16a34a]"
                             />{" "}
                             {label}
                           </label>
@@ -1301,6 +1611,109 @@ export function CampaignWizard({
               </div>
             ) : null}
 
+            {step === 5 ? (
+              <div>
+                <p className="inline-flex items-center gap-1.5 rounded-full border border-[#DDD6FE] bg-[#F5F3FF] px-3 py-1 text-xs font-bold text-[#7C3AED]">
+                  <Sparkles className="size-3.5" /> Dự báo AI ✦ · Giải thích SHAP
+                </p>
+                <h2 className="mt-3 font-display text-2xl font-extrabold text-ink">
+                  Đánh giá khả năng gọi vốn trước khi gửi duyệt
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-ink-soft">
+                  Hệ thống phân tích cấu trúc chiến dịch hiện tại để bạn tối ưu trước khi đưa lên hàng chờ xét duyệt.
+                </p>
+
+                <div className="ai-card-surface mt-6 grid gap-6 rounded-[20px] border p-6 sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="relative grid size-36 place-items-center">
+                      <svg className="size-36 -rotate-90" viewBox="0 0 128 128" aria-hidden="true">
+                        <defs>
+                          <linearGradient id="wizard-ai-gauge" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#7C3AED" />
+                            <stop offset="100%" stopColor="#2563EB" />
+                          </linearGradient>
+                        </defs>
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="52"
+                          fill="none"
+                          stroke="rgba(124, 58, 237, 0.14)"
+                          strokeWidth="12"
+                        />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="52"
+                          fill="none"
+                          stroke="url(#wizard-ai-gauge)"
+                          strokeWidth="12"
+                          strokeLinecap="round"
+                          strokeDasharray={326.73}
+                          strokeDashoffset={326.73 - (aiForecast.probability / 100) * 326.73}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center tabular-nums">
+                        <span className="font-display text-3xl font-extrabold text-ink">
+                          {aiForecast.probability}%
+                        </span>
+                        <span className="text-[11px] font-bold text-[#7C3AED]">
+                          Xác suất đạt mục tiêu
+                        </span>
+                      </div>
+                    </div>
+                    <span className="mt-2 rounded-full bg-white px-3 py-1 text-xs font-bold text-ink shadow-2xs">
+                      {aiForecast.band}
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#7C3AED]">
+                      3 yếu tố tác động mạnh nhất (SHAP)
+                    </p>
+                    {aiForecast.shapFactors.map((factor) => {
+                      const positive = factor.impact >= 0;
+                      const widthPct = Math.min(100, Math.max(18, Math.abs(factor.impact) * 5));
+                      return (
+                        <div key={factor.label} className="rounded-xl border border-[#DDD6FE]/80 bg-white p-3.5">
+                          <div className="flex items-center justify-between gap-2 text-xs font-bold">
+                            <span className="text-ink">{factor.label}</span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 tabular-nums ${
+                                positive
+                                  ? "bg-emerald-50 text-[#047857]"
+                                  : "bg-rose-50 text-rose-600"
+                              }`}
+                            >
+                              {positive ? `+${factor.impact}%` : `${factor.impact}%`}
+                            </span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={`h-full rounded-full ${positive ? "bg-[#059669]" : "bg-rose-500"}`}
+                              style={{ width: `${widthPct}%` }}
+                            />
+                          </div>
+                          <p className="mt-1.5 text-[11px] leading-4 text-ink-muted">
+                            {factor.detail}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {submitError ? (
+                  <p
+                    role="alert"
+                    className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"
+                  >
+                    {submitError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             {showStepErrors ? (
               <div
                 id="campaign-step-errors"
@@ -1342,7 +1755,13 @@ export function CampaignWizard({
               ) : (
                 <button
                   type="button"
-                  onClick={() => void submit()}
+                  onClick={() => {
+                    if (!canContinue) {
+                      setAttemptedStep(step);
+                      return;
+                    }
+                    setConfirmOpen(true);
+                  }}
                   disabled={saving}
                   aria-describedby={
                     showStepErrors ? "campaign-step-errors" : undefined
@@ -1354,95 +1773,73 @@ export function CampaignWizard({
                   ) : (
                     <Rocket className="size-4" />
                   )}{" "}
-                  Gửi xét duyệt
+                  Kiểm tra & gửi duyệt
                 </button>
               )}
             </div>
           </fieldset>
-
-          <aside className="space-y-4 xl:sticky xl:top-24">
-            <div className="rounded-[20px] bg-forest p-6 text-white">
-              <div className="flex items-center justify-between">
-                <p className="eyebrow text-lime">
-                  <BadgeCheck className="size-4" /> Độ sẵn sàng
-                </p>
-                <span className="text-[11px] text-white/42">Điểm bản nháp</span>
-              </div>
-              <div className="mt-5 flex items-end gap-3">
-                <p className="font-display text-5xl font-extrabold text-lime">
-                  {readiness}
-                </p>
-                <p className="pb-1 text-sm text-white/45">/ 100</p>
-              </div>
-              <div className="mt-4 h-2 rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-lime transition-[width] duration-500"
-                  style={{ width: `${readiness}%` }}
-                />
-              </div>
-              <p className="mt-4 text-xs leading-5 text-white/52">
-                Điểm kiểm tra độ đầy đủ của bản nháp, không phải xác suất thành
-                công cuối cùng.
-              </p>
-            </div>
-            <div className="rounded-[20px] border border-line bg-white p-5">
-              <p className="eyebrow text-coral">
-                <Info className="size-4" /> Gợi ý theo bước
-              </p>
-              <div className="mt-4 space-y-3 text-xs leading-5 text-ink-soft">
-                {step === 0 ? (
-                  <>
-                    <p className="flex gap-2">
-                      <Target className="mt-0.5 size-4 shrink-0 text-coral" />{" "}
-                      {Number(draft.goal) > 0
-                        ? `Mục tiêu hiện tại là ${formatVnd(Number(draft.goal), true)}; hãy đối chiếu lại với bảng chi phí thực tế.`
-                        : "Nhập mục tiêu từ chi phí sản xuất, vận hành và khoản dự phòng của nhóm."}
-                    </p>
-                    <p className="flex gap-2">
-                      <CircleDollarSign className="mt-0.5 size-4 shrink-0 text-coral" />{" "}
-                      {Number(draft.duration) >= 15 &&
-                      Number(draft.duration) <= 60
-                        ? `Thời lượng ${draft.duration} ngày nằm trong khoảng được phép.`
-                        : "Thời lượng chiến dịch cần nằm trong khoảng 15–60 ngày."}
-                    </p>
-                  </>
-                ) : step === 1 ? (
-                  <>
-                    <p>
-                      • Câu chuyện nên có ít nhất 250–400 từ ở bản hoàn chỉnh.
-                    </p>
-                    <p>• Tách rõ lộ trình và rủi ro thay vì viết chung.</p>
-                  </>
-                ) : step === 2 ? (
-                  <>
-                    <p>
-                      • Hai gói ủng hộ là vừa đủ ở bản đầu; phần bổ sung không
-                      thay thế gói chính.
-                    </p>
-                    <p>• Không đặt quá nhiều lựa chọn gần giá nhau.</p>
-                  </>
-                ) : step === 3 ? (
-                  <>
-                    <p>
-                      • Cộng tác viên không được đổi mục tiêu hoặc thực hiện
-                      thao tác của quản trị viên.
-                    </p>
-                    <p>• Phần giao hàng hiện chỉ nhận địa chỉ tại Việt Nam.</p>
-                  </>
-                ) : (
-                  <>
-                    <p>• Bản nháp đã đạt mức nội dung tối thiểu để gửi duyệt.</p>
-                    <p>
-                      • Quản trị viên vẫn là người quyết định cho giai đoạn chờ
-                      mở.
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-          </aside>
         </div>
       </div>
+
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Xác nhận gửi xét duyệt"
+        description="Hồ sơ sẽ chuyển sang trạng thái Chờ duyệt để đội ngũ quản trị kiểm tra tính minh bạch."
+        badge="Bước cuối cùng"
+        size="md"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(false)}
+              className="button-secondary min-h-11 px-4 text-xs"
+            >
+              Xem lại thêm
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void submit()}
+              className="button-primary min-h-11 px-5 text-xs"
+            >
+              {saving ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Rocket className="size-4" />
+              )}{" "}
+              Xác nhận gửi xét duyệt
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-sm">
+          <div className="rounded-xl border border-line bg-canvas-soft p-4">
+            <p className="font-display text-base font-extrabold text-ink">
+              {draft.title || "Chiến dịch mới"}
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-3 tabular-nums text-xs">
+              <div>
+                <p className="text-ink-muted">Mục tiêu</p>
+                <p className="mt-0.5 font-bold text-ink">
+                  {formatVnd(Number(draft.goal) || 0, true)}
+                </p>
+              </div>
+              <div>
+                <p className="text-ink-muted">Hoàn thiện</p>
+                <p className="mt-0.5 font-bold text-[#047857]">{readiness}/100</p>
+              </div>
+              <div>
+                <p className="text-ink-muted">Dự báo AI</p>
+                <p className="mt-0.5 font-bold text-[#7C3AED]">{aiForecast.probability}%</p>
+              </div>
+            </div>
+          </div>
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs leading-5 text-slate-800">
+            Cam kết tuân thủ quy chế <strong>All-or-Nothing</strong>: Chiến dịch chỉ giải ngân khi đạt 100% mục tiêu trước thời hạn. Trong khi chờ duyệt, chỉnh sửa trực tiếp sẽ tạm khóa.
+          </p>
+        </div>
+      </Modal>
     </section>
   );
 }

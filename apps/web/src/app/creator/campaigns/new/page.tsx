@@ -9,7 +9,7 @@ import { localDbEnabled } from "@/lib/local-db/database";
 export const metadata: Metadata = {
   title: "Tạo chiến dịch",
   description:
-    "Tạo hồ sơ chiến dịch riêng, lưu nháp và gửi quản trị viên xét duyệt trên Góp.",
+    "Tạo hồ sơ chiến dịch riêng, lưu nháp và gửi quản trị viên xét duyệt trên FundViet.",
 };
 
 export default async function NewCampaignPage({

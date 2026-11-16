@@ -116,7 +116,7 @@ export function CommentInsights({
       <div className="overflow-hidden rounded-[20px] border border-line bg-white">
         <div
           className={`flex flex-col justify-between gap-5 border-b border-line p-5 sm:flex-row sm:items-end sm:p-6 ${
-            isCollaborator ? "bg-[#eaf4ff]" : "bg-[#edf1e4]"
+            isCollaborator ? "bg-sky-50/75" : "bg-[#ECFDF5]/70"
           }`}
         >
           <div>
@@ -189,7 +189,7 @@ export function CommentInsights({
               </p>
               <div className="mt-3 space-y-2">
                 {data.topics.map((topic) => (
-                  <div key={topic.id} className="rounded-xl bg-[#f7f7f3] p-3">
+                  <div key={topic.id} className="rounded-xl bg-canvas-soft p-3">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[11px] font-bold">
                         {topic.label}

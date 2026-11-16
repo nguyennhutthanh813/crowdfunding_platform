@@ -12,13 +12,15 @@ import {
   Play,
   RotateCcw,
   ShieldCheck,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import type { CampaignWorkspaceTask, WorkspaceTaskStatus } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
+import { triggerParticleBurst } from "@/lib/ui/particle-burst";
 
 const statusLabels: Record<WorkspaceTaskStatus, string> = {
   TODO: "Cần làm",
@@ -43,12 +45,21 @@ export function CollaboratorTaskList({
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [filter, setFilter] = useState<"all" | "open" | "done">("all");
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("kanban");
   const [busy, setBusy] = useState<string | null>(null);
+  const [scanningPriority, setScanningPriority] = useState(false);
   const [notice, setNotice] = useState("");
   const [actionError, setActionError] = useState("");
   const [taskToComplete, setTaskToComplete] = useState<CampaignWorkspaceTask | null>(null);
   const [taskToInspect, setTaskToInspect] = useState<CampaignWorkspaceTask | null>(null);
+
+  useEffect(() => {
+    if (!scanningPriority) return;
+    const timer = window.setTimeout(() => {
+      setScanningPriority(false);
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [scanningPriority]);
 
   const visibleTasks = tasks.filter((task) => {
     if (filter === "open") return task.status !== "DONE";
@@ -61,6 +72,9 @@ export function CollaboratorTaskList({
     (item) => item.status === "IN_PROGRESS" || item.status === "IN_REVIEW",
   ).length;
   const todoCount = tasks.filter((item) => item.status === "TODO").length;
+  const topPriorityTodo =
+    tasks.find((item) => item.status === "TODO" && item.priority === "HIGH") ??
+    tasks.find((item) => item.status === "TODO");
 
   const updateTaskStatus = async (
     taskId: string,
@@ -98,7 +112,10 @@ export function CollaboratorTaskList({
         current && current.id === taskId ? { ...current, status } : current,
       );
       setNotice(successNotice);
-      if (status === "DONE") setTaskToComplete(null);
+      if (status === "DONE" || status === "IN_PROGRESS") {
+        if (status === "DONE") setTaskToComplete(null);
+        triggerParticleBurst();
+      }
       router.refresh();
     } catch (error) {
       setActionError(
@@ -123,46 +140,69 @@ export function CollaboratorTaskList({
   return (
     <article
       id="viec-hom-nay"
-      className="scroll-mt-36 rounded-[20px] border border-line bg-white p-5 sm:p-6"
+      className="relative scroll-mt-36 overflow-hidden rounded-[20px] border border-line bg-surface p-5 sm:p-6"
     >
+      {scanningPriority ? (
+        <div
+          aria-hidden="true"
+          className="gop-scan-beam pointer-events-none absolute inset-x-0 top-0 z-20 h-20 bg-gradient-to-b from-[#059669]/25 via-[#0284C7]/15 to-transparent"
+        />
+      ) : null}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="eyebrow text-[#2869ac]">Việc cần làm</p>
+          <p className="eyebrow text-[#047857]">Việc cần làm</p>
           <h2 className="mt-1.5 font-display text-2xl font-extrabold">
             Việc được giao ở ORBIT One
           </h2>
           <p className="mt-1 text-xs text-ink-muted">
-            Chuyển trạng thái từng bước để Chủ dự án theo dõi tiến độ theo thời gian thực.
+            Chuyển trạng thái trên bảng Kanban để Chủ dự án theo dõi tiến độ theo thời gian thực.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {topPriorityTodo ? (
+            <button
+              type="button"
+              disabled={busy === topPriorityTodo.id || scanningPriority}
+              onClick={() => {
+                setScanningPriority(true);
+                void updateTaskStatus(
+                  topPriorityTodo.id,
+                  "IN_PROGRESS",
+                  `Đã tự động nhận việc ưu tiên: "${topPriorityTodo.title}".`,
+                );
+              }}
+              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#047857] px-3 text-[11px] font-bold text-white shadow-xs transition hover:bg-[#065F46] disabled:opacity-70"
+            >
+              <Zap className={`size-3.5 ${scanningPriority ? "animate-pulse" : ""}`} /> Đẩy việc ưu tiên ngay
+            </button>
+          ) : null}
           <div
             className="flex rounded-xl border border-line bg-[#f4f6f8] p-1"
             aria-label="Chế độ hiển thị công việc"
           >
             <button
               type="button"
-              onClick={() => setViewMode("list")}
-              aria-pressed={viewMode === "list"}
-              className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold transition ${
-                viewMode === "list"
-                  ? "bg-white text-[#173d65] shadow-xs"
-                  : "text-ink-muted hover:text-ink"
-              }`}
-            >
-              <LayoutList className="size-3.5" /> Danh sách
-            </button>
-            <button
-              type="button"
               onClick={() => setViewMode("kanban")}
               aria-pressed={viewMode === "kanban"}
               className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold transition ${
                 viewMode === "kanban"
-                  ? "bg-white text-[#173d65] shadow-xs"
+                  ? "bg-white text-[#047857] shadow-xs"
                   : "text-ink-muted hover:text-ink"
               }`}
             >
               <Kanban className="size-3.5" /> Bảng tiến độ
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              aria-pressed={viewMode === "list"}
+              className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold transition ${
+                viewMode === "list"
+                  ? "bg-white text-[#047857] shadow-xs"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              <LayoutList className="size-3.5" /> Danh sách
             </button>
           </div>
           <div
@@ -192,28 +232,28 @@ export function CollaboratorTaskList({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2.5 rounded-2xl border border-[#d6e4f2] bg-[#f7fafd] p-3">
-        <div className="rounded-xl bg-white px-3 py-2">
+      <div className="mt-4 grid grid-cols-3 gap-2.5 rounded-2xl border border-line bg-canvas-soft p-3">
+        <div className="rounded-xl border border-line bg-surface px-3 py-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
             1 · Cần làm
           </p>
-          <p className="mt-0.5 font-display text-lg font-extrabold text-ink">
+          <p className="mt-0.5 font-display text-lg font-extrabold text-ink tabular-nums">
             {todoCount}
           </p>
         </div>
-        <div className="rounded-xl bg-white px-3 py-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+        <div className="rounded-xl border border-sky-200 bg-surface px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#0284C7]">
             2 · Đang xử lý
           </p>
-          <p className="mt-0.5 font-display text-lg font-extrabold text-blue-700">
+          <p className="mt-0.5 font-display text-lg font-extrabold text-[#0284C7] tabular-nums">
             {inProgressCount}
           </p>
         </div>
-        <div className="rounded-xl bg-white px-3 py-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+        <div className="rounded-xl border border-emerald-200 bg-surface px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#047857]">
             3 · Hoàn tất
           </p>
-          <p className="mt-0.5 font-display text-lg font-extrabold text-emerald-700">
+          <p className="mt-0.5 font-display text-lg font-extrabold text-[#047857] tabular-nums">
             {doneCount}
           </p>
         </div>

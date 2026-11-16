@@ -23,6 +23,7 @@ import {
   Truck,
   Users,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { CommentInsights } from "@/components/creator/comment-insights";
@@ -36,6 +37,7 @@ import type {
 } from "@/lib/api";
 import { clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import { formatVnd } from "@/lib/format";
+import { triggerParticleBurst } from "@/lib/ui/particle-burst";
 
 const tabs = [
   { id: "overview", label: "Tổng quan", icon: Activity },
@@ -369,6 +371,7 @@ export function CreatorCampaignOperations({
         setUpdateTitle("");
         setUpdateBody("");
         setUpdateAttempted(false);
+        triggerParticleBurst();
       },
       "Đã đăng cập nhật",
     );
@@ -406,6 +409,7 @@ export function CreatorCampaignOperations({
           ...current.filter((item) => item.commentId !== comment.id),
         ]);
         setReply("");
+        triggerParticleBurst();
       },
       selectedCommentReply ? "Đã cập nhật phản hồi" : "Đã gửi phản hồi",
     );
@@ -436,45 +440,45 @@ export function CreatorCampaignOperations({
   return (
     <div className="container-shell pt-6">
       {isCollaborator ? (
-        <section className="overflow-hidden rounded-[18px] border border-[#bcd4ea] bg-[#edf6ff]">
+        <section className="overflow-hidden rounded-[18px] border border-line bg-surface shadow-card">
           <div className="grid lg:grid-cols-[1.25fr_1fr]">
-            <div className="border-b border-[#c8dff1] p-5 sm:p-6 lg:border-b-0 lg:border-r">
-              <p className="eyebrow text-[#2869ac]">
+            <div className="border-b border-line p-5 sm:p-6 lg:border-b-0 lg:border-r">
+              <p className="eyebrow text-[#047857]">
                 <MessageSquareText className="size-4" /> Ca nội dung & phản hồi
               </p>
-              <h2 className="mt-2 font-display text-xl font-extrabold tracking-[-0.03em] text-[#173d65]">
+              <h2 className="mt-2 font-display text-xl font-extrabold tracking-[-0.03em] text-ink">
                 Chỉ hiện phần việc được giao trong ORBIT One
               </h2>
-              <p className="mt-2 max-w-xl text-xs leading-5 text-[#526d87]">
+              <p className="mt-2 max-w-xl text-xs leading-5 text-ink-soft">
                 Bạn có thể đăng tiến độ và trả lời cộng đồng. Cấu hình gọi vốn,
                 mục tiêu và giao quà vẫn thuộc quyền của chủ dự án.
               </p>
             </div>
-            <div className="grid grid-cols-3 bg-white/60">
-              <div className="border-r border-[#c8dff1] p-4 sm:p-5">
-                <Clock3 className="size-4 text-[#2869ac]" />
-                <p className="mt-3 font-display text-xl font-extrabold text-[#173d65]">
+            <div className="grid grid-cols-3 bg-canvas-soft">
+              <div className="border-r border-line p-4 sm:p-5">
+                <Clock3 className="size-4 text-[#047857]" />
+                <p className="mt-3 font-display text-xl font-extrabold tabular-nums text-ink">
                   {collaboratorOpenTasks.length}
                 </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#4f657b]">
+                <p className="mt-1 text-[11px] leading-4 text-ink-muted">
                   việc đang mở
                 </p>
               </div>
-              <div className="border-r border-[#c8dff1] p-4 sm:p-5">
-                <ShieldCheck className="size-4 text-[#2869ac]" />
-                <p className="mt-3 font-display text-xl font-extrabold text-[#173d65]">
+              <div className="border-r border-line p-4 sm:p-5">
+                <ShieldCheck className="size-4 text-[#047857]" />
+                <p className="mt-3 font-display text-xl font-extrabold tabular-nums text-ink">
                   {collaboratorMember?.permissions.length ?? 0}
                 </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#4f657b]">
+                <p className="mt-1 text-[11px] leading-4 text-ink-muted">
                   quyền được cấp
                 </p>
               </div>
               <div className="p-4 sm:p-5">
-                <BadgeCheck className="size-4 text-[#2869ac]" />
-                <p className="mt-3 font-display text-xl font-extrabold text-[#173d65]">
+                <BadgeCheck className="size-4 text-[#047857]" />
+                <p className="mt-3 font-display text-xl font-extrabold tabular-nums text-ink">
                   {operations.handoffs.length}
                 </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#4f657b]">
+                <p className="mt-1 text-[11px] leading-4 text-ink-muted">
                   lượt bàn giao
                 </p>
               </div>
@@ -482,53 +486,57 @@ export function CreatorCampaignOperations({
           </div>
         </section>
       ) : (
-        <div
-          className="flex gap-1.5 overflow-x-auto rounded-[16px] border border-line bg-white p-2 shadow-2xs"
-          role="tablist"
-          aria-label="Quản lý chiến dịch"
-        >
-          {visibleTabs.map((item) => {
-            const Icon = item.icon;
-            const badgeCount =
-              item.id === "overview"
-                ? tasks.filter((t) => t.status !== "DONE").length
-                : item.id === "content"
-                  ? members.length
-                  : item.id === "community"
-                    ? operations.communityMessages.length +
-                      assistantData.priorities.length
-                    : orders.length;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === item.id}
-                onClick={() => setTab(item.id)}
-                className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-all ${
-                  tab === item.id
-                    ? "bg-forest text-white shadow-xs"
-                    : "text-ink-soft hover:bg-forest/5"
-                }`}
-              >
-                <Icon
-                  className={`size-4 ${
-                    tab === item.id ? "text-lime" : "text-ink-muted"
-                  }`}
-                />{" "}
-                <span>{item.label}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+        <div className="rounded-2xl border border-line bg-surface p-2 shadow-2xs">
+          <div
+            className="grid grid-cols-2 gap-1.5 sm:grid-cols-4"
+            role="tablist"
+            aria-label="Quản lý chiến dịch"
+          >
+            {visibleTabs.map((item) => {
+              const Icon = item.icon;
+              const badgeCount =
+                item.id === "overview"
+                  ? tasks.filter((t) => t.status !== "DONE").length
+                  : item.id === "content"
+                    ? members.length
+                    : item.id === "community"
+                      ? operations.communityMessages.length +
+                        assistantData.priorities.length
+                      : orders.length;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === item.id}
+                  onClick={() => setTab(item.id)}
+                  className={`flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-xl px-3.5 text-xs font-bold transition-all ${
                     tab === item.id
-                      ? "bg-white/15 text-lime"
-                      : "bg-[#f2f3ee] text-ink-muted"
+                      ? "bg-[#047857] text-white shadow-sm"
+                      : "text-ink-soft hover:bg-canvas-soft hover:text-ink"
                   }`}
                 >
-                  {badgeCount}
-                </span>
-              </button>
-            );
-          })}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Icon
+                      className={`size-4 shrink-0 ${
+                        tab === item.id ? "text-emerald-100" : "text-ink-muted"
+                      }`}
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </span>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${
+                      tab === item.id
+                        ? "bg-white/20 text-white"
+                        : "bg-canvas-soft text-ink-muted"
+                    }`}
+                  >
+                    {badgeCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -645,17 +653,23 @@ export function CreatorCampaignOperations({
                 ĐÃ DUYỆT
               </span>
             </div>
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/6 p-4">
-              <p className="text-sm font-bold">Checklist 8/8 mục đạt</p>
-              <p className="mt-3 text-xs leading-6 text-white/57">
+            <details className="group/chk mt-5 rounded-2xl border border-white/12 bg-white/8 p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-bold text-white [&::-webkit-details-marker]:hidden">
+                <span>Checklist 8/8 mục đạt · Trần Khánh An</span>
+                <span className="text-xs font-semibold text-lime">
+                  <span className="group-open/chk:hidden">Xem ghi chú ↓</span>
+                  <span className="hidden group-open/chk:inline">Thu gọn ↑</span>
+                </span>
+              </summary>
+              <p className="mt-3 text-xs leading-6 text-white/75">
                 Nội dung và rủi ro đã rõ. Trước khi mở gọi vốn, bổ sung mã chứng
                 nhận an toàn điện trong bản cập nhật đầu tiên và không thay đổi
                 mục tiêu.
               </p>
-              <p className="mt-4 text-[11px] text-white/38">
-                Duyệt bởi Trần Khánh An · 06/09/2026 14:20
+              <p className="mt-3 text-[11px] text-white/50">
+                Duyệt lúc 06/09/2026 14:20
               </p>
-            </div>
+            </details>
           </article>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:col-span-2 xl:grid-cols-4">
@@ -714,7 +728,7 @@ export function CreatorCampaignOperations({
                   Trạng thái việc liên thông trực tiếp với không gian làm việc của Gia Huy và Minh Trang.
                 </p>
               </div>
-              <span className="w-fit rounded-full bg-[#f2f6e8] px-3 py-1.5 text-[11px] font-bold text-[#566c27]">
+              <span className="w-fit rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-[#047857]">
                 {tasks.filter((item) => item.status === "DONE").length}/{tasks.length} đã hoàn tất
               </span>
             </div>
@@ -729,7 +743,7 @@ export function CreatorCampaignOperations({
                       className={`flex flex-col justify-between gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center ${
                         done
                           ? "border-emerald-200 bg-emerald-50/45"
-                          : "border-line bg-[#fbfaf7]"
+                          : "border-line bg-canvas-soft"
                       }`}
                     >
                       <div className="min-w-0">
@@ -788,21 +802,25 @@ export function CreatorCampaignOperations({
                 })}
               </div>
 
-              <div className="rounded-2xl border border-line bg-[#f7f5f0] p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-ink-muted">
-                  Nhật ký bàn giao giữa các vai trò
-                </p>
-                <div className="mt-3 space-y-2.5">
+              <details className="group/log rounded-2xl border border-line bg-canvas-soft p-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-bold uppercase tracking-[0.08em] text-ink-soft [&::-webkit-details-marker]:hidden">
+                  <span>Nhật ký bàn giao ({operations.handoffs.length})</span>
+                  <span className="text-[11px] font-bold text-[#047857]">
+                    <span className="group-open/log:hidden">Xem lịch sử ↓</span>
+                    <span className="hidden group-open/log:inline">Thu gọn ↑</span>
+                  </span>
+                </summary>
+                <div className="mt-3 space-y-2.5 border-t border-line pt-3">
                   {operations.handoffs.map((handoff) => (
                     <div
                       key={handoff.id}
-                      className="rounded-xl border border-line bg-white p-3.5"
+                      className="rounded-xl border border-line bg-surface p-3.5"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-bold leading-5 text-ink">
                           {handoff.title}
                         </p>
-                        <span className="shrink-0 text-[11px] font-semibold text-coral">
+                        <span className="shrink-0 text-[11px] font-semibold text-[#047857]">
                           {handoff.at}
                         </span>
                       </div>
@@ -815,7 +833,7 @@ export function CreatorCampaignOperations({
                     </div>
                   ))}
                 </div>
-              </div>
+              </details>
             </div>
           </article>
         </div>
@@ -863,7 +881,7 @@ export function CreatorCampaignOperations({
                   Cộng tác viên của chiến dịch
                 </h2>
               </div>
-              <span className="rounded-full bg-[#f2f6e8] px-3 py-1.5 text-[11px] font-bold text-[#566c27]">
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-[#047857]">
                 {members.length} THÀNH VIÊN
               </span>
             </div>
@@ -889,7 +907,7 @@ export function CreatorCampaignOperations({
                         {member.permissions.map((permission) => (
                           <span
                             key={permission}
-                            className="rounded-full bg-[#f2f6e8] px-2 py-1 text-[11px] font-bold text-[#566c27]"
+                            className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-[#047857]"
                           >
                             {permission}
                           </span>
@@ -917,7 +935,7 @@ export function CreatorCampaignOperations({
                       {collaboratorPermissions.map((permission) => (
                         <label
                           key={permission}
-                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-[#f6f5f0] px-3 py-2.5 text-[11px] font-semibold"
+                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-canvas-soft px-3 py-2.5 text-[11px] font-semibold"
                         >
                           <input
                             name={`permission-${member.id}-${permission}`}
@@ -1014,7 +1032,7 @@ export function CreatorCampaignOperations({
                   nhóm có thể theo dõi đúng ngữ cảnh trao đổi.
                 </p>
               </div>
-              <span className="w-fit rounded-full bg-[#f3eee7] px-3 py-1.5 text-[11px] font-bold text-ink-soft">
+              <span className="w-fit rounded-full bg-canvas-soft px-3 py-1.5 text-[11px] font-bold text-ink-soft">
                 {operations.communityMessages.length} cuộc trao đổi
               </span>
             </div>
@@ -1031,7 +1049,7 @@ export function CreatorCampaignOperations({
                         setSelectedInboxMessageId(message.id);
                         setMessageReply("");
                       }}
-                      className="group min-h-36 rounded-2xl border border-line bg-[#fbfaf7] p-4 text-left transition hover:border-coral/45 hover:bg-white"
+                      className="group min-h-36 rounded-2xl border border-line bg-canvas-soft p-4 text-left transition hover:border-[#047857]/45 hover:bg-surface"
                     >
                       <span className="flex items-start justify-between gap-3">
                         <span className="flex min-w-0 items-center gap-3">
@@ -1084,7 +1102,7 @@ export function CreatorCampaignOperations({
             )}
           </article>
           <div
-            className={`${isCollaborator ? "xl:order-2" : ""} ${
+            className={`xl:col-span-2 ${isCollaborator ? "xl:order-2" : ""} ${
               communityFocus === "updates" ? "hidden" : ""
             }`}
           >
@@ -1231,8 +1249,14 @@ export function CreatorCampaignOperations({
                 Đăng cập nhật
               </button>
             </form>
-            <div className="mt-7 border-t border-line pt-5">
-              <p className="text-xs font-bold">Lịch sử gần đây</p>
+            <details className="group/upd mt-7 border-t border-line pt-5">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-bold text-ink [&::-webkit-details-marker]:hidden">
+                <span>Lịch sử gần đây ({updates.length} bản tin)</span>
+                <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+                  <span className="group-open/upd:hidden">Xem lịch sử ↓</span>
+                  <span className="hidden group-open/upd:inline">Thu gọn ↑</span>
+                </span>
+              </summary>
               <div className="mt-3 space-y-2">
                 {updates.map((update) => {
                   const updateKey =
@@ -1242,11 +1266,11 @@ export function CreatorCampaignOperations({
                       key={updateKey}
                       type="button"
                       onClick={() => setSelectedUpdateKey(updateKey)}
-                      className="w-full rounded-xl border border-transparent bg-[#f6f5f0] p-3 text-left transition hover:border-coral/40 hover:bg-white"
+                      className="w-full cursor-pointer rounded-xl border border-slate-200/80 bg-canvas-soft p-3 text-left transition hover:border-[#047857]/40 hover:bg-surface"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-bold">{update.title}</p>
-                        <span className="shrink-0 text-[10px] font-bold text-coral">
+                        <span className="shrink-0 text-[10px] font-bold text-[#047857]">
                           Xem bản tin
                         </span>
                       </div>
@@ -1263,7 +1287,7 @@ export function CreatorCampaignOperations({
                   );
                 })}
               </div>
-            </div>
+            </details>
           </article>
           <article
             id="comment-reply-composer"
@@ -1280,7 +1304,7 @@ export function CreatorCampaignOperations({
               Trả lời với nhãn {isCollaborator ? "Cộng tác viên" : "Chủ dự án"}
             </h2>
             {selectedComment ? (
-              <div className="mt-6 rounded-2xl bg-[#f6f5f0] p-4">
+              <div className="mt-6 rounded-2xl bg-canvas-soft p-4">
                 <div className="flex items-center gap-3">
                   <span className="grid size-9 place-items-center rounded-full bg-forest text-[11px] font-bold text-white">
                     {selectedComment.initials}
@@ -1344,47 +1368,55 @@ export function CreatorCampaignOperations({
             </button>
           </article>
           {isCollaborator ? (
-            <article className="rounded-[20px] border border-[#bcd4ea] bg-[#173d65] p-6 text-white xl:order-4 xl:col-span-2">
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <details className="surface-card group/ctv-handoff rounded-[20px] border border-slate-200 p-5 sm:p-6 xl:order-4 xl:col-span-2">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
                 <div>
-                  <p className="eyebrow text-[#b8e3fb]">
+                  <p className="eyebrow text-[#047857]">
                     <Clock3 className="size-4" /> Nhật ký bàn giao
                   </p>
-                  <h2 className="mt-2 font-display text-xl font-extrabold">
-                    Dữ liệu nối giữa bạn và chủ dự án
+                  <h2 className="mt-1 font-display text-lg font-extrabold text-ink">
+                    Dữ liệu nối giữa bạn và chủ dự án ({operations.handoffs.length} mục)
                   </h2>
                 </div>
-                <Link
-                  href="/collaborator#viec-hom-nay"
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/16 bg-white/8 px-4 text-xs font-bold text-white hover:bg-white/12"
-                >
-                  Quay lại bảng việc
-                </Link>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {operations.handoffs.map((handoff) => (
-                  <div
-                    key={handoff.id}
-                    className="rounded-2xl border border-white/10 bg-white/6 p-4"
+                <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-ink-soft">
+                  <span className="group-open/ctv-handoff:hidden">Mở nhật ký bàn giao ↓</span>
+                  <span className="hidden group-open/ctv-handoff:inline">Thu gọn ↑</span>
+                </span>
+              </summary>
+              <div className="mt-5 border-t border-slate-200 pt-5">
+                <div className="flex justify-end">
+                  <Link
+                    href="/collaborator#viec-hom-nay"
+                    className="button-secondary min-h-10 px-4 text-xs"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-xs font-bold leading-5">
-                        {handoff.title}
+                    Quay lại bảng việc
+                  </Link>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {operations.handoffs.map((handoff) => (
+                    <div
+                      key={handoff.id}
+                      className="rounded-2xl border border-slate-200 bg-canvas-soft p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-xs font-bold leading-5 text-ink">
+                          {handoff.title}
+                        </p>
+                        <span className="shrink-0 text-[11px] font-semibold text-[#047857]">
+                          {handoff.at}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[11px] leading-5 text-ink-soft">
+                        {handoff.note}
                       </p>
-                      <span className="shrink-0 text-[11px] text-[#b8e3fb]">
-                        {handoff.at}
-                      </span>
+                      <p className="mt-3 text-[11px] font-semibold text-ink-muted">
+                        {handoff.from} → {handoff.to}
+                      </p>
                     </div>
-                    <p className="mt-2 text-[11px] leading-5 text-white/60">
-                      {handoff.note}
-                    </p>
-                    <p className="mt-3 text-[11px] font-semibold text-white/70">
-                      {handoff.from} → {handoff.to}
-                    </p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </article>
+            </details>
           ) : null}
         </div>
       ) : null}
@@ -1528,6 +1560,20 @@ export function CreatorCampaignOperations({
                 <Clock3 className="mt-0.5 size-4 shrink-0 text-lime" />
                 {operations.fulfillment.currentCampaign.unlockLabel}
               </p>
+              <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/12 bg-white/8 p-3">
+                <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-xl border border-white/20">
+                  <Image
+                    src="/images/3d/fulfillment-pipeline-3d.jpg"
+                    alt="Mô hình 3D quy trình giải ngân và đóng gói giao quà"
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                </div>
+                <p className="text-[11px] leading-4 text-white/75">
+                  Ngay khi chạm 100% Goal, hệ thống tự động mở khóa dây chuyền đóng gói và xuất CSV cho {operations.fulfillment.currentCampaign.authorizedCount.toLocaleString("vi-VN")} cam kết.
+                </p>
+              </div>
             </article>
 
             <article className="rounded-[20px] border border-line bg-white p-6 sm:p-7">
@@ -1575,28 +1621,38 @@ export function CreatorCampaignOperations({
             </article>
           </div>
 
-          <section id="orbit-drip-fulfillment" className="scroll-mt-28">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <details
+            id="orbit-drip-fulfillment"
+            className="surface-card group/orbit-drip scroll-mt-28 rounded-[20px] border border-slate-200 p-5 sm:p-6"
+          >
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
               <div>
-                <p className="eyebrow text-coral">
+                <p className="eyebrow text-[#047857]">
                   <PackageCheck className="size-4" /> Chiến dịch đã thành công
                 </p>
-                <h2 className="mt-2 font-display text-2xl font-extrabold">
-                  {operations.fulfillment.previousCampaign.title}
+                <h2 className="mt-1 font-display text-lg font-extrabold text-ink sm:text-xl">
+                  Mẫu đối soát &amp; xuất CSV từ chiến dịch trước ({operations.fulfillment.previousCampaign.title}) · {orders.length} đơn mẫu
                 </h2>
-                <p className="mt-2 text-xs text-ink-muted">
+              </div>
+              <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-ink-soft">
+                <span className="group-open/orbit-drip:hidden">Mở bảng đơn &amp; xuất CSV ↓</span>
+                <span className="hidden group-open/orbit-drip:inline">Thu gọn ↑</span>
+              </span>
+            </summary>
+            <div className="mt-5 border-t border-slate-200 pt-5">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <p className="text-xs text-ink-muted">
                   {operations.fulfillment.previousCampaign.successfulAt} · {formatVnd(operations.fulfillment.previousCampaign.capturedAmount)} đã được đối soát
                 </p>
+                <button
+                  type="button"
+                  onClick={exportOrders}
+                  className="button-secondary"
+                >
+                  <Download className="size-4" /> Xuất CSV giao hàng
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={exportOrders}
-                className="button-secondary"
-              >
-                <Download className="size-4" /> Xuất CSV giao hàng
-              </button>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+              <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-5">
               {(
                 [
                   ["ALL", "Tất cả đơn", orders.length],
@@ -1726,7 +1782,8 @@ export function CreatorCampaignOperations({
                 </tbody>
               </table>
             </div>
-          </section>
+            </div>
+          </details>
         </div>
       ) : null}
 

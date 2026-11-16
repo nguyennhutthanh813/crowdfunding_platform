@@ -10,12 +10,11 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import { ArrowRight, Box, GitBranch, ReceiptText } from "lucide-react";
+import { ArrowRight, GitBranch, LayoutGrid, ReceiptText } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { RoleStage3DScene } from "@/components/visuals/role-stage-3d-scene";
 import type { BackedProject, PaymentStatus } from "@/lib/api/contracts";
 import { formatDate, formatVnd } from "@/lib/format";
 import { backerFulfillmentText } from "@/lib/pledge/backer-fulfillment";
@@ -40,9 +39,9 @@ export function BackerPledgeTree({
 }) {
   const [selectedId, setSelectedId] = useState(projects[0]?.pledgeId ?? "");
   const [focusedPart, setFocusedPart] = useState<TreePart>("pledge");
-  const [displayMode, setDisplayMode] = useState<"flow" | "stage3d">("stage3d");
+  const [displayMode, setDisplayMode] = useState<"flow" | "cards">("flow");
   const [openPart, setOpenPart] = useState<TreePart | null>(null);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const selected = projects.find((item) => item.pledgeId === selectedId) ?? projects[0];
 
   if (!selected) return null;
@@ -79,7 +78,7 @@ export function BackerPledgeTree({
   const nodeBase = {
     borderRadius: 15,
     padding: 14,
-    boxShadow: "0 12px 24px rgba(81,49,27,.11)",
+    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
     fontFamily: "var(--font-be-vietnam-pro), sans-serif",
   };
   const nodes: Node[] = [
@@ -88,11 +87,11 @@ export function BackerPledgeTree({
       position: { x: 24, y: 170 },
       sourcePosition: Position.Right,
       data: { label: <div className="text-left">
-        <span className="text-[11px] font-bold text-[#91664a]">Người ủng hộ</span>
+        <span className="text-[11px] font-bold text-[#047857]">Người ủng hộ</span>
         <strong className="mt-1 block text-sm leading-5">{backerName}</strong>
-        <span className="mt-2 block text-xs">{projects.length} khoản đang theo dõi</span>
+        <span className="mt-2 block text-xs text-slate-600">{projects.length} khoản đang theo dõi</span>
       </div> },
-      style: { ...nodeBase, width: 190, border: "1px solid #e3c8ac", background: "#fff1e2", color: "#593b2b" },
+      style: { ...nodeBase, width: 190, border: "1px solid #A7F3D0", background: "#ECFDF5", color: "#064E3B" },
     },
     {
       id: "pledge",
@@ -100,43 +99,43 @@ export function BackerPledgeTree({
       targetPosition: Position.Left,
       sourcePosition: Position.Right,
       data: { label: <div className="text-left">
-        <span className="text-[11px] font-bold text-[#f5cfaa]">Khoản cam kết</span>
+        <span className="text-[11px] font-bold text-emerald-200">Khoản cam kết</span>
         <strong className="mt-1 block text-sm leading-5">{formatVnd(selected.amount)}</strong>
         <span className="mt-2 block text-[11px] text-white/80">{selected.referenceCode}</span>
       </div> },
-      style: { ...nodeBase, width: 210, border: "2px solid #e7b98b", background: "#663e31", color: "white" },
+      style: { ...nodeBase, width: 210, border: "2px solid #34D399", background: "#047857", color: "white" },
     },
     {
       id: "campaign",
       position: { x: 535, y: 20 },
       targetPosition: Position.Left,
       data: { label: <div className="text-left">
-        <span className="text-[11px] font-bold text-[#497252]">Dự án</span>
+        <span className="text-[11px] font-bold text-[#047857]">Dự án</span>
         <strong className="mt-1 block line-clamp-2 text-sm leading-5">{selected.campaign.title}</strong>
-        <span className="mt-2 block text-xs text-[#52735a]">{selected.campaign.id}</span>
+        <span className="mt-2 block text-xs text-slate-500">{selected.campaign.id}</span>
       </div> },
-      style: { ...nodeBase, width: 228, border: "1px solid #c7dcc2", background: "#eef5e9", color: "#193c2e" },
+      style: { ...nodeBase, width: 228, border: "1px solid #CBD5E1", background: "#F8FAFC", color: "#0F172A" },
     },
     {
       id: "payment",
       position: { x: 535, y: 167 },
       targetPosition: Position.Left,
       data: { label: <div className="text-left">
-        <span className="text-[11px] font-bold text-[#805a43]">Dòng tiền</span>
+        <span className="text-[11px] font-bold text-[#6D28D9]">Dòng tiền</span>
         <strong className="mt-1 block text-sm leading-5">{paymentText[selected.paymentStatus]}</strong>
       </div> },
-      style: { ...nodeBase, width: 228, border: "1px solid #e5d0bd", background: "#fff6ec", color: "#5a382a" },
+      style: { ...nodeBase, width: 228, border: "1px solid #DDD6FE", background: "#F5F3FF", color: "#4C1D95" },
     },
     {
       id: "reward",
       position: { x: 535, y: 305 },
       targetPosition: Position.Left,
       data: { label: <div className="text-left">
-        <span className="text-[11px] font-bold text-[#5e6e89]">Gói quà</span>
+        <span className="text-[11px] font-bold text-sky-700">Gói quà</span>
         <strong className="mt-1 block line-clamp-2 text-sm leading-5">{selected.rewardTitle}</strong>
-        <span className="mt-2 block text-xs text-[#5e6e89]">{deliveryText}</span>
+        <span className="mt-2 block text-xs text-sky-700">{deliveryText}</span>
       </div> },
-      style: { ...nodeBase, width: 228, border: "1px solid #cbd7e8", background: "#f0f5fb", color: "#29445f" },
+      style: { ...nodeBase, width: 228, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#1E3A8A" },
     },
   ];
   const edges: Edge[] = [
@@ -152,11 +151,11 @@ export function BackerPledgeTree({
       animated: true,
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: activeEdge ? "#a83f2a" : "#b88b6c",
+        color: activeEdge ? "#047857" : "#94A3B8",
       },
       style: {
-        stroke: activeEdge ? "#a83f2a" : "#b88b6c",
-        strokeWidth: activeEdge ? 3.2 : 2.4,
+        stroke: activeEdge ? "#047857" : "#94A3B8",
+        strokeWidth: activeEdge ? 3.2 : 2.2,
       },
     };
   });
@@ -170,44 +169,50 @@ export function BackerPledgeTree({
   }));
 
   return (
-    <section aria-labelledby="backer-tree-title" className="mt-6 overflow-hidden rounded-[20px] border border-[#e4c9af] bg-[#fffaf4] shadow-[0_16px_40px_rgba(93,58,31,.07)]">
-      <div className="border-b border-[#ead7c3] bg-[#faead8] p-5 sm:p-6">
+    <section aria-labelledby="backer-tree-title" className="mt-6 overflow-hidden rounded-[20px] border border-line bg-surface shadow-card">
+      <div className="border-b border-line bg-canvas-soft/80 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="flex items-center gap-2 text-sm font-bold text-[#8b5138]"><GitBranch className="size-4" /> Sơ đồ khoản ủng hộ</p>
-            <h3 id="backer-tree-title" className="mt-1 font-display text-2xl font-extrabold tracking-tight text-[#4a2f29]">Khoản cam kết này gắn với đâu?</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#795a4d]">Chọn một khoản để xem dự án, trạng thái dòng tiền và gói quà của riêng khoản đó.</p>
+            <p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#047857]">
+              <GitBranch className="size-4" /> Sơ đồ khoản ủng hộ
+            </p>
+            <h3 id="backer-tree-title" className="mt-1 font-display text-xl font-extrabold tracking-tight text-ink">
+              Khoản cam kết này gắn với đâu?
+            </h3>
+            <p className="mt-1.5 max-w-2xl text-xs leading-5 text-ink-soft">
+              Chọn một khoản để xem dự án, trạng thái ủy quyền dòng tiền và gói quà của riêng khoản đó.
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-xl border border-[#d9b99a] bg-white p-1" role="group" aria-label="Chế độ hiển thị sơ đồ">
+            <div className="inline-flex rounded-xl border border-line bg-surface p-1" role="group" aria-label="Chế độ hiển thị sơ đồ">
               <button
                 type="button"
                 aria-pressed={displayMode === "flow" && expanded}
                 onClick={() => { setDisplayMode("flow"); setExpanded(true); }}
                 className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
-                  displayMode === "flow" && expanded ? "bg-[#744730] text-white" : "text-[#744730] hover:bg-[#fff2e6]"
+                  displayMode === "flow" && expanded ? "bg-[#047857] text-white" : "text-ink-soft hover:bg-[#ECFDF5] hover:text-[#047857]"
                 }`}
               >
-                <GitBranch className="size-3.5" /> Sơ đồ cây
+                <GitBranch className="size-3.5" /> Sơ đồ luồng (2D)
               </button>
               <button
                 type="button"
-                aria-pressed={displayMode === "stage3d" && expanded}
-                onClick={() => { setDisplayMode("stage3d"); setExpanded(true); }}
+                aria-pressed={displayMode === "cards" && expanded}
+                onClick={() => { setDisplayMode("cards"); setExpanded(true); }}
                 className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${
-                  displayMode === "stage3d" && expanded ? "bg-[#744730] text-white" : "text-[#744730] hover:bg-[#fff2e6]"
+                  displayMode === "cards" && expanded ? "bg-[#047857] text-white" : "text-ink-soft hover:bg-[#ECFDF5] hover:text-[#047857]"
                 }`}
               >
-                <Box className="size-3.5" /> Sa bàn 3D
+                <LayoutGrid className="size-3.5" /> Danh sách thẻ
               </button>
             </div>
             <button
               type="button"
               aria-expanded={expanded}
               onClick={() => setExpanded((current) => !current)}
-              className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#744730] bg-[#744730] px-3.5 text-xs font-bold text-white hover:bg-[#5c3724]"
+              className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-[#047857] bg-[#047857] px-3.5 text-xs font-bold text-white hover:bg-[#065F46]"
             >
-              {expanded ? "Thu gọn sơ đồ" : "Mở sơ đồ cây & Sa bàn 3D"}
+              {expanded ? "Thu gọn sơ đồ" : "Xem sơ đồ khoản ủng hộ"}
             </button>
           </div>
         </div>
@@ -217,9 +222,9 @@ export function BackerPledgeTree({
             type="button"
             aria-pressed={item.pledgeId === selected.pledgeId}
             onClick={() => { setSelectedId(item.pledgeId); setOpenPart(null); setExpanded(true); }}
-            className={`min-h-11 rounded-xl border px-3 py-2 text-left text-[13px] font-bold ${item.pledgeId === selected.pledgeId
-              ? "border-[#744730] bg-[#744730] text-white"
-              : "border-[#d9b99a] bg-white text-[#744730] hover:bg-[#fff6ec]"}`}
+            className={`min-h-10 rounded-xl border px-3 py-1.5 text-left text-xs font-bold transition ${item.pledgeId === selected.pledgeId
+              ? "border-[#047857] bg-[#047857] text-white shadow-2xs"
+              : "border-line bg-surface text-ink-soft hover:border-[#059669]/40 hover:text-ink"}`}
           >{item.campaign.title}</button>)}
         </div>
       </div>
@@ -227,22 +232,42 @@ export function BackerPledgeTree({
       {expanded ? (
       <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_275px]">
         <div>
-          {displayMode === "stage3d" ? (
-            <RoleStage3DScene
-              eyebrow="Khoản ủng hộ của bạn"
-              title={`Hành trình khoản cam kết: ${selected.referenceCode}`}
-              centerLabel={`${selected.referenceCode} · ${formatVnd(selected.amount)}`}
-              centerSubtext={`${selected.campaign.title} · ${paymentText[selected.paymentStatus]}`}
-              steps={stageSteps}
-              activeStepId={focusedPart}
-              onSelectStep={(id) => setFocusedPart(id as TreePart)}
-              onInspectStep={(id) => setOpenPart(id as TreePart)}
-              tone="amber"
-              compact
-            />
+          {displayMode === "cards" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {stageSteps.map((stepItem) => {
+                const isSelected = focusedPart === stepItem.id;
+                return (
+                  <button
+                    key={stepItem.id}
+                    type="button"
+                    onClick={() => {
+                      setFocusedPart(stepItem.id as TreePart);
+                      setOpenPart(stepItem.id as TreePart);
+                    }}
+                    className={`flex flex-col justify-between rounded-2xl border p-4 text-left transition ${
+                      isSelected
+                        ? "border-[#047857] bg-[#ECFDF5] shadow-sm"
+                        : "border-line bg-surface hover:border-[#059669]/45"
+                    }`}
+                  >
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#047857]">
+                        {stepItem.code} · {stepItem.title}
+                      </span>
+                      <p className="mt-1.5 font-display text-sm font-extrabold text-ink">
+                        {stepItem.subtitle}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-ink-soft">
+                        {stepItem.detail}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           ) : (
             <>
-              <div className="gop-pledge-tree hidden h-[440px] overflow-hidden rounded-2xl border border-[#ebdac7] bg-white lg:block" aria-label="Cây quan hệ của khoản cam kết đang chọn">
+              <div className="gop-pledge-tree hidden h-[420px] overflow-hidden rounded-2xl border border-line bg-surface lg:block" aria-label="Cây quan hệ của khoản cam kết đang chọn">
                 <ReactFlow
                   nodes={nodes}
                   edges={edges}
@@ -269,21 +294,21 @@ export function BackerPledgeTree({
                     setOpenPart(part);
                   }}
                 >
-                  <Background variant={BackgroundVariant.Dots} gap={19} size={1} color="#efdfd0" />
+                  <Background variant={BackgroundVariant.Dots} gap={19} size={1} color="#cbd5e1" />
                   <Controls showInteractive={false} />
                 </ReactFlow>
               </div>
               <div className="lg:hidden">
-                <button type="button" onClick={() => setOpenPart("backer")} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-[#e3c8ac] bg-[#fff1e2] px-4 text-left text-sm font-bold text-[#593b2b]">
+                <button type="button" onClick={() => setOpenPart("backer")} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-[#ECFDF5] px-4 text-left text-sm font-bold text-[#064E3B]">
                   {backerName} <span className="text-[13px]">{projects.length} khoản</span>
                 </button>
-                <div className="ml-5 border-l-2 border-[#d4aa84] pb-1 pl-4 pt-3">
-                  <button type="button" onClick={() => setOpenPart("pledge")} className="min-h-12 w-full rounded-xl bg-[#663e31] px-4 py-3 text-left text-sm font-bold text-white">
+                <div className="ml-5 border-l-2 border-emerald-300 pb-1 pl-4 pt-3">
+                  <button type="button" onClick={() => setOpenPart("pledge")} className="min-h-12 w-full rounded-xl bg-[#047857] px-4 py-3 text-left text-sm font-bold text-white">
                     {formatVnd(selected.amount)} · {selected.referenceCode}
                   </button>
-                  <div className="ml-5 grid gap-2 border-l-2 border-[#d4aa84] pb-1 pl-4 pt-3">
-                    {(["campaign", "payment", "reward"] as const).map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-12 rounded-xl border border-[#ead9c8] bg-white px-4 py-3 text-left text-sm font-semibold text-[#563b31]">
-                      {details[part].title} <span className="mt-0.5 block text-[13px] leading-5 font-normal text-[#765d50]">{details[part].value}</span>
+                  <div className="ml-5 grid gap-2 border-l-2 border-emerald-300 pb-1 pl-4 pt-3">
+                    {(["campaign", "payment", "reward"] as const).map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-12 rounded-xl border border-line bg-surface px-4 py-3 text-left text-sm font-semibold text-ink">
+                      {details[part].title} <span className="mt-0.5 block text-[13px] leading-5 font-normal text-ink-soft">{details[part].value}</span>
                     </button>)}
                   </div>
                 </div>
@@ -292,20 +317,20 @@ export function BackerPledgeTree({
           )}
         </div>
 
-        <aside className="flex flex-col rounded-[16px] border border-[#ecd8c4] bg-white p-5">
+        <aside className="flex flex-col rounded-[16px] border border-line bg-canvas-soft/60 p-5">
           <StatusBadge status={selected.campaign.status} />
-          <h4 className="mt-3 font-display text-lg font-extrabold leading-6 text-[#4a2f29]">{selected.campaign.title}</h4>
-          <p className="mt-2 text-sm font-bold text-[#a04e32]">{formatVnd(selected.amount)}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-[13px] text-[#795a4d]"><ReceiptText className="size-4" /> {selected.referenceCode}</p>
-          <div className="mt-4 space-y-2 border-y border-[#eee0d1] py-4 text-[13px] leading-5 text-[#684d40]">
+          <h4 className="mt-3 font-display text-lg font-extrabold leading-6 text-ink">{selected.campaign.title}</h4>
+          <p className="mt-2 text-sm font-bold text-[#047857]">{formatVnd(selected.amount)}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-muted"><ReceiptText className="size-4" /> {selected.referenceCode}</p>
+          <div className="mt-4 space-y-2 border-y border-line py-4 text-[13px] leading-5 text-ink-soft">
             <p><strong>Dòng tiền:</strong> {paymentText[selected.paymentStatus]}</p>
             <p><strong>Gói quà:</strong> {selected.rewardTitle}</p>
             <p><strong>Giao quà:</strong> {deliveryText}</p>
           </div>
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Giải thích các nhánh của khoản ủng hộ">
-            {parts.map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-10 rounded-lg border border-[#e6d4c1] px-2.5 text-xs font-semibold text-[#744730] hover:bg-[#fff2e6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#744730]">{details[part].title}</button>)}
+            {parts.map((part) => <button key={part} type="button" onClick={() => setOpenPart(part)} className="min-h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-ink-soft hover:border-[#047857] hover:text-[#047857]">{details[part].title}</button>)}
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#795a4d]">Cam kết được quản lý theo quy tắc Tất cả hoặc không gì cả; số tiền chỉ được chuyển giao khi dự án đạt 100% mục tiêu.</p>
+          <p className="mt-4 text-xs leading-5 text-ink-muted">Cam kết được quản lý theo quy tắc Tất cả hoặc không gì cả; số tiền chỉ được chuyển giao khi dự án đạt 100% mục tiêu.</p>
           <div className="mt-auto pt-4">
             <Link href={`/projects/${selected.campaign.slug}`} className="button-primary w-full">Mở trang dự án <ArrowRight className="size-4" /></Link>
           </div>
@@ -315,8 +340,8 @@ export function BackerPledgeTree({
 
       <Modal open={openPart !== null} title={openPart ? details[openPart].title : ""} description={selected.campaign.title} onClose={() => setOpenPart(null)} size="sm">
         {openPart ? <div>
-          <p className="text-base font-bold text-[#563b31]">{details[openPart].value}</p>
-          <p className="mt-3 text-sm leading-6 text-[#795a4d]">{details[openPart].body}</p>
+          <p className="text-base font-bold text-ink">{details[openPart].value}</p>
+          <p className="mt-3 text-sm leading-6 text-ink-soft">{details[openPart].body}</p>
           <Link href={`/projects/${selected.campaign.slug}`} onClick={() => setOpenPart(null)} className="button-primary mt-5 w-full">Mở trang dự án <ArrowRight className="size-4" /></Link>
         </div> : null}
       </Modal>
