@@ -21,11 +21,26 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
+import { CommandPaletteTrigger } from "@/components/ui/command-palette";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import {
+  HeaderRoleSwitchPopover,
+  QuickRoleDock,
+} from "@/components/workspace/quick-role-switcher";
 import type { UserRole } from "@/lib/api/contracts";
 import { roleLabels } from "@/lib/auth/roles";
 import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import type { WorkspaceSnapshot } from "@/lib/workspace-snapshot";
+
+const unifiedHeaderTheme = {
+  header: "border-line bg-surface/95 text-ink backdrop-blur-md",
+  muted: "text-ink-soft",
+  divider: "border-line",
+  chip: "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]",
+  avatar: "bg-[#047857] text-white",
+  iconButton: "border-line bg-surface text-ink-soft hover:bg-canvas-soft hover:text-ink",
+};
 
 const headerTheme: Record<
   UserRole,
@@ -38,37 +53,13 @@ const headerTheme: Record<
     iconButton: string;
   }
 > = {
-  BACKER: {
-    header: "border-[#ead2bc] bg-[#fffaf3] text-[#3d2821]",
-    muted: "text-[#816d63]",
-    divider: "border-[#ead2bc]",
-    chip: "border-[#e9c59e] bg-[#fff1de] text-[#704532]",
-    avatar: "bg-[#f4c77d] text-[#56352b]",
-    iconButton: "border-[#ead2bc] bg-white text-[#6c5146] hover:bg-[#fff1de]",
-  },
-  CREATOR: {
-    header: "border-white/10 bg-[#102a22] text-white",
-    muted: "text-white/68",
-    divider: "border-white/12",
-    chip: "border-[#b9d26d]/35 bg-[#b9d26d]/12 text-[#e1f5a4]",
-    avatar: "bg-lime text-forest",
-    iconButton: "border-white/12 bg-white/6 text-white/72 hover:bg-white/10",
-  },
-  COLLABORATOR: {
-    header: "border-white/10 bg-[#173d65] text-white",
-    muted: "text-[#bdd6ef]",
-    divider: "border-white/12",
-    chip: "border-[#8bc9f3]/35 bg-[#8bc9f3]/12 text-[#d8efff]",
-    avatar: "bg-[#b8e3fb] text-[#173958]",
-    iconButton: "border-white/12 bg-white/6 text-white/75 hover:bg-white/10",
-  },
+  BACKER: unifiedHeaderTheme,
+  CREATOR: unifiedHeaderTheme,
+  COLLABORATOR: unifiedHeaderTheme,
   ADMIN: {
-    header: "border-white/8 bg-[#181a22] text-white",
-    muted: "text-white/70",
-    divider: "border-white/10",
-    chip: "border-[#f1a3a7]/28 bg-[#e5484d]/12 text-[#ffc5c8]",
-    avatar: "bg-[#bd3038] text-white",
-    iconButton: "border-white/10 bg-white/5 text-white/68 hover:bg-white/9",
+    ...unifiedHeaderTheme,
+    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    avatar: "bg-[#0F172A] text-white",
   },
 };
 
@@ -110,13 +101,13 @@ function ContextBlock({
 
   if (role === "BACKER") {
     return (
-      <form action="/discover" className="relative hidden min-w-0 max-w-xl flex-1 md:block">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#9a7b69]" />
+      <form action="/discover" className="relative hidden min-w-0 max-w-md flex-1 md:block">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
         <input
           name="q"
           aria-label="Tìm dự án để ủng hộ"
           placeholder="Tìm dự án, chủ dự án hoặc lĩnh vực…"
-          className="h-11 w-full rounded-[12px] border border-[#e9d5c2] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#aa9387] focus:border-[#d9895d] focus:ring-3 focus:ring-[#e96543]/10"
+          className="h-10 w-full rounded-xl border border-line bg-canvas-soft pl-10 pr-4 text-sm text-ink outline-none placeholder:text-ink-muted focus:border-[#047857] focus:bg-surface focus:ring-2 focus:ring-[#047857]/15"
         />
       </form>
     );
@@ -124,36 +115,36 @@ function ContextBlock({
 
   if (role === "CREATOR") {
     return (
-      <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
-        <div className="min-w-0">
+      <div className="hidden min-w-0 max-w-md flex-1 items-center gap-3 md:flex">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className={`rounded-md border px-2 py-1 text-[11px] font-bold ${theme.chip}`}>
+            <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-bold ${theme.chip}`}>
               {snapshot.statusLabel}
             </span>
-            <span className="truncate text-sm font-bold">{snapshot.contextTitle}</span>
+            <span className="truncate text-sm font-bold text-ink">{snapshot.contextTitle}</span>
           </div>
           {snapshot.progress ? (
-            <div className="mt-2 flex items-center gap-3">
-              <span className="h-1.5 w-36 overflow-hidden rounded-full bg-white/12">
+            <div className="mt-1.5 flex items-center gap-2.5">
+              <span className="h-1.5 w-28 overflow-hidden rounded-full bg-canvas-soft">
                 <span
-                  className="block h-full rounded-full bg-lime"
+                  className="block h-full rounded-full bg-[#059669]"
                   style={{ width: `${Math.min(100, snapshot.progress.value)}%` }}
                 />
               </span>
-              <span className="text-[11px] font-semibold text-white/68">
+              <span className="truncate text-[11px] font-semibold text-ink-muted tabular-nums">
                 {snapshot.progress.label}
               </span>
             </div>
           ) : (
-            <p className="mt-1 max-w-lg truncate text-[11px] text-white/68">
+            <p className="mt-1 truncate text-[11px] text-ink-muted">
               {snapshot.contextDetail}
             </p>
           )}
         </div>
-        <span className="h-9 border-l border-white/12" />
-        <div className="hidden xl:block">
-          <p className="text-[11px] text-white/68">{snapshot.secondaryMetric.label}</p>
-          <p className="mt-0.5 text-xs font-bold">{snapshot.secondaryMetric.value}</p>
+        <span className="hidden h-8 border-l border-line xl:block" />
+        <div className="hidden shrink-0 xl:block">
+          <p className="text-[11px] text-ink-muted">{snapshot.secondaryMetric.label}</p>
+          <p className="mt-0.5 text-xs font-bold text-ink tabular-nums">{snapshot.secondaryMetric.value}</p>
         </div>
       </div>
     );
@@ -161,17 +152,17 @@ function ContextBlock({
 
   if (role === "COLLABORATOR") {
     return (
-      <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
-        <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-[#8fd2fb]/14 text-[#ccecff]">
-          <ClipboardCheck className="size-5" />
+      <div className="hidden min-w-0 max-w-md flex-1 items-center gap-3 md:flex">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#ECFDF5] text-[#047857]">
+          <ClipboardCheck className="size-4.5" />
         </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{snapshot.contextTitle}</p>
-          <p className="mt-1 truncate text-[11px] text-[#bdd6ef]">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold text-ink">{snapshot.contextTitle}</p>
+          <p className="mt-0.5 truncate text-[11px] text-ink-muted">
             {snapshot.contextDetail}
           </p>
         </div>
-        <span className="ml-auto hidden rounded-[9px] border border-white/12 bg-white/6 px-3 py-2 text-[11px] font-semibold text-[#d8efff] xl:inline-flex">
+        <span className="hidden shrink-0 rounded-lg border border-line bg-canvas-soft px-2.5 py-1 text-[11px] font-semibold text-ink-soft xl:inline-flex">
           {snapshot.primaryMetric.value} {snapshot.primaryMetric.label}
         </span>
       </div>
@@ -179,20 +170,19 @@ function ContextBlock({
   }
 
   return (
-    <div className="hidden min-w-0 flex-1 items-center gap-5 md:flex">
-      <div>
-        <p className="text-[11px] font-bold tracking-[0.1em] text-white/68">
-          TRUNG TÂM KIỂM SOÁT VẬN HÀNH
+    <div className="hidden min-w-0 max-w-md flex-1 items-center gap-3 md:flex">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px] font-bold tracking-[0.06em] text-ink-muted">
+          TRUNG TÂM KIỂM SOÁT
         </p>
-        <p className="mt-1 text-xs font-bold">{snapshot.updatedLabel}</p>
+        <p className="mt-0.5 truncate text-xs font-bold text-ink">{snapshot.updatedLabel}</p>
       </div>
-      <span className="h-9 border-l border-white/10" />
-      <div className="flex items-center gap-2 text-[11px]">
-        <span className="rounded-[7px] border border-amber-300/18 bg-amber-300/8 px-2.5 py-1.5 text-amber-200">
-          {snapshot.primaryMetric.value} hồ sơ đến hạn
+      <div className="hidden shrink-0 items-center gap-1.5 text-[11px] xl:flex">
+        <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+          {snapshot.primaryMetric.value} hồ sơ
         </span>
-        <span className="rounded-[7px] border border-red-300/18 bg-red-400/8 px-2.5 py-1.5 text-red-200">
-          {snapshot.secondaryMetric.value} cảnh báo mở
+        <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 font-semibold text-rose-700">
+          {snapshot.secondaryMetric.value} cảnh báo
         </span>
       </div>
     </div>
@@ -251,12 +241,6 @@ export function WorkspaceHeader({
           : headerCopy[role];
   const selectedRole =
     session?.user.roles.includes(role) ? role : session?.user.activeRole;
-  const shortRoleLabels: Record<UserRole, string> = {
-    BACKER: "Ủng hộ",
-    CREATOR: "Chủ dự án",
-    COLLABORATOR: "Cộng tác",
-    ADMIN: "Quản trị",
-  };
   const handleQuickRoleSwitch = (targetRole: UserRole) => {
     if (session?.user.roles.includes(targetRole)) {
       void switchRole(targetRole);
@@ -280,17 +264,17 @@ export function WorkspaceHeader({
         >
           <BrandLogo
             compact
-            light={role !== "BACKER"}
+            light={false}
             className="[&>svg]:size-9"
           />
-          <span className="sr-only">PT NT · Góp · Trang chủ</span>
+          <span className="sr-only">FundViet · Trang chủ</span>
         </Link>
         <span className={`hidden h-9 border-l sm:block ${theme.divider}`} />
         <div className="min-w-0 shrink-0">
-          <p className={`text-[11px] font-bold tracking-[0.1em] ${theme.muted}`}>
+          <p className={`text-[11px] font-bold tracking-[0.08em] ${theme.muted}`}>
             {roleLabels[role].toLocaleUpperCase("vi")}
           </p>
-          <p className="mt-0.5 truncate font-display text-sm font-extrabold sm:text-base">
+          <p className="mt-0.5 truncate font-display text-sm font-extrabold text-ink sm:text-base">
             {copy.workspace}
           </p>
         </div>
@@ -299,53 +283,21 @@ export function WorkspaceHeader({
         <ContextBlock role={role} snapshot={snapshot} />
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {session && session.user.roles.length > 1 ? <div
-            className={`hidden items-center gap-1 rounded-[11px] border p-1 xl:inline-flex ${
-              role === "BACKER"
-                ? "border-[#e9d5c2] bg-white/90"
-                : "border-white/14 bg-black/20"
-            }`}
-            role="group"
-            aria-label="Chuyển vai trò của tài khoản"
-          >
-            {session.user.roles.map((itemRole) => {
-              const isCurrent = role === itemRole;
-              return (
-                <button
-                  key={itemRole}
-                  type="button"
-                  disabled={busy}
-                  aria-pressed={isCurrent}
-                  onClick={() => handleQuickRoleSwitch(itemRole)}
-                  className={`rounded-[8px] px-2.5 py-1.5 text-[11px] font-bold transition ${
-                    isCurrent
-                      ? role === "BACKER"
-                        ? "bg-[#3d2821] text-white shadow-2xs"
-                        : "bg-white text-[#142921] shadow-2xs"
-                      : role === "BACKER"
-                        ? "text-[#6c5146] hover:bg-[#fff1de]"
-                        : "text-white/75 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  {shortRoleLabels[itemRole]}
-                </button>
-              );
-            })}
-          </div> : null}
+          <HeaderRoleSwitchPopover currentRole={role} className="hidden md:inline-flex" />
+          <CommandPaletteTrigger compact className={theme.iconButton} label="Tìm nhanh" />
+          <ThemeToggle className={`hidden size-10 place-items-center rounded-xl border sm:grid ${theme.iconButton}`} />
           <Link
             href="/discover"
-            className={`hidden min-h-11 items-center gap-1.5 rounded-[10px] border px-3 text-xs font-semibold 2xl:inline-flex ${theme.iconButton}`}
+            className={`hidden min-h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold 2xl:inline-flex ${theme.iconButton}`}
           >
-            <Search className="size-3.5" /> Khám phá dự án
+            <Search className="size-3.5" /> Khám phá
           </Link>
           <Link
             href={copy.actionHref}
-            className={`hidden min-h-11 items-center gap-2 rounded-[10px] px-3 text-xs font-bold lg:inline-flex ${
-              role === "BACKER"
-                ? "bg-coral-dark text-white hover:bg-[#893321]"
-                : role === "ADMIN"
-                  ? "bg-[#bd3038] text-white hover:bg-[#9f2630]"
-                  : "bg-lime text-forest hover:bg-[#e0ef91]"
+            className={`hidden min-h-10 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 text-xs font-bold lg:inline-flex ${
+              role === "ADMIN"
+                ? "bg-[#E11D48] text-white hover:bg-[#BE123C]"
+                : "bg-[#047857] text-white hover:bg-[#065F46]"
             }`}
           >
             <ActionIcon className="size-4" /> {copy.action}
@@ -353,34 +305,34 @@ export function WorkspaceHeader({
 
           <Link
             href="/account?tab=notifications"
-            className={`relative hidden size-11 place-items-center rounded-[10px] border sm:grid ${theme.iconButton}`}
-            aria-label={unreadCount ? `${unreadCount} câu hỏi mới được giao` : "Mở thông báo"}
+            className={`relative hidden size-10 place-items-center rounded-xl border sm:grid ${theme.iconButton}`}
+            aria-label={unreadCount ? `${unreadCount} thông báo mới` : "Mở thông báo"}
           >
             <Bell className="size-4" />
-            {unreadCount > 0 ? <span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-current bg-coral" /> : null}
+            {unreadCount > 0 ? <span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-white bg-[#047857]" /> : null}
           </Link>
 
           {status === "loading" ? (
-            <span className="h-10 w-24 animate-pulse rounded-[10px] bg-current/8" />
+            <span className="h-10 w-24 animate-pulse rounded-xl bg-slate-100" />
           ) : session && selectedRole ? (
             <details key={`${pathname}-${role}`} className="group/account relative hidden sm:block">
               <summary
-                className={`flex h-11 cursor-pointer list-none items-center gap-2 rounded-[10px] border p-1 pr-2.5 [&::-webkit-details-marker]:hidden ${theme.iconButton}`}
+                className={`flex h-10 cursor-pointer list-none items-center gap-2 rounded-xl border p-1 pr-2.5 [&::-webkit-details-marker]:hidden ${theme.iconButton}`}
               >
-                <span className={`grid size-8 place-items-center rounded-[8px] font-display text-[11px] font-extrabold ${theme.avatar}`}>
+                <span className={`grid size-8 place-items-center rounded-lg font-display text-[11px] font-extrabold ${theme.avatar}`}>
                   {session.user.initials}
                 </span>
-                <span className="hidden max-w-28 truncate text-xs font-bold 2xl:block">
+                <span className="hidden max-w-28 truncate text-xs font-bold text-ink 2xl:block">
                   {session.user.name}
                 </span>
                 <ChevronDown className="size-3.5 opacity-55 transition-transform group-open/account:rotate-180" />
               </summary>
-              <div className="absolute right-0 top-[calc(100%+10px)] w-72 overflow-hidden rounded-[16px] border border-[#dedfdc] bg-white p-2 text-[#17251f] shadow-[0_24px_70px_rgba(9,20,16,0.22)]">
-                <div className="rounded-[12px] bg-[#f3f2ed] p-3">
+              <div className="absolute right-0 top-[calc(100%+10px)] w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 text-ink shadow-[0_24px_70px_rgba(15,23,42,0.16)]">
+                <div className="rounded-xl bg-slate-50 p-3">
                   <p className="truncate text-sm font-bold">{session.user.name}</p>
-                  <p className="mt-1 truncate text-[11px] text-[#77827d]">{session.user.email}</p>
+                  <p className="mt-1 truncate text-[11px] text-slate-500">{session.user.email}</p>
                 </div>
-                {session.user.roles.length > 1 ? <label className="mt-2 block px-3 pb-2 pt-1 text-[11px] font-semibold text-[#77827d]">
+                {session.user.roles.length > 1 ? <label className="mt-2 block px-3 pb-2 pt-1 text-[11px] font-semibold text-slate-500">
                   Chuyển vai trò của tôi
                   <span className="relative mt-1.5 block">
                     <select
@@ -388,7 +340,7 @@ export function WorkspaceHeader({
                       value={selectedRole}
                       disabled={busy}
                       onChange={(event) => handleQuickRoleSwitch(event.target.value as UserRole)}
-                      className="h-11 w-full appearance-none rounded-[10px] border border-[#dedfdc] bg-white px-3 pr-8 text-xs font-bold text-[#17251f] outline-none"
+                      className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-8 text-xs font-bold text-ink outline-none"
                     >
                       {session.user.roles.map((availableRole) => (
                         <option key={availableRole} value={availableRole}>
@@ -396,25 +348,25 @@ export function WorkspaceHeader({
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#77827d]" />
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
                   </span>
                 </label> : null}
-                <Link href="/account" className="flex min-h-11 items-center gap-2 rounded-[10px] px-3 py-2.5 text-xs font-semibold hover:bg-[#f3f2ed]">
+                <Link href="/account" className="flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold hover:bg-slate-50">
                   <Settings className="size-4" /> Hồ sơ và cài đặt
                 </Link>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => void signOut("/auth")}
-                  className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2.5 text-left text-xs font-semibold hover:bg-[#f3f2ed]"
+                  className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold hover:bg-slate-50"
                 >
-                  <ArrowLeftRight className="size-4" /> Quản lý phiên đăng nhập
+                  <ArrowLeftRight className="size-4" /> Đổi tài khoản
                 </button>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => void signOut()}
-                  className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2.5 text-left text-xs font-semibold text-red-600 hover:bg-red-50"
+                  className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50"
                 >
                   <LogOut className="size-4" /> Đăng xuất
                 </button>
@@ -423,7 +375,7 @@ export function WorkspaceHeader({
           ) : (
             <Link
               href={`/auth?next=${encodeURIComponent(pathname)}`}
-              className={`hidden min-h-11 items-center gap-2 rounded-[10px] border px-3 text-xs font-bold sm:inline-flex ${theme.iconButton}`}
+              className={`hidden min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-bold sm:inline-flex ${theme.iconButton}`}
             >
               <LogIn className="size-4" /> Đăng nhập
             </Link>
@@ -434,7 +386,7 @@ export function WorkspaceHeader({
             aria-label={mobileOpen ? "Đóng menu tài khoản" : "Mở menu tài khoản"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((current) => !current)}
-            className={`grid size-11 place-items-center rounded-[10px] border sm:hidden ${theme.iconButton}`}
+            className={`grid size-10 place-items-center rounded-xl border sm:hidden ${theme.iconButton}`}
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
@@ -446,20 +398,26 @@ export function WorkspaceHeader({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className={`text-[11px] font-bold ${theme.muted}`}>{snapshot.entityCode}</p>
-              <p className="mt-1 text-sm font-bold">{snapshot.contextTitle}</p>
+              <p className="mt-1 text-sm font-bold text-ink">{snapshot.contextTitle}</p>
               <p className={`mt-1 text-[11px] leading-5 ${theme.muted}`}>{snapshot.contextDetail}</p>
             </div>
-            <span className={`shrink-0 rounded-[7px] border px-2 py-1 text-[11px] font-bold ${theme.chip}`}>
+            <span className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold ${theme.chip}`}>
               {snapshot.statusLabel}
             </span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <Link href={copy.actionHref} onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] text-xs font-bold ${role === "BACKER" ? "bg-coral-dark text-white" : role === "ADMIN" ? "bg-[#bd3038] text-white" : "bg-lime text-forest"}`}>
+            <Link href={copy.actionHref} onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold text-white ${role === "ADMIN" ? "bg-[#E11D48]" : "bg-[#047857]"}`}>
               <ActionIcon className="size-4" /> {copy.action}
             </Link>
-            <Link href="/account?tab=notifications" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${theme.iconButton}`}>
+            <Link href="/account?tab=notifications" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold ${theme.iconButton}`}>
               <Bell className="size-4" /> Thông báo{unreadCount ? ` (${unreadCount})` : ""}
             </Link>
+          </div>
+          <div className={`mt-3 border-t pt-3 ${theme.divider}`}>
+            <p className={`mb-2 text-[11px] font-bold uppercase tracking-wider ${theme.muted}`}>
+              Chuyển nhanh vai trò (1 chạm)
+            </p>
+            <QuickRoleDock currentRole={role} onAfterSwitch={() => setMobileOpen(false)} />
           </div>
           {session && selectedRole ? (
             <div className={`mt-3 border-t pt-3 ${theme.divider}`}>
@@ -473,7 +431,7 @@ export function WorkspaceHeader({
                     setMobileOpen(false);
                     handleQuickRoleSwitch(event.target.value as UserRole);
                   }}
-                  className="mt-1.5 h-11 w-full rounded-[10px] border border-[#dedfdc] bg-white px-3 text-sm font-bold text-[#17251f] outline-none"
+                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-ink outline-none"
                 >
                   {session.user.roles.map((availableRole) => (
                     <option key={availableRole} value={availableRole}>
@@ -483,22 +441,22 @@ export function WorkspaceHeader({
                 </select>
               </label> : null}
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <Link href="/account" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${theme.iconButton}`}>
+                <Link href="/account" onClick={() => setMobileOpen(false)} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold ${theme.iconButton}`}>
                   <Settings className="size-4" /> Tài khoản
                 </Link>
-                <button type="button" disabled={busy} onClick={() => void signOut()} className={`flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${role === "BACKER" ? "border-red-200 bg-red-50 text-red-700" : "border-red-300/25 bg-red-400/10 text-red-200"}`}>
+                <button type="button" disabled={busy} onClick={() => void signOut()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 text-xs font-bold text-rose-700">
                   <LogOut className="size-4" /> Đăng xuất
                 </button>
               </div>
             </div>
           ) : (
-            <Link href={`/auth?next=${encodeURIComponent(pathname)}`} className={`mt-3 flex min-h-11 items-center justify-center gap-2 rounded-[10px] border text-xs font-bold ${theme.iconButton}`}>
+            <Link href={`/auth?next=${encodeURIComponent(pathname)}`} className={`mt-3 flex min-h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold ${theme.iconButton}`}>
               <LogIn className="size-4" /> Đăng nhập để tiếp tục
             </Link>
           )}
           {role === "ADMIN" ? (
-            <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-amber-200/75">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Quyết định khóa vẫn cần quản trị viên xác nhận và ghi lý do.
+            <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-amber-800">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Quyết định khóa cần quản trị viên xác nhận và ghi lý do.
             </p>
           ) : null}
         </div>

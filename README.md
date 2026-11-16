@@ -1,4 +1,4 @@
-# Góp — nền tảng gọi vốn cộng đồng
+# FundViet — nền tảng gọi vốn cộng đồng
 
 Repo có hai đường chạy để nhóm đối chiếu trong lúc phát triển:
 

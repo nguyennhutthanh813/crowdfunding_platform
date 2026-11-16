@@ -10,22 +10,22 @@ const campaignLabels: Record<CampaignStatus, string> = {
   SUSPENDED: "Tạm khóa",
 };
 const paymentLabels: Record<PaymentStatus, string> = {
-  AUTHORIZED: "Đã ủy quyền · chờ chốt",
+  AUTHORIZED: "Đã giữ chỗ · chờ chốt",
   CAPTURED: "Đã đối soát & thu tiền",
-  CANCELED: "Đã hủy ủy quyền",
+  CANCELED: "Đã hủy giữ chỗ",
   FAILED: "Thanh toán gián đoạn",
 };
 const tone: Record<CampaignStatus | PaymentStatus, string> = {
-  DRAFT: "border-slate-200 bg-slate-50 text-slate-600",
+  DRAFT: "border-slate-200 bg-slate-100 text-slate-600",
   IN_REVIEW: "border-amber-200 bg-amber-50 text-amber-700",
-  PRE_LAUNCH: "border-indigo-200 bg-indigo-50 text-indigo-700",
+  PRE_LAUNCH: "border-blue-200 bg-blue-50 text-blue-700",
   LIVE: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  SUCCESSFUL: "border-teal-200 bg-teal-50 text-teal-700",
-  FAILED: "border-stone-200 bg-stone-100 text-stone-600",
+  SUCCESSFUL: "border-green-200 bg-green-50 text-green-700",
+  FAILED: "border-slate-200 bg-slate-100 text-slate-500",
   SUSPENDED: "border-red-200 bg-red-50 text-red-700",
   AUTHORIZED: "border-amber-200 bg-amber-50 text-amber-700",
   CAPTURED: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  CANCELED: "border-stone-200 bg-stone-100 text-stone-600",
+  CANCELED: "border-slate-200 bg-slate-100 text-slate-500",
 };
 
 export function StatusBadge({

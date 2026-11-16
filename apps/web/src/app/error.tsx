@@ -9,7 +9,7 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   return (
-    <section className="grid min-h-[70vh] place-items-center bg-[#efeee8] px-4 py-16">
+    <section className="grid min-h-[70vh] place-items-center bg-canvas-soft px-4 py-16">
       <div className="max-w-xl text-center">
         <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-red-50 text-red-600">
           <AlertTriangle className="size-7" />

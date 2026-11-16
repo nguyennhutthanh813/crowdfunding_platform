@@ -10,6 +10,7 @@ import {
   StepForward,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { triggerParticleBurst } from "@/lib/ui/particle-burst";
 
 export interface StageStepItem {
   id: string;
@@ -226,7 +227,7 @@ export function RoleStage3DScene({
   compact?: boolean;
 }) {
   const [internalStepId, setInternalStepId] = useState(steps[0]?.id ?? "");
-  const [viewMode, setViewMode] = useState<"3D" | "2D">("2D");
+  const [viewMode, setViewMode] = useState<"3D" | "2D">("3D");
   const [cameraPreset, setCameraPreset] = useState<"iso" | "front" | "orbit">(
     "iso",
   );
@@ -332,9 +333,12 @@ export function RoleStage3DScene({
 
           <button
             type="button"
-            onClick={() => {
+            onClick={(event) => {
               const next = steps[(activeIndex + 1) % steps.length];
-              if (next) selectStep(next.id);
+              if (next) {
+                selectStep(next.id);
+                triggerParticleBurst({ x: event.clientX, y: event.clientY, count: 28 });
+              }
             }}
             className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-white/16 bg-white/8 px-2.5 text-xs font-bold text-white hover:bg-white/15"
             aria-label="Chuyển sang bước kế tiếp"

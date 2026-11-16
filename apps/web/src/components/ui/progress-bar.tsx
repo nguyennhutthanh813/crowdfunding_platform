@@ -11,7 +11,7 @@ export function ProgressBar({
   const isComplete = value >= 100;
   return (
     <div
-      className={`h-2 overflow-hidden rounded-full bg-forest/9 ${className}`}
+      className={`h-2 overflow-hidden rounded-full bg-slate-200/80 ${className}`}
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
@@ -21,8 +21,8 @@ export function ProgressBar({
       <div
         className={`gop-progress-fill h-full rounded-full transition-[width] duration-700 ${
           isComplete
-            ? "bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-500"
-            : "bg-gradient-to-r from-coral-dark via-coral to-[#e05a42]"
+            ? "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600"
+            : "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d]"
         }`}
         style={{ width: `${width}%` }}
       />

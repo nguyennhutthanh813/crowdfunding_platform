@@ -18,7 +18,7 @@ export function SectionHeading({
   return (
     <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
       <div className="max-w-2xl">
-        <p className={`eyebrow ${invert ? "text-lime" : "text-coral"}`}>
+        <p className={`eyebrow ${invert ? "text-[#86efac]" : "text-coral-dark"}`}>
           {eyebrow}
         </p>
         <h2
@@ -28,7 +28,7 @@ export function SectionHeading({
         </h2>
         {description ? (
           <p
-            className={`mt-4 max-w-xl text-[15px] leading-7 ${invert ? "text-white/58" : "text-ink-soft"}`}
+            className={`mt-4 max-w-xl text-[15px] leading-7 ${invert ? "text-white/60" : "text-ink-soft"}`}
           >
             {description}
           </p>

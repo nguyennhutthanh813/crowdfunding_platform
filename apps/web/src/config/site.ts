@@ -1,15 +1,14 @@
 export const siteConfig = {
-  name: "Góp",
-  slogan: "Góp một phần, làm nên chuyện",
+  name: "FundViet",
+  slogan: "Biến ý tưởng thành hiện thực",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   description:
-    "Nơi những dự án Việt có kế hoạch rõ ràng tìm được cộng đồng cùng tin và cùng làm.",
+    "FundViet — nền tảng gọi vốn cộng đồng All-or-Nothing cho ý tưởng Việt. Chỉ thu tiền khi dự án đạt mục tiêu.",
   navigation: [
     { href: "/discover", label: "Khám phá" },
+    { href: "/discover?sort=nearly_funded", label: "Sắp đạt mục tiêu" },
     { href: "/discover?status=PRE_LAUNCH", label: "Sắp ra mắt" },
-    { href: "/#cach-hoat-dong", label: "Cách hoạt động" },
-    { href: "/huong-dan", label: "Hướng dẫn" },
-    { href: "/du-lieu-chung", label: "Dữ liệu dùng chung" },
+    { href: "/creator/campaigns/new", label: "Tạo chiến dịch" },
   ],
   footer: {
     discover: [

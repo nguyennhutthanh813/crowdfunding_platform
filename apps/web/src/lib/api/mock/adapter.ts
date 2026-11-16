@@ -202,7 +202,7 @@ export const mockApi: PlatformApi = {
       };
     }
 
-    const registeredName = input.fullName?.trim() || "Thành viên Góp";
+    const registeredName = input.fullName?.trim() || "Thành viên FundViet";
 
     const registeredId = `usr_${crypto.randomUUID().slice(0, 8)}`;
 
@@ -213,7 +213,7 @@ export const mockApi: PlatformApi = {
         name: registeredName,
         email: normalizedEmail,
         initials: getInitials(registeredName),
-        headline: "Thành viên mới của cộng đồng Góp",
+        headline: "Thành viên mới của cộng đồng FundViet",
         roles: ["BACKER"],
         activeRole: "BACKER",
       },

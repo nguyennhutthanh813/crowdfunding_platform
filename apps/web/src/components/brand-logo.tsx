@@ -10,13 +10,22 @@ export function BrandMark({ className = "size-10" }: BrandMarkProps) {
       aria-hidden="true"
       focusable="false"
     >
-      <rect x="1.5" y="1.5" width="61" height="61" rx="15" fill="#f7f3e8" stroke="#17392f" strokeWidth="2" />
-      <rect x="7.5" y="10" width="23" height="32" rx="9" fill="#17392f" />
-      <rect x="33.5" y="10" width="23" height="32" rx="9" fill="#b74934" />
-      <text x="19" y="31" textAnchor="middle" fill="#fffef7" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="800" letterSpacing="-1">PT</text>
-      <text x="45" y="31" textAnchor="middle" fill="#fffef7" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="800" letterSpacing="-1">NT</text>
-      <path d="M19 45L32 55L45 45" fill="none" stroke="#17392f" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="32" cy="54" r="3.5" fill="#b74934" />
+      <defs>
+        <linearGradient id="fundviet-mark-g" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#22C55E" />
+          <stop offset="1" stopColor="#15803D" />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#fundviet-mark-g)" />
+      <path
+        d="M20 46V18h18.5c6.4 0 10.5 4 10.5 9.5S44.9 37 38.5 37H29"
+        stroke="#fff"
+        strokeWidth="6.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx="46" cy="14.5" r="5" fill="#BBF7D0" />
     </svg>
   );
 }
@@ -32,19 +41,18 @@ export function BrandLogo({
 }) {
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <BrandMark className="size-10 shrink-0 sm:size-11" />
+      <BrandMark className="size-9 shrink-0 sm:size-10" />
       {!compact ? (
         <span className="leading-none">
           <span
-            className={`block font-display text-[1.45rem] font-extrabold tracking-[-0.075em] ${light ? "text-white" : "text-forest"}`}
+            className={`block font-display text-[1.35rem] font-extrabold tracking-[-0.06em] ${light ? "text-white" : "text-ink"}`}
           >
-            Góp
+            Fund<span className={light ? "text-[#86efac]" : "text-coral-dark"}>Việt</span>
           </span>
           <span
-            className={`mt-1 block whitespace-nowrap text-[11px] font-bold ${light ? "text-[#efb29d]" : "text-[#9c3d2b]"}`}
+            className={`mt-1 block whitespace-nowrap text-[11px] font-semibold ${light ? "text-white/55" : "text-ink-muted"}`}
           >
-            <span className="xl:hidden">Phước Thịnh × Nhựt Thanh</span>
-            <span className="hidden xl:inline">Võ Phước Thịnh × Nguyễn Nhựt Thanh</span>
+            Gọi vốn cộng đồng
           </span>
         </span>
       ) : null}

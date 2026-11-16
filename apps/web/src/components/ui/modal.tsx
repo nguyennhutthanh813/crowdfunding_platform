@@ -8,6 +8,7 @@ const widths = {
   sm: "max-w-md",
   md: "max-w-xl",
   lg: "max-w-3xl",
+  xl: "max-w-5xl",
 };
 
 export function Modal({

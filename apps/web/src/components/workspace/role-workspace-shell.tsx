@@ -14,11 +14,12 @@ import {
   Gift,
   HeartHandshake,
   History,
-  CircleHelp,
   ChevronDown,
   LayoutDashboard,
   MessageSquareText,
   PackageCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ReceiptText,
   Settings,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import { RoleGate } from "@/components/auth/role-gate";
 import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import type { UserRole } from "@/lib/api/contracts";
@@ -205,19 +207,11 @@ function creatorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
 }
 
 function workspaceNavigation(role: UserRole, snapshot: WorkspaceSnapshot) {
-  const items = role === "CREATOR" ? creatorNavigation(snapshot)
-    : role === "COLLABORATOR" ? collaboratorNavigation(snapshot)
-    : navigation[role];
-  const guideAnchor: Record<UserRole, string> = {
-    BACKER: "nguoi-ung-ho", CREATOR: "chu-du-an",
-    COLLABORATOR: "cong-tac-vien", ADMIN: "quan-tri",
-  };
-  return [...items, {
-    href: `/huong-dan#${guideAnchor[role]}`,
-    label: "Hướng dẫn dùng Góp",
-    note: "Các bước cho vai trò này",
-    icon: CircleHelp,
-  }];
+  return role === "CREATOR"
+    ? creatorNavigation(snapshot)
+    : role === "COLLABORATOR"
+      ? collaboratorNavigation(snapshot)
+      : navigation[role];
 }
 
 function collaboratorNavigation(snapshot: WorkspaceSnapshot): WorkspaceNavItem[] {
@@ -358,6 +352,19 @@ function creatorSnapshotForLocation(
   };
 }
 
+const unifiedShellTheme = {
+  aside: "border-line bg-surface text-ink",
+  muted: "text-ink-muted",
+  divider: "border-line",
+  active: "border border-[#A7F3D0] bg-[#ECFDF5] text-[#047857] shadow-2xs",
+  activeMuted: "text-[#065F46]",
+  idle: "border border-transparent text-ink-soft hover:bg-canvas-soft hover:text-ink",
+  icon: "border border-line bg-surface text-ink-soft",
+  panel: "border-line bg-canvas-soft",
+  progress: "bg-[#059669]",
+  mobile: "border-line bg-surface",
+};
+
 const shellTheme: Record<
   UserRole,
   {
@@ -373,53 +380,14 @@ const shellTheme: Record<
     mobile: string;
   }
 > = {
-  BACKER: {
-    aside: "border-[#ead2bc] bg-[#fff8ef] text-[#3d2821]",
-    muted: "text-[#745f56]",
-    divider: "border-[#ead2bc]",
-    active: "bg-[#56352b] text-white shadow-[0_8px_22px_rgba(86,53,43,0.15)]",
-    activeMuted: "text-[#f5dfd3]",
-    idle: "text-[#675047] hover:bg-[#f5e7d8] hover:text-[#3d2821]",
-    icon: "bg-[#f2dfca] text-[#8f573d]",
-    panel: "border-[#e6c8a8] bg-[#f5e4d3]",
-    progress: "bg-[#e96543]",
-    mobile: "border-[#ead2bc] bg-[#fff8ef]",
-  },
-  CREATOR: {
-    aside: "border-white/8 bg-[#102a22] text-white",
-    muted: "text-white/68",
-    divider: "border-white/9",
-    active: "bg-lime text-forest shadow-[0_8px_24px_rgba(215,235,115,0.12)]",
-    activeMuted: "text-[#40572e]",
-    idle: "text-white/78 hover:bg-white/7 hover:text-white",
-    icon: "bg-white/7 text-[#d7eb73]",
-    panel: "border-white/9 bg-white/6",
-    progress: "bg-lime",
-    mobile: "border-[#c9d9b2] bg-[#edf1e8]",
-  },
-  COLLABORATOR: {
-    aside: "border-white/9 bg-[#173d65] text-white",
-    muted: "text-[#accbe5]",
-    divider: "border-white/9",
-    active: "bg-[#b8e3fb] text-[#173958] shadow-[0_8px_22px_rgba(128,199,240,0.14)]",
-    activeMuted: "text-[#315d7d]",
-    idle: "text-[#d1e6f7]/76 hover:bg-white/7 hover:text-white",
-    icon: "bg-white/7 text-[#a8ddfb]",
-    panel: "border-white/9 bg-white/6",
-    progress: "bg-[#8fd2fb]",
-    mobile: "border-[#c6d9ec] bg-[#eaf2fa]",
-  },
+  BACKER: unifiedShellTheme,
+  CREATOR: unifiedShellTheme,
+  COLLABORATOR: unifiedShellTheme,
   ADMIN: {
-    aside: "border-white/7 bg-[#181a22] text-white",
-    muted: "text-white/68",
-    divider: "border-white/8",
-    active: "bg-[#343741] text-white shadow-[inset_3px_0_0_#e5484d]",
-    activeMuted: "text-white/72",
-    idle: "text-white/74 hover:bg-white/5 hover:text-white",
-    icon: "bg-white/6 text-white/74",
-    panel: "border-white/8 bg-[#22252e]",
-    progress: "bg-[#e5484d]",
-    mobile: "border-[#ced0d7] bg-[#eeeff2]",
+    ...unifiedShellTheme,
+    active: "border border-rose-200 bg-rose-50 text-rose-700 shadow-2xs",
+    activeMuted: "text-rose-600",
+    progress: "bg-[#E11D48]",
   },
 };
 
@@ -448,9 +416,13 @@ function navIsActive(
 function Sidebar({
   role,
   snapshot,
+  collapsed,
+  onToggleCollapse,
 }: {
   role: UserRole;
   snapshot: WorkspaceSnapshot;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -458,22 +430,31 @@ function Sidebar({
   const items = workspaceNavigation(role, snapshot);
 
   return (
-    <aside className={`hidden min-h-[calc(100dvh-72px)] border-r lg:sticky lg:top-[72px] lg:flex lg:max-h-[calc(100dvh-72px)] lg:flex-col lg:overflow-y-auto ${theme.aside}`}>
-      <div className={`border-b p-5 ${theme.divider}`}>
-        <p className={`text-[11px] font-bold tracking-[0.1em] ${theme.muted}`}>{snapshot.entityCode}</p>
-        <div className="mt-2 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="truncate font-display text-base font-extrabold">{snapshot.contextTitle}</h2>
-            <p className={`mt-1 text-xs leading-5 ${theme.muted}`}>{snapshot.contextDetail}</p>
+    <aside className={`hidden min-h-[calc(100dvh-72px)] border-r transition-all duration-200 lg:sticky lg:top-[72px] lg:flex lg:max-h-[calc(100dvh-72px)] lg:flex-col lg:overflow-y-auto ${theme.aside}`}>
+      <div className={`flex items-start justify-between gap-2 border-b p-4 ${theme.divider}`}>
+        {!collapsed ? (
+          <div className="min-w-0 flex-1">
+            <p className={`text-[11px] font-bold tracking-[0.08em] ${theme.muted}`}>{snapshot.entityCode}</p>
+            <h2 className="mt-1.5 truncate font-display text-sm font-extrabold text-ink">{snapshot.contextTitle}</h2>
+            <p className={`mt-1 line-clamp-2 text-[11px] leading-4 ${theme.muted}`}>{snapshot.contextDetail}</p>
           </div>
-          <span className={`mt-1 size-2 shrink-0 rounded-full ${role === "ADMIN" ? "bg-[#e5484d]" : role === "BACKER" ? "bg-[#dc8a4b]" : role === "CREATOR" ? "bg-lime" : "bg-[#8fd2fb]"}`} />
-        </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
+          title={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
+          className="grid size-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink"
+        >
+          {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+        </button>
       </div>
 
-      <nav className="space-y-1 p-3" aria-label={`Điều hướng ${roleLabels[role]}`}>
+      <nav className="space-y-1 p-2.5" aria-label={`Điều hướng ${roleLabels[role]}`}>
         {items.map((item) => {
           const Icon = item.icon;
           const active = navIsActive(item, pathname, searchParams);
+          const isAiItem = item.href.includes("/ai") || item.href.includes("/forecast");
           const badge =
             role === "ADMIN" && item.href.includes("tab=fraud")
               ? snapshot.secondaryMetric.value
@@ -484,57 +465,74 @@ function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              title={collapsed ? item.label : undefined}
+              aria-label={collapsed ? item.label : undefined}
               aria-current={active ? "page" : undefined}
-              className={`group flex min-h-12 items-center gap-3 rounded-[11px] px-3 py-2.5 transition-[background-color,color,box-shadow] ${active ? theme.active : theme.idle}`}
+              className={`group flex min-h-11 items-center gap-3 rounded-xl px-2.5 py-2 transition-[background-color,color,box-shadow] ${collapsed ? "justify-center" : ""} ${
+                active
+                  ? isAiItem
+                    ? "border border-[#DDD6FE] bg-[#F5F3FF] text-[#7C3AED] shadow-2xs"
+                    : theme.active
+                  : theme.idle
+              }`}
             >
-              <span className={`grid size-8 shrink-0 place-items-center rounded-[8px] ${active ? "bg-current/10" : theme.icon}`}>
-                <Icon className="size-4" />
+              <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${active ? "bg-white/90 shadow-2xs" : theme.icon}`}>
+                <Icon className={`size-4 ${isAiItem ? "text-[#7C3AED]" : ""}`} />
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-bold">{item.label}</span>
-                <span className={`mt-0.5 block truncate text-[11px] ${active ? theme.activeMuted : theme.muted}`}>{item.note}</span>
-              </span>
-              {badge ? (
-                <span className={`grid min-w-5 place-items-center rounded-md px-1.5 py-1 text-[11px] font-extrabold ${active ? "bg-white/15" : role === "ADMIN" ? "bg-[#e5484d] text-white" : "bg-current/8"}`}>
-                  {badge}
-                </span>
+              {!collapsed ? (
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold">
+                      {isAiItem ? "✦ " : ""}
+                      {item.label}
+                    </span>
+                    <span className={`mt-0.5 block truncate text-[11px] ${active ? theme.activeMuted : theme.muted}`}>{item.note}</span>
+                  </span>
+                  {badge ? (
+                    <span className={`grid min-w-5 place-items-center rounded-md px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums ${role === "ADMIN" ? "bg-[#E11D48] text-white" : "bg-slate-200/80 text-ink"}`}>
+                      {badge}
+                    </span>
+                  ) : null}
+                </>
               ) : null}
             </Link>
           );
         })}
       </nav>
 
-      <div className={`mx-4 mt-auto border-t py-4 ${theme.divider}`}>
-        <div className={`rounded-[13px] border p-4 ${theme.panel}`}>
-          <div className="space-y-2">
-            {[snapshot.primaryMetric, snapshot.secondaryMetric].map((metric) => (
-              <div key={metric.label} className={`flex items-center justify-between gap-2 border-b pb-2 last:border-b-0 last:pb-0 ${theme.divider}`}>
-                <p className={`min-w-0 text-[11px] leading-4 ${theme.muted}`}>{metric.label}</p>
-                <p className="shrink-0 text-right font-display text-base font-extrabold tabular-nums">{metric.value}</p>
-              </div>
-            ))}
-          </div>
-          {snapshot.progress ? (
-            <div className="mt-4">
-              <div className={`h-1.5 overflow-hidden rounded-full ${role === "BACKER" ? "bg-[#d7b999]/35" : "bg-white/10"}`}>
-                <span className={`block h-full rounded-full ${theme.progress}`} style={{ width: `${Math.min(100, snapshot.progress.value)}%` }} />
-              </div>
-              <p className={`mt-2 text-[11px] font-semibold ${theme.muted}`}>{snapshot.progress.label}</p>
+      {!collapsed ? (
+        <div className={`mx-3 mt-auto border-t py-4 ${theme.divider}`}>
+          <div className={`rounded-xl border p-3.5 ${theme.panel}`}>
+            <div className="space-y-2">
+              {[snapshot.primaryMetric, snapshot.secondaryMetric].map((metric) => (
+                <div key={metric.label} className={`flex items-center justify-between gap-2 border-b pb-2 last:border-b-0 last:pb-0 ${theme.divider}`}>
+                  <p className={`min-w-0 text-[11px] leading-4 ${theme.muted}`}>{metric.label}</p>
+                  <p className="shrink-0 text-right font-display text-sm font-extrabold text-ink tabular-nums">{metric.value}</p>
+                </div>
+              ))}
             </div>
-          ) : null}
-          <p className={`mt-3 border-t pt-3 text-[11px] leading-4 ${theme.divider} ${theme.muted}`}>{snapshot.updatedLabel}</p>
+            {snapshot.progress ? (
+              <div className="mt-3">
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                  <span className={`block h-full rounded-full ${theme.progress}`} style={{ width: `${Math.min(100, snapshot.progress.value)}%` }} />
+                </div>
+                <p className={`mt-1.5 text-[11px] font-semibold tabular-nums ${theme.muted}`}>{snapshot.progress.label}</p>
+              </div>
+            ) : null}
+            <p className={`mt-2.5 border-t pt-2.5 text-[11px] leading-4 ${theme.divider} ${theme.muted}`}>{snapshot.updatedLabel}</p>
+          </div>
+          <p className={`mt-3 flex items-start gap-2 px-1 text-[11px] leading-5 ${theme.muted}`}>
+            {role === "BACKER" ? <HeartHandshake className="mt-0.5 size-3.5 shrink-0 text-[#047857]" /> : role === "ADMIN" ? <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-[#E11D48]" /> : role === "CREATOR" ? <PackageCheck className="mt-0.5 size-3.5 shrink-0 text-[#047857]" /> : <ReceiptText className="mt-0.5 size-3.5 shrink-0 text-[#047857]" />}
+            {role === "BACKER"
+              ? "Cơ chế All-or-Nothing: chỉ thu tiền khi dự án đạt 100% mục tiêu."
+              : role === "CREATOR"
+                ? "Cập nhật tiến độ và trạng thái giao quà được đồng bộ trực tiếp tới Backer."
+                : role === "COLLABORATOR"
+                  ? "Phân quyền theo từng dự án; chỉ thực hiện trong phạm vi được cấp."
+                  : "Hệ thống chấm điểm AI chỉ gợi ý ưu tiên; Admin giữ quyền quyết định cuối."}
+          </p>
         </div>
-        <p className={`mt-3 flex items-start gap-2 px-1 text-[11px] leading-5 ${theme.muted}`}>
-          {role === "BACKER" ? <HeartHandshake className="mt-0.5 size-3.5 shrink-0" /> : role === "ADMIN" ? <ShieldAlert className="mt-0.5 size-3.5 shrink-0" /> : role === "CREATOR" ? <PackageCheck className="mt-0.5 size-3.5 shrink-0" /> : <ReceiptText className="mt-0.5 size-3.5 shrink-0" />}
-          {role === "BACKER"
-            ? "Cam kết theo cơ chế Tất cả hoặc không gì cả; chỉ chốt thu khi dự án đạt 100% mục tiêu."
-            : role === "CREATOR"
-              ? "Mọi cập nhật tiến độ, phản hồi và trạng thái đơn quà đều đồng bộ tới người ủng hộ."
-              : role === "COLLABORATOR"
-                ? "Mỗi chiến dịch cấp quyền riêng; lời mời chưa nhận không cho phép thao tác."
-                : "Điểm cảnh báo chỉ xếp thứ tự kiểm tra; quản trị viên quyết định cuối."}
-        </p>
-      </div>
+      ) : null}
     </aside>
   );
 }
@@ -557,7 +555,7 @@ function MobileRoleNav({
     <div className={`sticky top-[72px] z-40 border-b px-3 py-2 lg:hidden ${theme.mobile}`}>
       <div className="flex items-center gap-2">
         <div
-          className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[9px] px-3 text-xs font-bold ${role === "ADMIN" ? "bg-[#22252e] text-white" : role === "COLLABORATOR" ? "bg-[#173d65] text-white" : role === "CREATOR" ? "bg-[#102a22] text-white" : "bg-[#56352b] text-white"}`}
+          className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-3 text-xs font-bold text-white ${role === "ADMIN" ? "bg-[#E11D48]" : "bg-[#047857]"}`}
         >
           <ActiveIcon className="size-4 shrink-0" aria-hidden="true" />
           <span className="min-w-0 truncate">{activeItem.label}</span>
@@ -572,12 +570,12 @@ function MobileRoleNav({
             }
           }}
         >
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-lg border border-line bg-white px-3 text-xs font-bold text-ink [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-ink [&::-webkit-details-marker]:hidden">
             Các mục <ChevronDown className="size-4 transition-transform group-open/menu:rotate-180" />
           </summary>
           <nav
             aria-label={`Tất cả mục ${roleLabels[role]}`}
-            className="absolute left-3 right-3 top-[calc(100%+2px)] max-h-[min(70dvh,32rem)] overflow-y-auto rounded-xl border border-line bg-white p-2 text-ink shadow-[0_16px_36px_rgba(15,39,30,0.2)]"
+            className="absolute left-3 right-3 top-[calc(100%+2px)] max-h-[min(70dvh,32rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 text-ink shadow-[0_16px_36px_rgba(15,23,42,0.18)]"
           >
             {items.map((item) => {
               const Icon = item.icon;
@@ -587,7 +585,7 @@ function MobileRoleNav({
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex min-h-12 items-center gap-3 rounded-lg px-3 py-2 text-sm ${active ? "bg-[#eef3e7] font-bold text-forest" : "hover:bg-canvas-soft"}`}
+                  className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm ${active ? "bg-[#ECFDF5] font-bold text-[#047857]" : "hover:bg-slate-50"}`}
                 >
                   <Icon className="size-4 shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -602,6 +600,48 @@ function MobileRoleNav({
   );
 }
 
+const SIDEBAR_STORAGE_KEY = "fundviet-sidebar-rail-v2";
+const sidebarListeners = new Set<() => void>();
+
+function notifySidebarListeners() {
+  for (const listener of sidebarListeners) {
+    listener();
+  }
+}
+
+function subscribeSidebar(callback: () => void) {
+  sidebarListeners.add(callback);
+  if (typeof window === "undefined") {
+    return () => {
+      sidebarListeners.delete(callback);
+    };
+  }
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === SIDEBAR_STORAGE_KEY) {
+      callback();
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    sidebarListeners.delete(callback);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function getSidebarSnapshot(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    return raw === null ? true : raw === "1";
+  } catch {
+    return true;
+  }
+}
+
+function getSidebarServerSnapshot(): boolean {
+  return true;
+}
+
 export function RoleWorkspaceShell({
   role,
   snapshot,
@@ -614,6 +654,21 @@ export function RoleWorkspaceShell({
   const workspaceClass = `workspace-${role.toLocaleLowerCase()}`;
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const collapsed = useSyncExternalStore(
+    subscribeSidebar,
+    getSidebarSnapshot,
+    getSidebarServerSnapshot,
+  );
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // Ignore storage errors.
+    }
+    notifySidebarListeners();
+  };
   const visibleSnapshot =
     role === "CREATOR"
       ? creatorSnapshotForLocation(
@@ -630,9 +685,20 @@ export function RoleWorkspaceShell({
       <WorkspaceHeader role={role} snapshot={visibleSnapshot} />
       <RoleGate allowedRoles={[role]}>
         <MobileRoleNav role={role} snapshot={visibleSnapshot} />
-        <div className={`grid min-h-[calc(100dvh-72px)] ${role === "CREATOR" ? "lg:grid-cols-[252px_minmax(0,1fr)]" : role === "ADMIN" ? "lg:grid-cols-[224px_minmax(0,1fr)]" : "lg:grid-cols-[236px_minmax(0,1fr)]"}`}>
-          <Sidebar role={role} snapshot={visibleSnapshot} />
-          <div className="min-w-0">{children}</div>
+        <div
+          className={`grid min-h-[calc(100dvh-72px)] transition-[grid-template-columns] duration-200 ${
+            collapsed
+              ? "lg:grid-cols-[72px_minmax(0,1fr)]"
+              : "lg:grid-cols-[248px_minmax(0,1fr)]"
+          }`}
+        >
+          <Sidebar
+            role={role}
+            snapshot={visibleSnapshot}
+            collapsed={collapsed}
+            onToggleCollapse={toggleCollapsed}
+          />
+          <div className="min-w-0 bg-[var(--canvas)]">{children}</div>
         </div>
       </RoleGate>
     </div>

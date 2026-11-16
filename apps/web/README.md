@@ -1,4 +1,8 @@
-# Góp - nền tảng gọi vốn cộng đồng
+# FundViet - nền tảng gọi vốn cộng đồng
+
+> **Đổi tên sản phẩm 13/11/2026:** Giao diện web đã chuyển từ nhận diện "Góp" sang **FundViet** theo bản chốt phạm vi
+> [docs/fundviet-spec-2026-11-13.md](../../docs/fundviet-spec-2026-11-13.md) (chỉ web + web app, thanh toán mô phỏng bằng ví ảo,
+> AI có fallback). Các tên file nội bộ như `.local-data/gop-mock.sqlite` vẫn giữ nguyên để không làm đứt dữ liệu máy đang dùng.
 
 > Trong repo `crowdfunding_platform`, thư mục này là `apps/web`. Cài dependency từ root bằng `corepack pnpm install --frozen-lockfile`, rồi chạy `corepack pnpm dev:web`. Bản SQLite riêng được tạo trong `apps/web/.local-data` khi chạy local; GitHub chỉ chứa source và seed, không chứa file dữ liệu đang thao tác.
 
