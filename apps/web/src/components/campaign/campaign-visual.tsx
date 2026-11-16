@@ -72,7 +72,7 @@ export function CampaignVisual({
             className="object-cover"
           />
           {imageNote ? (
-            <span className="absolute bottom-3 left-3 z-10 rounded-md bg-[#102a22]/80 px-2 py-1 text-[10px] font-bold text-white">
+            <span className="absolute bottom-3 left-3 z-10 rounded-md bg-[#0b1f16]/85 px-2 py-1 text-[10px] font-bold text-white">
               {imageNote}
             </span>
           ) : null}
@@ -96,7 +96,7 @@ export function CampaignVisual({
           <div
             className={`relative z-10 flex h-full flex-col justify-between ${compact ? "p-5" : "p-7 sm:p-9"}`}
           >
-            <span className="eyebrow text-current/70">Mô hình trực quan 3D · Đang cập nhật ảnh</span>
+            <span className="eyebrow text-current/70">Dự án sáng tạo · FundViet</span>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <Icon
@@ -110,7 +110,7 @@ export function CampaignVisual({
                 </p>
               </div>
               <span className="rounded-full border border-white/22 bg-white/10 px-2.5 py-1 font-display text-[11px] font-bold uppercase tracking-[0.14em] backdrop-blur">
-                Đang hoàn thiện
+                Chiến dịch gọi vốn
               </span>
             </div>
           </div>

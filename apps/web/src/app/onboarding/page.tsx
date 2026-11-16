@@ -4,7 +4,7 @@ import { InterestPreferences } from "@/components/account/interest-preferences";
 
 export const metadata: Metadata = {
   title: "Chọn lĩnh vực quan tâm",
-  description: "Chọn sở thích để nhận gợi ý dự án phù hợp trên Góp.",
+  description: "Chọn sở thích để nhận gợi ý dự án phù hợp trên FundViet.",
 };
 
 export default async function OnboardingPage({
@@ -15,15 +15,15 @@ export default async function OnboardingPage({
   const query = await searchParams;
 
   return (
-    <section className="min-h-screen bg-[#efeee8] py-10 sm:py-16">
+    <section className="min-h-screen bg-canvas-soft py-10 sm:py-16">
       <div className="container-shell grid gap-6 lg:grid-cols-[330px_minmax(0,1fr)] lg:items-start">
-        <aside className="rounded-[20px] border border-forest/10 bg-[#e7eee4] p-7 text-ink sm:p-9 lg:sticky lg:top-24">
+        <aside className="rounded-[20px] border border-emerald-200/70 bg-emerald-50/60 p-7 text-ink sm:p-9 lg:sticky lg:top-24">
           <span className="grid size-12 place-items-center rounded-[12px] bg-forest text-lime">
             <Compass className="size-5" />
           </span>
           <p className="eyebrow mt-6 text-forest">Bước đầu tiên</p>
           <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
-            Để Góp hiểu bạn quan tâm điều gì.
+            Để FundViet hiểu bạn quan tâm điều gì.
           </h1>
           <p className="mt-4 text-sm leading-7 text-ink-soft">
             Nếu muốn lưu sở thích, bạn chọn ít nhất hai lĩnh vực. Bạn cũng có
@@ -40,7 +40,7 @@ export default async function OnboardingPage({
             Chọn những chủ đề khiến bạn muốn dừng lại xem kỹ
           </p>
           <p className="mb-7 mt-2 text-xs leading-6 text-ink-muted">
-            Không có lựa chọn đúng hay sai. Góp chỉ dùng chúng để ưu tiên dự án
+            Không có lựa chọn đúng hay sai. FundViet chỉ dùng chúng để ưu tiên dự án
             trên trang khám phá.
           </p>
           <InterestPreferences onboarding nextPath={query.next} />

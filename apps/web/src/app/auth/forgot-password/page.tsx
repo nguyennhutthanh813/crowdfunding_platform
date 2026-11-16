@@ -5,7 +5,7 @@ import { BrandLogo } from "@/components/brand-logo";
 export const metadata: Metadata = {
   title: "Khôi phục tài khoản",
   description:
-    "Thử biểu mẫu khôi phục tài khoản của Góp; thao tác này chưa đổi mật khẩu thật.",
+    "Thử biểu mẫu khôi phục tài khoản của FundViet; thao tác này chưa đổi mật khẩu thật.",
 };
 
 export default function ForgotPasswordPage() {

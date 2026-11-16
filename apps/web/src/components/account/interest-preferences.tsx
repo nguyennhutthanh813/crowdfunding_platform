@@ -138,7 +138,7 @@ export function InterestPreferences({
             Lĩnh vực bạn muốn theo dõi
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-muted">
-            Góp kết hợp lựa chọn này với những dự án bạn đã xem, lưu và ủng hộ
+            FundViet kết hợp lựa chọn này với những dự án bạn đã xem, lưu và ủng hộ
             để sắp xếp danh sách phù hợp hơn.
           </p>
         </>
@@ -197,7 +197,7 @@ export function InterestPreferences({
           {saving
             ? "Đang lưu…"
             : onboarding
-              ? "Lưu và vào Góp"
+              ? "Lưu và vào FundViet"
               : "Lưu sở thích"}
         </button>
         {onboarding ? (

@@ -116,7 +116,9 @@ export function PledgeFlow({
       if (address.city.trim().length < 2) issues.push("Nhập tỉnh hoặc thành phố giao hàng.");
     }
     if (step === 3 && !understandsDemo)
-      issues.push("Xác nhận bạn đã hiểu đây chỉ là cam kết mẫu.");
+      issues.push(
+        "Vui lòng xác nhận đồng ý quy tắc ủy quyền All-or-Nothing để tiếp tục.",
+      );
     return issues;
   }, [
     address,
@@ -199,17 +201,49 @@ export function PledgeFlow({
   };
 
   if (result) {
+    const confettiColors = [
+      "#0D9488",
+      "#7C3AED",
+      "#16A34A",
+      "#F59E0B",
+      "#0284C7",
+      "#EC4899",
+    ];
     return (
-      <div className="mx-auto mt-10 max-w-2xl rounded-[20px] border border-emerald-200 bg-white p-6 text-center sm:p-10">
-        <span className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+      <div className="relative mx-auto mt-10 max-w-2xl overflow-hidden rounded-[20px] border border-emerald-200 bg-white p-6 text-center sm:p-10">
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          {Array.from({ length: 18 }).map((_, index) => (
+            <span
+              key={index}
+              className="confetti-piece rounded-sm"
+              style={{
+                left: `${5 + ((index * 19) % 90)}%`,
+                top: "-12px",
+                width: index % 2 === 0 ? "8px" : "6px",
+                height: index % 3 === 0 ? "12px" : "8px",
+                backgroundColor: confettiColors[index % confettiColors.length],
+                animationDelay: `${(index % 6) * 0.14}s`,
+                animationDuration: `${1.5 + (index % 4) * 0.25}s`,
+              }}
+            />
+          ))}
+        </div>
+        <span className="relative mx-auto grid size-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
           <CheckCircle2 className="size-8" />
         </span>
-        <p className="eyebrow mt-6 text-emerald-700">Đã ghi nhận cam kết</p>
-        <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
+        <p className="eyebrow relative mt-6 text-emerald-700">
+          Đã ủy quyền cam kết thành công
+        </p>
+        <h2 className="relative mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
           Cảm ơn bạn đã góp sức.
         </h2>
-        <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-ink-soft">
-          Khoản cam kết <strong>{formatVnd(result.totalAmount)}</strong> đã được ghi nhận vào hệ thống và cập nhật trực tiếp lên tiến độ của chiến dịch.
+        <p className="relative mx-auto mt-4 max-w-lg text-sm leading-7 text-ink-soft">
+          Khoản cam kết{" "}
+          <strong className="tabular-nums">
+            {formatVnd(result.totalAmount)}
+          </strong>{" "}
+          đã được ghi nhận vào tiến độ chiến dịch và chỉ thực hiện thu tiền khi
+          dự án đạt đủ 100% mục tiêu trước hạn.
         </p>
         <dl className="mx-auto mt-7 grid max-w-md gap-3 rounded-2xl bg-[#f5f6ef] p-5 text-left text-xs sm:grid-cols-2">
           <div>
@@ -301,7 +335,7 @@ export function PledgeFlow({
                         checked={rewardId === item.id}
                         disabled={item.limit !== undefined && item.claimed >= item.limit}
                         onChange={() => selectReward(item.id)}
-                        className="mt-1 size-4 accent-[#f36545]"
+                        className="mt-1 size-4 accent-[#16a34a]"
                       />
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -339,7 +373,7 @@ export function PledgeFlow({
                       value={NO_REWARD_ID}
                       checked={rewardId === NO_REWARD_ID}
                       onChange={selectNoReward}
-                      className="mt-1 size-4 accent-[#f36545]"
+                      className="mt-1 size-4 accent-[#16a34a]"
                     />
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -390,7 +424,7 @@ export function PledgeFlow({
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleAddOn(item.id)}
-                            className="mt-1 size-4 accent-[#f36545]"
+                            className="mt-1 size-4 accent-[#16a34a]"
                           />
                           <div>
                             <p className="font-display text-sm font-extrabold">
@@ -477,7 +511,7 @@ export function PledgeFlow({
                               value={option.id}
                               checked={shippingOptionId === option.id}
                               onChange={() => setShippingOptionId(option.id)}
-                              className="mt-0.5 size-4 accent-[#f36545]"
+                              className="mt-0.5 size-4 accent-[#16a34a]"
                             />
                             <span>
                               <span className="block text-xs font-bold">
@@ -637,10 +671,11 @@ export function PledgeFlow({
                   </dd>
                 </div>
               </dl>
-              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0" />
+              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-6 text-emerald-950">
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-700" />
                 <span>
-                  <strong>Cơ chế All-or-Nothing:</strong> khoản cam kết được ghi nhận vào tiến độ dự án và chỉ thực hiện đối soát thu tiền khi chiến dịch đạt đủ 100% mục tiêu trước thời hạn đóng.
+                  <strong>ⓘ Bạn chưa bị trừ tiền.</strong> Chỉ khi dự án đạt 100%
+                  mục tiêu trước hạn, khoản ủng hộ mới được thu.
                 </span>
               </div>
               <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 text-sm leading-6 text-ink-soft">
@@ -649,7 +684,7 @@ export function PledgeFlow({
                   name="understands-demo"
                   checked={understandsDemo}
                   onChange={(event) => setUnderstandsDemo(event.target.checked)}
-                  className="mt-1 size-4 shrink-0 accent-[#f36545]"
+                  className="mt-1 size-4 shrink-0 accent-[#16a34a]"
                   aria-describedby={showStepErrors ? "pledge-step-errors" : undefined}
                 />
                 Tôi đồng ý với quy tắc ủy quyền All-or-Nothing và xác nhận thông tin cam kết trên.
@@ -721,7 +756,7 @@ export function PledgeFlow({
                   </>
                 ) : (
                   <>
-                    <Check className="size-4" /> Ghi nhận cam kết mẫu
+                    <Check className="size-4" /> Xác nhận ủng hộ dự án
                   </>
                 )}
               </button>
@@ -771,13 +806,14 @@ export function PledgeFlow({
           <div className="mt-5 border-t border-line pt-5">
             <div className="flex items-end justify-between">
               <span className="font-bold">Tổng cam kết</span>
-              <span className="font-display text-2xl font-extrabold text-coral-dark">
+              <span className="font-display text-2xl font-extrabold text-coral-dark tabular-nums">
                 {formatVnd(total)}
               </span>
             </div>
             <p className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-ink-muted">
-              <LockKeyhole className="mt-0.5 size-3 shrink-0" /> Giá và phí được
-              hệ thống kiểm tra lại trước khi ghi nhận.
+              <LockKeyhole className="mt-0.5 size-3 shrink-0" /> ⓘ Bạn chưa bị
+              trừ tiền. Chỉ khi dự án đạt 100% mục tiêu trước hạn, khoản ủng hộ
+              mới được thu.
             </p>
           </div>
         </aside>

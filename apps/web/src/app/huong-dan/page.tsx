@@ -6,8 +6,8 @@ import { localDbEnabled } from "@/lib/local-db/database";
 import { ProjectJourneyPreview } from "@/components/home/project-journey-preview";
 
 export const metadata: Metadata = {
-  title: "Hướng dẫn dùng Góp",
-  description: "Các bước xem dự án, ủng hộ mẫu, tạo chiến dịch, cộng tác và quản trị trên Góp.",
+  title: "Hướng dẫn dùng FundViet",
+  description: "Các bước xem dự án, ủng hộ mẫu, tạo chiến dịch, cộng tác và quản trị trên FundViet.",
 };
 
 type GuideStep = { title: string; detail: string; href: string; action: string };
@@ -65,7 +65,7 @@ export default async function GuidePage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-end">
           <div>
             <p className="flex items-center gap-2 text-sm font-bold text-coral-dark"><CircleHelp className="size-5" /> Bắt đầu từ đây</p>
-            <h1 className="mt-3 max-w-3xl font-display text-4xl font-extrabold leading-[1.12] tracking-[-0.04em] sm:text-5xl">Dùng Góp theo từng bước</h1>
+            <h1 className="mt-3 max-w-3xl font-display text-4xl font-extrabold leading-[1.12] tracking-[-0.04em] sm:text-5xl">Dùng FundViet theo từng bước</h1>
             <p className="mt-4 max-w-2xl text-base leading-8 text-ink-soft sm:text-lg">
               Chọn việc bạn muốn làm, rồi mở đúng màn hình ở mỗi bước. Một chiến dịch đi từ bản nháp của chủ dự án, qua bước duyệt, mở gọi vốn, đến lúc người ủng hộ theo dõi kết quả.
             </p>

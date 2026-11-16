@@ -67,7 +67,7 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
       data: {
         label: <div className="text-left">
           <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#49634f]">Chặng {index + 1} · {counts[stage.key]} hoạt động</span>
-          <strong className="mt-2 block font-display text-lg leading-6 text-[#17392f]">{stage.label}</strong>
+          <strong className="mt-2 block font-display text-lg leading-6 text-[#14532d]">{stage.label}</strong>
           <span className="mt-2 block text-xs leading-5 text-[#4b6456]">{stage.hint}</span>
           <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-[#315a3f]">
             {index < currentPhase ? <Check className="size-3.5" /> : current ? <Clock3 className="size-3.5" /> : <ArrowRight className="size-3.5" />}
@@ -77,7 +77,7 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
       },
       style: {
         width: 250,
-        border: selectedNode ? "2px solid #b9432d" : current ? "2px solid #315e42" : "1px solid #c9d7ca",
+        border: selectedNode ? "2px solid #16a34a" : current ? "2px solid #315e42" : "1px solid #cbd5e1",
         borderRadius: 18,
         background: stage.color,
         padding: 16,
@@ -150,7 +150,7 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
             Tất cả
           </button>
           {stages.map((stage, index) => <button key={stage.key} type="button" aria-pressed={selectedStage === stage.key} onClick={() => setSelectedStage(stage.key)}
-            className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-bold transition-colors ${selectedStage === stage.key ? "border-[#b9432d] bg-[#fff0e7] text-[#863b2a]" : "border-[#d4dfd4] bg-white text-[#315a3f] hover:bg-[#f2f6ef]"}`}>
+            className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-bold transition-colors ${selectedStage === stage.key ? "border-[#16a34a] bg-emerald-50 text-[#166534]" : "border-[#cbd5e1] bg-white text-[#14532d] hover:bg-emerald-50/60"}`}>
             <span className="mr-1 text-xs opacity-70">{index + 1}.</span>{stage.label} <span className="text-xs opacity-70">({counts[stage.key]})</span>
           </button>)}
         </div>
@@ -228,7 +228,7 @@ export function CampaignTimelineBoard({ events, currentPhase, viewer }: {
                 <p className="text-xs font-bold uppercase tracking-wider text-[#315a3f]">
                   Trạng thái ghi nhận trong SQLite
                 </p>
-                <p className="mt-1 font-display text-base font-extrabold text-[#17392f]">
+                <p className="mt-1 font-display text-base font-extrabold text-[#14532d]">
                   {counts[activeStageForModal.key]} hoạt động thuộc quyền xem của bạn
                 </p>
                 <p className="mt-1 text-xs leading-5 text-[#4b6456]">

@@ -9,7 +9,7 @@ import { mockCampaignMembers, mockCampaigns } from "@/lib/api/mock/relational-st
 
 export const metadata: Metadata = {
   title: "Tài khoản của tôi",
-  description: "Quản lý hồ sơ, vai trò, thông báo và bảo mật tài khoản Góp.",
+  description: "Quản lý hồ sơ, vai trò, thông báo và bảo mật tài khoản FundViet.",
 };
 
 export default async function AccountPage() {
@@ -38,10 +38,10 @@ export default async function AccountPage() {
   const teamCampaigns = [...seedTeams, ...invited];
   return (
     <RoleGate allowedRoles={["BACKER", "CREATOR", "COLLABORATOR", "ADMIN"]}>
-      <section className="min-h-screen bg-[#efeee8] pb-16">
-        <div className="border-b border-line bg-canvas-soft py-8 sm:py-10">
+      <section className="min-h-screen bg-[var(--canvas)] pb-16">
+        <div className="border-b border-line bg-surface py-8 sm:py-10">
           <div className="container-shell">
-            <span className="eyebrow text-coral-dark">
+            <span className="eyebrow text-[#047857]">
               <Settings2 className="size-4" /> Tài khoản
             </span>
             <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em] sm:text-4xl">

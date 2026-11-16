@@ -18,7 +18,7 @@ const steps = [
     icon: PackageCheck,
     number: "03",
     title: "Chờ chiến dịch kết thúc",
-    text: "Xem kết quả đạt mục tiêu hay chưa, rồi theo dõi các cập nhật về quà. Bản hiện tại chưa xử lý tiền thật.",
+    text: "Chỉ khi chiến dịch đạt 100% mục tiêu đúng hạn, khoản ủng hộ mới được chốt thu để chuyển sang bước giao quà.",
   },
 ] as const;
 
@@ -28,13 +28,13 @@ export function FundingGuide({ localDbAvailable }: { localDbAvailable: boolean }
       <div className="container-shell">
         <div className="grid gap-7 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-center">
           <div className="max-w-2xl">
-            <p className="text-xs font-bold text-coral-dark">Cách Góp hoạt động</p>
+            <p className="text-xs font-bold text-coral-dark">Cách FundViet hoạt động</p>
             <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
               Rõ trước khi góp, yên tâm khi chờ
             </h2>
             <p className="mt-4 text-sm leading-7 text-ink-soft">
-              Góp mô phỏng cơ chế Tất cả hoặc không gì cả: chiến dịch đạt mục tiêu đã công bố mới chuyển sang bước chuẩn bị quà.
-              {localDbAvailable ? " Các thay đổi được lưu trong SQLite trên máy để những vai trò liên quan cùng xem." : " Dữ liệu dùng thử của bản web này nằm trong trình duyệt."}
+              FundViet vận hành theo cơ chế All-or-Nothing: chiến dịch đạt 100% mục tiêu đã công bố mới chuyển sang bước đối soát thu tiền và chuẩn bị quà tặng.
+              {localDbAvailable ? " Dữ liệu và trạng thái chiến dịch được đồng bộ minh bạch theo từng vai trò liên quan." : ""}
             </p>
           </div>
           <div className="relative min-h-[220px] overflow-hidden rounded-[18px] border border-line sm:min-h-[290px]">
@@ -56,7 +56,7 @@ export function FundingGuide({ localDbAvailable }: { localDbAvailable: boolean }
                 className={`py-7 md:px-7 ${index > 0 ? "border-t border-line md:border-l md:border-t-0" : "md:pl-0"}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="grid size-11 place-items-center rounded-xl bg-[#eef2e3] text-forest">
+                  <span className="grid size-11 place-items-center rounded-xl bg-emerald-50 text-forest">
                     <Icon className="size-5" />
                   </span>
                   <span className="font-display text-sm font-extrabold text-ink-muted">

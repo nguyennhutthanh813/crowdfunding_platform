@@ -75,7 +75,7 @@ export function ProjectActions({ campaignId }: { campaignId: string }) {
           disabled={busy}
           onClick={() => void toggleSaved()}
           aria-pressed={saved}
-          className={`button-secondary ${saved ? "border-coral/35 bg-[#fff1eb] text-coral-dark" : ""}`}
+          className={`button-secondary ${saved ? "border-emerald-300 bg-emerald-50 text-coral-dark" : ""}`}
         >
           {saved ? <Check className="size-4" /> : <Heart className="size-4" />}{" "}
           {busy ? "Đang lưu…" : saved ? "Đã lưu" : "Lưu dự án"}

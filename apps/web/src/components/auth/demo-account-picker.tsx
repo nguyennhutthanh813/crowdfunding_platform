@@ -75,7 +75,7 @@ export function DemoAccountPicker({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d241d]/90 via-[#0d241d]/20 to-transparent" />
         <div className="absolute bottom-0 p-5 text-white">
-          <p className="text-xs font-semibold text-white/80">Góp một phần, làm nên chuyện</p>
+          <p className="text-xs font-semibold text-white/80">Biến ý tưởng thành hiện thực</p>
           <h2 className="mt-1 font-display text-2xl font-extrabold leading-tight">
             Theo dự án từ ý tưởng tới ngày giao quà.
           </h2>
@@ -84,17 +84,15 @@ export function DemoAccountPicker({
       <p className="mt-5 text-sm leading-7 text-ink-soft">
         Một tài khoản theo dõi các khoản ủng hộ của mình. Khi cần làm dự án, bạn có thể mở thêm vai trò Chủ dự án trên chính tài khoản đó.
       </p>
-      <details ref={accountListRef} className="group/sample mt-5 rounded-2xl border border-[#d3decf] bg-white p-4">
-        <summary id="tai-khoan-mau" className="flex min-h-11 scroll-mt-24 cursor-pointer list-none items-center justify-between gap-3 font-bold text-forest [&::-webkit-details-marker]:hidden">
-          {localDbAvailable ? "Chọn nhanh một vai trò để xem thử" : "Thử Góp bằng tài khoản mẫu"}
+      <details open ref={accountListRef} className="group/sample mt-5 rounded-2xl border border-line bg-surface p-4">
+        <summary id="tai-khoan-mau" className="flex min-h-11 scroll-mt-24 cursor-pointer list-none items-center justify-between gap-3 font-bold text-ink [&::-webkit-details-marker]:hidden">
+          {localDbAvailable ? "Chọn nhanh tài khoản theo vai trò" : "Đăng nhập nhanh theo vai trò"}
           <ChevronDown className="size-4 shrink-0 transition-transform group-open/sample:rotate-180" />
         </summary>
         <p className="mt-2 text-xs leading-5 text-ink-muted">
           {creatorIntent
-            ? "Chọn Chủ dự án để mở hồ sơ; Người ủng hộ có thể xác nhận thêm quyền này sau khi vào."
-            : localDbAvailable
-              ? "Bốn tài khoản này dùng chung dữ liệu SQLite trên máy để bạn xem luồng giữa các vai trò."
-              : "Các thay đổi trong bản web thử chỉ lưu trong trình duyệt đang dùng."}
+            ? "Chọn Chủ dự án để mở hồ sơ chiến dịch; Người ủng hộ có thể bật thêm vai trò này trong Tài khoản."
+            : "Chọn một hồ sơ có sẵn để trải nghiệm nhanh đầy đủ luồng nghiệp vụ giữa các vai trò trên FundViet."}
         </p>
         <div className="mt-4 grid gap-2">
           {previewAccounts.map((account) => {
@@ -106,7 +104,7 @@ export function DemoAccountPicker({
                 type="button"
                 disabled={disabled}
                 onClick={() => onSelect(account)}
-                className={`group flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-xl border border-line bg-white p-3 text-left transition-colors disabled:cursor-wait disabled:opacity-60 ${style.card}`}
+                className={`group flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left transition-colors disabled:cursor-wait disabled:opacity-60 ${style.card}`}
               >
                 <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${style.iconBox}`}>
                   <Icon className="size-5" />
@@ -120,7 +118,7 @@ export function DemoAccountPicker({
             );
           })}
         </div>
-        <p className="mt-4 text-[11px] leading-5 text-ink-muted">Tài khoản mẫu chỉ để thử luồng; không thu tiền thật.</p>
+        <p className="mt-4 text-[11px] leading-5 text-ink-muted">Môi trường thanh toán sử dụng cổng sandbox, không phát sinh giao dịch thật.</p>
       </details>
     </aside>
   );

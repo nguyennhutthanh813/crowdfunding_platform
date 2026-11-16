@@ -12,6 +12,7 @@ import { CampaignVisual } from "@/components/campaign/campaign-visual";
 import { NotifyButton } from "@/components/notify-button";
 import { ProjectActions } from "@/components/campaign/project-actions";
 import { ProjectExperience } from "@/components/campaign/project-experience";
+import { ProjectPledgeModalButton } from "@/components/pledge/project-pledge-modal-button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { api } from "@/lib/api";
@@ -20,7 +21,6 @@ import { getServerSession } from "@/lib/auth/server-session";
 import { withViewerLikes } from "@/lib/campaign/comments-preview";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
 import { applyCampaignDetailPreviewState } from "@/lib/preview-read-models";
-import { localDbEnabled } from "@/lib/local-db/database";
 import { publicPreviewCampaignDetail } from "@/lib/creator/public-preview-campaigns";
 import { isPreviewCampaignId } from "@/lib/creator/preview-campaigns";
 
@@ -71,7 +71,6 @@ export default async function ProjectDetailPage({
   const isSuccessful = campaign.status === "SUCCESSFUL";
   const isFailed = campaign.status === "FAILED";
   const isSuspended = campaign.status === "SUSPENDED";
-  const localDbAvailable = localDbEnabled();
   const launchDate = new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -133,7 +132,6 @@ export default async function ProjectDetailPage({
                     : `${isPreLaunch ? "Dự kiến mở" : "Mở ngày"} ${launchDate}`}
                 </span>
               </div>
-              {localDbAvailable ? <Link href={`/campaigns/${campaign.id}/timeline`} className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#b9cfbb] bg-white px-4 text-xs font-bold text-[#27533a] hover:bg-[#edf4e9]">Xem tiến độ và cập nhật đã ghi →</Link> : null}
             </div>
             <div className="lg:pt-1">
               <ProjectActions campaignId={campaign.id} />
@@ -182,7 +180,7 @@ export default async function ProjectDetailPage({
                     </dd>
                   </div>
                 </dl>
-                <div className="mt-5 flex items-start gap-3 rounded-[10px] border-l-2 border-[#9eb24e] bg-[#f2f5e9] p-4 text-xs leading-5 text-[#4a5f2d]">
+                <div className="mt-5 flex items-start gap-3 rounded-[10px] border-l-2 border-emerald-400 bg-emerald-50 p-4 text-xs leading-5 text-emerald-800">
                   <ShieldCheck className="mt-0.5 size-4 shrink-0" />
                   <span>
                     {isPreLaunch ? (
@@ -218,12 +216,11 @@ export default async function ProjectDetailPage({
                 {isPreLaunch ? (
                   <NotifyButton campaignId={campaign.id} fullWidth />
                 ) : canPledge ? (
-                  <Link
-                    href={`/projects/${campaign.slug}?tab=rewards#noi-dung-du-an`}
-                    className="button-primary w-full"
-                  >
-                    Chọn gói ủng hộ
-                  </Link>
+                  <ProjectPledgeModalButton
+                    campaign={campaign}
+                    initialRewardId={campaign.rewards[0]?.id}
+                    fullWidth
+                  />
                 ) : (
                   <p className="rounded-[12px] bg-forest px-5 py-3 text-center text-xs font-bold text-white">
                     {isSuccessful
@@ -241,7 +238,7 @@ export default async function ProjectDetailPage({
                 {isPreLaunch
                   ? "Đăng ký nhắc có thể tắt bất cứ lúc nào"
                   : canPledge
-                    ? "Xem lại đầy đủ chi phí trước khi xác nhận"
+                    ? "ⓘ Chưa trừ tiền cho đến khi đạt mục tiêu"
                     : isSuccessful
                       ? "Theo dõi cập nhật sản xuất và tiến độ giao quà"
                       : isFailed

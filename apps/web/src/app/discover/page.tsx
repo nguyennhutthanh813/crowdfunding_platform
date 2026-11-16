@@ -46,9 +46,8 @@ export default async function DiscoverPage({
                 Tìm dự án bạn muốn ủng hộ
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft sm:mt-4 sm:text-base sm:leading-7">
-                Tìm theo tên, chọn lĩnh vực hoặc xem những dự án sắp mở gọi vốn.
+                Tìm theo tên, chọn lĩnh vực, tiến độ gọi vốn hoặc xem những dự án sắp ra mắt.
               </p>
-              <p className="mt-2 text-xs text-ink-muted">Các chiến dịch mẫu được chốt dữ liệu ngày 13/09/2026; chiến dịch bạn tạo sẽ lưu theo lúc thao tác.</p>
             </div>
             <div className="hidden w-fit items-center gap-2 rounded-[9px] border border-line bg-white px-4 py-2 text-xs font-semibold text-ink-muted sm:inline-flex">
               <SlidersHorizontal className="size-4 text-coral-dark" />{" "}

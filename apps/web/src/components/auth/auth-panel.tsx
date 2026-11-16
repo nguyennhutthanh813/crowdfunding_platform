@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DemoAccountPicker } from "@/components/auth/demo-account-picker";
+import { QuickRoleDock } from "@/components/workspace/quick-role-switcher";
 import type { SessionResult, UserRole } from "@/lib/api";
 import { ClientRequestError, clientRequest, clientRequestMessage } from "@/lib/api/client-request";
 import type { PreviewAccount } from "@/lib/auth/preview-accounts";
@@ -188,7 +189,7 @@ export function AuthPanel({
       !(requestedArea === "COLLABORATOR" && session.user.roles.includes("BACKER")),
     );
     return (
-      <div className="mx-auto max-w-xl rounded-[20px] border border-emerald-200 bg-white p-7 text-center shadow-[var(--shadow-card)] sm:p-10">
+      <div className="mx-auto max-w-3xl rounded-[20px] border border-emerald-200 bg-white p-7 text-center shadow-[var(--shadow-card)] sm:p-10">
         <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-lime font-display text-lg font-extrabold text-forest">
           {session.user.initials}
         </span>
@@ -236,6 +237,12 @@ export function AuthPanel({
             {needsAnotherAccount ? "Đổi tài khoản có quyền" : "Đổi tài khoản"}
           </button>
         </div>
+        <div className="mt-8 border-t border-line pt-6 text-left">
+          <p className="mb-3 text-xs font-bold text-ink">
+            Hoặc chuyển nhanh sang vai trò khác ngay tại đây:
+          </p>
+          <QuickRoleDock currentRole={session.user.activeRole} />
+        </div>
       </div>
     );
   }
@@ -269,10 +276,10 @@ export function AuthPanel({
         <div className="mt-7">
           <p className="eyebrow text-coral-dark">
             <KeyRound className="size-4" />
-            {mode === "SIGN_IN" ? "Chào bạn quay lại" : "Tham gia cộng đồng Góp"}
+            {mode === "SIGN_IN" ? "Chào bạn quay lại" : "Tham gia cộng đồng FundViet"}
           </p>
           <h1 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
-            {mode === "SIGN_IN" ? "Đăng nhập vào Góp" : "Tạo tài khoản mới"}
+            {mode === "SIGN_IN" ? "Đăng nhập vào FundViet" : "Tạo tài khoản mới"}
           </h1>
           <p className="mt-3 max-w-lg text-sm leading-6 text-ink-muted">
             {mode === "SIGN_IN"

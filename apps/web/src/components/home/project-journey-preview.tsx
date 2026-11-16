@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Modal } from "@/components/ui/modal";
+import { useQuickRoleSwitch } from "@/components/workspace/quick-role-switcher";
 import {
   RoleStage3DScene,
   type StageStepItem,
@@ -275,6 +276,25 @@ const stageSteps: StageStepItem[] = phases.map((phase) => ({
   metric: phase.metric,
 }));
 
+const phase3dImages: Record<string, { src: string; alt: string }> = {
+  "phase-01": {
+    src: "/images/3d/ecosystem-launchpad-3d.jpg",
+    alt: "Mô hình 3D khởi tạo chiến dịch FundViet",
+  },
+  "phase-02": {
+    src: "/images/3d/fraud-shield-radar-3d.jpg",
+    alt: "Mô hình 3D radar thẩm định và chống gian lận AI",
+  },
+  "phase-03": {
+    src: "/images/3d/ai-optimizer-core-3d.jpg",
+    alt: "Mô hình 3D lõi AI tối ưu hóa gọi vốn",
+  },
+  "phase-04": {
+    src: "/images/3d/fulfillment-pipeline-3d.jpg",
+    alt: "Mô hình 3D két sắt ủy quyền và dây chuyền giao quà 4 chặng",
+  },
+};
+
 export function ProjectJourneyPreview({
   campaignId,
   localDbAvailable,
@@ -283,12 +303,21 @@ export function ProjectJourneyPreview({
   localDbAvailable: boolean;
 }) {
   const { session } = useAuth();
+  const { switchToRole, busyRole } = useQuickRoleSwitch();
   const user = session?.user;
   const [activeStepId, setActiveStepId] = useState<string>(phases[0].id);
   const [modalPhaseId, setModalPhaseId] = useState<string | null>(null);
 
   const activePhase =
     phases.find((phase) => phase.id === activeStepId) ?? phases[0];
+  const primaryRole =
+    activePhase.id === "phase-01"
+      ? "CREATOR"
+      : activePhase.id === "phase-02"
+        ? "ADMIN"
+        : activePhase.id === "phase-03"
+          ? "BACKER"
+          : "COLLABORATOR";
   const modalPhase =
     modalPhaseId !== null
       ? (phases.find((phase) => phase.id === modalPhaseId) ?? null)
@@ -311,103 +340,167 @@ export function ProjectJourneyPreview({
   return (
     <section
       id="hanh-trinh-chien-dich"
-      className="scroll-mt-24 border-y border-[#d9e4d5] bg-[#f2f5ec] py-12 sm:py-16"
+      className="scroll-mt-24 border-y border-line bg-canvas-soft py-12 sm:py-16"
       aria-labelledby="journey-heading"
     >
       <div className="container-shell">
-        <div className="grid gap-7 lg:grid-cols-[0.86fr_1.14fr] lg:items-start">
+        <div className="mb-7 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#cde0cf] bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#234836] shadow-xs">
-              <Sparkles className="size-3.5 text-[#8c4b32]" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-surface px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#047857] shadow-xs">
+              <Sparkles className="size-3.5 text-[#7C3AED]" />
               Cách một chiến dịch đi qua 4 chặng
             </div>
             <h2
               id="journey-heading"
-              className="mt-3 font-display text-3xl font-extrabold leading-tight tracking-[-0.045em] text-[#17392f] sm:text-4xl"
+              className="mt-3 font-display text-3xl font-extrabold leading-tight tracking-[-0.045em] text-ink sm:text-4xl"
             >
               Từ ý tưởng nguyên mẫu đến giao quà tận tay
             </h2>
-            <p className="mt-3 text-sm leading-6 text-ink-soft">
-              Chọn một chặng để xem ai phụ trách và hồ sơ đi tiếp ra sao. Các
-              đường dẫn bên dưới lấy từ những chiến dịch mẫu ở từng giai đoạn. Mỗi
-              tài khoản chỉ mở được khu vực đã có quyền; bạn có thể đăng nhập
-              bằng tài khoản phù hợp ở bước tiếp theo.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
+              Chọn 1 trong 4 trạm vận hành bên cạnh hoặc bật Tự động dẫn đường trên mô hình 3D để xem đúng vai trò phụ trách.
             </p>
+          </div>
 
-            <div className="mt-4 rounded-2xl border border-[#cfdcd0] bg-white p-4 shadow-[0_12px_28px_rgba(23,57,47,0.06)]">
+          <div
+            className="flex flex-wrap gap-1.5 rounded-2xl border border-line bg-surface p-1.5 shadow-2xs"
+            role="tablist"
+            aria-label="Chọn 4 chặng chiến dịch"
+          >
+            {phases.map((phase) => {
+              const selected = phase.id === activePhase.id;
+              return (
+                <button
+                  key={phase.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setActiveStepId(phase.id)}
+                  className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${
+                    selected
+                      ? "bg-[#047857] text-white shadow-xs"
+                      : "text-ink-soft hover:bg-canvas-soft hover:text-ink"
+                  }`}
+                >
+                  <span className="font-mono text-[11px] opacity-80">{phase.code}</span>
+                  <span>{phase.name.split("&")[0]?.trim()}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[0.86fr_1.14fr] lg:items-start">
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+            <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-line bg-slate-900">
+              <Image
+                src={
+                  (phase3dImages[activePhase.id] ?? phase3dImages["phase-01"])
+                    .src
+                }
+                alt={
+                  (phase3dImages[activePhase.id] ?? phase3dImages["phase-01"])
+                    .alt
+                }
+                fill
+                sizes="(max-width: 1024px) 100vw, 480px"
+                className="object-cover transition-transform duration-500"
+              />
+              <span className="absolute left-3.5 top-3.5 rounded-full bg-slate-950/75 px-3 py-1 font-mono text-[11px] font-bold text-emerald-300 backdrop-blur-md">
+                CHẶNG {activePhase.code}/04 · {activePhase.metric}
+              </span>
+            </div>
+
+            <div className="p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#17392f]">
-                  <Layers className="size-3.5 text-[#2f5b40]" />{" "}
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#047857]">
+                  <Layers className="size-3.5 text-[#059669]" />
                   {activePhase.stationLabel}
                 </span>
-                <span className="rounded-md bg-[#17392f] px-2 py-0.5 font-mono text-[11px] font-bold text-[#d7ebb8]">
-                  Chặng {activePhase.code}/04
-                </span>
               </div>
+              <p className="mt-2 font-mono text-[11px] font-semibold text-ink-muted">
+                {activePhase.recordFlow}
+              </p>
 
-              <details className="group/tasks mt-4 rounded-xl border border-[#dde6d8] bg-[#f9fbf7] p-3">
-                <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 text-sm font-bold text-[#17392f] [&::-webkit-details-marker]:hidden">
-                  Ai làm gì ở chặng này?
-                  <span className="text-xs font-medium text-[#536d5d] group-open/tasks:hidden">Xem 4 vai trò ↓</span>
-                  <span className="hidden text-xs font-medium text-[#536d5d] group-open/tasks:inline">Thu gọn ↑</span>
+              <details className="group/tasks mt-4 rounded-xl border border-line bg-canvas-soft/60 p-3">
+                <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 text-xs font-bold text-ink [&::-webkit-details-marker]:hidden">
+                  <span>Ai làm gì ở chặng {activePhase.code}? (4 vai trò)</span>
+                  <span className="text-[11px] font-semibold text-[#047857] group-open/tasks:hidden">
+                    Mở chi tiết ↓
+                  </span>
+                  <span className="hidden text-[11px] font-semibold text-[#047857] group-open/tasks:inline">
+                    Thu gọn ↑
+                  </span>
                 </summary>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {activePhase.roleTasks.map((rt) => {
-                  return (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {activePhase.roleTasks.map((rt) => (
                     <div
                       key={rt.role}
-                      className="flex flex-col justify-between rounded-xl border border-[#dde6d8] bg-[#f9fbf7] p-2.5 transition hover:border-[#89a88e] hover:bg-white"
+                      className="flex flex-col justify-between rounded-xl border border-line bg-surface p-2.5 transition hover:border-[#059669]/45"
                     >
                       <div>
-                        <div className="flex items-center justify-between gap-1.5">
-                          <span
-                            className={`rounded-md border px-1.5 py-0.5 text-[10px] font-extrabold ${rt.badgeClass}`}
-                          >
-                            {rt.role}
-                          </span>
-                        </div>
-                        <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-[#395244]">
+                        <span
+                          className={`inline-block rounded-md border px-1.5 py-0.5 text-[10px] font-extrabold ${rt.badgeClass}`}
+                        >
+                          {rt.role}
+                        </span>
+                        <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-ink-soft">
                           {rt.task}
                         </p>
                       </div>
                       <Link
                         href={actionHref(rt.targetHref)}
-                        className="mt-2 inline-flex min-h-10 items-center justify-between rounded-lg bg-[#17392f] px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#235244]"
+                        className="mt-2 inline-flex min-h-9 items-center justify-between rounded-lg bg-[#047857] px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#065F46]"
                       >
                         <span>{canOpen(rt.targetHref) ? rt.actionLabel : "Đăng nhập để mở"}</span>
                         <ArrowRight className="size-3" />
                       </Link>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
               </details>
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#e5ece0] pt-3">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3.5">
                 <button
                   type="button"
-                  onClick={() => setModalPhaseId(activePhase.id)}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#cad8c9] bg-[#f4f8f1] px-3 text-xs font-bold text-[#17392f] hover:border-[#67846b]"
+                  disabled={Boolean(busyRole)}
+                  onClick={(event) =>
+                    void switchToRole(
+                      primaryRole,
+                      { x: event.clientX, y: event.clientY },
+                      activePhase.href,
+                    )
+                  }
+                  className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-[#047857] px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#065F46] disabled:opacity-60"
                 >
-                  <GitBranch className="size-3.5" /> Xem việc ở chặng{" "}
-                  {activePhase.code}
+                  <Sparkles className="size-3.5" />
+                  Vào vai trò chính chặng {activePhase.code}
+                  <ArrowRight className="size-3.5" />
                 </button>
-                {localDbAvailable ? (
-                  <Link
-                    href={`/campaigns/${campaignId}/timeline`}
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#edf3e7] px-3 text-xs font-bold text-[#1f4733] hover:bg-[#dfead6]"
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalPhaseId(activePhase.id)}
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-canvas-soft px-3 text-xs font-bold text-ink hover:border-[#047857]/40"
                   >
-                    Xem cây tiến độ chiến dịch nổi bật <ArrowRight className="size-3.5" />
-                  </Link>
-                ) : null}
+                    <GitBranch className="size-3.5" /> Việc ở chặng {activePhase.code}
+                  </button>
+                  {localDbAvailable ? (
+                    <Link
+                      href={`/campaigns/${campaignId}/timeline`}
+                      className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-bold text-[#047857] hover:bg-[#ECFDF5]"
+                    >
+                      Cây tiến độ <ArrowRight className="size-3.5" />
+                    </Link>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
 
           <div>
             <RoleStage3DScene
-              eyebrow="SƠ ĐỒ TƯƠNG TÁC · 4 CHẶNG"
-              title="Mô hình vận hành 4 chặng Góp"
+              eyebrow="SƠ ĐỒ 3D TỰ ĐỘNG · 4 CHẶNG"
+              title="Mô hình vận hành 4 chặng FundViet"
               centerLabel={`CHẶNG ${activePhase.code}: ${activePhase.name.toUpperCase()}`}
               centerSubtext={activePhase.stationLabel}
               tone="forest"
@@ -415,7 +508,7 @@ export function ProjectJourneyPreview({
               activeStepId={activePhase.id}
               onSelectStep={(stepId) => setActiveStepId(stepId)}
               onInspectStep={(stepId) => setModalPhaseId(stepId)}
-              autoPlayDefault={false}
+              autoPlayDefault
             />
           </div>
         </div>
@@ -472,7 +565,7 @@ export function ProjectJourneyPreview({
                 <p className="text-xs font-bold uppercase tracking-wider text-[#315a3f]">
                   Luồng dữ liệu tại chặng {modalPhase.code}
                 </p>
-                <p className="mt-1 font-mono text-xs font-bold text-[#17392f]">
+                <p className="mt-1 font-mono text-xs font-bold text-[#14532d]">
                   {modalPhase.recordFlow}
                 </p>
                 <p className="mt-2 text-xs leading-5 text-[#4b6456]">
@@ -507,7 +600,7 @@ export function ProjectJourneyPreview({
                     <Link
                       href={actionHref(item.targetHref)}
                       onClick={() => setModalPhaseId(null)}
-                      className="mt-3 inline-flex min-h-10 items-center justify-between rounded-lg bg-[#17392f] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#235244]"
+                      className="mt-3 inline-flex min-h-10 items-center justify-between rounded-lg bg-[#14532d] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#166534]"
                     >
                       <span>{canOpen(item.targetHref) ? item.actionLabel : "Đăng nhập để mở"}</span>
                       <ArrowRight className="size-3.5" />

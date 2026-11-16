@@ -11,7 +11,7 @@ const checkpoints = [
 export function CreatorInvitation() {
   return (
     <section className="page-section">
-      <div className="container-shell grid overflow-hidden rounded-[22px] border border-line bg-[#e9ede5] lg:grid-cols-[0.92fr_1.08fr]">
+      <div className="container-shell grid overflow-hidden rounded-2xl border border-slate-200 bg-emerald-50/60 lg:grid-cols-[0.92fr_1.08fr]">
         <div className="flex flex-col justify-center p-7 sm:p-9 lg:p-11">
           <p className="text-xs font-bold text-coral-dark">Bạn đang có một ý tưởng?</p>
           <h2 className="mt-3 font-display text-3xl font-extrabold leading-[1.12] tracking-[-0.04em] sm:text-4xl">
@@ -25,7 +25,7 @@ export function CreatorInvitation() {
           <ul className="mt-6 space-y-3 text-sm text-ink-soft">
             {checkpoints.map((item) => (
               <li key={item} className="flex items-start gap-2.5">
-                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-white text-emerald-700">
+                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-coral text-white">
                   <Check className="size-3" />
                 </span>
                 {item}

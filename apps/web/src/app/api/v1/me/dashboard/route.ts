@@ -14,6 +14,7 @@ import {
   requestError,
 } from "@/lib/api/request-validation";
 import { changeRegisteredPreviewPassword, verifyRegisteredPreviewPassword } from "@/lib/auth/preview-registered-accounts";
+import { previewAccounts } from "@/lib/auth/preview-accounts";
 import { isNotificationPreferences } from "@/lib/auth/notification-preferences";
 import {
   getServerPlatformPreviewState,
@@ -110,12 +111,35 @@ export async function POST(request: Request) {
     const index = platform.registeredAccounts.findIndex(
       (item) => item.id === access.session.user.id,
     );
-    if (index < 0)
-      return requestError(
-        409,
-        "PREVIEW_ACCOUNT_ONLY",
-        "Tài khoản mẫu dùng mật khẩu cố định. Hãy đăng ký tài khoản riêng để thử đổi mật khẩu.",
+    if (index < 0) {
+      const previewAccount = previewAccounts.find(
+        (item) => item.id === access.session.user.id,
       );
+      const expectedPassword = previewAccount?.password ?? "gop12345";
+      if (currentPassword !== expectedPassword) {
+        return requestError(
+          422,
+          "CURRENT_PASSWORD_INCORRECT",
+          "Mật khẩu hiện tại chưa đúng.",
+        );
+      }
+      if (currentPassword === newPassword) {
+        return requestError(
+          422,
+          "PASSWORD_UNCHANGED",
+          "Mật khẩu mới cần khác mật khẩu hiện tại.",
+        );
+      }
+      return NextResponse.json({
+        data: {
+          action: body.action,
+          persisted: false,
+          simulation: true,
+          message:
+            "Đã kiểm tra mật khẩu ở chế độ mô phỏng. Tài khoản mẫu giữ mật khẩu cố định để mọi người dùng thử.",
+        },
+      });
+    }
     const account = platform.registeredAccounts[index];
     if (!verifyRegisteredPreviewPassword(account, currentPassword))
       return requestError(

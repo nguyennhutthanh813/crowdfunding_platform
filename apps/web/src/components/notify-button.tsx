@@ -51,7 +51,7 @@ export function NotifyButton({
       setNotice(
         subscribed
           ? "Đã tắt nhắc nhở cho dự án này."
-          : "Góp sẽ nhắc bạn khi dự án bắt đầu nhận ủng hộ.",
+          : "FundViet sẽ nhắc bạn khi dự án bắt đầu nhận ủng hộ.",
       );
     } catch (error) {
       setNotice(clientRequestMessage(error, "Chưa thể lưu thay đổi. Bạn thử lại sau nhé."));

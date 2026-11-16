@@ -23,6 +23,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { NotifyButton } from "@/components/notify-button";
+import { ProjectPledgeModalButton } from "@/components/pledge/project-pledge-modal-button";
 import { Modal } from "@/components/ui/modal";
 import type {
   CampaignComment,
@@ -63,8 +64,8 @@ const badgeLabels: Record<CommentBadge, string> = {
 };
 const badgeTones: Record<CommentBadge, string> = {
   CREATOR: "bg-forest text-white",
-  COLLABORATOR: "bg-[#e8edce] text-[#536227]",
-  SUPERBACKER: "bg-[#fff0e9] text-coral-dark",
+  COLLABORATOR: "bg-emerald-100 text-emerald-800",
+  SUPERBACKER: "bg-emerald-50 text-coral-dark",
   BACKER: "bg-stone-100 text-stone-600",
 };
 
@@ -102,7 +103,7 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
         {campaign.story.highlights.map((item) => (
           <div
             key={item.title}
-            className="rounded-2xl border border-line bg-[#faf9f3] p-5"
+            className="rounded-2xl border border-line bg-canvas-soft p-5"
           >
             <p className="font-display text-2xl font-extrabold text-coral-dark">
               {item.title}
@@ -114,7 +115,7 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
         ))}
       </div> : null}
 
-      {isNewCampaign ? <p className="mt-8 rounded-2xl border border-[#d9e4d2] bg-[#f5f8f0] p-5 text-sm leading-7 text-[#355343]">
+      {isNewCampaign ? <p className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 text-sm leading-7 text-emerald-900">
         Nội dung này được đồng bộ từ hồ sơ Chủ dự án đã gửi duyệt. {campaign.visual.imageSrc
           ? "Hình ảnh đầu trang minh họa thiết kế sản phẩm của nhóm. "
           : "Chủ dự án chưa đính kèm ảnh sản phẩm cho hồ sơ này. "}
@@ -190,7 +191,7 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
             return (
               <article
                 key={item.label}
-                className="rounded-2xl border border-line bg-[#faf9f3] p-5"
+                className="rounded-2xl border border-line bg-canvas-soft p-5"
               >
                 <div className="flex items-start justify-between gap-4">
                   <Icon
@@ -277,7 +278,7 @@ function RewardCard({
   const canPledge = campaign.status === "LIVE";
   return (
     <article
-      className={`rounded-[22px] border p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-1 hover:shadow-lg ${reward.featured ? "border-coral/45 bg-[#fff8f4]" : "border-line bg-white"}`}
+      className={`rounded-[22px] border p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-1 hover:shadow-lg ${reward.featured ? "border-emerald-300 bg-emerald-50/60" : "border-line bg-white"}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -475,7 +476,7 @@ function CreatorPanel({ campaign }: { campaign: CampaignDetail }) {
               key={member.name}
               className="rounded-2xl border border-line bg-white p-4"
             >
-              <span className="grid size-10 place-items-center rounded-xl bg-[#e9eddd] text-xs font-bold text-forest">
+              <span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-xs font-bold text-forest">
                 {member.initials}
               </span>
               <p className="mt-3 font-display font-bold">{member.name}</p>
@@ -498,7 +499,7 @@ function FaqPanel({
   return (
     <div>
       <h2 className="font-display text-2xl font-extrabold">Câu hỏi thường gặp</h2>
-      {!campaign.faqs.length ? <p className="mt-5 rounded-2xl border border-dashed border-line bg-[#faf9f3] p-5 text-sm text-ink-soft">Chưa có câu hỏi thường gặp. Bạn cứ hỏi nhóm; câu hỏi và lời đáp sẽ hiện trong mục Bình luận.</p> : null}
+      {!campaign.faqs.length ? <p className="mt-5 rounded-2xl border border-dashed border-line bg-canvas-soft p-5 text-sm text-ink-soft">Chưa có câu hỏi thường gặp. Bạn cứ hỏi nhóm; câu hỏi và lời đáp sẽ hiện trong mục Bình luận.</p> : null}
       <div className="mt-6 divide-y divide-line rounded-[18px] border border-line bg-white">
         {campaign.faqs.map((faq, index) => (
           <details key={faq.question} className="group p-5" open={index === 0}>
@@ -533,7 +534,7 @@ function UpdatesPanel({
   return (
     <div>
       <h2 className="font-display text-2xl font-extrabold">Nhật ký dự án</h2>
-      {!campaign.updates.length ? <p className="mt-5 rounded-2xl border border-dashed border-line bg-[#faf9f3] p-5 text-sm text-ink-soft">Chưa có bài cập nhật mới từ nhóm dự án.</p> : null}
+      {!campaign.updates.length ? <p className="mt-5 rounded-2xl border border-dashed border-line bg-canvas-soft p-5 text-sm text-ink-soft">Chưa có bài cập nhật mới từ nhóm dự án.</p> : null}
       <div className="mt-6 space-y-4">
         {campaign.updates.map((update, index) => (
           <article
@@ -564,7 +565,7 @@ function UpdatesPanel({
               <button
                 type="button"
                 onClick={() => setSelectedUpdateId(update.id)}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-[#faf9f3] px-3 text-xs font-bold text-ink hover:border-forest"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-canvas-soft px-3 text-xs font-bold text-ink hover:border-forest"
               >
                 Đọc bản tin đầy đủ <ArrowRight className="size-3.5" />
               </button>
@@ -610,7 +611,7 @@ function UpdatesPanel({
         {selectedUpdate ? (
           <div className="space-y-4 text-sm leading-7 text-ink-soft">
             <p>{selectedUpdate.excerpt}</p>
-            <div className="rounded-xl border border-line bg-[#faf9f3] p-4 text-xs leading-5 text-ink-muted">
+            <div className="rounded-xl border border-line bg-canvas-soft p-4 text-xs leading-5 text-ink-muted">
               Người đăng: <strong>{campaign.creator.name}</strong> · Mọi người
               ủng hộ dự án đều nhận thông báo khi bản tin này được xuất bản.
             </div>
@@ -719,7 +720,7 @@ function CommentItem({
       className={`${nested ? "ml-7 border-l-2 border-forest/8 pl-5" : ""}`}
     >
       <div className="flex gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8ebe4] text-xs font-bold text-forest">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-canvas-soft text-xs font-bold text-forest">
           {comment.initials}
         </span>
         <div className="min-w-0 flex-1">
@@ -763,7 +764,7 @@ function CommentItem({
             </button> : null}
           </div>
           {replying ? (
-            <div className="mt-4 rounded-2xl bg-[#f6f5f0] p-3">
+            <div className="mt-4 rounded-2xl bg-emerald-50 p-3">
               <label>
                 <span className="sr-only">Nội dung trả lời</span>
                 <textarea
@@ -931,7 +932,7 @@ function CommentsPanel({
         }}
         locked={busy}
       >
-        <div className="rounded-[18px] border border-coral/25 bg-[#fffaf6] p-4 sm:p-5">
+        <div className="rounded-[18px] border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5">
           <label
             htmlFor="new-comment"
             className="text-xs font-bold text-ink-soft"
@@ -1082,7 +1083,7 @@ function CommunityPanel({ campaign }: { campaign: CampaignDetail }) {
               ))}
             </div>
           ) : (
-            <div className="mt-5 rounded-2xl border border-dashed border-line bg-[#faf9f3] p-5">
+            <div className="mt-5 rounded-2xl border border-dashed border-line bg-canvas-soft p-5">
               <p className="text-xs font-bold">
                 Chưa có số liệu theo thành phố
               </p>
@@ -1093,7 +1094,7 @@ function CommunityPanel({ campaign }: { campaign: CampaignDetail }) {
           )}
         </div>
       </div>
-      <div className="mt-5 flex items-start gap-3 rounded-2xl border border-line bg-[#faf9f3] p-5">
+      <div className="mt-5 flex items-start gap-3 rounded-2xl border border-line bg-canvas-soft p-5">
         <Quote className="size-5 shrink-0 text-coral" />
         <p className="text-sm leading-6 text-ink-soft">
           Số liệu cộng đồng chỉ hiển thị tổng hợp theo thành phố; không làm lộ
@@ -1165,7 +1166,7 @@ export function ProjectExperience({
     window.history.replaceState(
       null,
       "",
-      `${pathname}?${params.toString()}#noi-dung-du-an`,
+      `${pathname}?${params.toString()}#${nextTab.toLowerCase()}`,
     );
   };
 
@@ -1189,7 +1190,7 @@ export function ProjectExperience({
     window.history.replaceState(
       null,
       "",
-      `${pathname}?${params.toString()}#noi-dung-du-an`,
+      `${pathname}?${params.toString()}#comments`,
     );
   };
 
@@ -1251,7 +1252,7 @@ export function ProjectExperience({
         </div>
       </div>
       <div className="container-shell grid gap-10 pt-10 lg:grid-cols-[1fr_340px] lg:items-start">
-        <div key={tab} className="animate-rise min-w-0">
+        <div id={tab.toLowerCase()} key={tab} className="animate-rise scroll-mt-32 min-w-0">
           <TabContent
             tab={tab}
             campaign={campaign}
@@ -1268,14 +1269,14 @@ export function ProjectExperience({
                   {isPreLaunch ? "Gói dự kiến" : "Đồng hành ngay"}
                 </p>
               </div>
-              <span className="rounded-full bg-[#f4f6ef] px-2.5 py-0.5 text-[10px] font-bold text-forest">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-forest">
                 {campaign.rewards.length} gói
               </span>
             </div>
 
             {campaign.rewards.length > 1 ? (
               <div
-                className="mt-3.5 grid grid-cols-3 gap-1.5 rounded-xl bg-[#f4f3ed] p-1"
+                className="mt-3.5 grid grid-cols-3 gap-1.5 rounded-xl bg-canvas-soft p-1"
                 aria-label="Chọn nhanh gói ủng hộ"
               >
                 {campaign.rewards.slice(0, 3).map((rw, idx) => {
@@ -1321,12 +1322,12 @@ export function ProjectExperience({
               {isPreLaunch ? (
                 <NotifyButton campaignId={campaign.id} fullWidth />
               ) : canPledge ? (
-                <Link
-                  href={`/pledge/${campaign.slug}?reward=${selectedSidebarReward.id}`}
-                  className="button-primary w-full"
-                >
-                  Chọn gói này <ArrowRight className="size-4" />
-                </Link>
+                <ProjectPledgeModalButton
+                  campaign={campaign}
+                  initialRewardId={selectedSidebarReward.id}
+                  label="Chọn gói này"
+                  fullWidth
+                />
               ) : (
                 <p className="rounded-[12px] bg-forest px-4 py-3 text-center text-xs font-bold text-white">
                   {campaign.status === "SUCCESSFUL"
@@ -1341,7 +1342,7 @@ export function ProjectExperience({
               {isPreLaunch
                 ? "Đăng ký nhắc có thể tắt bất cứ lúc nào."
                 : canPledge
-                  ? "Bạn có thể kiểm tra lại toàn bộ chi phí trước khi xác nhận."
+                  ? "ⓘ Chưa trừ tiền cho đến khi đạt mục tiêu."
                   : campaign.status === "SUCCESSFUL"
                     ? "Xem tab Cập nhật để theo dõi tiến độ mới nhất."
                     : campaign.status === "FAILED"
@@ -1358,7 +1359,7 @@ export function ProjectExperience({
               <p className="text-[11px] text-ink-muted">
                 {isPreLaunch ? "Gói dự kiến từ" : "Gói ủng hộ từ"}
               </p>
-              <p className="font-display text-sm font-extrabold">
+              <p className="font-display text-sm font-extrabold tabular-nums">
                 {formatVnd(campaign.rewards[0].amount)}
               </p>
             </div>
@@ -1367,12 +1368,12 @@ export function ProjectExperience({
                 <NotifyButton campaignId={campaign.id} fullWidth />
               </div>
             ) : (
-              <Link
-                href={`/pledge/${campaign.slug}`}
-                className="button-primary min-w-42"
-              >
-                Ủng hộ dự án
-              </Link>
+              <ProjectPledgeModalButton
+                campaign={campaign}
+                initialRewardId={campaign.rewards[0]?.id}
+                label="Ủng hộ dự án"
+                className="min-w-42"
+              />
             )}
           </div>
         </div>

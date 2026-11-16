@@ -80,7 +80,7 @@ function ProfilePanel({ registeredAccount }: { registeredAccount: boolean }) {
     <div>
       <p className="eyebrow text-coral">Thông tin cá nhân</p>
       <h2 className="mt-2 font-display text-2xl font-extrabold">
-        Hồ sơ hiển thị trên Góp
+        Hồ sơ hiển thị trên FundViet
       </h2>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-muted">
         {registeredAccount
