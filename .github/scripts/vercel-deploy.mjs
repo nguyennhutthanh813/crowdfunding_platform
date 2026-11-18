@@ -5,7 +5,7 @@
  */
 
 import { execFileSync, execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -51,7 +51,9 @@ async function vercelApi(token, path, opts = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(`Vercel API ${opts.method ?? "GET"} ${path} (${res.status}): ${data?.error?.message ?? JSON.stringify(data)}`);
+    throw new Error(
+      `Vercel API ${opts.method ?? "GET"} ${path} (${res.status}): ${data?.error?.message ?? JSON.stringify(data)}`,
+    );
   }
   return data;
 }
@@ -59,7 +61,14 @@ async function vercelApi(token, path, opts = {}) {
 async function resolveScope(token) {
   if (process.env.VERCEL_ORG_ID) return process.env.VERCEL_ORG_ID.trim();
   const { user } = await vercelApi(token, "/v2/user");
-  return user.defaultTeamId || user.id;
+  if (user?.defaultTeamId) return user.defaultTeamId;
+  try {
+    const { teams } = await vercelApi(token, "/v2/teams");
+    if (teams?.[0]?.id) return teams[0].id;
+  } catch {
+    // dùng user.id nếu tài khoản cá nhân không có team
+  }
+  return user.id;
 }
 
 function teamQuery(scopeId) {
@@ -70,18 +79,21 @@ async function ensureProject(token, scopeId, name, framework) {
   const qs = teamQuery(scopeId);
   try {
     const existing = await vercelApi(token, `/v9/projects/${encodeURIComponent(name)}${qs}`);
-    // Đảm bảo cấu hình chuẩn Node 24.x và tắt SSO wall để gọi API công khai
-    if (existing.nodeVersion !== "24.x" || existing.rootDirectory !== null || existing.framework !== framework) {
+    if (existing.nodeVersion !== "24.x" || Boolean(existing.rootDirectory) || existing.framework !== framework) {
       return await vercelApi(token, `/v9/projects/${encodeURIComponent(existing.id)}${qs}`, {
         method: "PATCH",
-        body: { framework, nodeVersion: "24.x", rootDirectory: null, ssoProtection: null },
+        body: { framework, nodeVersion: "24.x", rootDirectory: null },
       });
     }
     return existing;
   } catch {
-    return await vercelApi(token, `/v10/projects${qs}`, {
+    const created = await vercelApi(token, `/v10/projects${qs}`, {
       method: "POST",
       body: { name, framework, ssoProtection: null },
+    });
+    return await vercelApi(token, `/v9/projects/${encodeURIComponent(created.id)}${qs}`, {
+      method: "PATCH",
+      body: { nodeVersion: "24.x" },
     });
   }
 }
@@ -131,7 +143,11 @@ function detectChangedTargets(requestedTarget) {
     if (!diffOut) return { backend: true, frontend: true, reason: "Không xác định được diff, cập nhật toàn bộ" };
     const files = diffOut.split(/\r?\n/).filter(Boolean);
     const sharedChanged = files.some(
-      (f) => f === "package.json" || f === "pnpm-lock.yaml" || f.startsWith(".github/workflows/deploy-vercel") || f.startsWith(".github/scripts/vercel-deploy"),
+      (f) =>
+        f === "package.json" ||
+        f === "pnpm-lock.yaml" ||
+        f.startsWith(".github/workflows/deploy-vercel") ||
+        f.startsWith(".github/scripts/vercel-deploy"),
     );
     if (sharedChanged) {
       return { backend: true, frontend: true, reason: "Thay đổi cấu hình dùng chung ở thư mục gốc" };
@@ -157,11 +173,19 @@ function stageAppDirectory(srcDir, kind) {
     recursive: true,
     filter: (source) => {
       const norm = source.replace(/\\/g, "/");
-      if (norm.includes("/node_modules") || norm.includes("/.next") || norm.includes("/dist") || norm.includes("/.vercel")) {
+      if (
+        norm.includes("/node_modules") ||
+        norm.includes("/.next") ||
+        norm.includes("/dist") ||
+        norm.includes("/.vercel")
+      ) {
         return false;
       }
       if (norm.endsWith("/.env") || norm.endsWith("/.env.local")) return false;
-      if (kind === "backend" && (norm.includes("/backend/public") || norm.includes("/backend/.data") || norm.includes("/backend/scripts"))) {
+      if (
+        kind === "backend" &&
+        (norm.includes("/backend/public") || norm.includes("/backend/.data") || norm.includes("/backend/scripts"))
+      ) {
         return false;
       }
       return true;
@@ -171,34 +195,54 @@ function stageAppDirectory(srcDir, kind) {
 }
 
 function runVercelCli(cwd, scopeId, projectId, token, isProd) {
+  // Tạo liên kết project tường minh trong thư mục tạm trước khi pull/build/deploy
+  mkdirSync(join(cwd, ".vercel"), { recursive: true });
+  writeFileSync(join(cwd, ".vercel", "project.json"), JSON.stringify({ orgId: scopeId, projectId }), "utf8");
+
   const env = {
     ...process.env,
-    VERCEL_TOKEN: token,
     VERCEL_ORG_ID: scopeId,
     VERCEL_PROJECT_ID: projectId,
   };
-  const vercelBin = process.platform === "win32" ? "vercel.cmd" : "vercel";
+  const isWin = process.platform === "win32";
+  const vercelBin = isWin ? "vercel.cmd" : "vercel";
   const targetEnv = isProd ? "production" : "preview";
+  const authFlags = ["--token", token, ...(scopeId.startsWith("team_") ? ["--scope", scopeId] : [])];
 
   console.log(`  → vercel pull (${targetEnv})...`);
-  execFileSync(vercelBin, ["pull", "--yes", `--environment=${targetEnv}`], { cwd, env, stdio: "inherit" });
-
-  console.log(`  → vercel build${isProd ? " --prod" : ""}...`);
-  execFileSync(vercelBin, ["build", ...(isProd ? ["--prod"] : []), "--yes"], { cwd, env, stdio: "inherit" });
-
-  console.log(`  → vercel deploy --prebuilt${isProd ? " --prod" : ""}...`);
-  const stdout = execFileSync(vercelBin, ["deploy", "--prebuilt", ...(isProd ? ["--prod"] : []), "--yes"], {
+  execFileSync(vercelBin, ["pull", "--yes", `--environment=${targetEnv}`, ...authFlags], {
     cwd,
     env,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
+    shell: isWin,
+    stdio: "inherit",
   });
+
+  console.log(`  → vercel build${isProd ? " --prod" : ""}...`);
+  execFileSync(vercelBin, ["build", ...(isProd ? ["--prod"] : []), "--yes", ...authFlags], {
+    cwd,
+    env,
+    shell: isWin,
+    stdio: "inherit",
+  });
+
+  console.log(`  → vercel deploy --prebuilt${isProd ? " --prod" : ""}...`);
+  const stdout = execFileSync(
+    vercelBin,
+    ["deploy", "--prebuilt", ...(isProd ? ["--prod"] : []), "--yes", ...authFlags],
+    {
+      cwd,
+      env,
+      shell: isWin,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
+    },
+  );
   const urls = stdout.trim().split(/\s+/).filter((s) => s.startsWith("https://"));
   return urls[urls.length - 1] || stdout.trim();
 }
 
 async function verifyUrl(url, label) {
-  for (let attempt = 1; attempt <= 5; attempt++) {
+  for (let attempt = 1; attempt <= 6; attempt++) {
     try {
       const r = await fetch(url, { redirect: "follow" });
       if (r.status >= 200 && r.status < 400) {
@@ -208,7 +252,7 @@ async function verifyUrl(url, label) {
     } catch {
       // Thử lại sau cold-start
     }
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 2500));
   }
   console.warn(`  ! Không thể xác nhận ngay ${label} (${url}), dịch vụ có thể đang khởi tạo.`);
   return false;
@@ -251,16 +295,9 @@ async function main() {
   const targets = detectChangedTargets(args.target);
   console.log(`▶ Chế độ Auto-Deploy (${args.env}): ${targets.reason}`);
 
-  if (!targets.backend && !targets.frontend) {
-    const msg = "Không có thay đổi trong `backend/` hoặc `frontend/` (chỉ thay đổi tài liệu) — bỏ qua bước deploy.";
-    console.log(msg);
-    writeSummary(`### ⏭️ Auto-Deploy Vercel\n${msg}`);
-    return;
-  }
-
-  // Hỗ trợ thêm chế độ Deploy Hook nếu người dùng chỉ cấu hình Webhook URL
   const token = (process.env.VERCEL_TOKEN || "").trim();
   if (!token) {
+    if (!targets.backend && !targets.frontend) return;
     const hooked = await triggerDeployHooksIfConfigured(targets);
     if (hooked) {
       writeSummary("### 🚀 Đã kích hoạt Vercel Deploy Hooks thành công!");
@@ -287,6 +324,21 @@ async function main() {
   const beProject = await ensureProject(token, scopeId, process.env.VERCEL_BACKEND_PROJECT_ID || backendName, "express");
   const feProject = await ensureProject(token, scopeId, process.env.VERCEL_FRONTEND_PROJECT_ID || frontendName, "nextjs");
 
+  // Nếu một trong hai project chưa từng có bản Production nào trên Vercel, tự động bật deploy cho project đó
+  if (isProd && !beProject.targets?.production) {
+    targets.backend = true;
+  }
+  if (isProd && !feProject.targets?.production) {
+    targets.frontend = true;
+  }
+
+  if (!targets.backend && !targets.frontend) {
+    const msg = "Không có thay đổi trong `backend/` hoặc `frontend/` (chỉ thay đổi tài liệu) — bỏ qua bước deploy.";
+    console.log(msg);
+    writeSummary(`### ⏭️ Auto-Deploy Vercel\n${msg}`);
+    return;
+  }
+
   // Nạp biến môi trường từ local .env hoặc GitHub Secrets (nếu có) mà không bao giờ in giá trị nhạy cảm ra log
   const localBeEnv = parseDotEnv(join(ROOT, "backend", ".env"));
   const localFeEnv = parseDotEnv(join(ROOT, "frontend", ".env.local"));
@@ -297,7 +349,11 @@ async function main() {
     { key: "JWT_REFRESH_SECRET", value: pick("JWT_REFRESH_SECRET"), secret: true },
     { key: "DATABASE_URL", value: pick("DATABASE_URL"), secret: true },
     { key: "SUPABASE_URL", value: pick("SUPABASE_URL") || pick("NEXT_PUBLIC_SUPABASE_URL"), secret: false },
-    { key: "SUPABASE_PUBLISHABLE_KEY", value: pick("SUPABASE_PUBLISHABLE_KEY") || pick("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"), secret: false },
+    {
+      key: "SUPABASE_PUBLISHABLE_KEY",
+      value: pick("SUPABASE_PUBLISHABLE_KEY") || pick("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+      secret: false,
+    },
     { key: "CLOUDINARY_CLOUD_NAME", value: pick("CLOUDINARY_CLOUD_NAME"), secret: false },
     { key: "CLOUDINARY_API_KEY", value: pick("CLOUDINARY_API_KEY"), secret: true },
     { key: "CLOUDINARY_API_SECRET", value: pick("CLOUDINARY_API_SECRET"), secret: true },
@@ -345,7 +401,6 @@ async function main() {
     console.log(`\n▶ [2/2] Đang build & deploy Frontend (${feProject.name})...`);
     const stagedFe = stageAppDirectory(resolve(ROOT, "frontend"), "frontend");
     try {
-      // Ghi .env.production cục bộ trong bản tạm để Next.js nhận ngay BACKEND_URL mới nhất trong cùng 1 lần chạy
       writeFileSync(
         join(stagedFe, ".env.production"),
         `BACKEND_URL=${effectiveBackendUrl}\nNEXT_PUBLIC_API_URL=${effectiveBackendUrl}/api/v1\n`,
@@ -373,6 +428,7 @@ async function main() {
 
   writeOutput("backend_url", effectiveBackendUrl);
   writeOutput("frontend_url", effectiveFrontendUrl);
+  console.log(`::notice title=Vercel Auto-Deploy::Backend=${effectiveBackendUrl} | Frontend=${effectiveFrontendUrl}`);
 
   writeSummary(
     [
@@ -386,6 +442,10 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("❌ Lỗi triển khai Vercel:", err);
+  const token = (process.env.VERCEL_TOKEN || "").trim();
+  let msg = err instanceof Error ? `${err.message}` : String(err);
+  if (token) msg = msg.split(token).join("***");
+  console.error("❌ Lỗi triển khai Vercel:", msg);
+  console.log(`::error title=Vercel Deploy Failed::${msg.replace(/\r?\n/g, " ")}`);
   process.exit(1);
 });
