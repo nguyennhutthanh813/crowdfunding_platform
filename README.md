@@ -1,47 +1,28 @@
-# FundViet v3 — Nền tảng gọi vốn cộng đồng tích hợp AI
+# FundViet — Nền tảng gọi vốn cộng đồng
 
-Ứng dụng web responsive (Next.js 16 App Router + React 19 + Tailwind CSS 4 + SQLite `node:sqlite`) được xây dựng theo biên bản họp đề tài ngày 18/11/2026.
+Dự án được tổ chức thành 3 thư mục độc lập ở cấp cao nhất để thuận tiện triển khai lên Vercel và quản lý hồ sơ thiết kế:
 
-## Chạy nhanh (local)
+- **`backend/`** — Dịch vụ REST API độc lập (Express + TypeScript, xác thực JWT Access/Refresh Token, bảo mật 2FA TOTP tương thích Google Authenticator & `2fa.live`, gửi OTP qua Gmail SMTP, lưu trữ ảnh Cloudinary, hỗ trợ Supabase PostgreSQL kèm SQLite cục bộ).
+- **`frontend/`** — Ứng dụng Web Next.js 16 (App Router + React 19 + Tailwind CSS 4), cấu hình sẵn để deploy độc lập lên Vercel (`Root Directory = frontend`).
+- **`documentation/`** — Thư mục riêng chứa toàn bộ lược đồ SQL (`postgresql-schema.sql`, `supabase-setup.sql`, `schema.prisma`), sơ đồ ERD, đặc tả Use Case (UC), Sơ đồ Hoạt động (Activity Diagrams — AD) và tài liệu phân tích hệ thống.
 
-Yêu cầu **Node.js 24+** và **pnpm 9** (qua Corepack). Từ thư mục repo:
+## Thiết lập môi trường khi chuyển máy
 
-```powershell
-corepack pnpm install --frozen-lockfile
-corepack pnpm dev:web
-```
+1. Cài đặt gói phụ thuộc (Node.js 22+ / 24+ và pnpm qua Corepack):
+   ```powershell
+   corepack pnpm install
+   ```
+2. Tạo file biến môi trường từ bản mẫu:
+   - Sao chép `backend/.env.example` thành `backend/.env` và điền thông tin kết nối (`DATABASE_URL` Supabase, `JWT_SECRET`, `CLOUDINARY_*`, `SMTP_*`).
+   - Sao chép `frontend/.env.example` thành `frontend/.env.local`.
 
-Mở `http://localhost:3000`. Repo đã đính kèm sẵn database mẫu `apps/web/.data/fundviet.sqlite` (100% quan hệ, 40 bảng + `meta`, trigger ràng buộc trạng thái & phân quyền; nếu xoá file đi, ứng dụng sẽ tự tạo và nạp lại dữ liệu mẫu khi khởi động).
+## Các hạng mục đang triển khai tiếp
 
-- Làm mới lại dữ liệu demo: `corepack pnpm --filter @crowdfunding/web db:reset`
-- Chạy kiểm thử DB, trigger & ma trận phân quyền: `corepack pnpm --filter @crowdfunding/web test:db`
-- Xem chi tiết hướng dẫn ứng dụng web tại [apps/web/README.md](apps/web/README.md)
-
-## Tài khoản trải nghiệm
-
-Mật khẩu chung cho toàn bộ tài khoản demo: `fundviet123` (hoặc bấm đăng nhập nhanh 1 chạm tại `/login`):
-
-| Vai trò | Tên đăng nhập | Email | Phạm vi minh hoạ |
-| --- | --- | --- | --- |
-| Backer (Thành viên) | `minhanh` | `minhanh@fundviet.vn` | Đã góp nhiều dự án, có lời mời Collaborator đang chờ |
-| Creator | `hoanglinh` | `linh@fundviet.vn` | Chủ dự án ORBIT One, Mộc Lamp, Loa Tre, Chú Cuội |
-| Collaborator | `giahuy` | `giahuy@fundviet.vn` | Cộng sự của 3 dự án thuộc ORBIT Lab |
-| Quản trị viên | `quantri` | `admin@fundviet.vn` | Duyệt dự án, gỡ/khôi phục, khoá tài khoản, bộ lập lịch |
-
-## Cơ sở dữ liệu & tài liệu thiết kế
-
-- Lược đồ & phân tích quan hệ (1-1, 1-N, N-N, tự tham chiếu), RBAC 2 tầng, chuẩn hoá & quy tắc nghiệp vụ: [docs/database/README.md](docs/database/README.md)
-- Lược đồ Use Case tổng quan và theo từng vai trò: [docs/database/use-cases.md](docs/database/use-cases.md)
-- Lược đồ PostgreSQL 18 tham chiếu & dữ liệu danh mục: [database/postgres/schema.sql](database/postgres/schema.sql), [database/postgres/seed-reference.sql](database/postgres/seed-reference.sql), [database/postgres/schema.prisma](database/postgres/schema.prisma)
-- Xem trực tiếp ERD tương tác, phân loại quan hệ và ma trận phân quyền live trên web tại `/system`
-
-> Lưu ý: `apps/api` (NestJS/Prisma cũ) được giữ nguyên trạng trên nhánh này; phần giao diện v3 chạy trực tiếp qua Server Components/Actions trên SQLite quan hệ đồng bộ thiết kế với `database/postgres/schema.sql`.
-
-## Kiểm tra
-
-```powershell
-corepack pnpm --filter @crowdfunding/web test:db
-corepack pnpm --filter @crowdfunding/web lint
-corepack pnpm --filter @crowdfunding/web type-check
-corepack pnpm build:web
-```
+- **Đã hoàn tất:**
+  - Tách cấu trúc `backend/`, `frontend/`, `documentation/` (kèm cấu hình `vercel.json` cho cả 2 dịch vụ, xoá trang `/system` và `/api/dev` khỏi `frontend/`).
+  - Bộ kết nối CSDL hợp nhất (`Supabase PostgreSQL` + `SQLite` fallback), bổ sung bảng bảo mật `user_two_factor`, `user_backup_codes`, `auth_otp_codes` và xuất script `documentation/sql/supabase-setup.sql`.
+  - Khởi tạo sẵn CSDL `backend/.data/fundviet.sqlite` với 4 tài khoản chính đầu tiên (`phuocthinh2248@gmail.com`, `nguyennhutthanh813@gmail.com`, `ctv000001@gmail.com`, `user000001@gmail.com`) và dữ liệu chuẩn hoá.
+  - Hoàn thiện module xác thực `backend/src/modules/auth/` (Login, Register, Forgot/Reset Password OTP qua Gmail SMTP, JWT rotation, 2FA TOTP RFC 6238 + QR + chuỗi Base32 cho `2fa.live` + Backup Codes) và upload ảnh Cloudinary (`backend/src/modules/upload/`).
+- **Bước tiếp theo khi chạy tiếp:**
+  - Hoàn thiện nốt các route REST `/api/v1/{public,projects,pledges,me,studio,admin}` trong `backend/src/` (chuyển sang `await` với `DbClient` mới) và khởi chạy `backend/src/server.ts`.
+  - Chuyển toàn bộ truy vấn/action trong `frontend/src/` sang gọi REST API của `backend/` qua JWT và hoàn thiện giao diện 2FA / Quên mật khẩu / dọn nốt nhãn giao diện cũ.

@@ -1,43 +1,29 @@
 {
-  "name": "crowdfunding-platform",
-  "version": "0.1.0",
+  "name": "fundviet-platform",
+  "version": "1.0.0",
   "private": true,
-  "description": "Nền tảng gọi vốn cộng đồng — Crowdfunding Platform",
+  "description": "FundViet — Nền tảng gọi vốn cộng đồng (Backend REST API + Frontend Next.js)",
   "scripts": {
-    "dev": "turbo run dev",
-    "dev:web": "corepack pnpm --filter @crowdfunding/web dev",
-    "build:web": "corepack pnpm --filter @crowdfunding/web build",
+    "dev": "turbo run dev --parallel",
+    "dev:backend": "corepack pnpm --filter fundviet-backend dev",
+    "dev:frontend": "corepack pnpm --filter fundviet-frontend dev",
     "build": "turbo run build",
+    "build:backend": "corepack pnpm --filter fundviet-backend build",
+    "build:frontend": "corepack pnpm --filter fundviet-frontend build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-    "db:generate": "corepack pnpm --filter @crowdfunding/api prisma:generate",
-    "db:push": "corepack pnpm --filter @crowdfunding/api prisma:push",
-    "db:migrate": "corepack pnpm --filter @crowdfunding/api prisma:migrate",
-    "db:studio": "corepack pnpm --filter @crowdfunding/api prisma:studio",
-    "db:seed": "corepack pnpm --filter @crowdfunding/api prisma:seed",
-    "clean": "turbo run clean && rimraf node_modules",
-    "prepare": "husky"
+    "db:reset": "corepack pnpm --filter fundviet-backend db:reset",
+    "db:sync-supabase": "corepack pnpm --filter fundviet-backend db:sync-supabase",
+    "cloudinary:sync": "corepack pnpm --filter fundviet-backend cloudinary:sync",
+    "test:backend": "corepack pnpm --filter fundviet-backend test"
   },
   "devDependencies": {
-    "turbo": "^2.4.0",
     "prettier": "^3.4.0",
-    "husky": "^9.1.0",
-    "lint-staged": "^15.3.0",
-    "rimraf": "^6.0.0"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "prettier --write",
-      "eslint --fix"
-    ],
-    "*.{json,md,css}": [
-      "prettier --write"
-    ]
+    "rimraf": "^6.0.0",
+    "turbo": "^2.4.0"
   },
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=22.0.0"
   }
 }

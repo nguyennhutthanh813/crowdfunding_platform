@@ -1,46 +1,46 @@
-# dependencies
+# Dependencies
 node_modules
 .pnpm-store
 
-# build outputs
+# Build outputs
 dist
 .next
 out
 build
+.turbo
+.vercel
 
-# environment
+# Environment secrets (NEVER commit real credentials)
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+!**/.env.example
 
-# IDE
+# Runtime SQLite WAL/SHM & local uploads
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# IDE & OS
 .vscode/settings.json
 .idea
 *.swp
 *.swo
-
-# OS
 .DS_Store
 Thumbs.db
 
-# debug
+# Logs & Misc
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# turbo
-.turbo
-
-# prisma
-apps/api/prisma/migrations/**/migration_lock.toml
-
-# test
 coverage
-
-# misc
 *.tsbuildinfo
-TEST_CHECKLIST.md
 
 # AI / Agent configs & working notes
 .gemini/

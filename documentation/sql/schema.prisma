@@ -1,0 +1,1147 @@
+// =============================================================================
+// FundViet v3 — Lược đồ Prisma tham chiếu (PostgreSQL 18)
+// Đối chiếu 1-1 với database/postgres/schema.sql và apps/web/src/server/db/schema.ts.
+//
+// LƯU Ý QUAN TRỌNG VỀ RÀNG BUỘC CHỈ CÓ TRONG SQL (schema.sql):
+//  1. Prisma chưa biểu diễn trực tiếp được CHECK constraint, partial unique index
+//     (`WHERE ...`), SQL View và Trigger PL/pgSQL. Khi migrate thật bằng SQL
+//     (`schema.sql`), các lớp bảo vệ sau được giữ ở tầng PostgreSQL:
+//     - Partial unique indexes:
+//         * uq_address_default (addresses.user_id WHERE is_default = true)
+//         * uq_payment_default (payment_methods.user_id WHERE is_default = true)
+//         * uq_project_one_creator (project_members.project_id WHERE role_code = 'CREATOR')
+//         * uq_invitation_pending (project_invitations(project_id, email) WHERE status = 'PENDING')
+//         * uq_pledge_active (pledges(project_id, backer_id) WHERE status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'))
+//     - Views:
+//         * v_user_system_permissions
+//         * v_project_permissions
+//         * v_project_backer_countries
+//     - 25 Triggers PL/pgSQL: bảo vệ máy trạng thái (projects, pledges),
+//       counter cache (pledged_amount, backers_count, claimed_count, sold_count),
+//       bất biến creator_id / số tiền pledge / giá gói quà đã có người chọn,
+//       kiểm tra RBAC (pledge.create, update.draft, update.publish, faq.manage,
+//       comment.create/reply, admin.project.review), giới hạn reply <= 2 cấp,
+//       kiểm tra shipment chỉ cho pledge CAPTURED có quà vật lý, và touched updated_at.
+//  2. Một số khoá ngoại ghép có cột tuỳ chọn (vd: pledges.(tier_id, project_id),
+//     pledges.(address_id, backer_id), comments.(update_id, project_id),
+//     comments.(parent_id, project_id)) dùng MATCH SIMPLE trong PostgreSQL;
+//     trong Prisma ánh xạ qua cột đơn + ghi chú tường minh khoá ghép SQL.
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto, citext]
+}
+
+// ═══════════════════════ ENUMS ═══════════════════════
+
+enum UserStatus {
+  ACTIVE
+  LOCKED
+
+  @@map("user_status")
+}
+
+enum ThemePreference {
+  system
+  light
+  dark
+
+  @@map("theme_preference")
+}
+
+enum RbacScope {
+  SYSTEM
+  PROJECT
+
+  @@map("rbac_scope")
+}
+
+enum ProjectStatus {
+  DRAFT
+  PENDING_REVIEW
+  REJECTED
+  SCHEDULED
+  LIVE
+  SUCCESS
+  FAILED
+  FULFILLING
+  COMPLETED
+  CANCELLED
+  SUSPENDED
+
+  @@map("project_status")
+}
+
+enum CompletedDisplayMode {
+  SUMMARY
+  UPDATES
+  THANK_YOU
+
+  @@map("completed_display_mode")
+}
+
+enum SectionKind {
+  TEXT
+  IMAGE
+  VIDEO
+
+  @@map("section_kind")
+}
+
+enum MemberStatus {
+  ACTIVE
+  REMOVED
+
+  @@map("member_status")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+  EXPIRED
+
+  @@map("invitation_status")
+}
+
+enum ReviewDecision {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+
+  @@map("review_decision")
+}
+
+enum CardBrand {
+  VISA
+  MASTERCARD
+  JCB
+  NAPAS
+
+  @@map("card_brand")
+}
+
+enum PledgeStatus {
+  AUTHORIZED
+  CAPTURED
+  CAPTURE_FAILED
+  VOIDED
+  CANCELLED
+  REFUNDED
+
+  @@map("pledge_status")
+}
+
+enum PaymentTxKind {
+  AUTHORIZE
+  CAPTURE
+  VOID
+  REFUND
+
+  @@map("payment_tx_kind")
+}
+
+enum PaymentTxStatus {
+  SUCCEEDED
+  FAILED
+
+  @@map("payment_tx_status")
+}
+
+enum ShipmentStatus {
+  PREPARING
+  SHIPPED
+  DELIVERED
+
+  @@map("shipment_status")
+}
+
+enum UpdateStatus {
+  DRAFT
+  PUBLISHED
+
+  @@map("update_status")
+}
+
+enum CommentStatus {
+  VISIBLE
+  HIDDEN
+  DELETED
+
+  @@map("comment_status")
+}
+
+enum CommentLabel {
+  QUESTION
+  SUGGESTION
+  ISSUE
+  PRAISE
+  SPAM
+  OTHER
+
+  @@map("comment_label")
+}
+
+enum CommentSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+
+  @@map("comment_sentiment")
+}
+
+enum AnalysisSource {
+  RULE
+  LLM
+
+  @@map("analysis_source")
+}
+
+enum NotificationType {
+  PLEDGE_RECEIVED
+  PLEDGE_CONFIRMED
+  PROJECT_UPDATE
+  PROJECT_LAUNCHED
+  PROJECT_RESULT
+  COMMENT_REPLY
+  NEW_COMMENT
+  MESSAGE
+  INVITATION
+  REVIEW_RESULT
+  NEW_PROJECT_FROM_FOLLOWED
+  SHIPMENT
+  SYSTEM
+
+  @@map("notification_type")
+}
+
+enum PredictionMode {
+  PRELAUNCH
+  LIVE
+
+  @@map("prediction_mode")
+}
+
+enum PredictionBand {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("prediction_band")
+}
+
+enum ReportTargetType {
+  PROJECT
+  COMMENT
+  USER
+
+  @@map("report_target_type")
+}
+
+enum ReportReason {
+  SCAM
+  PROHIBITED
+  MISLEADING
+  SPAM
+  HARASSMENT
+  OTHER
+
+  @@map("report_reason")
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+
+  @@map("report_status")
+}
+
+enum SchedulerTriggerSource {
+  AUTO
+  MANUAL
+
+  @@map("scheduler_trigger_source")
+}
+
+// ═══════════════════════ HẠ TẦNG ═══════════════════════
+
+model Meta {
+  key   String @id
+  value String
+
+  @@map("meta")
+}
+
+// ═══════════════════════ 1. DANH TÍNH & PHÂN QUYỀN ═══════════════════════
+
+/// Tài khoản người dùng nền tảng.
+/// SQL-only CHECK: username 3..30 ký tự [a-zA-Z0-9_.], display_name 2..60, bio <= 500,
+/// country_code dài 2, (status = 'LOCKED') = (locked_reason IS NOT NULL).
+/// Trigger: trg_users_touch tự cập nhật updated_at.
+model User {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String     @unique @db.Citext
+  username          String     @unique @db.Citext
+  password_hash     String
+  display_name      String
+  avatar_url        String?
+  bio               String     @default("")
+  country_code      String     @default("VN") @db.Char(2)
+  province          String?
+  status            UserStatus @default(ACTIVE)
+  locked_reason     String?
+  email_verified_at DateTime?  @db.Timestamptz(6)
+  last_login_at     DateTime?  @db.Timestamptz(6)
+  created_at        DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+
+  settings                UserSetting?
+  user_roles              UserRole[]                @relation("UserToRoles")
+  granted_roles           UserRole[]                @relation("RoleGrantedBy")
+  sessions                Session[]
+  addresses               Address[]
+  payment_methods         PaymentMethod[]
+  created_projects        Project[]                 @relation("ProjectCreator")
+  project_memberships     ProjectMember[]           @relation("MemberUser")
+  invited_members         ProjectMember[]           @relation("MemberInvitedBy")
+  received_invitations    ProjectInvitation[]       @relation("InvitationInvitee")
+  sent_invitations        ProjectInvitation[]       @relation("InvitationSender")
+  project_reviews         ProjectReview[]
+  status_history_actions  ProjectStatusHistory[]
+  pledges                 Pledge[]
+  authored_updates        ProjectUpdate[]           @relation("UpdateAuthor")
+  published_updates       ProjectUpdate[]           @relation("UpdatePublisher")
+  created_faqs            Faq[]                     @relation("FaqCreatedBy")
+  updated_faqs            Faq[]                     @relation("FaqUpdatedBy")
+  comments                Comment[]                 @relation("CommentAuthor")
+  moderated_comments      Comment[]                 @relation("CommentModerator")
+  comment_likes           CommentLike[]
+  handled_analyses        CommentAnalysis[]
+  saved_projects          SavedProject[]
+  following               Follow[]                  @relation("FollowFollower")
+  followers               Follow[]                  @relation("FollowFollowee")
+  conversations           ConversationParticipant[]
+  notifications           Notification[]            @relation("NotificationUser")
+  acted_notifications     Notification[]            @relation("NotificationActor")
+  requested_predictions   AiPrediction[]
+  filed_reports           Report[]                  @relation("ReportReporter")
+  reports_against         Report[]                  @relation("ReportTargetUser")
+  handled_reports         Report[]                  @relation("ReportHandler")
+  audit_logs              AuditLog[]
+  triggered_scheduler_run SchedulerRun[]
+
+  @@map("users")
+}
+
+/// 1-1 với users: tách cấu hình thông báo và giao diện.
+model UserSetting {
+  user_id               String          @id @db.Uuid
+  notify_new_project    Boolean         @default(true)
+  notify_project_update Boolean         @default(true)
+  notify_comment_reply  Boolean         @default(true)
+  notify_message        Boolean         @default(true)
+  hide_backed_projects  Boolean         @default(false)
+  theme                 ThemePreference @default(system)
+  updated_at            DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model Role {
+  code        String    @id
+  scope       RbacScope
+  name        String
+  description String
+  badge_color String
+
+  role_permissions RolePermission[]
+  user_roles       UserRole[]
+  project_members  ProjectMember[]
+
+  @@unique([code, scope])
+  @@map("roles")
+}
+
+model Permission {
+  code   String    @id
+  scope  RbacScope
+  module String
+  name   String
+
+  role_permissions RolePermission[]
+
+  @@unique([code, scope])
+  @@map("permissions")
+}
+
+/// N-N roles × permissions. Khoá ghép (code, scope) bảo đảm vai trò dự án chỉ nhận quyền dự án.
+model RolePermission {
+  role_code       String
+  permission_code String
+  scope           RbacScope
+
+  role       Role       @relation(fields: [role_code, scope], references: [code, scope], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_code, scope], references: [code, scope], onDelete: Cascade)
+
+  @@id([role_code, permission_code])
+  @@map("role_permissions")
+}
+
+/// N-N users × roles (chỉ scope = 'SYSTEM').
+/// SQL-only CHECK: scope = 'SYSTEM'.
+model UserRole {
+  user_id    String    @db.Uuid
+  role_code  String
+  scope      RbacScope @default(SYSTEM)
+  granted_by String?   @db.Uuid
+  granted_at DateTime  @default(now()) @db.Timestamptz(6)
+
+  user    User  @relation("UserToRoles", fields: [user_id], references: [id], onDelete: Cascade)
+  grantor User? @relation("RoleGrantedBy", fields: [granted_by], references: [id], onDelete: SetNull)
+  role    Role  @relation(fields: [role_code, scope], references: [code, scope])
+
+  @@id([user_id, role_code])
+  @@map("user_roles")
+}
+
+/// id là SHA-256 hex (64 ký tự) của cookie token.
+model Session {
+  id         String   @id
+  user_id    String   @db.Uuid
+  expires_at DateTime @db.Timestamptz(6)
+  user_agent String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], map: "idx_sessions_user")
+  @@map("sessions")
+}
+
+/// Địa chỉ giao hàng nội bộ Việt Nam.
+/// SQL-only CHECK: country_code = 'VN', phone ~ '^[0-9]{9,12}$'.
+/// SQL-only partial unique index: uq_address_default ON addresses(user_id) WHERE is_default = true.
+model Address {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  label          String   @default("Nhà riêng")
+  recipient_name String
+  phone          String   @db.VarChar(12)
+  line1          String
+  ward           String   @default("")
+  district       String   @default("")
+  province       String
+  country_code   String   @default("VN") @db.Char(2)
+  is_default     Boolean  @default(false)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  pledges Pledge[]
+
+  @@unique([id, user_id])
+  @@map("addresses")
+}
+
+/// Thẻ mô phỏng MockPay — chỉ lưu token và 4 số cuối.
+/// SQL-only CHECK: last4 ~ '^[0-9]{4}$', exp_month 1..12, exp_year 2024..2099.
+/// SQL-only partial unique index: uq_payment_default ON payment_methods(user_id) WHERE is_default = true.
+model PaymentMethod {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String    @db.Uuid
+  brand          CardBrand
+  last4          String    @db.Char(4)
+  exp_month      Int       @db.SmallInt
+  exp_year       Int       @db.SmallInt
+  holder_name    String
+  provider_token String    @unique
+  is_default     Boolean   @default(false)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  pledges Pledge[]
+
+  @@unique([id, user_id])
+  @@map("payment_methods")
+}
+
+// ═══════════════════════ 2. DANH MỤC ═══════════════════════
+
+/// Thể loại dự án (tự tham chiếu qua parent_id).
+/// SQL-only CHECK: parent_id IS NULL OR parent_id <> id.
+model Category {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parent_id   String?  @db.Uuid
+  name        String   @unique
+  slug        String   @unique
+  description String   @default("")
+  image_url   String?
+  color       String   @default("#7C3AED")
+  sort_order  Int      @default(0)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  parent   Category?  @relation("CategoryTree", fields: [parent_id], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  projects Project[]
+
+  @@map("categories")
+}
+
+// ═══════════════════════ 3. DỰ ÁN ═══════════════════════
+
+/// Dự án gọi vốn cộng đồng (All-or-Nothing).
+/// SQL-only CHECK: goal_amount BETWEEN 1000000 AND 2000000000, duration_days BETWEEN 1 AND 60,
+/// end_at > start_at, trạng thái công khai phải có start_at & end_at.
+/// Triggers: trg_projects_creator_member, trg_projects_creator_immutable,
+/// trg_projects_status_flow, trg_projects_cancel_guard, trg_projects_lock_funding, trg_projects_touch.
+model Project {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creator_id        String               @db.Uuid
+  category_id       String               @db.Uuid
+  title             String
+  slug              String               @unique
+  blurb             String               @default("")
+  cover_url         String?
+  video_url         String?
+  goal_amount       BigInt
+  duration_days     Int                  @db.SmallInt
+  start_at          DateTime?            @db.Timestamptz(6)
+  end_at            DateTime?            @db.Timestamptz(6)
+  status            ProjectStatus        @default(DRAFT)
+  is_preview_public Boolean              @default(true)
+  risks             String               @default("")
+  completed_display CompletedDisplayMode @default(SUMMARY)
+  completed_message String?
+  pledged_amount    BigInt               @default(0)
+  backers_count     Int                  @default(0)
+  submitted_at      DateTime?            @db.Timestamptz(6)
+  approved_at       DateTime?            @db.Timestamptz(6)
+  launched_at       DateTime?            @db.Timestamptz(6)
+  ended_at          DateTime?            @db.Timestamptz(6)
+  created_at        DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
+
+  creator        User                   @relation("ProjectCreator", fields: [creator_id], references: [id], onDelete: Restrict)
+  category       Category               @relation(fields: [category_id], references: [id], onDelete: Restrict)
+  sections       ProjectSection[]
+  members        ProjectMember[]
+  invitations    ProjectInvitation[]
+  reviews        ProjectReview[]
+  status_history ProjectStatusHistory[]
+  reward_tiers   RewardTier[]
+  add_ons        AddOn[]
+  tier_add_ons   RewardTierAddOn[]
+  pledges        Pledge[]
+  pledge_addons  PledgeAddOn[]
+  updates        ProjectUpdate[]
+  faqs           Faq[]
+  comments       Comment[]
+  saved_by       SavedProject[]
+  conversations  Conversation[]
+  notifications  Notification[]
+  daily_stats    ProjectDailyStat[]
+  ai_predictions AiPrediction[]
+  reports        Report[]
+
+  @@index([status, end_at], map: "idx_projects_status_end")
+  @@index([category_id, status], map: "idx_projects_category")
+  @@index([creator_id], map: "idx_projects_creator")
+  @@map("projects")
+}
+
+/// SQL-only CHECK: (kind = 'TEXT' AND body <> '') OR (kind <> 'TEXT' AND media_url IS NOT NULL).
+model ProjectSection {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id String      @db.Uuid
+  kind       SectionKind
+  heading    String      @default("")
+  body       String      @default("")
+  media_url  String?
+  sort_order Int
+  created_at DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, sort_order])
+  @@map("project_sections")
+}
+
+/// N-N users × projects (CREATOR duy nhất + COLLABORATOR).
+/// SQL-only CHECK: scope = 'PROJECT', (status = 'REMOVED') = (removed_at IS NOT NULL), role_code <> 'CREATOR' OR status = 'ACTIVE'.
+/// SQL-only partial unique index: uq_project_one_creator ON project_members(project_id) WHERE role_code = 'CREATOR'.
+/// Triggers: trg_members_creator_guard, trg_members_creator_locked, trg_members_no_promote.
+model ProjectMember {
+  project_id String       @db.Uuid
+  user_id    String       @db.Uuid
+  role_code  String
+  scope      RbacScope    @default(PROJECT)
+  status     MemberStatus @default(ACTIVE)
+  invited_by String?      @db.Uuid
+  joined_at  DateTime     @default(now()) @db.Timestamptz(6)
+  removed_at DateTime?    @db.Timestamptz(6)
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  user    User    @relation("MemberUser", fields: [user_id], references: [id], onDelete: Restrict)
+  inviter User?   @relation("MemberInvitedBy", fields: [invited_by], references: [id], onDelete: SetNull)
+  role    Role    @relation(fields: [role_code, scope], references: [code, scope])
+
+  @@id([project_id, user_id])
+  @@index([user_id, status], map: "idx_project_members_user")
+  @@map("project_members")
+}
+
+/// SQL-only CHECK: role_code = 'COLLABORATOR', (status = 'PENDING') = (responded_at IS NULL).
+/// SQL-only partial unique index: uq_invitation_pending ON project_invitations(project_id, email) WHERE status = 'PENDING'.
+model ProjectInvitation {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id   String           @db.Uuid
+  email        String           @db.Citext
+  invitee_id   String?          @db.Uuid
+  invited_by   String           @db.Uuid
+  role_code    String           @default("COLLABORATOR")
+  message      String           @default("")
+  status       InvitationStatus @default(PENDING)
+  token        String           @unique
+  expires_at   DateTime         @db.Timestamptz(6)
+  created_at   DateTime         @default(now()) @db.Timestamptz(6)
+  responded_at DateTime?        @db.Timestamptz(6)
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  invitee User?   @relation("InvitationInvitee", fields: [invitee_id], references: [id], onDelete: SetNull)
+  inviter User    @relation("InvitationSender", fields: [invited_by], references: [id])
+
+  @@index([invitee_id, status], map: "idx_invitations_invitee")
+  @@map("project_invitations")
+}
+
+/// SQL-only CHECK: decision = 'APPROVED' OR char_length(btrim(note)) >= 5.
+/// Trigger: trg_reviews_guard yêu cầu quyền admin.project.review.
+model ProjectReview {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id  String         @db.Uuid
+  reviewer_id String         @db.Uuid
+  decision    ReviewDecision
+  note        String         @default("")
+  created_at  DateTime       @default(now()) @db.Timestamptz(6)
+
+  project  Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  reviewer User    @relation(fields: [reviewer_id], references: [id])
+
+  @@index([project_id, created_at(sort: Desc)], map: "idx_reviews_project")
+  @@map("project_reviews")
+}
+
+model ProjectStatusHistory {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id  String         @db.Uuid
+  from_status ProjectStatus?
+  to_status   ProjectStatus
+  actor_id    String?        @db.Uuid
+  reason      String         @default("")
+  created_at  DateTime       @default(now()) @db.Timestamptz(6)
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  actor   User?   @relation(fields: [actor_id], references: [id], onDelete: SetNull)
+
+  @@index([project_id, created_at], map: "idx_status_history_project")
+  @@map("project_status_history")
+}
+
+// ═══════════════════════ 4. PHẦN QUÀ ═══════════════════════
+
+/// SQL-only CHECK: amount >= 10000, claimed_count <= quantity_limit, ships_physical = true OR shipping_fee = 0.
+/// Triggers: trg_tiers_price_locked, trg_tiers_delete_locked.
+model RewardTier {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id         String   @db.Uuid
+  title              String
+  description        String   @default("")
+  amount             BigInt
+  estimated_delivery String
+  quantity_limit     Int?
+  claimed_count      Int      @default(0)
+  ships_physical     Boolean  @default(true)
+  shipping_fee       BigInt   @default(0)
+  is_active          Boolean  @default(true)
+  sort_order         Int      @default(0)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  project      Project           @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  items        RewardItem[]
+  tier_add_ons RewardTierAddOn[]
+  pledges      Pledge[]
+
+  @@unique([id, project_id])
+  @@index([project_id, sort_order], map: "idx_tiers_project")
+  @@map("reward_tiers")
+}
+
+model RewardItem {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tier_id    String @db.Uuid
+  name       String
+  quantity   Int    @default(1)
+  sort_order Int    @default(0)
+
+  tier RewardTier @relation(fields: [tier_id], references: [id], onDelete: Cascade)
+
+  @@map("reward_items")
+}
+
+/// SQL-only CHECK: price > 0, stock >= 0, sold_count <= stock, max_per_pledge BETWEEN 1 AND 99.
+model AddOn {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id     String   @db.Uuid
+  title          String
+  description    String   @default("")
+  price          BigInt
+  stock          Int?
+  sold_count     Int      @default(0)
+  max_per_pledge Int      @default(5) @db.SmallInt
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  project       Project           @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  tier_add_ons  RewardTierAddOn[]
+  pledge_addons PledgeAddOn[]
+
+  @@unique([id, project_id])
+  @@map("add_ons")
+}
+
+model RewardTierAddOn {
+  tier_id    String @db.Uuid
+  add_on_id  String @db.Uuid
+  project_id String @db.Uuid
+
+  project Project    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  tier    RewardTier @relation(fields: [tier_id, project_id], references: [id, project_id], onDelete: Cascade)
+  add_on  AddOn      @relation(fields: [add_on_id, project_id], references: [id, project_id], onDelete: Cascade)
+
+  @@id([tier_id, add_on_id])
+  @@map("reward_tier_add_ons")
+}
+
+// ═══════════════════════ 5. GÓP VỐN & THANH TOÁN ═══════════════════════
+
+/// Thực thể kết hợp users × projects có thuộc tính tiền và ảnh chụp địa chỉ.
+/// SQL-only composite FKs (MATCH SIMPLE):
+///   - FOREIGN KEY (tier_id, project_id) REFERENCES reward_tiers(id, project_id)
+///   - FOREIGN KEY (payment_method_id, backer_id) REFERENCES payment_methods(id, user_id)
+///   - FOREIGN KEY (address_id, backer_id) REFERENCES addresses(id, user_id)
+/// SQL-only CHECK: total_amount = reward + bonus + add_on + shipping (>= 10000),
+///   tier_id IS NOT NULL OR (reward=0 AND add_on=0 AND shipping=0), shipping=0 OR ship_address IS NOT NULL.
+/// SQL-only partial unique index: uq_pledge_active ON pledges(project_id, backer_id)
+///   WHERE status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED').
+/// Triggers: trg_pledges_guard, trg_pledges_amount_immutable, trg_pledges_status_flow,
+///   trg_pledges_after_insert, trg_pledges_after_release.
+model Pledge {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String       @unique
+  project_id        String       @db.Uuid
+  backer_id         String       @db.Uuid
+  tier_id           String?      @db.Uuid
+  payment_method_id String       @db.Uuid
+  address_id        String?      @db.Uuid
+  reward_amount     BigInt       @default(0)
+  bonus_amount      BigInt       @default(0)
+  add_on_amount     BigInt       @default(0)
+  shipping_amount   BigInt       @default(0)
+  total_amount      BigInt
+  status            PledgeStatus @default(AUTHORIZED)
+  ship_recipient    String?
+  ship_phone        String?
+  ship_address      String?
+  ship_province     String?
+  is_anonymous      Boolean      @default(false)
+  note              String       @default("")
+  created_at        DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  captured_at       DateTime?    @db.Timestamptz(6)
+  voided_at         DateTime?    @db.Timestamptz(6)
+  cancelled_at      DateTime?    @db.Timestamptz(6)
+
+  project        Project              @relation(fields: [project_id], references: [id], onDelete: Restrict)
+  backer         User                 @relation(fields: [backer_id], references: [id], onDelete: Restrict)
+  tier           RewardTier?          @relation(fields: [tier_id], references: [id])
+  payment_method PaymentMethod        @relation(fields: [payment_method_id, backer_id], references: [id, user_id])
+  address        Address?             @relation(fields: [address_id], references: [id])
+  add_ons        PledgeAddOn[]
+  transactions   PaymentTransaction[]
+  shipment       Shipment?
+
+  @@unique([id, project_id])
+  @@index([project_id, status], map: "idx_pledges_project")
+  @@index([backer_id, created_at(sort: Desc)], map: "idx_pledges_backer")
+  @@map("pledges")
+}
+
+/// N-N pledges × add_ons (kèm số lượng & đơn giá chụp lại).
+/// Triggers: trg_pledge_add_ons_guard, trg_pledge_add_ons_stock.
+model PledgeAddOn {
+  pledge_id  String @db.Uuid
+  add_on_id  String @db.Uuid
+  project_id String @db.Uuid
+  quantity   Int
+  unit_price BigInt
+
+  project Project @relation(fields: [project_id], references: [id])
+  pledge  Pledge  @relation(fields: [pledge_id, project_id], references: [id, project_id], onDelete: Cascade)
+  add_on  AddOn   @relation(fields: [add_on_id, project_id], references: [id, project_id])
+
+  @@id([pledge_id, add_on_id])
+  @@map("pledge_add_ons")
+}
+
+model PaymentTransaction {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pledge_id       String          @db.Uuid
+  kind            PaymentTxKind
+  amount          BigInt
+  status          PaymentTxStatus
+  idempotency_key String          @unique
+  provider        String          @default("MOCKPAY")
+  provider_ref    String?
+  message         String          @default("")
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+
+  pledge Pledge @relation(fields: [pledge_id], references: [id], onDelete: Cascade)
+
+  @@index([pledge_id, created_at], map: "idx_payment_tx_pledge")
+  @@map("payment_transactions")
+}
+
+/// 1-1 với pledges (chỉ pledge CAPTURED có quà vật lý).
+/// SQL-only CHECK: status = 'PREPARING' OR shipped_at IS NOT NULL; status <> 'DELIVERED' OR delivered_at IS NOT NULL.
+/// Trigger: trg_shipments_guard.
+model Shipment {
+  pledge_id     String         @id @db.Uuid
+  status        ShipmentStatus @default(PREPARING)
+  carrier       String?
+  tracking_code String?
+  shipped_at    DateTime?      @db.Timestamptz(6)
+  delivered_at  DateTime?      @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+
+  pledge Pledge @relation(fields: [pledge_id], references: [id], onDelete: Cascade)
+
+  @@map("shipments")
+}
+
+// ═══════════════════════ 6. NỘI DUNG & TƯƠNG TÁC ═══════════════════════
+
+/// SQL-only CHECK: (status = 'PUBLISHED') = (published_at IS NOT NULL AND published_by IS NOT NULL).
+/// Triggers: trg_updates_author, trg_updates_publish.
+model ProjectUpdate {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id   String       @db.Uuid
+  author_id    String       @db.Uuid
+  title        String
+  body         String
+  status       UpdateStatus @default(DRAFT)
+  backers_only Boolean      @default(false)
+  published_by String?      @db.Uuid
+  published_at DateTime?    @db.Timestamptz(6)
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+
+  project   Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  author    User      @relation("UpdateAuthor", fields: [author_id], references: [id])
+  publisher User?     @relation("UpdatePublisher", fields: [published_by], references: [id])
+  comments  Comment[]
+
+  @@unique([id, project_id])
+  @@index([project_id, status, published_at(sort: Desc)], map: "idx_updates_project")
+  @@map("project_updates")
+}
+
+/// Trigger: trg_faqs_author kiểm tra quyền faq.manage.
+model Faq {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id String   @db.Uuid
+  question   String
+  answer     String
+  sort_order Int      @default(0)
+  created_by String   @db.Uuid
+  updated_by String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  creator User    @relation("FaqCreatedBy", fields: [created_by], references: [id])
+  updater User?   @relation("FaqUpdatedBy", fields: [updated_by], references: [id])
+
+  @@map("faqs")
+}
+
+/// Bình luận tự tham chiếu tối đa 2 cấp.
+/// SQL-only composite FKs (MATCH SIMPLE): (update_id, project_id) -> project_updates, (parent_id, project_id) -> comments.
+/// Trigger: trg_comments_guard.
+model Comment {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id       String        @db.Uuid
+  update_id        String?       @db.Uuid
+  parent_id        String?       @db.Uuid
+  author_id        String        @db.Uuid
+  body             String
+  status           CommentStatus @default(VISIBLE)
+  moderated_by     String?       @db.Uuid
+  moderated_reason String?
+  created_at       DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+
+  project   Project          @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  update    ProjectUpdate?   @relation(fields: [update_id], references: [id], onDelete: Cascade)
+  parent    Comment?         @relation("CommentReplies", fields: [parent_id], references: [id], onDelete: Cascade)
+  replies   Comment[]        @relation("CommentReplies")
+  author    User             @relation("CommentAuthor", fields: [author_id], references: [id])
+  moderator User?            @relation("CommentModerator", fields: [moderated_by], references: [id])
+  likes     CommentLike[]
+  analysis  CommentAnalysis?
+  reports   Report[]
+
+  @@unique([id, project_id])
+  @@index([project_id, created_at(sort: Desc)], map: "idx_comments_project")
+  @@index([parent_id], map: "idx_comments_parent")
+  @@map("comments")
+}
+
+model CommentLike {
+  comment_id String   @db.Uuid
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  comment Comment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([comment_id, user_id])
+  @@map("comment_likes")
+}
+
+/// 1-1 với comments: kết quả AI lọc góp ý.
+/// SQL-only CHECK: confidence BETWEEN 0 AND 1, (handled_at IS NULL) = (handled_by IS NULL).
+model CommentAnalysis {
+  comment_id      String           @id @db.Uuid
+  label           CommentLabel
+  sentiment       CommentSentiment
+  needs_action    Boolean          @default(false)
+  topic           String           @default("")
+  summary         String           @default("")
+  suggested_reply String           @default("")
+  confidence      Float            @default(0.5) @db.DoublePrecision
+  source          AnalysisSource   @default(RULE)
+  handled_by      String?          @db.Uuid
+  handled_at      DateTime?        @db.Timestamptz(6)
+  analyzed_at     DateTime         @default(now()) @db.Timestamptz(6)
+
+  comment Comment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  handler User?   @relation(fields: [handled_by], references: [id])
+
+  @@index([needs_action, handled_at], map: "idx_comment_analyses_action")
+  @@map("comment_analyses")
+}
+
+model SavedProject {
+  user_id    String   @db.Uuid
+  project_id String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, project_id])
+  @@index([project_id], map: "idx_saved_project")
+  @@map("saved_projects")
+}
+
+/// N-N tự tham chiếu trên users.
+/// SQL-only CHECK: follower_id <> followee_id.
+model Follow {
+  follower_id String   @db.Uuid
+  followee_id String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  follower User @relation("FollowFollower", fields: [follower_id], references: [id], onDelete: Cascade)
+  followee User @relation("FollowFollowee", fields: [followee_id], references: [id], onDelete: Cascade)
+
+  @@id([follower_id, followee_id])
+  @@index([followee_id], map: "idx_follows_followee")
+  @@map("follows")
+}
+
+model Conversation {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id      String?  @db.Uuid
+  subject         String   @default("")
+  last_message_at DateTime @default(now()) @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  project      Project?                  @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversation_id String    @db.Uuid
+  user_id         String    @db.Uuid
+  last_read_at    DateTime? @db.Timestamptz(6)
+  joined_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@id([conversation_id, user_id])
+  @@index([user_id], map: "idx_participants_user")
+  @@map("conversation_participants")
+}
+
+model Message {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String   @db.Uuid
+  sender_id       String   @db.Uuid
+  body            String
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation Conversation            @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  participant  ConversationParticipant @relation(fields: [conversation_id, sender_id], references: [conversation_id, user_id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at], map: "idx_messages_conversation")
+  @@map("messages")
+}
+
+model Notification {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String           @db.Uuid
+  type       NotificationType
+  title      String
+  body       String           @default("")
+  link       String?
+  actor_id   String?          @db.Uuid
+  project_id String?          @db.Uuid
+  read_at    DateTime?        @db.Timestamptz(6)
+  created_at DateTime         @default(now()) @db.Timestamptz(6)
+
+  user    User     @relation("NotificationUser", fields: [user_id], references: [id], onDelete: Cascade)
+  actor   User?    @relation("NotificationActor", fields: [actor_id], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, read_at, created_at(sort: Desc)], map: "idx_notifications_user")
+  @@map("notifications")
+}
+
+// ═══════════════════════ 7. THỐNG KÊ & AI ═══════════════════════
+
+model ProjectDailyStat {
+  project_id         String   @db.Uuid
+  stat_date          DateTime @db.Date
+  new_pledges        Int      @default(0)
+  new_backers        Int      @default(0)
+  pledged_amount     BigInt   @default(0)
+  cumulative_amount  BigInt   @default(0)
+  cumulative_backers Int      @default(0)
+  views              Int      @default(0)
+  saves              Int      @default(0)
+  comments           Int      @default(0)
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@id([project_id, stat_date])
+  @@map("project_daily_stats")
+}
+
+/// Payload kết quả mô hình AI (factors_json, suggestions_json) lưu JSONB.
+model AiPrediction {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id       String         @db.Uuid
+  mode             PredictionMode
+  probability      Float          @db.DoublePrecision
+  band             PredictionBand
+  projected_amount BigInt?
+  factors_json     Json           @default("[]") @db.JsonB
+  suggestions_json Json           @default("[]") @db.JsonB
+  model_version    String
+  requested_by     String?        @db.Uuid
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+
+  project   Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  requester User?   @relation(fields: [requested_by], references: [id], onDelete: SetNull)
+
+  @@index([project_id, created_at(sort: Desc)], map: "idx_predictions_project")
+  @@map("ai_predictions")
+}
+
+// ═══════════════════════ 8. QUẢN TRỊ ═══════════════════════
+
+/// SQL-only CHECK: khớp target_type với project_id/comment_id/user_id; (status = 'OPEN') = (handled_at IS NULL).
+model Report {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id String           @db.Uuid
+  target_type ReportTargetType
+  project_id  String?          @db.Uuid
+  comment_id  String?          @db.Uuid
+  user_id     String?          @db.Uuid
+  reason      ReportReason
+  detail      String           @default("")
+  status      ReportStatus     @default(OPEN)
+  handled_by  String?          @db.Uuid
+  handled_at  DateTime?        @db.Timestamptz(6)
+  resolution  String?
+  created_at  DateTime         @default(now()) @db.Timestamptz(6)
+
+  reporter    User     @relation("ReportReporter", fields: [reporter_id], references: [id])
+  project     Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  comment     Comment? @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  target_user User?    @relation("ReportTargetUser", fields: [user_id], references: [id], onDelete: Cascade)
+  handler     User?    @relation("ReportHandler", fields: [handled_by], references: [id])
+
+  @@index([status, created_at(sort: Desc)], map: "idx_reports_status")
+  @@map("reports")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id    String?  @db.Uuid
+  action      String
+  entity_type String
+  entity_id   String?
+  detail      String   @default("")
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  actor User? @relation(fields: [actor_id], references: [id], onDelete: SetNull)
+
+  @@index([created_at(sort: Desc)], map: "idx_audit_created")
+  @@map("audit_logs")
+}
+
+model SchedulerRun {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trigger_source SchedulerTriggerSource
+  triggered_by   String?                @db.Uuid
+  opened_count   Int                    @default(0)
+  success_count  Int                    @default(0)
+  failed_count   Int                    @default(0)
+  captured_count Int                    @default(0)
+  voided_count   Int                    @default(0)
+  started_at     DateTime               @db.Timestamptz(6)
+  finished_at    DateTime               @db.Timestamptz(6)
+  note           String                 @default("")
+
+  triggerer User? @relation(fields: [triggered_by], references: [id], onDelete: SetNull)
+
+  @@map("scheduler_runs")
+}
