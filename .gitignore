@@ -41,3 +41,22 @@ coverage
 # misc
 *.tsbuildinfo
 TEST_CHECKLIST.md
+
+# AI / Agent configs & working notes
+.gemini/
+.claude/
+.codex/
+.cursor/
+.agent/
+.agents/
+.commandcode/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+CURSOR.md
+COPILOT.md
+ARCHITECTURE.md
+CONTEXT_CACHE.md
+walkthrough.md
+implementation_plan.md
+task.md

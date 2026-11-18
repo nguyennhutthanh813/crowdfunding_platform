@@ -1,36 +1,47 @@
-# FundViet — nền tảng gọi vốn cộng đồng
+# FundViet v3 — Nền tảng gọi vốn cộng đồng tích hợp AI
 
-Repo có hai đường chạy để nhóm đối chiếu trong lúc phát triển:
+Ứng dụng web responsive (Next.js 16 App Router + React 19 + Tailwind CSS 4 + SQLite `node:sqlite`) được xây dựng theo biên bản họp đề tài ngày 18/11/2026.
 
-- `apps/web`: giao diện Next.js 16 và luồng demo cho năm vai trò. Bản chạy local dùng SQLite; khi đưa lên Vercel, dữ liệu demo nằm trong cookie của từng trình duyệt.
-- `apps/api`: backend NestJS/Prisma cho PostgreSQL. Trang `/du-lieu-chung` trong `apps/web` đã nối một quy trình xuyên vai trò tới backend; các màn demo cũ **chưa** chuyển toàn bộ. Xem [hướng dẫn chạy](docs/du-lieu-dung-chung.md) và [bảng đối chiếu](docs/frontend-backend-handoff.md).
+## Chạy nhanh (local)
 
-Source frontend được đồng bộ từ bản đang phát triển trên máy của nhóm. Git giữ lịch sử bản `apps/web` trước đó; không dùng các file API cũ còn trong lịch sử làm bằng chứng một luồng đã nối backend.
-
-## Chạy frontend demo
-
-Cần Node.js **24 trở lên** và pnpm theo `packageManager` ở file này (có thể dùng Corepack). Từ thư mục repo:
+Yêu cầu **Node.js 24+** và **pnpm 9** (qua Corepack). Từ thư mục repo:
 
 ```powershell
 corepack pnpm install --frozen-lockfile
 corepack pnpm dev:web
 ```
 
-Mở `http://localhost:3000`. Trên Windows cũng có thể nhấp đúp `apps/web/CHAY-WEB.bat` để chạy ở cổng **3100**. Frontend tự tạo `.local-data/gop-mock.sqlite` từ seed khi cần; file DB riêng của máy không được đẩy lên GitHub. Tài khoản thử và hướng dẫn vai trò ở [apps/web/README.md](apps/web/README.md), giải thích SQLite ở [apps/web/docs/local-mock-database.md](apps/web/docs/local-mock-database.md).
+Mở `http://localhost:3000`. Repo đã đính kèm sẵn database mẫu `apps/web/.data/fundviet.sqlite` (100% quan hệ, 40 bảng + `meta`, trigger ràng buộc trạng thái & phân quyền; nếu xoá file đi, ứng dụng sẽ tự tạo và nạp lại dữ liệu mẫu khi khởi động).
 
-## Backend PostgreSQL
+- Làm mới lại dữ liệu demo: `corepack pnpm --filter @crowdfunding/web db:reset`
+- Chạy kiểm thử DB, trigger & ma trận phân quyền: `corepack pnpm --filter @crowdfunding/web test:db`
+- Xem chi tiết hướng dẫn ứng dụng web tại [apps/web/README.md](apps/web/README.md)
 
-`apps/api` cần PostgreSQL và biến môi trường theo [.env.example](.env.example). Luồng dữ liệu dùng chung có Compose và hướng dẫn riêng tại [docs/du-lieu-dung-chung.md](docs/du-lieu-dung-chung.md). Chạy backend không tự đổi các màn SQLite/cookie demo sang PostgreSQL.
+## Tài khoản trải nghiệm
 
-API mặc định dùng tiền tố `/api/v1`. Backend đã có thêm kiểm quyền thành viên, chiến dịch riêng và cách tính cam kết theo form web; phạm vi đã khớp và phần còn thiếu ghi tại [tài liệu đối chiếu](docs/frontend-backend-handoff.md). PostgreSQL chưa có migration trong repo, nên chỉ dùng `db:push` với DB phát triển sau khi đã xem ảnh hưởng của thay đổi schema.
+Mật khẩu chung cho toàn bộ tài khoản demo: `fundviet123` (hoặc bấm đăng nhập nhanh 1 chạm tại `/login`):
+
+| Vai trò | Tên đăng nhập | Email | Phạm vi minh hoạ |
+| --- | --- | --- | --- |
+| Backer (Thành viên) | `minhanh` | `minhanh@fundviet.vn` | Đã góp nhiều dự án, có lời mời Collaborator đang chờ |
+| Creator | `hoanglinh` | `linh@fundviet.vn` | Chủ dự án ORBIT One, Mộc Lamp, Loa Tre, Chú Cuội |
+| Collaborator | `giahuy` | `giahuy@fundviet.vn` | Cộng sự của 3 dự án thuộc ORBIT Lab |
+| Quản trị viên | `quantri` | `admin@fundviet.vn` | Duyệt dự án, gỡ/khôi phục, khoá tài khoản, bộ lập lịch |
+
+## Cơ sở dữ liệu & tài liệu thiết kế
+
+- Lược đồ & phân tích quan hệ (1-1, 1-N, N-N, tự tham chiếu), RBAC 2 tầng, chuẩn hoá & quy tắc nghiệp vụ: [docs/database/README.md](docs/database/README.md)
+- Lược đồ Use Case tổng quan và theo từng vai trò: [docs/database/use-cases.md](docs/database/use-cases.md)
+- Lược đồ PostgreSQL 18 tham chiếu & dữ liệu danh mục: [database/postgres/schema.sql](database/postgres/schema.sql), [database/postgres/seed-reference.sql](database/postgres/seed-reference.sql), [database/postgres/schema.prisma](database/postgres/schema.prisma)
+- Xem trực tiếp ERD tương tác, phân loại quan hệ và ma trận phân quyền live trên web tại `/system`
+
+> Lưu ý: `apps/api` (NestJS/Prisma cũ) được giữ nguyên trạng trên nhánh này; phần giao diện v3 chạy trực tiếp qua Server Components/Actions trên SQLite quan hệ đồng bộ thiết kế với `database/postgres/schema.sql`.
 
 ## Kiểm tra
 
 ```powershell
+corepack pnpm --filter @crowdfunding/web test:db
 corepack pnpm --filter @crowdfunding/web lint
 corepack pnpm --filter @crowdfunding/web type-check
 corepack pnpm build:web
-corepack pnpm --filter @crowdfunding/web test:schema-relations
 ```
-
-CI dùng Node.js 24 để kiểm cả hai ứng dụng. Tài liệu, sơ đồ và video demo nằm dưới `apps/web/docs` và `apps/web/public/diagrams`; các ảnh gốc và file Draw.io có thể chỉnh sửa tiếp.

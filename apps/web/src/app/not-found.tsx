@@ -1,24 +1,16 @@
-import { ArrowLeft, SearchX } from "lucide-react";
-import Link from "next/link";
+import Image from "next/image";
+import { ButtonLink } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <section className="grid min-h-[70vh] place-items-center bg-canvas-soft px-4 py-16">
-      <div className="max-w-xl text-center">
-        <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-forest text-lime">
-          <SearchX className="size-7" />
-        </span>
-        <p className="eyebrow mt-6 text-coral">404 · Không tìm thấy</p>
-        <h1 className="mt-3 font-display text-4xl font-extrabold tracking-[-0.05em]">
-          Dự án này chưa có ở đây.
-        </h1>
-        <p className="mt-4 text-sm leading-7 text-ink-soft">
-          Có thể đường dẫn đã thay đổi hoặc chiến dịch chưa được công khai.
-        </p>
-        <Link href="/discover" className="button-dark mt-7">
-          <ArrowLeft className="size-4" /> Về trang khám phá
-        </Link>
+    <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-20 text-center">
+      <Image src="/v3/brand/empty.webp" alt="" width={180} height={180} className="animate-float rounded-3xl" />
+      <h1 className="mt-6 text-3xl font-black">Không tìm thấy trang</h1>
+      <p className="mt-2 text-muted">Trang bạn tìm có thể đã bị gỡ, chưa công khai hoặc đường dẫn chưa đúng.</p>
+      <div className="mt-6 flex gap-3">
+        <ButtonLink href="/">Về trang chủ</ButtonLink>
+        <ButtonLink href="/explore" variant="outline">Khám phá dự án</ButtonLink>
       </div>
-    </section>
+    </div>
   );
 }

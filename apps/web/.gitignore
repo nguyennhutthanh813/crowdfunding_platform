@@ -37,3 +37,10 @@ next-env.d.ts
 # Next 16 tự tạo lại hai file này khi chạy dev.
 /AGENTS.md
 /CLAUDE.md
+
+# CSDL SQLite mẫu (.data/fundviet.sqlite được theo dõi; bỏ qua file runtime WAL/SHM và DB tạm)
+/.data/*
+!/.data/fundviet.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal

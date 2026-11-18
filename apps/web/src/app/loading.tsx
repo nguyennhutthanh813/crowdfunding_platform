@@ -1,12 +1,11 @@
+import { Skeleton } from "@/components/ui/primitives";
+
 export default function Loading() {
   return (
-    <div className="container-shell py-20" aria-label="Đang tải">
-      <div className="h-4 w-36 rounded-full shimmer-line" />
-      <div className="mt-5 h-12 max-w-2xl rounded-2xl shimmer-line" />
-      <div className="mt-10 grid gap-5 md:grid-cols-3">
-        {[1, 2, 3].map((item) => (
-          <div key={item} className="h-80 rounded-[26px] shimmer-line" />
-        ))}
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-10 sm:px-6">
+      <Skeleton className="h-10 w-72" />
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-80" />)}
       </div>
     </div>
   );

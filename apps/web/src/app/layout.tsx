@@ -1,95 +1,40 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro, Inter } from "next/font/google";
-import { AuthProvider } from "@/components/auth/auth-provider";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
-import { ConnectivityBanner } from "@/components/ui/connectivity-banner";
-import { MobileBottomNav } from "@/components/ui/mobile-bottom-nav";
-import { FloatingRoleCommandDock } from "@/components/workspace/quick-role-switcher";
-import { siteConfig } from "@/config/site";
-import { getServerSession } from "@/lib/auth/server-session";
+import { Be_Vietnam_Pro } from "next/font/google";
+import { Toaster } from "sonner";
+import { getViewer } from "@/server/auth/session";
+import { getNavContext } from "@/server/queries/nav";
+import { NavBar } from "@/components/layout/navbar";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import { SiteFooter } from "@/components/layout/footer";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["vietnamese", "latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const beVietnamPro = Be_Vietnam_Pro({
-  variable: "--font-manrope",
-  subsets: ["vietnamese", "latin"],
-  weight: ["600", "700", "800"],
-  display: "swap",
-});
+const font = Be_Vietnam_Pro({ subsets: ["latin", "vietnamese"], weight: ["400", "500", "600", "700", "800", "900"], variable: "--font-be-vietnam", display: "swap" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.url),
-  title: {
-    default: "FundViet — Gọi vốn cộng đồng cho ý tưởng Việt",
-    template: "%s | FundViet",
-  },
-  description: siteConfig.description,
-  keywords: ["crowdfunding", "gọi vốn cộng đồng", "dự án Việt", "FundViet"],
-  openGraph: {
-    type: "website",
-    locale: "vi_VN",
-    siteName: siteConfig.name,
-    title: "FundViet — Gọi vốn cộng đồng cho ý tưởng Việt",
-    description: siteConfig.description,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "FundViet — Gọi vốn cộng đồng cho ý tưởng Việt",
-    description: siteConfig.description,
-  },
-  icons: {
-    icon: [{ url: "/brand/fundviet-mark.svg", type: "image/svg+xml" }],
-    shortcut: "/brand/fundviet-mark.svg",
-    apple: "/brand/fundviet-mark.svg",
-  },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  title: { default: "FundViet — Gọi vốn cộng đồng cho ý tưởng Việt", template: "%s · FundViet" },
+  description: "Nền tảng gọi vốn cộng đồng tích hợp AI: dự đoán khả năng thành công, lọc góp ý cộng đồng, cơ chế All-or-Nothing an toàn.",
 };
-
 export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  themeColor: "#16A34A",
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f7f6fb" }, { media: "(prefers-color-scheme: dark)", color: "#0b0918" }],
 };
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const initialSession = await getServerSession();
+const themeScript = `try{var t=localStorage.getItem('fv-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}`;
 
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const viewer = await getViewer();
+  const ctx = getNavContext(viewer);
   return (
-    <html
-      lang="vi"
-      className={`${inter.variable} ${beVietnamPro.variable}`}
-      data-scroll-behavior="smooth"
-      suppressHydrationWarning
-    >
-      <body className="pb-16 md:pb-0">
-        <AuthProvider
-          key={initialSession
-            ? `${initialSession.user.id}:${initialSession.user.activeRole}:${initialSession.user.roles.join(",")}`
-            : "guest"}
-          initialSession={initialSession}
-        >
-          <a href="#noi-dung-chinh" className="skip-link">
-            Bỏ qua phần điều hướng
-          </a>
-          <ConnectivityBanner />
-          <SiteHeader />
-          <main id="noi-dung-chinh" tabIndex={-1}>
-            {children}
-          </main>
-          <SiteFooter />
-          <MobileBottomNav />
-          <FloatingRoleCommandDock />
-        </AuthProvider>
+    <html lang="vi" className={font.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="min-h-dvh font-sans">
+        <NavBar ctx={ctx} />
+        <main className="min-h-[70vh]">{children}</main>
+        <SiteFooter />
+        <MobileNav ctx={ctx} />
+        <Toaster position="top-center" richColors closeButton toastOptions={{ className: "!rounded-2xl !font-sans" }} />
       </body>
     </html>
   );
