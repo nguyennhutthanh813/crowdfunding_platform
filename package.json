@@ -15,7 +15,8 @@
     "db:reset": "corepack pnpm --filter fundviet-backend db:reset",
     "db:sync-supabase": "corepack pnpm --filter fundviet-backend db:sync-supabase",
     "cloudinary:sync": "corepack pnpm --filter fundviet-backend cloudinary:sync",
-    "test:backend": "corepack pnpm --filter fundviet-backend test"
+    "test:backend": "corepack pnpm --filter fundviet-backend test",
+    "deploy:vercel": "node .github/scripts/vercel-deploy.mjs --target=all --env=production"
   },
   "devDependencies": {
     "prettier": "^3.4.0",

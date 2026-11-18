@@ -2,7 +2,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import cors from "cors";
 import express from "express";
-import helmet from "helmet";
+import * as helmetPkg from "helmet";
 import { env, isCloudinaryConfigured, isPostgresConfigured, isSmtpConfigured } from "./config/env.js";
 import { getDb } from "./db/index.js";
 import { humanizeError, one } from "./db/helpers.js";
@@ -16,6 +16,12 @@ import { adminRouter } from "./modules/admin/admin.routes.js";
 
 export function createApp() {
   const app = express();
+
+  const rawHelmet: unknown = helmetPkg;
+  const helmet =
+    typeof (rawHelmet as { default?: unknown }).default === "function"
+      ? (rawHelmet as { default: (opts?: helmetPkg.HelmetOptions) => express.RequestHandler }).default
+      : (rawHelmet as (opts?: helmetPkg.HelmetOptions) => express.RequestHandler);
 
   app.set("trust proxy", 1);
   app.use(

@@ -55,20 +55,22 @@ corepack pnpm test:backend
 corepack pnpm build
 ```
 
-## Triển khai lên Vercel (Backend + Frontend)
+## Triển khai tự động lên Vercel (Auto-Deploy CI/CD cho Backend + Frontend)
 
-Repository hỗ trợ triển khai tách biệt 2 dịch vụ từ cùng một kho mã nguồn GitHub (`nguyennhutthanh813/crowdfunding_platform`):
+Dự án đã tích hợp sẵn bộ trigger **GitHub Actions Auto-Deploy** tại `.github/workflows/deploy-vercel.yml` và `.github/scripts/vercel-deploy.mjs`:
 
-1. **Dịch vụ Backend (`fundviet-backend`)**:
-   - Tạo Project mới trên Vercel -> chọn repo `crowdfunding_platform` -> đặt **Root Directory** = `backend` (Node.js `22.x`).
-   - Khai báo Environment Variables dựa theo `backend/.env.example` (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL`, `DATABASE_URL`, `CLOUDINARY_*`, `SMTP_*`).
-   - Kiểm tra trạng thái sau khi deploy tại `https://<ten-backend>.vercel.app/api/v1/health`.
+- **Tự động phát hiện thay đổi (`git diff`)**:
+  - Push vào `backend/**` → tự động build & cập nhật ngay `fundviet-backend`.
+  - Push vào `frontend/**` → tự động build & cập nhật ngay `fundviet-frontend`.
+  - Push vào cả hai hoặc chạy lần đầu (`workflow_dispatch`) → tự động deploy `fundviet-backend` trước, lấy domain Production gắn vào `BACKEND_URL` / `NEXT_PUBLIC_API_URL` của `fundviet-frontend`, deploy tiếp `fundviet-frontend`, đồng bộ ngược `FRONTEND_URL` cho CORS và kiểm tra `/api/v1/health`.
+  - Mở `Pull Request` → tự động tạo bản **Preview** cho cả hai dịch vụ và bình luận đường link kiểm thử trực tiếp vào PR.
 
-2. **Dịch vụ Frontend (`fundviet-frontend`)**:
-   - Tạo Project thứ hai trên Vercel -> chọn cùng repo `crowdfunding_platform` -> đặt **Root Directory** = `frontend` (Framework `Next.js`).
-   - Khai báo Environment Variables dựa theo `frontend/.env.example`:
-     - `BACKEND_URL=https://<ten-backend>.vercel.app`
-     - `NEXT_PUBLIC_API_URL=https://<ten-backend>.vercel.app/api/v1`
-     - `NEXT_PUBLIC_SUPABASE_URL` & `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - Sau khi có domain chính thức của Frontend, cập nhật lại `FRONTEND_URL=https://<ten-frontend>.vercel.app` bên phía Project Backend rồi Redeploy Backend.
+### Thiết lập 1 lần duy nhất để kích hoạt Auto-Deploy trên GitHub
+
+1. Vào **https://vercel.com/account/tokens** → tạo một mã token mới (`Create Token`).
+2. Mở GitHub Repository → **Settings → Secrets and variables → Actions → New repository secret**:
+   - Thêm **`VERCEL_TOKEN`** = mã token vừa tạo *(bắt buộc duy nhất — script tự động nhận diện Team & Project `fundviet-backend` / `fundviet-frontend`)*.
+   - *(Tuỳ chọn)* Có thể thêm các biến `DATABASE_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `SMTP_USER`, `SMTP_PASS`, `JWT_SECRET`, `JWT_REFRESH_SECRET` vào GitHub Secrets hoặc điền trực tiếp trong mục **Environment Variables** trên Vercel Dashboard.
+3. Từ thời điểm đó, mọi lệnh `git push origin main` đều tự động cập nhật ngay lập tức lên Production (hoặc có thể bấm **Actions → Auto Deploy Vercel → Run workflow** để chạy thủ công bất kỳ lúc nào).
+
 
