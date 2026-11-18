@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarClock, Clock, Cpu, Flame, History, ShieldCheck, Timer } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
 import { schedulerOverview } from "@/server/queries/admin";
-import { DemoExpireForm, RunSchedulerButton } from "@/components/admin/scheduler-controls";
+import { ManualSettleForm, RunSchedulerButton } from "@/components/admin/scheduler-controls";
 import { EmptyState, PageHeader, SectionTitle } from "@/components/ui/layout-bits";
 import { Badge } from "@/components/ui/primitives";
 import { formatCompactVnd, formatDate, percentOf, timeAgo, timeLeft } from "@/lib/utils";
@@ -11,12 +11,12 @@ export const metadata = { title: "Bộ lập lịch" };
 
 export default async function AdminSchedulerPage() {
   await requireSystemPerm("admin.scheduler.run", "/admin/scheduler");
-  const data = schedulerOverview();
+  const data = await schedulerOverview();
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tự động hoá All-or-Nothing · FR23 · NFR06"
+        eyebrow="Tự động hoá All-or-Nothing"
         title="Bộ lập lịch chiến dịch"
         description="Tự động mở dự án đã hẹn lịch và chốt thanh toán (CAPTURE khi đạt mục tiêu / VOID khi không đạt) ngay khi chiến dịch hết hạn."
         actions={<RunSchedulerButton />}
@@ -132,7 +132,7 @@ export default async function AdminSchedulerPage() {
         </section>
       </div>
 
-      {/* Trợ lý demo kết thúc nhanh */}
+      {/* Tất toán chiến dịch thủ công */}
       <section className="card border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-transparent to-rose-500/5 p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
@@ -140,16 +140,16 @@ export default async function AdminSchedulerPage() {
               <Flame className="size-5" />
             </span>
             <div>
-              <h3 className="font-bold">Trợ lý demo bảo vệ đồ án — Kết thúc chiến dịch ngay</h3>
+              <h3 className="font-bold">Tất toán chiến dịch thủ công</h3>
               <p className="text-xs text-muted">
-                Giả lập một dự án LIVE hết hạn ngay lập tức để kiểm chứng luồng CAPTURE (đạt) hoặc VOID (không đạt) trực tiếp.
+                Chốt sớm một chiến dịch đang gọi vốn để đối soát và thực thi CAPTURE (đạt mục tiêu) hoặc VOID (không đạt).
               </p>
             </div>
           </div>
-          <Badge tone="amber">Thesis Demo Helper</Badge>
+          <Badge tone="amber">Đối soát thủ công</Badge>
         </div>
 
-        <DemoExpireForm liveProjects={data.live} />
+        <ManualSettleForm liveProjects={data.live} />
       </section>
 
       {/* Lịch sử chạy scheduler_runs */}

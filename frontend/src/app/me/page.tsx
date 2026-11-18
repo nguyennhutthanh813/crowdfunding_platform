@@ -13,14 +13,7 @@ import {
 } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
-import {
-  meSummary,
-  pendingInvitations,
-  recentNotifications,
-  recommendations,
-  savedIds,
-  waitingPledges,
-} from "@/server/queries/me";
+import { meOverviewBundle } from "@/server/queries/me";
 import { AdminOnlyNotice } from "@/components/me/admin-only-notice";
 import { InvitationCards } from "@/components/me/invitation-cards";
 import { SafeImage } from "@/components/me/safe-media";
@@ -45,12 +38,7 @@ export default async function MeOverviewPage(props: {
   const sp = await props.searchParams;
   const isWelcome = sp.welcome === "1";
 
-  const summary = meSummary(v.id);
-  const invitations = pendingInvitations(v.id, v.email);
-  const waiting = waitingPledges(v.id);
-  const notifs = recentNotifications(v.id, 5);
-  const recos = recommendations(v.id, 3);
-  const saved = savedIds(v.id);
+  const { summary, invitations, waiting, notifications: notifs, recos, saved } = await meOverviewBundle();
 
   return (
     <div className="space-y-8">

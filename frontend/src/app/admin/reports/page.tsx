@@ -25,7 +25,7 @@ export default async function AdminReportsPage({
   const rawTab = firstParam(sp.tab).toUpperCase();
   const status = ["OPEN", "RESOLVED", "DISMISSED"].includes(rawTab) ? rawTab : "OPEN";
 
-  const { rows, counts } = adminReports(status);
+  const { rows, counts } = await adminReports(status);
   const now = serverNow();
 
   const canModerateComment = hasSystemPerm(viewer, "admin.comment.moderate");
@@ -41,7 +41,7 @@ export default async function AdminReportsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Kiểm duyệt cộng đồng · BR13"
+        eyebrow="Kiểm duyệt cộng đồng"
         title="Báo cáo vi phạm"
         description="Xem nội dung bị báo cáo (dự án, bình luận, người dùng) và xử lý kèm chế tài nếu có vi phạm."
       />

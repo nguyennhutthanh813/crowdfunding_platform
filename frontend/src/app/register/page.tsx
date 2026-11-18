@@ -5,19 +5,29 @@ import { RegisterForm } from "@/components/auth/auth-forms";
 
 export const metadata: Metadata = { title: "Đăng ký" };
 
-export default async function RegisterPage(props: PageProps<"/register">) {
+export default async function RegisterPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const sp = await props.searchParams;
   const next = typeof sp.next === "string" ? sp.next : undefined;
   return (
     <AuthShell
       title="Tạo tài khoản FundViet"
-      subtitle="Miễn phí. Một tài khoản dùng được cả vai trò Backer lẫn Creator."
+      subtitle="Tham gia cộng đồng ủng hộ sáng tạo Việt và khởi chạy chiến dịch của riêng bạn."
       side={
         <div className="mt-4 space-y-4">
-          <h2 className="text-xl font-bold">Với một tài khoản, bạn có thể…</h2>
+          <h2 className="text-xl font-bold">Quyền lợi thành viên FundViet</h2>
           <ul className="space-y-3 text-sm text-violet-100/85">
-            {["Góp vốn cho dự án yêu thích, chỉ bị trừ tiền khi dự án thành công", "Lưu dự án, theo dõi creator, nhận gợi ý phù hợp", "Tạo dự án của riêng bạn với AI chấm điểm trước khi gửi duyệt", "Được mời làm Collaborator để cùng vận hành dự án"].map((t) => (
-              <li key={t} className="flex gap-2.5"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-300" />{t}</li>
+            {[
+              "Góp vốn an toàn theo cơ chế All-or-Nothing — chỉ trừ tiền khi dự án đạt mục tiêu",
+              "Lưu chiến dịch yêu thích, theo dõi nhà sáng tạo và nhận đề xuất cá nhân hoá",
+              "Khởi tạo chiến dịch gọi vốn tích hợp AI phân tích & tối ưu trước khi gửi duyệt",
+              "Bảo vệ tài khoản với xác thực 2 lớp (Google Authenticator / 2fa.live)",
+            ].map((t) => (
+              <li key={t} className="flex gap-2.5">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-300" />
+                {t}
+              </li>
             ))}
           </ul>
         </div>

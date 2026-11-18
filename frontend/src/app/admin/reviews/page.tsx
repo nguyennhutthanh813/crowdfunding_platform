@@ -13,12 +13,12 @@ export const metadata = { title: "Duyệt dự án" };
 
 export default async function AdminReviewsPage() {
   await requireSystemPerm("admin.project.review", "/admin/reviews");
-  const { queue, history } = reviewQueue();
+  const { queue, history } = await reviewQueue();
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Kiểm duyệt nội dung · FR34"
+        eyebrow="Kiểm duyệt nội dung"
         title={`Hàng chờ duyệt (${queue.length})`}
         description="Kiểm tra nội dung chiến dịch, mức quà, checklist tự động, từ khoá cấm và dự đoán AI trước khi công khai."
       />

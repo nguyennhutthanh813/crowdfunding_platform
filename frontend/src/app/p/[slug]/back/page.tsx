@@ -2,12 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
-import { getDb } from "@/server/db";
-import { all, one } from "@/server/db/helpers";
 import { requireViewer } from "@/server/auth/session";
-import { canViewProject, pledgeBlocker } from "@/server/rbac/rbac";
-import { getProjectBySlug, listAddOns, listTiers } from "@/server/queries/public";
-import { listUserAddresses, listUserCards } from "@/server/services/pledge";
+import { getProjectCheckout, getProjectDetail } from "@/server/queries/public";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/layout-bits";
 import { PledgeStepper } from "@/components/public/pledge-stepper";
@@ -16,9 +12,9 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await props.params;
-  const project = getProjectBySlug(slug);
-  if (!project) return { title: "Góp vốn" };
-  return { title: `Góp vốn — ${project.title}` };
+  const detail = await getProjectDetail(slug);
+  if (!detail) return { title: "Góp vốn" };
+  return { title: `Góp vốn — ${detail.project.title}` };
 }
 
 export default async function BackProjectPage(props: {
@@ -32,11 +28,10 @@ export default async function BackProjectPage(props: {
   const nextUrl = `/p/${slug}/back${tierParam ? `?tier=${encodeURIComponent(tierParam)}` : changeParam}`;
 
   const viewer = await requireViewer(nextUrl);
-  const db = getDb();
-  const project = getProjectBySlug(slug);
-  if (!project || !canViewProject(db, viewer, project)) notFound();
+  const data = await getProjectCheckout(slug);
+  if (!data) notFound();
 
-  const blocker = pledgeBlocker(db, viewer, project);
+  const { project, blocker, tiers, addOns, cards, addresses, existing, existingAddOns } = data;
   if (blocker) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-14 sm:px-6">
@@ -59,33 +54,6 @@ export default async function BackProjectPage(props: {
     );
   }
 
-  const tiers = listTiers(project.id);
-  const addOns = listAddOns(project.id);
-  const cards = listUserCards(db, viewer.id);
-  const addresses = listUserAddresses(db, viewer.id);
-
-  const existing = one<{
-    id: string;
-    code: string;
-    tier_id: string | null;
-    bonus_amount: number;
-    total_amount: number;
-    address_id: string | null;
-    payment_method_id: string;
-    is_anonymous: number;
-    note: string;
-    tier_title: string | null;
-  }>(
-    db,
-    `SELECT pl.id, pl.code, pl.tier_id, pl.bonus_amount, pl.total_amount, pl.address_id,
-            pl.payment_method_id, pl.is_anonymous, pl.note, t.title tier_title
-     FROM pledges pl
-     LEFT JOIN reward_tiers t ON t.id = pl.tier_id
-     WHERE pl.project_id = ? AND pl.backer_id = ? AND pl.status = 'AUTHORIZED'`,
-    project.id,
-    viewer.id,
-  );
-
   let initialTierId: string | null = null;
   if (tierParam === "none") {
     initialTierId = null;
@@ -100,12 +68,7 @@ export default async function BackProjectPage(props: {
 
   const initialAddOns: Record<string, number> = {};
   if (existing && initialTierId === existing.tier_id) {
-    const rows = all<{ add_on_id: string; quantity: number }>(
-      db,
-      `SELECT add_on_id, quantity FROM pledge_add_ons WHERE pledge_id = ?`,
-      existing.id,
-    );
-    for (const r of rows) initialAddOns[r.add_on_id] = r.quantity;
+    for (const r of existingAddOns) initialAddOns[r.add_on_id] = r.quantity;
   }
 
   return (

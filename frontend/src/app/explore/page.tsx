@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ChevronLeft, ChevronRight, Plus, Rocket } from "lucide-react";
 import { getViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
-import { listCategories, listPublicProjects, savedProjectIds, type SortKey } from "@/server/queries/projects";
+import { listCategories, listPublicProjects, type SortKey } from "@/server/queries/projects";
 import { ProjectCard } from "@/components/project/project-card";
 import { Reveal } from "@/components/fx/motion";
 import { ButtonLink } from "@/components/ui/button";
@@ -42,20 +42,20 @@ export default async function ExplorePage(props: {
     : "trending") as SortKey;
   const page = Math.max(1, Math.floor(Number(str("page")) || 1));
 
-  const viewer = await getViewer();
-  const categories = listCategories();
-  const saved = savedProjectIds(viewer?.id);
+  const [viewer, categories, { rows, total, saved }] = await Promise.all([
+    getViewer(),
+    listCategories(),
+    listPublicProjects({
+      status,
+      category: category || undefined,
+      q: q || undefined,
+      sort,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+  ]);
   const showSave = !viewer || hasSystemPerm(viewer, "project.save");
   const canCreate = !viewer || hasSystemPerm(viewer, "project.create");
-
-  const { rows, total } = listPublicProjects({
-    status,
-    category: category || undefined,
-    q: q || undefined,
-    sort,
-    limit: PAGE_SIZE,
-    offset: (page - 1) * PAGE_SIZE,
-  });
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 

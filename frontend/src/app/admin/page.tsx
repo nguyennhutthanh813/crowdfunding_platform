@@ -26,7 +26,7 @@ export const metadata = { title: "Tổng quan" };
 
 export default async function AdminDashboardPage() {
   await requireSystemPerm("admin.dashboard.view", "/admin");
-  const data = adminDashboard();
+  const data = await adminDashboard();
   const { kpis } = data;
 
   const urgentCount = data.flagged.length + data.pendingQueue.length + data.openReports.length + data.endingSoon.length;
@@ -34,7 +34,7 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Thống kê toàn hệ thống · FR33"
+        eyebrow="Thống kê toàn hệ thống"
         title="Tổng quan vận hành FundViet"
         description="Theo dõi dòng tiền giữ chỗ / thu tiền All-or-Nothing, hàng chờ kiểm duyệt và các cảnh báo cần xử lý ngay."
         actions={
@@ -121,11 +121,11 @@ export default async function AdminDashboardPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Cảnh báo BR13 */}
+              {/* Cảnh báo nhiều báo cáo */}
               {data.flagged.length > 0 && (
                 <div className="rounded-2xl border border-rose-500/35 bg-rose-500/10 p-4">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold text-rose-700 dark:text-rose-300">
-                    <AlertTriangle className="size-4" /> Cảnh báo BR13: Dự án có từ 3 báo cáo mở trở lên
+                    <AlertTriangle className="size-4" /> Cảnh báo ưu tiên: Dự án có từ 3 báo cáo mở trở lên
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {data.flagged.map((f) => (
@@ -266,7 +266,7 @@ export default async function AdminDashboardPage() {
       <section>
         <SectionTitle
           title="Biểu đồ phân tích nền tảng"
-          description="Số liệu cập nhật trực tiếp từ CSDL SQLite (tiền giữ chỗ, trạng thái, thể loại và tăng trưởng người dùng)."
+          description="Số liệu cập nhật thời gian thực từ hệ thống (tiền giữ chỗ, trạng thái, thể loại và tăng trưởng người dùng)."
         />
         <DashboardCharts
           perDay={data.perDay}

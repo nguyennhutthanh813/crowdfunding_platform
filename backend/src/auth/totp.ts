@@ -124,7 +124,7 @@ export function generateBackupCodes(count = 8): { rawCodes: string[]; hashedCode
 }
 
 export function hashBackupCode(code: string): string {
-  const normalized = code.toUpperCase().replace(/[\s\-]+/g, "");
+  const normalized = code.toUpperCase().replace(/[\s-]+/g, "");
   return createHash("sha256").update(`fundviet-backup:${normalized}`).digest("hex");
 }
 

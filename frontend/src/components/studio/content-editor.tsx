@@ -8,6 +8,7 @@ import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/form";
+import { ImageUploadButton } from "@/components/ui/image-upload";
 import { Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { COVER_GALLERY } from "./meta";
@@ -251,13 +252,19 @@ function SectionFormBody({
             label={kind === "IMAGE" ? "Đường dẫn hình ảnh" : "Đường dẫn video (YouTube / MP4)"}
             required
           >
-            <Input
-              name="media_url"
-              value={mediaUrl}
-              onChange={(e) => setMediaUrl(e.target.value)}
-              placeholder={kind === "IMAGE" ? "/v3/projects/orbit-one.webp hoặc https://..." : "https://www.youtube.com/watch?v=..."}
-              required
-            />
+            <div className="flex flex-wrap gap-2">
+              <Input
+                name="media_url"
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                placeholder={kind === "IMAGE" ? "https://res.cloudinary.com/... hoặc /v3/projects/..." : "https://www.youtube.com/watch?v=..."}
+                className="min-w-[200px] flex-1"
+                required
+              />
+              {kind === "IMAGE" && (
+                <ImageUploadButton folder="sections" label="Tải ảnh lên" onUploaded={setMediaUrl} className="h-11 px-3" />
+              )}
+            </div>
           </Field>
 
           {kind === "IMAGE" && (

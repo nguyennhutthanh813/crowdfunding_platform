@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight, CreditCard, RotateCcw, ShieldCheck } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
-import { adminTransactions, projectMoneySummary, projectsWithPledges } from "@/server/queries/admin";
+import { adminTransactionsBundle } from "@/server/queries/admin";
 import { TX_KIND_META, TX_STATUS_META } from "@/components/admin/admin-helpers";
 import { PaginationBar } from "@/components/admin/pagination-bar";
 import { CountUp } from "@/components/fx/motion";
@@ -29,17 +29,15 @@ export default async function AdminTransactionsPage({
   const to = firstParam(sp.to).trim();
   const page = Number(firstParam(sp.page)) || 1;
 
-  const txData = adminTransactions({ kind, status, project, from, to, page });
-  const summary = projectMoneySummary();
-  const projectOptions = projectsWithPledges();
+  const { txData, summary, projectOptions } = await adminTransactionsBundle({ kind, status, project, from, to, page });
   const { totalsByKind } = txData;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tài chính minh bạch · NFR06"
+        eyebrow="Tài chính minh bạch"
         title="Sổ giao dịch thanh toán"
-        description="Theo dõi chỉ đọc toàn bộ giao dịch giữ chỗ (AUTHORIZE), thu tiền (CAPTURE), giải phóng (VOID) và hoàn tiền (REFUND) từ cổng MockPay."
+        description="Theo dõi chỉ đọc toàn bộ giao dịch giữ chỗ (AUTHORIZE), thu tiền (CAPTURE), giải phóng (VOID) và hoàn tiền (REFUND) trên hệ thống."
       />
 
       {/* Tổng hợp 4 loại giao dịch */}

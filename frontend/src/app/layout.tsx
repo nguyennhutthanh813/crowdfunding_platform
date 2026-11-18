@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { Toaster } from "sonner";
-import { getViewer } from "@/server/auth/session";
 import { getNavContext } from "@/server/queries/nav";
 import { NavBar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -22,8 +21,7 @@ export const viewport: Viewport = {
 const themeScript = `try{var t=localStorage.getItem('fv-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const viewer = await getViewer();
-  const ctx = getNavContext(viewer);
+  const ctx = await getNavContext();
   return (
     <html lang="vi" className={font.variable} suppressHydrationWarning>
       <head>

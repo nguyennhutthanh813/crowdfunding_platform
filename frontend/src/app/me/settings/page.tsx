@@ -20,7 +20,7 @@ export default async function MySettingsPage(props: {
 }) {
   const v = await requireSystemPerm("account.manage", "/me/settings");
   const canBack = hasSystemPerm(v, "pledge.create");
-  const data = settingsData(v.id);
+  const data = await settingsData();
 
   const sp = await props.searchParams;
   const requested = sp.tab ?? "profile";
@@ -29,7 +29,7 @@ export default async function MySettingsPage(props: {
 
   const tabs: TabItem[] = [
     { key: "profile", label: "Hồ sơ", icon: <User className="size-3.5" /> },
-    { key: "account", label: "Tài khoản & mật khẩu", icon: <KeyRound className="size-3.5" /> },
+    { key: "account", label: "Tài khoản & bảo mật", icon: <KeyRound className="size-3.5" /> },
     { key: "notifications", label: "Thông báo & riêng tư", icon: <Bell className="size-3.5" /> },
   ];
   if (canBack) {
@@ -42,15 +42,22 @@ export default async function MySettingsPage(props: {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tài khoản · FR01"
+        eyebrow="Tài khoản & Bảo mật"
         title="Cài đặt tài khoản"
-        description="Quản lý hồ sơ cá nhân, bảo mật đăng nhập, tuỳ chọn thông báo, địa chỉ và thẻ thanh toán."
+        description="Quản lý hồ sơ cá nhân, bảo mật đăng nhập 2FA, tuỳ chọn thông báo, địa chỉ và thẻ thanh toán."
       />
 
       <LinkTabs id="settings-tabs" param="tab" active={activeTab} items={tabs} />
 
       {activeTab === "profile" && <ProfileSettingsForm user={data.user} />}
-      {activeTab === "account" && <AccountSettingsForms user={data.user} sessionsCount={data.sessions} />}
+      {activeTab === "account" && (
+        <AccountSettingsForms
+          user={data.user}
+          sessionsCount={data.sessions}
+          twoFactor={data.twoFactor}
+          sessionList={data.sessionList}
+        />
+      )}
       {activeTab === "notifications" && <PreferencesSettingsForm settings={data.settings} />}
       {activeTab === "addresses" &&
         (canBack ? <AddressesSection addresses={data.addresses} /> : <AdminOnlyNotice area="Địa chỉ giao hàng" />)}

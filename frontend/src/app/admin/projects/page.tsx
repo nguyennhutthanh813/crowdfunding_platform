@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ExternalLink, Search } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
-import { adminProjects, categoryOptions } from "@/server/queries/admin";
+import { adminProjectsBundle } from "@/server/queries/admin";
 import { buildQueryHref } from "@/components/admin/admin-helpers";
 import { RestoreProjectButton, TakedownProjectButton } from "@/components/admin/project-moderation-dialogs";
 import { SafeImage } from "@/components/admin/safe-image";
@@ -29,14 +29,13 @@ export default async function AdminProjectsPage({
   const status = firstParam(sp.status).trim();
   const category = firstParam(sp.category).trim();
 
-  const { rows, counts } = adminProjects({ q, status, category });
-  const categories = categoryOptions();
+  const { rows, counts, categories } = await adminProjectsBundle({ q, status, category });
   const totalAll = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Giám sát dự án · FR34"
+        eyebrow="Giám sát dự án"
         title="Quản lý dự án toàn nền tảng"
         description="Theo dõi trạng thái, số báo cáo vi phạm và tạm gỡ / khôi phục dự án. Quản trị viên không chỉnh sửa nội dung thay Creator."
       />

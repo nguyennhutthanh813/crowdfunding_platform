@@ -25,7 +25,7 @@ export default async function MyBackedPage(props: {
   const upper = (sp.status ?? "").toUpperCase();
   const active = VALID_FILTERS.has(upper) ? upper : "all";
 
-  const pledges = myPledges(v.id);
+  const pledges = await myPledges();
   const filtered = active === "all" ? pledges : pledges.filter((p) => p.status === active);
 
   const countBy = (st: string) => pledges.filter((p) => p.status === st).length;
@@ -37,7 +37,7 @@ export default async function MyBackedPage(props: {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Backer · FR24"
+        eyebrow="Góp vốn"
         title="Lịch sử góp vốn"
         description="Theo dõi khoản giữ chỗ, thanh toán khi đạt mục tiêu và tình trạng giao quà."
         actions={

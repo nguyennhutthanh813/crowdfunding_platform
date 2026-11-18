@@ -7,12 +7,12 @@ export const metadata = { title: "Quản lý thể loại" };
 
 export default async function AdminCategoriesPage() {
   await requireSystemPerm("admin.category.manage", "/admin/categories");
-  const categories = adminCategories();
+  const categories = await adminCategories();
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Danh mục dự án · FR34"
+        eyebrow="Danh mục dự án"
         title="Quản lý thể loại"
         description="Thêm mới, sửa tên/mô tả/màu sắc/ảnh 3D và bật hoặc tạm ẩn thể loại hiển thị trên trang chủ và bộ lọc khám phá."
       />

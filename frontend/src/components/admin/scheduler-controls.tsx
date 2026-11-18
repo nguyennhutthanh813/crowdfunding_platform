@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Flame, Play, Sparkles } from "lucide-react";
-import { demoExpireProjectAction, runSchedulerNowAction } from "@/server/actions/admin";
+import { CheckCheck, Play } from "lucide-react";
+import { runSchedulerNowAction, settleLiveProjectNowAction } from "@/server/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Field, Select } from "@/components/ui/form";
 import { Badge } from "@/components/ui/primitives";
 import { formatCompactVnd, formatVnd, percentOf } from "@/lib/utils";
 
-export interface LiveDemoProject {
+export interface LiveScheduledProject {
   id: string;
   slug: string;
   title: string;
@@ -28,14 +28,14 @@ export function RunSchedulerButton() {
   );
 }
 
-export function DemoExpireForm({ liveProjects }: { liveProjects: LiveDemoProject[] }) {
+export function ManualSettleForm({ liveProjects }: { liveProjects: LiveScheduledProject[] }) {
   const [selectedId, setSelectedId] = useState(liveProjects[0]?.id ?? "");
   const chosen = liveProjects.find((p) => p.id === selectedId) ?? liveProjects[0];
 
   if (liveProjects.length === 0) {
     return (
       <div className="rounded-xl border border-line bg-surface-2 p-4 text-sm text-muted">
-        Hiện không còn dự án nào ở trạng thái Đang gọi vốn (LIVE) để demo kết thúc.
+        Hiện không còn dự án nào đang ở trạng thái Đang gọi vốn (LIVE).
       </div>
     );
   }
@@ -45,19 +45,22 @@ export function DemoExpireForm({ liveProjects }: { liveProjects: LiveDemoProject
 
   return (
     <ActionForm
-      action={demoExpireProjectAction}
+      action={settleLiveProjectNowAction}
       confirm={
         chosen
-          ? `Xác nhận kết thúc ngay chiến dịch “${chosen.title}” và chạy chốt ${willSucceed ? "CAPTURE (trừ tiền)" : "VOID (giải phóng giữ chỗ)"}?`
+          ? `Xác nhận tất toán sớm chiến dịch “${chosen.title}” (${willSucceed ? "thu tiền CAPTURE" : "giải phóng VOID"})?`
           : undefined
       }
       className="space-y-4"
     >
-      <Field label="Chọn chiến dịch LIVE để giả lập hết hạn" hint="Chỉ dùng khi trình bày demo luồng All-or-Nothing (FR23): đặt end_at về quá khứ 1 phút rồi chạy scheduler.">
+      <Field
+        label="Chọn chiến dịch đang chạy để tất toán thủ công"
+        hint="Dùng khi Quản trị viên cần chốt sớm một chiến dịch theo quy trình đối soát All-or-Nothing."
+      >
         <Select name="projectId" value={chosen?.id ?? ""} onChange={(e) => setSelectedId(e.target.value)}>
           {liveProjects.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.title} ({percentOf(p.held, p.goal_amount)}% · {p.backers} pledge)
+              {p.title} ({percentOf(p.held, p.goal_amount)}% · {p.backers} khoản giữ chỗ)
             </option>
           ))}
         </Select>
@@ -70,20 +73,17 @@ export function DemoExpireForm({ liveProjects }: { liveProjects: LiveDemoProject
               Đang giữ chỗ: <span className="text-emerald-600 dark:text-emerald-400">{formatVnd(chosen.held)}</span> /{" "}
               {formatCompactVnd(chosen.goal_amount)} ({pct}%)
             </div>
-            <div className="text-xs text-muted">{chosen.backers} pledge ở trạng thái AUTHORIZED</div>
+            <div className="text-xs text-muted">{chosen.backers} khoản góp vốn đang ở trạng thái giữ chỗ</div>
           </div>
           <Badge tone={willSucceed ? "emerald" : "amber"} dot>
-            {willSucceed ? "Đạt mục tiêu → sẽ CAPTURE" : "Chưa đạt → sẽ VOID"}
+            {willSucceed ? "Đạt mục tiêu → thu tiền (CAPTURE)" : "Chưa đạt → giải phóng (VOID)"}
           </Badge>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted">
-          <Sparkles className="size-3.5 text-amber-500" /> Ghi nhật ký scheduler.demo_expire &amp; scheduler_runs
-        </span>
-        <SubmitButton variant="gold" size="sm" pendingText="Đang chốt...">
-          <Flame className="size-4" /> Kết thúc ngay để demo
+      <div className="flex justify-end">
+        <SubmitButton variant="gold" size="sm" pendingText="Đang tất toán...">
+          <CheckCheck className="size-4" /> Tất toán chiến dịch này
         </SubmitButton>
       </div>
     </ActionForm>

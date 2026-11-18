@@ -657,9 +657,9 @@ export async function regenerateTwoFactorBackupCodes(db: DbClient, userId: strin
 export async function disableTwoFactor(
   db: DbClient,
   userId: string,
-  input: { currentPassword?: string; code?: string },
+  input: { currentPassword?: string; password?: string; code?: string },
 ) {
-  const currentPassword = String(input.currentPassword ?? "");
+  const currentPassword = String(input.currentPassword ?? input.password ?? "");
   const code = String(input.code ?? "").trim();
   if (!currentPassword || !code) {
     throw new DomainError("Vui lòng nhập mật khẩu hiện tại và mã OTP 6 số (hoặc mã dự phòng) để tắt 2FA.");

@@ -1,28 +1,56 @@
-# FundViet — Nền tảng gọi vốn cộng đồng
+# FundViet — Nền tảng gọi vốn cộng đồng tích hợp AI
 
-Dự án được tổ chức thành 3 thư mục độc lập ở cấp cao nhất để thuận tiện triển khai lên Vercel và quản lý hồ sơ thiết kế:
+Nền tảng gọi vốn cộng đồng theo mô hình **All-or-Nothing** (Giữ chỗ – Thu tiền khi đạt mục tiêu – Giải phóng khi không đạt), tích hợp AI dự đoán xác suất thành công chiến dịch và phân tích bình luận cộng đồng.
 
-- **`backend/`** — Dịch vụ REST API độc lập (Express + TypeScript, xác thực JWT Access/Refresh Token, bảo mật 2FA TOTP tương thích Google Authenticator & `2fa.live`, gửi OTP qua Gmail SMTP, lưu trữ ảnh Cloudinary, hỗ trợ Supabase PostgreSQL kèm SQLite cục bộ).
-- **`frontend/`** — Ứng dụng Web Next.js 16 (App Router + React 19 + Tailwind CSS 4), cấu hình sẵn để deploy độc lập lên Vercel (`Root Directory = frontend`).
-- **`documentation/`** — Thư mục riêng chứa toàn bộ lược đồ SQL (`postgresql-schema.sql`, `supabase-setup.sql`, `schema.prisma`), sơ đồ ERD, đặc tả Use Case (UC), Sơ đồ Hoạt động (Activity Diagrams — AD) và tài liệu phân tích hệ thống.
+## Cấu trúc dự án
 
-## Thiết lập môi trường khi chuyển máy
+- **`backend/`** — Dịch vụ REST API độc lập (Express 5 + TypeScript):
+  - Xác thực **JWT** (Access Token + Refresh Token xoay vòng) kèm quản lý phiên thiết bị.
+  - Bảo mật **2FA TOTP (RFC 6238)** tương thích **Google Authenticator** và **`2fa.live`** (mã QR, chuỗi Base32 sao chép nhanh, 8 mã dự phòng một lần).
+  - Đăng ký, đăng nhập, quên mật khẩu & xác minh tài khoản bằng **OTP 6 số qua Gmail SMTP**.
+  - Upload ảnh trực tiếp lên **Cloudinary** (tự động chuyển sang thư mục cục bộ `backend/uploads/` nếu chưa khai báo đủ biến môi trường Cloudinary).
+  - Hỗ trợ song song **Supabase PostgreSQL** (`DATABASE_URL`) và **SQLite cục bộ** (`backend/.data/fundviet.sqlite`).
+- **`frontend/`** — Ứng dụng Web Next.js 16 (App Router + React 19 + Tailwind CSS 4), giao tiếp hoàn toàn qua REST API `/api/v1/*` của Backend với cookie `HttpOnly` tự động làm mới JWT.
+- **`documentation/`** — Thư mục tài liệu thiết kế độc lập (tách biệt hoàn toàn khỏi giao diện người dùng):
+  - `documentation/sql/` — Lược đồ `postgresql-schema.sql`, `supabase-setup.sql`, `schema.prisma`, `seed-reference.sql`.
+  - `documentation/database-erd/` — Sơ đồ thực thể liên kết (ERD `.drawio`, `.puml`, `.png`, `.svg`).
+  - `documentation/use-cases/` & `documentation/activity-diagrams/` — Đặc tả Use Case (UC) và Sơ đồ Hoạt động (AD).
+  - `documentation/system-specs/` — Đặc tả phân quyền RBAC, hợp đồng API và quy tắc nghiệp vụ.
 
-1. Cài đặt gói phụ thuộc (Node.js 22+ / 24+ và pnpm qua Corepack):
+## Khởi chạy nhanh ở môi trường phát triển
+
+1. **Cài đặt gói phụ thuộc** (yêu cầu Node.js >= 22):
    ```powershell
    corepack pnpm install
    ```
-2. Tạo file biến môi trường từ bản mẫu:
-   - Sao chép `backend/.env.example` thành `backend/.env` và điền thông tin kết nối (`DATABASE_URL` Supabase, `JWT_SECRET`, `CLOUDINARY_*`, `SMTP_*`).
-   - Sao chép `frontend/.env.example` thành `frontend/.env.local`.
 
-## Các hạng mục đang triển khai tiếp
+2. **Thiết lập biến môi trường**:
+   - Sao chép `backend/.env.example` -> `backend/.env` (điền `JWT_SECRET`, `SMTP_*`, `CLOUDINARY_*`, và `DATABASE_URL` nếu dùng Supabase PostgreSQL).
+   - Sao chép `frontend/.env.example` -> `frontend/.env.local`.
 
-- **Đã hoàn tất:**
-  - Tách cấu trúc `backend/`, `frontend/`, `documentation/` (kèm cấu hình `vercel.json` cho cả 2 dịch vụ, xoá trang `/system` và `/api/dev` khỏi `frontend/`).
-  - Bộ kết nối CSDL hợp nhất (`Supabase PostgreSQL` + `SQLite` fallback), bổ sung bảng bảo mật `user_two_factor`, `user_backup_codes`, `auth_otp_codes` và xuất script `documentation/sql/supabase-setup.sql`.
-  - Khởi tạo sẵn CSDL `backend/.data/fundviet.sqlite` với 4 tài khoản chính đầu tiên (`phuocthinh2248@gmail.com`, `nguyennhutthanh813@gmail.com`, `ctv000001@gmail.com`, `user000001@gmail.com`) và dữ liệu chuẩn hoá.
-  - Hoàn thiện module xác thực `backend/src/modules/auth/` (Login, Register, Forgot/Reset Password OTP qua Gmail SMTP, JWT rotation, 2FA TOTP RFC 6238 + QR + chuỗi Base32 cho `2fa.live` + Backup Codes) và upload ảnh Cloudinary (`backend/src/modules/upload/`).
-- **Bước tiếp theo khi chạy tiếp:**
-  - Hoàn thiện nốt các route REST `/api/v1/{public,projects,pledges,me,studio,admin}` trong `backend/src/` (chuyển sang `await` với `DbClient` mới) và khởi chạy `backend/src/server.ts`.
-  - Chuyển toàn bộ truy vấn/action trong `frontend/src/` sang gọi REST API của `backend/` qua JWT và hoàn thiện giao diện 2FA / Quên mật khẩu / dọn nốt nhãn giao diện cũ.
+3. **Khởi tạo lại CSDL mẫu (khi cần)** và **chạy hệ thống**:
+   ```powershell
+   # Tạo lại dữ liệu chuẩn hoá (4 tài khoản chính + 24 chiến dịch mẫu)
+   corepack pnpm db:reset
+
+   # Chạy đồng thời Backend (:4000) và Frontend (:3000)
+   corepack pnpm dev
+   ```
+
+4. **Đồng bộ lên Supabase & Cloudinary (tuỳ chọn khi đã cấu hình khóa bí mật)**:
+   ```powershell
+   # Đồng bộ ảnh mẫu lên Cloudinary và cập nhật URL trong CSDL
+   corepack pnpm cloudinary:sync
+
+   # Đẩy toàn bộ cấu trúc bảng + dữ liệu từ SQLite lên Supabase PostgreSQL
+   corepack pnpm db:sync-supabase
+   ```
+
+## Kiểm thử & Build
+
+```powershell
+corepack pnpm type-check
+corepack pnpm lint
+corepack pnpm test:backend
+corepack pnpm build
+```

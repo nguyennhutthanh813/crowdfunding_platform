@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getDb } from "@/server/db";
 import { getViewer } from "@/server/auth/session";
-import { canProject } from "@/server/rbac/rbac";
-import { getStudioProject, listBackers } from "@/server/queries/studio";
+import { getStudioBackersExport } from "@/server/queries/studio";
 import { formatDate } from "@/lib/utils";
 
 function csvCell(val: unknown): string {
@@ -17,16 +15,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
   }
 
   const { slug } = await ctx.params;
-  const project = getStudioProject(slug);
-  if (!project) {
-    return new NextResponse("Not found", { status: 404 });
+  const res = await getStudioBackersExport(slug);
+  if (!res.ok || !res.project || !res.backers) {
+    return new NextResponse(res.error ?? "Forbidden", { status: res.project ? 403 : 404 });
   }
 
-  if (!canProject(getDb(), viewer, project.id, "backer.view")) {
-    return new NextResponse("Forbidden", { status: 403 });
-  }
-
-  const backers = listBackers(project.id);
+  const { project, backers } = res;
   const headers = [
     "Mã pledge",
     "Backer",

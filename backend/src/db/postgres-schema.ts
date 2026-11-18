@@ -6,6 +6,7 @@ const BIGINT_COLS = [
   "amount",
   "price",
   "shipping_vn",
+  "shipping_fee",
   "unit_price",
   "reward_amount",
   "bonus_amount",
@@ -13,14 +14,15 @@ const BIGINT_COLS = [
   "shipping_amount",
   "total_amount",
   "projected_amount",
+  "cumulative_amount",
 ];
 
 /**
- * Chuyển đổi lược đồ 44 bảng + 3 view sang chuẩn PostgreSQL 15+ cho Supabase
+ * Chuyển đổi lược đồ bảng + view sang chuẩn PostgreSQL 15+ cho Supabase
  * (dùng BIGINT cho tiền VND để không tràn số 32-bit, giữ nguyên tên bảng/cột và bổ sung trigger PL/pgSQL).
  */
 export function buildSupabasePostgresSchema(): string {
-  const triggerMarker = "-- ═══════════════════════ 9. TRIGGER";
+  const triggerMarker = "-- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════";
   const idx = SCHEMA_SQL.indexOf(triggerMarker);
   let base = idx >= 0 ? SCHEMA_SQL.slice(0, idx) : SCHEMA_SQL;
 
@@ -42,6 +44,19 @@ export function buildSupabasePostgresSchema(): string {
 
   const pgTriggers = /* sql */ `
 -- ═══════════════════════ TRIGGER CẬP NHẬT BỘ ĐẾM TRÊN POSTGRESQL (SUPABASE) ═══════════════════════
+CREATE OR REPLACE FUNCTION fn_projects_creator_member() RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO project_members (project_id, user_id, role_code, scope, status, joined_at)
+  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'PROJECT', 'ACTIVE', NEW.created_at)
+  ON CONFLICT (project_id, user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_pg_projects_creator_member ON projects;
+CREATE TRIGGER trg_pg_projects_creator_member AFTER INSERT ON projects
+FOR EACH ROW EXECUTE FUNCTION fn_projects_creator_member();
+
 CREATE OR REPLACE FUNCTION fn_pledges_after_insert() RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.status IN ('AUTHORIZED', 'CAPTURED') THEN
@@ -63,13 +78,13 @@ FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_insert();
 
 CREATE OR REPLACE FUNCTION fn_pledges_after_update() RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status IN ('AUTHORIZED', 'CAPTURED') AND NEW.status NOT IN ('AUTHORIZED', 'CAPTURED') THEN
+  IF OLD.status NOT IN ('CANCELLED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'REFUNDED') THEN
     UPDATE projects
-    SET pledged_amount = GREATEST(0, pledged_amount - OLD.total_amount),
+    SET pledged_amount = GREATEST(0, pledged_amount - NEW.total_amount),
         backers_count = GREATEST(0, backers_count - 1)
     WHERE id = NEW.project_id;
-    IF OLD.tier_id IS NOT NULL THEN
-      UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = OLD.tier_id;
+    IF NEW.tier_id IS NOT NULL AND NEW.status = 'CANCELLED' THEN
+      UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = NEW.tier_id;
     END IF;
   END IF;
   RETURN NEW;
@@ -79,6 +94,17 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_pg_pledges_au ON pledges;
 CREATE TRIGGER trg_pg_pledges_au AFTER UPDATE OF status ON pledges
 FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_update();
+
+CREATE OR REPLACE FUNCTION fn_pledge_add_ons_stock() RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_pg_pledge_add_ons_stock ON pledge_add_ons;
+CREATE TRIGGER trg_pg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
+FOR EACH ROW EXECUTE FUNCTION fn_pledge_add_ons_stock();
 `;
 
   return `${base}\n${pgTriggers}\n`;

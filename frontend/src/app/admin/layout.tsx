@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const viewer = await requireSystemPerm("admin.dashboard.view", "/admin");
-  const badges = adminBadges();
+  const badges = await adminBadges();
   const perms = Array.from(viewer.systemPerms);
 
   return (
@@ -67,7 +67,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
                 className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/50 bg-rose-500/25 px-3 py-1.5 font-bold text-rose-100 transition hover:bg-rose-500/35"
               >
                 <AlertTriangle className="size-3.5 text-amber-300" />
-                <span>{badges.flagged} dự án ≥ 3 báo cáo (BR13)</span>
+                <span>{badges.flagged} dự án ≥ 3 báo cáo</span>
               </Link>
             )}
           </div>

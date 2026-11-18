@@ -19,10 +19,9 @@ export default async function MessageThreadPage(props: {
     return <AdminOnlyNotice area="Tin nhắn nội bộ" />;
   }
 
-  const thread = conversationThread(id, v.id);
+  const [thread, conversations] = await Promise.all([conversationThread(id), myConversations()]);
   if (!thread) notFound();
 
-  const conversations = myConversations(v.id);
   const hasUnread = thread.messages.some(
     (m) => m.sender_id !== v.id && (!thread.myLastReadAt || m.created_at > thread.myLastReadAt),
   );
@@ -32,7 +31,7 @@ export default async function MessageThreadPage(props: {
       <MarkReadOnMount conversationId={id} hasUnread={hasUnread} />
 
       <PageHeader
-        eyebrow="Tương tác · FR26"
+        eyebrow="Hộp thư"
         title="Tin nhắn nội bộ"
         actions={
           <ButtonLink href="/me/messages/new" size="sm">

@@ -300,7 +300,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -573,7 +573,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -665,222 +665,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   password_hash     TEXT NOT NULL,
   display_name      TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 2 AND 60),
@@ -1165,7 +949,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -1438,7 +1222,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -1530,222 +1314,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -1912,7 +1480,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -2185,7 +1753,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -2277,222 +1845,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   password_hash     TEXT NOT NULL,
   display_name      TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 2 AND 60),
@@ -2777,7 +2129,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -3050,7 +2402,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -3142,222 +2494,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -3524,7 +2660,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -3797,7 +2933,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -3889,222 +3025,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -4254,7 +3174,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -4527,7 +3447,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -4619,222 +3539,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   password_hash     TEXT NOT NULL,
   display_name      TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 2 AND 60),
@@ -5119,7 +3823,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -5392,7 +4096,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -5484,222 +4188,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -5866,7 +4354,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -6139,7 +4627,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -6231,222 +4719,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   password_hash     TEXT NOT NULL,
   display_name      TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 2 AND 60),
@@ -6731,7 +5003,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -7004,7 +5276,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -7096,222 +5368,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -7478,7 +5534,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -7751,7 +5807,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -7843,222 +5899,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -8208,7 +6048,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -8481,7 +6321,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -8573,222 +6413,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -8955,7 +6579,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -9228,7 +6852,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -9320,222 +6944,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   password_hash     TEXT NOT NULL,
   display_name      TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 2 AND 60),
@@ -9820,7 +7228,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -10093,7 +7501,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -10185,222 +7593,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -10567,7 +7759,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -10840,7 +8032,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -10932,222 +8124,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -11297,7 +8273,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -11570,7 +8546,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -11662,222 +8638,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   password_hash     TEXT NOT NULL,
   display_name      TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 2 AND 60),
@@ -12162,7 +8922,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -12435,7 +9195,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -12527,222 +9287,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -12909,7 +9453,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -13182,7 +9726,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -13274,222 +9818,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -13639,7 +9967,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -13912,7 +10240,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -14004,222 +10332,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   line1          TEXT NOT NULL CHECK (length(trim(line1)) >= 3),
   ward           TEXT NOT NULL DEFAULT '',
@@ -14386,7 +10498,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -14659,7 +10771,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -14751,222 +10863,6 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 ),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -15116,7 +11012,7 @@ CREATE TABLE IF NOT EXISTS reward_tiers (
   quantity_limit     INTEGER CHECK (quantity_limit IS NULL OR quantity_limit > 0),
   claimed_count      INTEGER NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   ships_physical INTEGER NOT NULL DEFAULT 1 CHECK (ships_physical IN (0,1)),
-  shipping_fee       INTEGER NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+  shipping_fee       BIGINT NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -15389,7 +11285,7 @@ CREATE TABLE IF NOT EXISTS project_daily_stats (
   new_pledges        INTEGER NOT NULL DEFAULT 0 CHECK (new_pledges >= 0),
   new_backers        INTEGER NOT NULL DEFAULT 0 CHECK (new_backers >= 0),
   pledged_amount     BIGINT NOT NULL DEFAULT 0,                     -- tăng/giảm trong ngày (tính cả khoản chưa trừ)
-  cumulative_amount  INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
+  cumulative_amount  BIGINT NOT NULL DEFAULT 0 CHECK (cumulative_amount >= 0),
   cumulative_backers INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_backers >= 0),
   views              INTEGER NOT NULL DEFAULT 0 CHECK (views >= 0),
   saves              INTEGER NOT NULL DEFAULT 0 CHECK (saves >= 0),
@@ -15481,225 +11377,22 @@ CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
--- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════
--- Creator của dự án luôn là thành viên CREATOR duy nhất.
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_member AFTER INSERT ON projects
-BEGIN
-  INSERT INTO project_members (project_id, user_id, role_code, status, joined_at)
-  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'ACTIVE', NEW.created_at);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_projects_creator_immutable BEFORE UPDATE OF creator_id ON projects
-WHEN NEW.creator_id <> OLD.creator_id
-BEGIN
-  SELECT RAISE(ABORT, 'creator cannot be changed');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_guard BEFORE INSERT ON project_members
-WHEN NEW.role_code = 'CREATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'creator member must match projects.creator_id')
-  WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = NEW.project_id AND creator_id = NEW.user_id);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_creator_locked BEFORE UPDATE ON project_members
-WHEN OLD.role_code = 'CREATOR'
-  AND (NEW.role_code <> 'CREATOR' OR NEW.status <> 'ACTIVE' OR NEW.user_id <> OLD.user_id)
-BEGIN
-  SELECT RAISE(ABORT, 'creator membership is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_members_no_promote BEFORE UPDATE OF role_code ON project_members
-WHEN OLD.role_code = 'COLLABORATOR' AND NEW.role_code <> 'COLLABORATOR'
-BEGIN
-  SELECT RAISE(ABORT, 'collaborator cannot become creator');
-END;
-
--- Máy trạng thái dự án.
-CREATE TRIGGER IF NOT EXISTS trg_projects_status_flow BEFORE UPDATE OF status ON projects
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'DRAFT'          AND NEW.status IN ('PENDING_REVIEW','CANCELLED'))
-  OR (OLD.status = 'PENDING_REVIEW' AND NEW.status IN ('DRAFT','REJECTED','SCHEDULED','LIVE','CANCELLED'))
-  OR (OLD.status = 'REJECTED'       AND NEW.status IN ('DRAFT','CANCELLED'))
-  OR (OLD.status = 'SCHEDULED'      AND NEW.status IN ('LIVE','CANCELLED','SUSPENDED'))
-  OR (OLD.status = 'LIVE'           AND NEW.status IN ('SUCCESS','FAILED','SUSPENDED','CANCELLED'))
-  OR (OLD.status = 'SUSPENDED'      AND NEW.status IN ('LIVE','SCHEDULED','CANCELLED','FAILED'))
-  OR (OLD.status = 'SUCCESS'        AND NEW.status IN ('FULFILLING','COMPLETED'))
-  OR (OLD.status = 'FULFILLING'     AND NEW.status IN ('COMPLETED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid project status transition');
-END;
-
--- Huỷ khi đã có tiền giữ chỗ là không hợp lệ (phải VOID trước).
-CREATE TRIGGER IF NOT EXISTS trg_projects_cancel_guard BEFORE UPDATE OF status ON projects
-WHEN NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED'
-BEGIN
-  SELECT RAISE(ABORT, 'project has active pledges')
-  WHERE EXISTS (SELECT 1 FROM pledges WHERE project_id = NEW.id AND status IN ('AUTHORIZED','CAPTURED','CAPTURE_FAILED'));
-END;
-
--- Mục tiêu & thời lượng khoá sau khi gửi duyệt.
-CREATE TRIGGER IF NOT EXISTS trg_projects_lock_funding BEFORE UPDATE OF goal_amount, duration_days ON projects
-WHEN OLD.status NOT IN ('DRAFT','REJECTED')
-  AND (NEW.goal_amount <> OLD.goal_amount OR NEW.duration_days <> OLD.duration_days)
-BEGIN
-  SELECT RAISE(ABORT, 'goal and duration are locked after submission');
-END;
-
--- Góp vốn: dự án LIVE, người góp có quyền pledge.create, không phải thành viên dự án,
--- tài khoản đang hoạt động, số tiền quà khớp gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_guard BEFORE INSERT ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'project is not live')
-  WHERE (SELECT status FROM projects WHERE id = NEW.project_id) <> 'LIVE'
-     OR (SELECT end_at FROM projects WHERE id = NEW.project_id) <= NEW.created_at;
-  SELECT RAISE(ABORT, 'user lacks pledge.create permission')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.backer_id AND permission_code = 'pledge.create');
-  SELECT RAISE(ABORT, 'project members cannot back their own project')
-  WHERE EXISTS (SELECT 1 FROM project_members
-                WHERE project_id = NEW.project_id AND user_id = NEW.backer_id AND status = 'ACTIVE');
-  SELECT RAISE(ABORT, 'reward amount does not match tier')
-  WHERE NEW.tier_id IS NOT NULL
-    AND NEW.reward_amount <> (SELECT amount FROM reward_tiers WHERE id = NEW.tier_id);
-  SELECT RAISE(ABORT, 'tier is inactive')
-  WHERE NEW.tier_id IS NOT NULL
-    AND (SELECT is_active FROM reward_tiers WHERE id = NEW.tier_id) = 0;
-  SELECT RAISE(ABORT, 'new pledge must start as AUTHORIZED')
-  WHERE NEW.status <> 'AUTHORIZED';
-END;
-
--- Không sửa số tiền của pledge (muốn đổi: huỷ + tạo pledge mới).
-CREATE TRIGGER IF NOT EXISTS trg_pledges_amount_immutable
-BEFORE UPDATE OF reward_amount, bonus_amount, add_on_amount, shipping_amount, total_amount,
-                 tier_id, project_id, backer_id ON pledges
-BEGIN
-  SELECT RAISE(ABORT, 'pledge amounts are immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_status_flow BEFORE UPDATE OF status ON pledges
-WHEN NEW.status <> OLD.status AND NOT (
-     (OLD.status = 'AUTHORIZED'     AND NEW.status IN ('CAPTURED','CAPTURE_FAILED','VOIDED','CANCELLED'))
-  OR (OLD.status = 'CAPTURE_FAILED' AND NEW.status IN ('CAPTURED','VOIDED'))
-  OR (OLD.status = 'CAPTURED'       AND NEW.status IN ('REFUNDED'))
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid pledge status transition');
-END;
-
--- Counter cache trên projects + chống bán vượt số suất của gói.
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_insert AFTER INSERT ON pledges
-BEGIN
-  UPDATE projects SET pledged_amount = pledged_amount + NEW.total_amount,
-                      backers_count  = backers_count + 1
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = claimed_count + 1 WHERE id = NEW.tier_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledges_after_release AFTER UPDATE OF status ON pledges
-WHEN NEW.status IN ('CANCELLED','REFUNDED') AND OLD.status NOT IN ('CANCELLED','REFUNDED')
-BEGIN
-  UPDATE projects SET pledged_amount = MAX(0, pledged_amount - NEW.total_amount),
-                      backers_count  = MAX(0, backers_count - 1)
-  WHERE id = NEW.project_id;
-  UPDATE reward_tiers SET claimed_count = MAX(0, claimed_count - 1)
-  WHERE id = NEW.tier_id AND NEW.status = 'CANCELLED';
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
-BEGIN
-  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_pledge_add_ons_guard BEFORE INSERT ON pledge_add_ons
-BEGIN
-  SELECT RAISE(ABORT, 'add-on quantity exceeds limit')
-  WHERE NEW.quantity > (SELECT max_per_pledge FROM add_ons WHERE id = NEW.add_on_id);
-  SELECT RAISE(ABORT, 'add-on not available for chosen tier')
-  WHERE EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                WHERE p.id = NEW.pledge_id)
-    AND NOT EXISTS (SELECT 1 FROM reward_tier_add_ons x JOIN pledges p ON p.tier_id = x.tier_id
-                    WHERE p.id = NEW.pledge_id AND x.add_on_id = NEW.add_on_id);
-END;
-
--- Giá gói đã có người chọn thì không được sửa/xoá.
-CREATE TRIGGER IF NOT EXISTS trg_tiers_price_locked BEFORE UPDATE OF amount ON reward_tiers
-WHEN OLD.claimed_count > 0 AND NEW.amount <> OLD.amount
-BEGIN
-  SELECT RAISE(ABORT, 'tier with backers cannot change price');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_tiers_delete_locked BEFORE DELETE ON reward_tiers
-WHEN EXISTS (SELECT 1 FROM pledges WHERE tier_id = OLD.id)
-BEGIN
-  SELECT RAISE(ABORT, 'tier with pledges cannot be deleted');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_shipments_guard BEFORE INSERT ON shipments
-BEGIN
-  SELECT RAISE(ABORT, 'shipment requires a captured pledge with physical reward')
-  WHERE NOT EXISTS (SELECT 1 FROM pledges p JOIN reward_tiers t ON t.id = p.tier_id
-                    WHERE p.id = NEW.pledge_id AND p.status = 'CAPTURED' AND t.ships_physical = 1);
-END;
-
--- Update: người soạn cần update.draft; người đăng cần update.publish (Collaborator chỉ soạn nháp).
-CREATE TRIGGER IF NOT EXISTS trg_updates_author BEFORE INSERT ON project_updates
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks update.draft')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'update.draft');
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NEW.status = 'PUBLISHED' AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_updates_publish BEFORE UPDATE OF status ON project_updates
-WHEN NEW.status = 'PUBLISHED' AND OLD.status = 'DRAFT'
-BEGIN
-  SELECT RAISE(ABORT, 'publisher lacks update.publish')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-        WHERE project_id = NEW.project_id AND user_id = NEW.published_by AND permission_code = 'update.publish');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_faqs_author BEFORE INSERT ON faqs
-BEGIN
-  SELECT RAISE(ABORT, 'author lacks faq.manage')
-  WHERE NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.created_by AND permission_code = 'faq.manage');
-END;
-
--- Bình luận: cần comment.create (hệ thống) hoặc comment.reply (thành viên dự án); trả lời tối đa 2 cấp.
-CREATE TRIGGER IF NOT EXISTS trg_comments_guard BEFORE INSERT ON comments
-BEGIN
-  SELECT RAISE(ABORT, 'user cannot comment')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.author_id AND permission_code = 'comment.create')
-    AND NOT EXISTS (SELECT 1 FROM v_project_permissions
-                    WHERE project_id = NEW.project_id AND user_id = NEW.author_id AND permission_code = 'comment.reply');
-  SELECT RAISE(ABORT, 'replies are limited to two levels')
-  WHERE NEW.parent_id IS NOT NULL
-    AND (SELECT parent_id FROM comments WHERE id = NEW.parent_id) IS NOT NULL;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_reviews_guard BEFORE INSERT ON project_reviews
-BEGIN
-  SELECT RAISE(ABORT, 'reviewer lacks admin.project.review')
-  WHERE NOT EXISTS (SELECT 1 FROM v_user_system_permissions
-                    WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_projects_touch AFTER UPDATE ON projects
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
 
 
 -- ═══════════════════════ TRIGGER CẬP NHẬT BỘ ĐẾM TRÊN POSTGRESQL (SUPABASE) ═══════════════════════
+CREATE OR REPLACE FUNCTION fn_projects_creator_member() RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO project_members (project_id, user_id, role_code, scope, status, joined_at)
+  VALUES (NEW.id, NEW.creator_id, 'CREATOR', 'PROJECT', 'ACTIVE', NEW.created_at)
+  ON CONFLICT (project_id, user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_pg_projects_creator_member ON projects;
+CREATE TRIGGER trg_pg_projects_creator_member AFTER INSERT ON projects
+FOR EACH ROW EXECUTE FUNCTION fn_projects_creator_member();
+
 CREATE OR REPLACE FUNCTION fn_pledges_after_insert() RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.status IN ('AUTHORIZED', 'CAPTURED') THEN
@@ -15721,13 +11414,13 @@ FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_insert();
 
 CREATE OR REPLACE FUNCTION fn_pledges_after_update() RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status IN ('AUTHORIZED', 'CAPTURED') AND NEW.status NOT IN ('AUTHORIZED', 'CAPTURED') THEN
+  IF OLD.status NOT IN ('CANCELLED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'REFUNDED') THEN
     UPDATE projects
-    SET pledged_amount = GREATEST(0, pledged_amount - OLD.total_amount),
+    SET pledged_amount = GREATEST(0, pledged_amount - NEW.total_amount),
         backers_count = GREATEST(0, backers_count - 1)
     WHERE id = NEW.project_id;
-    IF OLD.tier_id IS NOT NULL THEN
-      UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = OLD.tier_id;
+    IF NEW.tier_id IS NOT NULL AND NEW.status = 'CANCELLED' THEN
+      UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = NEW.tier_id;
     END IF;
   END IF;
   RETURN NEW;
@@ -15737,6 +11430,17 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_pg_pledges_au ON pledges;
 CREATE TRIGGER trg_pg_pledges_au AFTER UPDATE OF status ON pledges
 FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_update();
+
+CREATE OR REPLACE FUNCTION fn_pledge_add_ons_stock() RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE add_ons SET sold_count = sold_count + NEW.quantity WHERE id = NEW.add_on_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_pg_pledge_add_ons_stock ON pledge_add_ons;
+CREATE TRIGGER trg_pg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
+FOR EACH ROW EXECUTE FUNCTION fn_pledge_add_ons_stock();
 
 
 
@@ -15839,34 +11543,34 @@ INSERT INTO role_permissions (role_code, permission_code, scope) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO categories (id, parent_id, name, slug, description, image_url, color, sort_order, is_active, created_at) VALUES
-  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-18T09:49:00.666Z'),
-  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-18T09:49:00.666Z'),
-  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-18T09:49:00.666Z'),
-  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-18T09:49:00.666Z'),
-  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-18T09:49:00.666Z'),
-  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-18T09:49:00.666Z'),
-  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-18T09:49:00.666Z'),
-  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-18T09:49:00.666Z')
+  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-18T14:04:02.887Z'),
+  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-18T14:04:02.887Z'),
+  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-18T14:04:02.887Z'),
+  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-18T14:04:02.887Z'),
+  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-18T14:04:02.887Z'),
+  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-18T14:04:02.887Z'),
+  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-18T14:04:02.887Z'),
+  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-18T14:04:02.887Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (id, email, username, password_hash, display_name, avatar_url, bio, country_code, province, status, locked_reason, email_verified_at, last_login_at, created_at, updated_at) VALUES
-  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$Ivfl42UiRgyosvcUuuGdMeeAzldRh6r9d456FYSqiwcXzxHBls0U6', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T02:24:52.401Z', '2026-11-17T05:08:32.507Z', '2025-10-20T02:24:52.401Z', '2025-10-20T02:24:52.401Z'),
-  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$3SxUKSjHauLHhtJLj2hA/ujDgTx3cfIZ8UtM6Dt8NLoq9GROoWLFO', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-27T14:13:01.691Z', '2026-11-16T03:26:18.518Z', '2025-12-27T14:13:01.691Z', '2025-12-27T14:13:01.691Z'),
-  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$zd7kSxhnif2TqchYr7wdUuSfGPlfseceUFFgujT3AKbxil8zodonG', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T02:01:03.908Z', '2026-11-17T12:19:13.158Z', '2025-11-24T02:01:03.908Z', '2025-11-24T02:01:03.908Z'),
-  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$xtZpaW9QcZs5Bw2bnEidm.AT48jMKveIAn1GT953uD/Q1meljWC/e', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-21T08:43:22.695Z', '2026-11-16T13:47:46.629Z', '2025-12-21T08:43:22.695Z', '2025-12-21T08:43:22.695Z')
+  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$2hP5.wYu0qopMb8U7RmzfOqPsmkmqZVVbRhFgQ7F4d0d.bKOPDpze', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T06:39:54.631Z', '2026-11-17T09:23:34.737Z', '2025-10-20T06:39:54.631Z', '2025-10-20T06:39:54.631Z'),
+  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$9xy9QvY16H04AiYGypvZqOv4ha5HbMajiQ08LyWpbZl6VQehL.kEm', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-27T18:28:03.921Z', '2026-11-16T07:41:20.748Z', '2025-12-27T18:28:03.921Z', '2025-12-27T18:28:03.921Z'),
+  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$8zZI/pUjaCXEk/6/qcFPpOCfV4oNQoecDoq3cKzQvC8QPaychaiA6', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T06:16:06.138Z', '2026-11-17T16:34:15.388Z', '2025-11-24T06:16:06.138Z', '2025-11-24T06:16:06.138Z'),
+  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$78iF5FCYTW8zB9qPyc/jd.qK4n.Hij4pJE.wn6lkMA3flJZrJd7GG', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-21T12:58:24.925Z', '2026-11-16T18:02:48.859Z', '2025-12-21T12:58:24.925Z', '2025-12-21T12:58:24.925Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_settings (user_id, notify_new_project, notify_project_update, notify_comment_reply, notify_message, hide_backed_projects, theme, updated_at) VALUES
-  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-18T09:49:00.756Z'),
-  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-18T09:49:00.867Z'),
-  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-18T09:49:00.819Z'),
-  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-18T09:49:00.922Z')
+  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.015Z'),
+  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.168Z'),
+  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.109Z'),
+  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.284Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_code, scope, granted_by, granted_at) VALUES
-  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T02:24:52.401Z'),
-  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-27T14:13:01.691Z'),
-  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T02:01:03.908Z'),
-  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-21T08:43:22.695Z')
+  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T06:39:54.631Z'),
+  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-27T18:28:03.921Z'),
+  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T06:16:06.138Z'),
+  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-21T12:58:24.925Z')
 ON CONFLICT DO NOTHING;
 

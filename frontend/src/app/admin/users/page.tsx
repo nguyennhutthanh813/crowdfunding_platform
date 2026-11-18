@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Eye, Lock, Search, ShieldCheck, Users } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
-import { adminUserDetail, adminUsers, REPORT_REASON } from "@/server/queries/admin";
+import { adminUsersBundle, REPORT_REASON } from "@/server/queries/admin";
 import { buildQueryHref } from "@/components/admin/admin-helpers";
 import { PaginationBar } from "@/components/admin/pagination-bar";
 import { SafeAvatar } from "@/components/admin/safe-image";
@@ -30,15 +30,15 @@ export default async function AdminUsersPage({
   const page = Number(firstParam(sp.page)) || 1;
   const detailId = firstParam(sp.detail).trim();
 
-  const data = adminUsers({ q, status, role, page });
-  const detail = detailId ? adminUserDetail(detailId) : null;
+  const data = await adminUsersBundle({ q, status, role, page, inspect: detailId || undefined });
+  const detail = data.inspected;
   const currentParams = { q, status, role, page: data.page };
   const closeDetailHref = buildQueryHref("/admin/users", currentParams);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tài khoản & An toàn · FR34"
+        eyebrow="Tài khoản & An toàn"
         title="Quản lý người dùng"
         description="Tra cứu hồ sơ hoạt động, khoá tài khoản vi phạm (tự động huỷ phiên đăng nhập) và mở khoá khi cần."
       />

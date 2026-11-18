@@ -1,6 +1,6 @@
-import "server-only";
-import { getDb } from "../db";
-import { all, one } from "../db/helpers";
+import { getDb } from "../db/index.js";
+import { all, one, type Cell } from "../db/helpers.js";
+import { vnToday } from "../services/stats.js";
 
 export interface ProjectCardData {
   id: string;
@@ -32,61 +32,119 @@ export const CARD_SELECT = `
   JOIN users u ON u.id = p.creator_id`;
 
 export type SortKey = "trending" | "newest" | "ending" | "funded" | "backers";
-const ORDER: Record<SortKey, string> = {
-  trending: `(SELECT COALESCE(SUM(s.pledged_amount),0) FROM project_daily_stats s WHERE s.project_id = p.id AND s.stat_date >= date('now','-7 day')) DESC, p.backers_count DESC`,
-  newest: `COALESCE(p.launched_at, p.start_at, p.created_at) DESC`,
-  ending: `CASE WHEN p.status = 'LIVE' THEN p.end_at END ASC NULLS LAST, p.end_at DESC`,
-  funded: `CAST(p.pledged_amount AS REAL) / p.goal_amount DESC`,
-  backers: `p.backers_count DESC`,
-};
 
-/** Danh sách dự án công khai cho trang chủ / khám phá (FR13–FR15). */
-export function listPublicProjects(opts: { status?: "LIVE" | "SCHEDULED" | "ENDED" | "ALL"; category?: string; q?: string; sort?: SortKey; limit?: number; offset?: number } = {}) {
-  const where = [`(p.status IN ('LIVE','SUCCESS','FAILED','FULFILLING','COMPLETED') OR (p.status = 'SCHEDULED' AND p.is_preview_public = 1))`];
-  const args: (string | number)[] = [];
+function orderClause(sort: SortKey, sevenDaysAgo: string): string {
+  switch (sort) {
+    case "newest":
+      return `COALESCE(p.launched_at, p.start_at, p.created_at) DESC`;
+    case "ending":
+      return `CASE WHEN p.status = 'LIVE' THEN 0 ELSE 1 END ASC, p.end_at ASC, p.created_at DESC`;
+    case "funded":
+      return `(CAST(p.pledged_amount AS REAL) / NULLIF(p.goal_amount, 0)) DESC`;
+    case "backers":
+      return `p.backers_count DESC`;
+    case "trending":
+    default:
+      return `(SELECT COALESCE(SUM(s.pledged_amount), 0) FROM project_daily_stats s WHERE s.project_id = p.id AND s.stat_date >= '${sevenDaysAgo}') DESC, p.backers_count DESC`;
+  }
+}
+
+export async function listPublicProjects(
+  opts: {
+    status?: "LIVE" | "SCHEDULED" | "ENDED" | "ALL";
+    category?: string;
+    q?: string;
+    sort?: SortKey;
+    limit?: number;
+    offset?: number;
+  } = {},
+) {
+  const where = [
+    `(p.status IN ('LIVE','SUCCESS','FAILED','FULFILLING','COMPLETED') OR (p.status = 'SCHEDULED' AND p.is_preview_public = 1))`,
+  ];
+  const args: Cell[] = [];
   if (opts.status === "LIVE") where.push(`p.status = 'LIVE'`);
   if (opts.status === "SCHEDULED") where.push(`p.status = 'SCHEDULED'`);
   if (opts.status === "ENDED") where.push(`p.status IN ('SUCCESS','FAILED','FULFILLING','COMPLETED')`);
-  if (opts.category) { where.push(`c.slug = ?`); args.push(opts.category); }
+  if (opts.category) {
+    where.push(`c.slug = ?`);
+    args.push(opts.category);
+  }
   if (opts.q) {
-    where.push(`(p.title LIKE ? OR p.blurb LIKE ? OR u.display_name LIKE ? OR c.name LIKE ?)`);
+    where.push(`(LOWER(p.title) LIKE LOWER(?) OR LOWER(p.blurb) LIKE LOWER(?) OR LOWER(u.display_name) LIKE LOWER(?) OR LOWER(c.name) LIKE LOWER(?))`);
     const like = `%${opts.q}%`;
     args.push(like, like, like, like);
   }
-  const sql = `${CARD_SELECT} WHERE ${where.join(" AND ")} ORDER BY ${ORDER[opts.sort ?? "trending"]} LIMIT ? OFFSET ?`;
+  const sevenDaysAgo = vnToday(new Date(Date.now() - 7 * 86_400_000));
+  const sql = `${CARD_SELECT} WHERE ${where.join(" AND ")} ORDER BY ${orderClause(opts.sort ?? "trending", sevenDaysAgo)} LIMIT ? OFFSET ?`;
   const db = getDb();
-  const rows = all<ProjectCardData>(db, sql, ...args, opts.limit ?? 24, opts.offset ?? 0);
-  const total = Number(one<{ n: number }>(db, `SELECT COUNT(*) n FROM projects p JOIN categories c ON c.id = p.category_id JOIN users u ON u.id = p.creator_id WHERE ${where.join(" AND ")}`, ...args)?.n ?? 0);
-  return { rows, total };
+  const rows = await all<ProjectCardData>(db, sql, ...args, opts.limit ?? 24, opts.offset ?? 0);
+  const totalRow = await one<{ n: number }>(
+    db,
+    `SELECT COUNT(*) AS n FROM projects p JOIN categories c ON c.id = p.category_id JOIN users u ON u.id = p.creator_id WHERE ${where.join(" AND ")}`,
+    ...args,
+  );
+  return { rows, total: Number(totalRow?.n ?? 0) };
 }
 
-export function listCategories() {
-  return all<{ id: string; name: string; slug: string; description: string; image_url: string | null; color: string; live_count: number; total_count: number }>(getDb(),
+export async function listCategories() {
+  return all<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string;
+    image_url: string | null;
+    color: string;
+    live_count: number;
+    total_count: number;
+  }>(
+    getDb(),
     `SELECT c.id, c.name, c.slug, c.description, c.image_url, c.color,
-            (SELECT COUNT(*) FROM projects p WHERE p.category_id = c.id AND p.status = 'LIVE') live_count,
-            (SELECT COUNT(*) FROM projects p WHERE p.category_id = c.id AND p.status IN ('LIVE','SCHEDULED','SUCCESS','FAILED','FULFILLING','COMPLETED')) total_count
-     FROM categories c WHERE c.is_active = 1 ORDER BY c.sort_order`);
+            (SELECT COUNT(*) FROM projects p WHERE p.category_id = c.id AND p.status = 'LIVE') AS live_count,
+            (SELECT COUNT(*) FROM projects p WHERE p.category_id = c.id AND p.status IN ('LIVE','SCHEDULED','SUCCESS','FAILED','FULFILLING','COMPLETED')) AS total_count
+     FROM categories c WHERE c.is_active = 1 ORDER BY c.sort_order`,
+  );
 }
 
-/** Ticker "vừa có người góp vốn" — ẩn danh nếu backer chọn ẩn danh. */
-export function recentPledges(limit = 16) {
-  return all<{ id: string; backer: string; title: string; slug: string; amount: number; created_at: string; country: string }>(getDb(),
-    `SELECT pl.id, CASE WHEN pl.is_anonymous = 1 THEN 'Một người ủng hộ' ELSE u.display_name END backer,
-            p.title, p.slug, pl.total_amount amount, pl.created_at, u.country_code country
+export async function recentPledges(limit = 16) {
+  return all<{
+    id: string;
+    backer: string;
+    title: string;
+    slug: string;
+    amount: number;
+    created_at: string;
+    country: string;
+  }>(
+    getDb(),
+    `SELECT pl.id, CASE WHEN pl.is_anonymous = 1 THEN 'Một người ủng hộ' ELSE u.display_name END AS backer,
+            p.title, p.slug, pl.total_amount AS amount, pl.created_at, u.country_code AS country
      FROM pledges pl JOIN users u ON u.id = pl.backer_id JOIN projects p ON p.id = pl.project_id
-     WHERE pl.status IN ('AUTHORIZED','CAPTURED') ORDER BY pl.created_at DESC LIMIT ?`, limit);
+     WHERE pl.status IN ('AUTHORIZED','CAPTURED') ORDER BY pl.created_at DESC LIMIT ?`,
+    limit,
+  );
 }
 
-export function platformStats() {
-  return one<{ raised: number; backers: number; live: number; success: number; ended: number }>(getDb(),
-    `SELECT (SELECT COALESCE(SUM(total_amount),0) FROM pledges WHERE status IN ('AUTHORIZED','CAPTURED')) raised,
-            (SELECT COUNT(DISTINCT backer_id) FROM pledges) backers,
-            (SELECT COUNT(*) FROM projects WHERE status = 'LIVE') live,
-            (SELECT COUNT(*) FROM projects WHERE status IN ('SUCCESS','FULFILLING','COMPLETED')) success,
-            (SELECT COUNT(*) FROM projects WHERE status IN ('SUCCESS','FULFILLING','COMPLETED','FAILED')) ended`)!;
+export async function platformStats() {
+  const r = (await one<{ raised: number; backers: number; live: number; success: number; ended: number }>(
+    getDb(),
+    `SELECT (SELECT COALESCE(SUM(total_amount), 0) FROM pledges WHERE status IN ('AUTHORIZED','CAPTURED')) AS raised,
+            (SELECT COUNT(DISTINCT backer_id) FROM pledges) AS backers,
+            (SELECT COUNT(*) FROM projects WHERE status = 'LIVE') AS live,
+            (SELECT COUNT(*) FROM projects WHERE status IN ('SUCCESS','FULFILLING','COMPLETED')) AS success,
+            (SELECT COUNT(*) FROM projects WHERE status IN ('SUCCESS','FULFILLING','COMPLETED','FAILED')) AS ended`,
+  ))!;
+  return {
+    raised: Number(r.raised),
+    backers: Number(r.backers),
+    live: Number(r.live),
+    success: Number(r.success),
+    ended: Number(r.ended),
+  };
 }
 
-export function savedProjectIds(userId: string | undefined | null) {
-  if (!userId) return new Set<string>();
-  return new Set(all<{ project_id: string }>(getDb(), `SELECT project_id FROM saved_projects WHERE user_id = ?`, userId).map((r) => r.project_id));
+export async function savedProjectIdsList(userId: string | undefined | null): Promise<string[]> {
+  if (!userId) return [];
+  const rows = await all<{ project_id: string }>(getDb(), `SELECT project_id FROM saved_projects WHERE user_id = ?`, userId);
+  return rows.map((r) => r.project_id);
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ExternalLink, Shield } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { meSummary } from "@/server/queries/me";
@@ -11,7 +12,8 @@ import { formatCompactVnd } from "@/lib/utils";
 
 export default async function MeLayout({ children }: { children: ReactNode }) {
   const v = await requireViewer("/me");
-  const s = meSummary(v.id);
+  const s = await meSummary();
+  if (!s) redirect("/login");
   const isAdmin = v.systemRoles.includes("ADMIN");
   const isMember = v.systemRoles.includes("MEMBER");
 

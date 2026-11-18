@@ -1,80 +1,298 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
-import { getDb } from "../db";
-import { humanizeError, insert, newId, one, tx } from "../db/helpers";
-import { hashPassword, verifyPassword } from "../auth/password";
-import { createSession, destroySession } from "../auth/session";
+import { apiDelete, apiFetch, apiPost, setAuthCookies } from "../api";
+import { destroySession } from "../auth/session";
+import type { SerializedViewer } from "../rbac/rbac";
 
-export type FormState = { ok?: boolean; error?: string; message?: string; fieldErrors?: Record<string, string> } | null;
+export type FormState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  fieldErrors?: Record<string, string>;
+  requiresTwoFactor?: boolean;
+  challengeToken?: string;
+  emailMasked?: string;
+  email?: string;
+  secret?: string;
+  otpauthUrl?: string;
+  qrCodeDataUrl?: string;
+  backupCodes?: string[];
+} | null;
 
 const safeNext = (n: FormDataEntryValue | null) => {
   const s = typeof n === "string" ? n : "";
   return s.startsWith("/") && !s.startsWith("//") ? s : "";
 };
 
-/** Trang đích mặc định theo vai trò — giúp mỗi role vào đúng chỗ ngay sau đăng nhập. */
-function homeFor(userId: string) {
-  const db = getDb();
-  if (one(db, `SELECT 1 FROM user_roles WHERE user_id = ? AND role_code = 'ADMIN'`, userId)) return "/admin";
-  if (one(db, `SELECT 1 FROM project_members WHERE user_id = ? AND status = 'ACTIVE'`, userId)) return "/studio";
+async function homeFor(user: SerializedViewer): Promise<string> {
+  if (user.systemRoles.includes("ADMIN")) return "/admin";
+  try {
+    const studio = await apiFetch<{ ok?: boolean; mine?: unknown[]; collab?: unknown[] }>("/studio/projects");
+    if ((studio.data.mine?.length ?? 0) + (studio.data.collab?.length ?? 0) > 0) {
+      return "/studio";
+    }
+  } catch {
+    // Mặc định về /me
+  }
   return "/me";
 }
 
 export async function loginAction(_: FormState, form: FormData): Promise<FormState> {
-  const id = String(form.get("identifier") ?? "").trim();
+  const challengeToken = String(form.get("challengeToken") ?? "").trim();
+  const nextUrl = safeNext(form.get("next"));
+
+  // Bước 2: Xác thực OTP 2FA (Google Authenticator / 2fa.live / Backup code)
+  if (challengeToken) {
+    const code = String(form.get("code") ?? "").trim();
+    if (!code) {
+      return {
+        error: "Vui lòng nhập mã OTP 6 chữ số hoặc mã dự phòng.",
+        requiresTwoFactor: true,
+        challengeToken,
+        emailMasked: String(form.get("emailMasked") ?? ""),
+      };
+    }
+    const { data } = await apiFetch<{
+      ok?: boolean;
+      error?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      user?: SerializedViewer;
+    }>("/auth/2fa/verify-login", {
+      method: "POST",
+      auth: false,
+      body: { challengeToken, code },
+    });
+
+    if (!data.ok || !data.accessToken || !data.refreshToken || !data.user) {
+      return {
+        error: data.error ?? "Mã xác thực hai lớp không hợp lệ.",
+        requiresTwoFactor: true,
+        challengeToken,
+        emailMasked: String(form.get("emailMasked") ?? ""),
+      };
+    }
+
+    await setAuthCookies(data.accessToken, data.refreshToken);
+    redirect(nextUrl || (await homeFor(data.user)));
+  }
+
+  // Bước 1: Email/Username + Mật khẩu
+  const identifier = String(form.get("identifier") ?? "").trim();
   const password = String(form.get("password") ?? "");
-  if (!id || !password) return { error: "Nhập email/tên đăng nhập và mật khẩu." };
-  const db = getDb();
-  const u = one<{ id: string; password_hash: string; status: string; locked_reason: string | null }>(db,
-    `SELECT id, password_hash, status, locked_reason FROM users WHERE email = ? OR username = ?`, id, id);
-  if (!u || !verifyPassword(password, u.password_hash)) return { error: "Thông tin đăng nhập không đúng." };
-  if (u.status === "LOCKED") return { error: `Tài khoản đang bị khoá: ${u.locked_reason ?? ""}` };
-  await createSession(u.id);
-  redirect(safeNext(form.get("next")) || homeFor(u.id));
-}
+  if (!identifier || !password) {
+    return { error: "Vui lòng nhập email/tên đăng nhập và mật khẩu." };
+  }
 
-/** Đăng nhập nhanh tài khoản demo (chỉ các tài khoản @fundviet.vn của seed). */
-export async function quickLoginAction(form: FormData) {
-  const username = String(form.get("username") ?? "");
-  const u = one<{ id: string }>(getDb(), `SELECT id FROM users WHERE username = ? AND email LIKE '%@fundviet.vn' AND status = 'ACTIVE'`, username);
-  if (!u) redirect("/login");
-  await createSession(u.id);
-  redirect(safeNext(form.get("next")) || homeFor(u.id));
-}
+  const { data } = await apiFetch<{
+    ok?: boolean;
+    error?: string;
+    requiresTwoFactor?: boolean;
+    challengeToken?: string;
+    emailMasked?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    user?: SerializedViewer;
+  }>("/auth/login", {
+    method: "POST",
+    auth: false,
+    body: { identifier, password },
+  });
 
-const RegisterSchema = z.object({
-  displayName: z.string().trim().min(2, "Tên hiển thị tối thiểu 2 ký tự").max(60),
-  username: z.string().trim().regex(/^[a-zA-Z0-9_.]{3,30}$/, "3–30 ký tự: chữ, số, dấu chấm hoặc gạch dưới"),
-  email: z.email("Email không hợp lệ"),
-  password: z.string().min(8, "Mật khẩu tối thiểu 8 ký tự"),
-});
+  if (!data.ok) {
+    return { error: data.error ?? "Thông tin đăng nhập không chính xác." };
+  }
+
+  if (data.requiresTwoFactor && data.challengeToken) {
+    return {
+      requiresTwoFactor: true,
+      challengeToken: data.challengeToken,
+      emailMasked: data.emailMasked ?? identifier,
+      message: "Tài khoản đang bật bảo mật 2 lớp. Vui lòng nhập mã 6 số từ Google Authenticator / 2fa.live.",
+    };
+  }
+
+  if (!data.accessToken || !data.refreshToken || !data.user) {
+    return { error: "Không nhận được phiên đăng nhập hợp lệ từ máy chủ." };
+  }
+
+  await setAuthCookies(data.accessToken, data.refreshToken);
+  redirect(nextUrl || (await homeFor(data.user)));
+}
 
 export async function registerAction(_: FormState, form: FormData): Promise<FormState> {
-  const parsed = RegisterSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const i of parsed.error.issues) fieldErrors[String(i.path[0])] = i.message;
-    return { error: "Vui lòng kiểm tra lại thông tin.", fieldErrors };
+  const displayName = String(form.get("displayName") ?? "").trim();
+  const username = String(form.get("username") ?? "").trim();
+  const email = String(form.get("email") ?? "").trim();
+  const password = String(form.get("password") ?? "");
+
+  const { data } = await apiFetch<{
+    ok?: boolean;
+    error?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    user?: SerializedViewer;
+  }>("/auth/register", {
+    method: "POST",
+    auth: false,
+    body: { displayName, username: username || undefined, email, password },
+  });
+
+  if (!data.ok || !data.accessToken || !data.refreshToken) {
+    return { error: data.error ?? "Không thể tạo tài khoản, vui lòng kiểm tra lại thông tin." };
   }
-  const { displayName, username, email, password } = parsed.data;
-  const db = getDb();
-  const id = newId();
-  try {
-    tx(db, () => {
-      insert(db, "users", { id, email, username, password_hash: hashPassword(password), display_name: displayName, email_verified_at: new Date().toISOString() });
-      insert(db, "user_settings", { user_id: id });
-      insert(db, "user_roles", { user_id: id, role_code: "MEMBER" });
-    });
-  } catch (e) {
-    return { error: humanizeError(e) };
-  }
-  await createSession(id);
+
+  await setAuthCookies(data.accessToken, data.refreshToken);
   redirect(safeNext(form.get("next")) || "/me?welcome=1");
 }
 
 export async function logoutAction() {
   await destroySession();
   redirect("/");
+}
+
+// ───────────────────────── Quên mật khẩu & Đặt lại qua OTP Email ─────────────────────────
+
+export async function requestPasswordResetAction(_: FormState, form: FormData): Promise<FormState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  if (!email) return { error: "Vui lòng nhập địa chỉ email tài khoản." };
+
+  const { data } = await apiFetch<{ ok?: boolean; error?: string; message?: string }>("/auth/forgot-password", {
+    method: "POST",
+    auth: false,
+    body: { email },
+  });
+
+  if (!data.ok) return { error: data.error ?? "Không thể gửi yêu cầu khôi phục mật khẩu." };
+  return {
+    ok: true,
+    email,
+    message: data.message ?? "Đã gửi mã OTP 6 chữ số tới hộp thư email của bạn.",
+  };
+}
+
+export async function resetPasswordWithOtpAction(_: FormState, form: FormData): Promise<FormState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const otp = String(form.get("otp") ?? "").trim();
+  const newPassword = String(form.get("newPassword") ?? "");
+  const confirmPassword = String(form.get("confirmPassword") ?? "");
+
+  if (!email || !otp || !newPassword) {
+    return { error: "Vui lòng điền đầy đủ mã OTP và mật khẩu mới.", email };
+  }
+  if (newPassword.length < 8) {
+    return { error: "Mật khẩu mới phải có ít nhất 8 ký tự.", email };
+  }
+  if (confirmPassword && newPassword !== confirmPassword) {
+    return { error: "Xác nhận mật khẩu mới chưa khớp.", email };
+  }
+
+  const { data } = await apiFetch<{ ok?: boolean; error?: string; message?: string }>("/auth/reset-password", {
+    method: "POST",
+    auth: false,
+    body: { email, otp, newPassword },
+  });
+
+  if (!data.ok) {
+    return { error: data.error ?? "Mã OTP không đúng hoặc đã hết hạn.", email };
+  }
+
+  redirect("/login?reset=1");
+}
+
+// ───────────────────────── Xác thực Email & Quản trị 2FA TOTP ─────────────────────────
+
+export async function sendEmailVerifyOtpAction(): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const data = await apiPost<{ ok?: boolean; message?: string; error?: string }>("/auth/verify-email/send", {});
+  return { ok: Boolean(data.ok), message: data.message, error: data.error };
+}
+
+export async function confirmEmailVerifyOtpAction(_: FormState, form: FormData): Promise<FormState> {
+  const otp = String(form.get("otp") ?? "").trim();
+  const data = await apiPost<{ ok?: boolean; message?: string; error?: string }>("/auth/verify-email/confirm", { otp });
+  if (!data.ok) return { error: data.error ?? "Mã OTP không hợp lệ." };
+  revalidatePath("/me/settings");
+  return { ok: true, message: data.message ?? "Đã xác thực địa chỉ email thành công!" };
+}
+
+export async function setupTwoFactorAction(): Promise<{
+  ok: boolean;
+  secret?: string;
+  otpauthUrl?: string;
+  qrCodeDataUrl?: string;
+  error?: string;
+}> {
+  const data = await apiPost<{
+    ok?: boolean;
+    secret?: string;
+    otpauthUrl?: string;
+    qrCodeDataUrl?: string;
+    error?: string;
+  }>("/auth/2fa/setup", {});
+  return {
+    ok: Boolean(data.ok),
+    secret: data.secret,
+    otpauthUrl: data.otpauthUrl,
+    qrCodeDataUrl: data.qrCodeDataUrl,
+    error: data.error,
+  };
+}
+
+export async function enableTwoFactorAction(_: FormState, form: FormData): Promise<FormState> {
+  const code = String(form.get("code") ?? "").trim();
+  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; error?: string }>("/auth/2fa/enable", { code });
+  if (!data.ok) return { error: data.error ?? "Mã OTP không chính xác." };
+  revalidatePath("/me/settings");
+  return {
+    ok: true,
+    backupCodes: data.backupCodes ?? [],
+    message: "Đã bật bảo mật 2 lớp (2FA) thành công! Hãy lưu lại 8 mã dự phòng dưới đây.",
+  };
+}
+
+export async function regenerateBackupCodesAction(_: FormState, form: FormData): Promise<FormState> {
+  const code = String(form.get("code") ?? "").trim();
+  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; error?: string }>(
+    "/auth/2fa/backup-codes/regenerate",
+    { code },
+  );
+  if (!data.ok) return { error: data.error ?? "Mã OTP không chính xác." };
+  revalidatePath("/me/settings");
+  return {
+    ok: true,
+    backupCodes: data.backupCodes ?? [],
+    message: "Đã tạo mới bộ 8 mã dự phòng 2FA!",
+  };
+}
+
+export async function disableTwoFactorAction(_: FormState, form: FormData): Promise<FormState> {
+  const currentPassword = String(form.get("currentPassword") ?? form.get("password") ?? "");
+  const code = String(form.get("code") ?? "").trim();
+  const data = await apiPost<{ ok?: boolean; error?: string }>("/auth/2fa/disable", { currentPassword, code });
+  if (!data.ok) return { error: data.error ?? "Không thể tắt bảo mật 2 lớp." };
+  revalidatePath("/me/settings");
+  return { ok: true, message: "Đã tắt xác thực 2 lớp cho tài khoản." };
+}
+
+export async function revokeSessionAction(sessionId: string): Promise<{ ok: boolean; error?: string }> {
+  const data = await apiDelete<{ ok?: boolean; error?: string }>(`/auth/sessions/${encodeURIComponent(sessionId)}`);
+  revalidatePath("/me/settings");
+  return { ok: Boolean(data.ok), error: data.error };
+}
+
+export async function uploadImageAction(
+  form: FormData,
+): Promise<{ ok: boolean; url?: string; provider?: string; error?: string }> {
+  const { data } = await apiFetch<{ ok?: boolean; url?: string; provider?: string; error?: string }>("/upload/image", {
+    method: "POST",
+    formData: form,
+  });
+  return {
+    ok: Boolean(data.ok),
+    url: data.url,
+    provider: data.provider,
+    error: data.error,
+  };
 }

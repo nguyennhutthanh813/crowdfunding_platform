@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, Brain, CalendarClock, CreditCard, HandCoins, MessageSquareHeart, Rocket, ShieldCheck, Sparkles, Target, TrendingUp } from "lucide-react";
 import { getViewer } from "@/server/auth/session";
-import { listCategories, listPublicProjects, platformStats, recentPledges, savedProjectIds } from "@/server/queries/projects";
+import { getHomeFeed, listPublicProjects } from "@/server/queries/projects";
 import { ProjectCard } from "@/components/project/project-card";
 import { LiveTicker } from "@/components/project/live-ticker";
 import { Aurora, CountUp, Magnetic, Reveal, TiltCard } from "@/components/fx/motion";
@@ -10,17 +10,15 @@ import { Gauge } from "@/components/fx/gauge";
 import { ParticleField } from "@/components/fx/particles";
 import { ButtonLink } from "@/components/ui/button";
 import { SectionTitle } from "@/components/ui/layout-bits";
-import { RoleBadge } from "@/components/ui/primitives";
 
 export default async function HomePage() {
-  const viewer = await getViewer();
-  const stats = platformStats();
-  const trending = listPublicProjects({ status: "LIVE", sort: "trending", limit: 6 }).rows;
-  const upcoming = listPublicProjects({ status: "SCHEDULED", sort: "newest", limit: 4 }).rows;
-  const ending = listPublicProjects({ status: "LIVE", sort: "ending", limit: 4 }).rows;
-  const categories = listCategories();
-  const ticker = recentPledges(18);
-  const saved = savedProjectIds(viewer?.id);
+  const [viewer, home, endingRes] = await Promise.all([
+    getViewer(),
+    getHomeFeed(),
+    listPublicProjects({ status: "LIVE", sort: "ending", limit: 4 }),
+  ]);
+  const { stats, categories, trending, upcoming, recent: ticker, saved } = home;
+  const ending = endingRes.rows;
   const successRate = stats.ended ? Math.round((stats.success / stats.ended) * 100) : 0;
 
   return (
@@ -153,35 +151,6 @@ export default async function HomePage() {
                 </Reveal>
               ))}
             </ol>
-          </div>
-        </section>
-
-        {/* ───────── VAI TRÒ ───────── */}
-        <section>
-          <SectionTitle title="Một tài khoản — nhiều vai trò" description="Mọi tài khoản đều là Backer. Tạo dự án để thành Creator; được mời để thành Collaborator." />
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { role: "BACKER", img: "/v3/roles/backer.webp", t: "Backer — người ủng hộ", items: ["Góp vốn, chọn quà & add-on", "Lưu dự án, theo dõi creator", "Bình luận, nhắn tin", "Theo dõi lịch sử & giao quà"] },
-              { role: "CREATOR", img: "/v3/roles/creator.webp", t: "Creator — chủ dự án", items: ["Tạo dự án, mức quà, lịch mở", "Đăng Update, FAQ", "Thống kê & AI dự đoán", "Gán Collaborator, giao quà"] },
-              { role: "COLLABORATOR", img: "/v3/roles/collaborator.webp", t: "Collaborator — cộng sự", items: ["Trả lời bình luận (AI lọc góp ý)", "Soạn nháp Update, quản lý FAQ", "Xem thống kê (chỉ xem)", "Không đụng tiền & địa chỉ backer"] },
-              { role: "ADMIN", img: "/v3/roles/admin.webp", t: "Quản trị viên", items: ["Duyệt dự án trước khi công khai", "Gỡ dự án vi phạm", "Khoá / mở khoá tài khoản", "Thể loại, giao dịch, nhật ký"] },
-            ].map((r, i) => (
-              <Reveal key={r.role} delay={i * 0.06}>
-                <TiltCard className="h-full rounded-[1.25rem]" max={6}>
-                  <div className="card h-full overflow-hidden">
-                    <div className="relative aspect-[4/3]"><Image src={r.img} alt="" fill sizes="(max-width:640px) 100vw, 25vw" className="object-cover" /></div>
-                    <div className="space-y-2 p-4">
-                      <RoleBadge role={r.role} />
-                      <h3 className="font-bold">{r.t}</h3>
-                      <ul className="space-y-1 text-sm text-muted">{r.items.map((x) => <li key={x} className="flex gap-2"><span className="mt-2 size-1 shrink-0 rounded-full bg-violet-500" />{x}</li>)}</ul>
-                    </div>
-                  </div>
-                </TiltCard>
-              </Reveal>
-            ))}
-          </div>
-          <div className="mt-5 text-center">
-            <ButtonLink href="/system#permissions" variant="ghost" size="sm">Xem ma trận phân quyền đầy đủ <ArrowRight className="size-4" /></ButtonLink>
           </div>
         </section>
 

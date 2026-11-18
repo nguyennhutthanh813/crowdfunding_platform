@@ -6,7 +6,7 @@ export const metadata = { title: "Tạo dự án mới · Studio" };
 
 export default async function NewStudioProjectPage() {
   await requireSystemPerm("project.create", "/studio/new");
-  const categories = listCategoriesForStudio();
+  const categories = await listCategoriesForStudio();
 
   return <WizardShell mode="create" categories={categories} initialStep={1} />;
 }

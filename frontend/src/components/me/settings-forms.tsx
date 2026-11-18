@@ -25,12 +25,15 @@ import {
   updatePreferencesAction,
   updateProfileAction,
 } from "@/server/actions/me";
+import type { ActiveSessionInfo, TwoFactorStatusInfo } from "@/server/queries/me";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea, Toggle } from "@/components/ui/form";
+import { ImageUploadButton } from "@/components/ui/image-upload";
 import { Badge, Card, Divider } from "@/components/ui/primitives";
 import { SafeAvatar } from "./safe-media";
+import { SecurityTwoFactorPanel } from "./security-2fa-panel";
 import { COUNTRY_NAMES, cn } from "@/lib/utils";
 
 const AVATAR_PRESETS = [
@@ -86,8 +89,11 @@ export function ProfileSettingsForm({
       <ActionForm action={updateProfileAction} className="space-y-5">
         <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface-2/50 p-4 sm:flex-row sm:items-center">
           <SafeAvatar name={displayName || user.display_name} src={avatarUrl || null} size={64} />
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="text-sm font-bold">Ảnh đại diện</div>
+          <div className="min-w-0 flex-1 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-bold">Ảnh đại diện</div>
+              <ImageUploadButton folder="avatars" label="Tải ảnh từ máy tính" onUploaded={setAvatarUrl} />
+            </div>
             <div className="flex flex-wrap gap-1.5">
               {AVATAR_PRESETS.map((p) => {
                 const active = avatarUrl === p.url;
@@ -111,12 +117,15 @@ export function ProfileSettingsForm({
           </div>
         </div>
 
-        <Field label="Đường dẫn ảnh đại diện (tuỳ chọn)" hint="Chọn nhanh ở trên, nhập đường dẫn /... hoặc để trống để dùng chữ viết tắt.">
+        <Field
+          label="Đường dẫn ảnh đại diện (tuỳ chọn)"
+          hint="Tải ảnh trực tiếp lên Cloudinary bằng nút phía trên hoặc chọn mẫu có sẵn."
+        >
           <Input
             name="avatar_url"
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="/v3/roles/backer.webp"
+            placeholder="https://res.cloudinary.com/..."
           />
         </Field>
 
@@ -132,7 +141,12 @@ export function ProfileSettingsForm({
         </Field>
 
         <Field label="Giới thiệu bản thân" hint="Tối đa 500 ký tự — hiển thị trên trang hồ sơ công khai.">
-          <Textarea name="bio" defaultValue={user.bio} maxLength={500} placeholder="Bạn quan tâm lĩnh vực nào, đang sáng tạo dự án gì?" />
+          <Textarea
+            name="bio"
+            defaultValue={user.bio}
+            maxLength={500}
+            placeholder="Bạn quan tâm lĩnh vực nào, đang sáng tạo dự án gì?"
+          />
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -171,12 +185,23 @@ export function ProfileSettingsForm({
 export function AccountSettingsForms({
   user,
   sessionsCount,
+  twoFactor,
+  sessionList,
 }: {
   user: { username: string; email: string; email_verified_at: string | null };
   sessionsCount: number;
+  twoFactor: TwoFactorStatusInfo;
+  sessionList: ActiveSessionInfo[];
 }) {
   return (
     <div className="space-y-5">
+      <SecurityTwoFactorPanel
+        email={user.email}
+        emailVerifiedAt={user.email_verified_at}
+        twoFactor={twoFactor}
+        sessionList={sessionList}
+      />
+
       <Card className="p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -212,7 +237,7 @@ export function AccountSettingsForms({
             <div>
               <h3 className="text-base font-bold">Đổi mật khẩu</h3>
               <p className="text-xs text-muted">
-                Hiện có <b>{sessionsCount}</b> phiên đăng nhập đang hoạt động. Đổi mật khẩu sẽ tự đăng xuất các phiên khác.
+                Hiện có <b>{sessionsCount}</b> phiên đăng nhập đang hoạt động. Đổi mật khẩu sẽ tự thu hồi các phiên trên thiết bị khác.
               </p>
             </div>
           </div>
@@ -330,7 +355,7 @@ export function AddressesSection({ addresses }: { addresses: AddressItem[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-bold">Sổ địa chỉ giao hàng (Việt Nam)</h3>
-          <p className="text-xs text-muted">Giao hàng nội bộ Việt Nam khi bạn chọn mức quà vật lý (NFR05).</p>
+          <p className="text-xs text-muted">Địa chỉ nhận phần quà vật lý trên toàn lãnh thổ Việt Nam.</p>
         </div>
         <Button type="button" size="sm" onClick={() => setCreating(true)}>
           <Plus className="size-4" /> Thêm địa chỉ
@@ -344,7 +369,13 @@ export function AddressesSection({ addresses }: { addresses: AddressItem[] }) {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {addresses.map((a) => (
-            <Card key={a.id} className={cn("flex flex-col justify-between gap-3 p-4", a.is_default === 1 && "border-violet-500/40 bg-violet-500/[0.03]")}>
+            <Card
+              key={a.id}
+              className={cn(
+                "flex flex-col justify-between gap-3 p-4",
+                a.is_default === 1 && "border-violet-500/40 bg-violet-500/[0.03]",
+              )}
+            >
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-1.5 text-sm font-bold">
@@ -352,7 +383,9 @@ export function AddressesSection({ addresses }: { addresses: AddressItem[] }) {
                   </span>
                   {a.is_default === 1 && <Badge tone="violet">Mặc định</Badge>}
                 </div>
-                <div className="text-sm font-semibold">{a.recipient_name} · {a.phone}</div>
+                <div className="text-sm font-semibold">
+                  {a.recipient_name} · {a.phone}
+                </div>
                 <div className="text-xs text-muted leading-relaxed">
                   {[a.line1, a.ward, a.district, a.province].filter(Boolean).join(", ")} · Việt Nam
                 </div>
@@ -439,7 +472,12 @@ function AddressFormBody({ initial, onSuccess }: { initial: AddressItem | null; 
         </Field>
       </div>
       <label className="flex items-center gap-2 text-xs font-medium">
-        <input type="checkbox" name="is_default" defaultChecked={initial ? initial.is_default === 1 : true} className="size-4 accent-violet-600" />
+        <input
+          type="checkbox"
+          name="is_default"
+          defaultChecked={initial ? initial.is_default === 1 : true}
+          className="size-4 accent-violet-600"
+        />
         Đặt làm địa chỉ giao hàng mặc định
       </label>
       <div className="flex justify-end gap-2 pt-2">
@@ -481,27 +519,27 @@ export function CardsSection({ cards }: { cards: CardItem[] }) {
       <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-4 text-xs">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
         <div className="space-y-1">
-          <div className="font-bold text-fg">Bảo mật thẻ mô phỏng (MockPay · NFR07)</div>
+          <div className="font-bold text-fg">Bảo mật thẻ thanh toán chuẩn Token hoá</div>
           <p className="text-muted">
-            Hệ thống không lưu số thẻ đầy đủ — chỉ lưu token mô phỏng và 4 số cuối. Khi góp vốn, thẻ chỉ giữ chỗ và chỉ trừ tiền nếu dự án đạt mục tiêu.
+            Hệ thống không lưu số thẻ đầy đủ — chỉ lưu khoá đại diện (token) và 4 số cuối. Khi góp vốn, thẻ chỉ uỷ quyền giữ chỗ và chỉ thanh toán khi dự án đạt mục tiêu.
           </p>
         </div>
       </div>
 
-      {/* Existing cards */}
       <div className="grid gap-3 sm:grid-cols-2">
         {cards.map((c) => (
           <Card key={c.id} className="overflow-hidden p-4 space-y-3">
-            <div className={cn("relative overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-lg", BRAND_CARD_STYLE[c.brand] ?? BRAND_CARD_STYLE.VISA)}>
+            <div
+              className={cn(
+                "relative overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-lg",
+                BRAND_CARD_STYLE[c.brand] ?? BRAND_CARD_STYLE.VISA,
+              )}
+            >
               <div className="flex items-center justify-between text-xs font-bold tracking-wider opacity-90">
                 <span>{c.brand}</span>
-                {c.is_default === 1 && (
-                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px]">Mặc định</span>
-                )}
+                {c.is_default === 1 && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px]">Mặc định</span>}
               </div>
-              <div className="mt-4 font-mono text-lg font-bold tracking-[0.18em]">
-                •••• •••• •••• {c.last4}
-              </div>
+              <div className="mt-4 font-mono text-lg font-bold tracking-[0.18em]">•••• •••• •••• {c.last4}</div>
               <div className="mt-4 flex items-end justify-between text-[11px] opacity-90">
                 <span className="truncate font-semibold">{c.holder_name}</span>
                 <span className="font-mono">
@@ -514,7 +552,7 @@ export function CardsSection({ cards }: { cards: CardItem[] }) {
               <div className="flex items-center gap-1.5 text-muted">
                 {c.used > 0 ? (
                   <span className="inline-flex items-center gap-1" title="Thẻ gắn với giao dịch góp vốn được giữ lại để đối soát">
-                    <Lock className="size-3" /> Gắn {c.used} pledge {c.active_use > 0 ? `(${c.active_use} đang chờ)` : ""}
+                    <Lock className="size-3" /> Gắn {c.used} giao dịch {c.active_use > 0 ? `(${c.active_use} đang giữ chỗ)` : ""}
                   </span>
                 ) : (
                   <span>Chưa có giao dịch</span>
@@ -542,29 +580,28 @@ export function CardsSection({ cards }: { cards: CardItem[] }) {
         ))}
       </div>
 
-      {/* Add new card */}
       <Card className="p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <CreditCard className="size-4 text-violet-500" />
-            <h3 className="text-base font-bold">Thêm thẻ mới</h3>
+            <h3 className="text-base font-bold">Liên kết thẻ mới</h3>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {[
-              { label: "Điền thử Visa", num: "4242 4242 4242 4242" },
+              { label: "Thẻ thử Visa", num: "4242 4242 4242 4242" },
               { label: "Mastercard", num: "5555 5555 5555 4444" },
               { label: "JCB", num: "3528 0000 0000 0007" },
-            ].map((demo) => (
+            ].map((preset) => (
               <button
-                key={demo.label}
+                key={preset.label}
                 type="button"
                 onClick={() => {
-                  setCardNumber(demo.num);
-                  if (!holderName) setHolderName("NGUYEN MINH ANH");
+                  setCardNumber(preset.num);
+                  if (!holderName) setHolderName("LE MINH ANH");
                 }}
                 className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
               >
-                <Sparkles className="size-3 text-violet-500" /> {demo.label}
+                <Sparkles className="size-3 text-violet-500" /> {preset.label}
               </button>
             ))}
           </div>
@@ -594,7 +631,7 @@ export function CardsSection({ cards }: { cards: CardItem[] }) {
                 name="holderName"
                 value={holderName}
                 onChange={(e) => setHolderName(e.target.value)}
-                placeholder="NGUYEN MINH ANH"
+                placeholder="LE MINH ANH"
                 required
               />
             </Field>

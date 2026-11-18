@@ -66,13 +66,15 @@ async function main() {
 
   const client = await pool.connect();
   try {
-    console.log("1. Đang tạo lược đồ 44 bảng + view + trigger trên Supabase PostgreSQL...");
+    console.log("1. Đang tạo lược đồ bảng + view + trigger trên Supabase PostgreSQL...");
     await client.query(buildSupabasePostgresSchema());
 
     console.log("2. Tạm tắt trigger bộ đếm khi nạp dữ liệu gốc...");
     await client.query("BEGIN");
+    await client.query("DROP TRIGGER IF EXISTS trg_pg_projects_creator_member ON projects");
     await client.query("DROP TRIGGER IF EXISTS trg_pg_pledges_ai ON pledges");
     await client.query("DROP TRIGGER IF EXISTS trg_pg_pledges_au ON pledges");
+    await client.query("DROP TRIGGER IF EXISTS trg_pg_pledge_add_ons_stock ON pledge_add_ons");
 
     for (const table of TOPOLOGICAL_TABLES) {
       const rows = sqlite.prepare(`SELECT * FROM ${table}`).all() as Record<string, unknown>[];
@@ -89,7 +91,7 @@ async function main() {
       console.log(`   ✓ ${table}: ${rows.length} dòng`);
     }
 
-    // Tạo lại trigger sau khi đã nạp xong dữ liệu
+    // Khôi phục lại đầy đủ trigger sau khi đã nạp xong dữ liệu
     await client.query(buildSupabasePostgresSchema());
     await client.query("COMMIT");
     console.log("Hoàn tất đồng bộ dữ liệu lên Supabase PostgreSQL!");

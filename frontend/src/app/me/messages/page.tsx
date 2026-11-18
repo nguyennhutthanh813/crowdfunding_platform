@@ -16,12 +16,12 @@ export default async function MessagesInboxPage() {
     return <AdminOnlyNotice area="Tin nhắn nội bộ" />;
   }
 
-  const conversations = myConversations(v.id);
+  const conversations = await myConversations();
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tương tác · FR26"
+        eyebrow="Hộp thư"
         title="Tin nhắn nội bộ"
         description="Trao đổi trực tiếp với Creator, Collaborator hoặc Backer về dự án và phần quà."
         actions={

@@ -11,8 +11,8 @@ import { formatDate } from "@/lib/utils";
 
 const SUSPEND_TEMPLATES = [
   "Nghi vi phạm bản quyền hình ảnh / nội dung — tạm gỡ để xác minh.",
-  "Thông số sản phẩm chưa trung thực với mô tả gây hiểu nhầm cho backer.",
-  "Nhận nhiều báo cáo vi phạm từ cộng đồng (BR13) — tạm dừng kiểm tra.",
+  "Thông số sản phẩm chưa trung thực với mô tả gây hiểu nhầm cho người ủng hộ.",
+  "Nhận nhiều báo cáo vi phạm từ cộng đồng — tạm dừng kiểm tra.",
 ];
 
 export function TakedownProjectButton({
@@ -55,7 +55,7 @@ export function TakedownProjectButton({
               <input type="hidden" name="projectId" value={projectId} />
               {openReports >= 3 && (
                 <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-semibold text-rose-600 dark:text-rose-300">
-                  Dự án này đang có {openReports} báo cáo mở (vượt ngưỡng cảnh báo BR13).
+                  Dự án này đang có {openReports} báo cáo mở cần ưu tiên xác minh.
                 </div>
               )}
               <Field label="Lý do tạm gỡ" required error={state?.fieldErrors?.reason} hint="Bắt buộc ít nhất 5 ký tự. Creator sẽ nhận thông báo lý do này.">

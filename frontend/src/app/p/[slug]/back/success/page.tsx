@@ -13,7 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
-import { getPledgeByCode, pledgeAddOnLines } from "@/server/queries/public";
+import { getPledgeReceipt } from "@/server/queries/public";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/layout-bits";
 import { Badge, Divider, PledgeStatusBadge } from "@/components/ui/primitives";
@@ -34,7 +34,7 @@ export default async function PledgeSuccessPage(props: {
   const sp = await props.searchParams;
   const code = typeof sp.code === "string" ? sp.code.trim() : "";
 
-  const viewer = await requireViewer(`/p/${slug}/back/success${code ? `?code=${encodeURIComponent(code)}` : ""}`);
+  await requireViewer(`/p/${slug}/back/success${code ? `?code=${encodeURIComponent(code)}` : ""}`);
   if (!code) {
     return (
       <div className="mx-auto max-w-xl px-4 py-14 sm:px-6">
@@ -47,10 +47,10 @@ export default async function PledgeSuccessPage(props: {
     );
   }
 
-  const pledge = getPledgeByCode(code, viewer.id);
-  if (!pledge || pledge.slug !== slug) notFound();
+  const receipt = await getPledgeReceipt(code);
+  if (!receipt || receipt.pledge.slug !== slug) notFound();
 
-  const addOnLines = pledgeAddOnLines(pledge.id);
+  const { pledge, addOnLines } = receipt;
   const pct = percentOf(pledge.pledged_amount, pledge.goal_amount);
 
   return (

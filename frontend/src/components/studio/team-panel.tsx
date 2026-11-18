@@ -74,7 +74,7 @@ export function TeamPanel({
         <ActionForm action={inviteCollaboratorAction} resetOnSuccess className="mt-4 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <input type="hidden" name="project_id" value={projectId} />
           <Field label="Email tài khoản cần mời" required>
-            <Input name="email" type="email" required placeholder="ví dụ: giahuy@fundviet.vn" />
+            <Input name="email" type="email" required placeholder="ví dụ: ctv000001@gmail.com" />
           </Field>
           <Field label="Lời nhắn (tuỳ chọn)">
             <Textarea name="message" rows={1} className="min-h-11 py-2.5" placeholder="Cùng mình quản lý cộng đồng dự án nhé!" />

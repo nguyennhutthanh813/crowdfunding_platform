@@ -10,12 +10,12 @@ export const metadata = { title: "Thông báo" };
 export default async function MyNotificationsPage(props: {
   searchParams: Promise<{ filter?: string }>;
 }) {
-  const v = await requireSystemPerm("account.manage", "/me/notifications");
+  await requireSystemPerm("account.manage", "/me/notifications");
   const sp = await props.searchParams;
   const filter = sp.filter === "unread" ? "unread" : "all";
 
-  const summary = meSummary(v.id);
-  const items = myNotifications(v.id, filter === "unread", 150);
+  const [summary, items] = await Promise.all([meSummary(), myNotifications(filter === "unread", 150)]);
+  const unreadCount = summary?.unread_notifications ?? 0;
 
   return (
     <div className="space-y-6">
@@ -23,7 +23,7 @@ export default async function MyNotificationsPage(props: {
         eyebrow="Cập nhật"
         title="Thông báo"
         description="Cập nhật tiến độ dự án, phản hồi bình luận, tin nhắn và trạng thái kiểm duyệt."
-        actions={<MarkAllNotificationsButton unreadCount={summary.unread_notifications} />}
+        actions={<MarkAllNotificationsButton unreadCount={unreadCount} />}
       />
 
       <LinkTabs
@@ -32,7 +32,7 @@ export default async function MyNotificationsPage(props: {
         active={filter}
         items={[
           { key: "all", label: "Tất cả" },
-          { key: "unread", label: "Chưa đọc", count: summary.unread_notifications },
+          { key: "unread", label: "Chưa đọc", count: unreadCount },
         ]}
       />
 

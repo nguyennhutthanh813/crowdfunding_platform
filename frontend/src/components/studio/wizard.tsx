@@ -25,6 +25,7 @@ import {
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { ButtonLink } from "@/components/ui/button";
 import { Field, Input, Select, Textarea, Toggle } from "@/components/ui/form";
+import { ImageUploadButton } from "@/components/ui/image-upload";
 import { Badge, ProjectStatusBadge } from "@/components/ui/primitives";
 import { cn, formatCompactVnd, formatVnd } from "@/lib/utils";
 import { COVER_GALLERY, GOAL_CHIPS, WIZARD_STEPS } from "./meta";
@@ -253,14 +254,17 @@ export function WizardShell({
             <div className="space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-semibold">
-                  Chọn ảnh bìa 3D ({COVER_GALLERY.length} mẫu) hoặc nhập URL
+                  Tải ảnh bìa từ máy tính hoặc chọn mẫu 3D ({COVER_GALLERY.length} mẫu)
                 </span>
-                <Input
-                  value={coverUrl}
-                  onChange={(e) => setCoverUrl(e.target.value)}
-                  placeholder="/v3/projects/... hoặc https://..."
-                  className="h-9 sm:w-72"
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <ImageUploadButton folder="projects" label="Tải ảnh lên Cloudinary" onUploaded={setCoverUrl} />
+                  <Input
+                    value={coverUrl}
+                    onChange={(e) => setCoverUrl(e.target.value)}
+                    placeholder="https://res.cloudinary.com/..."
+                    className="h-9 sm:w-64"
+                  />
+                </div>
               </div>
 
               <div className="grid max-h-64 grid-cols-3 gap-2.5 overflow-y-auto rounded-2xl border border-line bg-surface-2/40 p-2.5 sm:grid-cols-4 md:grid-cols-6">

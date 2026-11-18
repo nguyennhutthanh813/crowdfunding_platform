@@ -150,7 +150,7 @@ export function AdminNav({ perms, badges }: { perms: string[]; badges: AdminBadg
                     <span className="relative ml-auto flex items-center gap-1">
                       {hasFlag && (
                         <span
-                          title={`${badges.flagged} dự án có từ 3 báo cáo mở (BR13)`}
+                          title={`${badges.flagged} dự án có từ 3 báo cáo vi phạm đang mở`}
                           className={cn(
                             "grid size-5 place-items-center rounded-full",
                             active ? "bg-amber-400/25 text-amber-200" : "bg-rose-500/15 text-rose-600 dark:text-rose-300",

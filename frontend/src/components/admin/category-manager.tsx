@@ -8,6 +8,7 @@ import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/form";
+import { ImageUploadButton } from "@/components/ui/image-upload";
 import { Badge } from "@/components/ui/primitives";
 import { cn, formatCompactVnd, slugify } from "@/lib/utils";
 import { SafeImage } from "./safe-image";
@@ -226,8 +227,12 @@ export function CategoryManager({
                 </Field>
               </div>
 
-              <Field label="Ảnh 3D minh hoạ" hint="Chọn nhanh bộ ảnh có sẵn hoặc nhập đường dẫn / URL.">
+              <Field label="Ảnh 3D minh hoạ" hint="Tải ảnh lên Cloudinary, chọn nhanh bộ ảnh có sẵn hoặc nhập đường dẫn.">
                 <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <ImageUploadButton folder="categories" label="Tải ảnh thể loại lên" onUploaded={setImageUrl} />
+                    {imageUrl && <span className="truncate text-[11px] text-muted max-w-[240px]">{imageUrl}</span>}
+                  </div>
                   <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
                     {presetImages.map((img) => {
                       const active = imageUrl === img;

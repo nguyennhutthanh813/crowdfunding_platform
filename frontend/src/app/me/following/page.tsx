@@ -2,7 +2,7 @@ import Link from "next/link";
 import { MessageSquare, Sparkles, Users } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
-import { creatorSuggestions, followedCreators, savedIds } from "@/server/queries/me";
+import { followingBundle } from "@/server/queries/me";
 import { AdminOnlyNotice } from "@/components/me/admin-only-notice";
 import { SafeAvatar } from "@/components/me/safe-media";
 import { ProjectCard } from "@/components/project/project-card";
@@ -19,14 +19,12 @@ export default async function MyFollowingPage() {
     return <AdminOnlyNotice area="Danh sách theo dõi" />;
   }
 
-  const followed = followedCreators(v.id);
-  const suggestions = creatorSuggestions(v.id, 4);
-  const saved = savedIds(v.id);
+  const { creators: followed, suggestions, saved } = await followingBundle();
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Khám phá · FR18"
+        eyebrow="Khám phá"
         title="Creator đang theo dõi"
         description="Nhận thông báo mỗi khi những creator bạn yêu thích mở chiến dịch mới."
         actions={

@@ -61,7 +61,7 @@ export default async function AdminReviewDetailPage({
 }) {
   await requireSystemPerm("admin.project.review", "/admin/reviews");
   const { slug } = await params;
-  const data = reviewDetail(slug);
+  const data = await reviewDetail(slug);
   if (!data) notFound();
 
   const { project: p, sections, tiers, addOns, faqs, checklist, extraChecks, prediction, creator, pastProjects, reviews } = data;
@@ -322,7 +322,7 @@ export default async function AdminReviewDetailPage({
           <section className="card space-y-4 p-5">
             <div>
               <h3 className="font-bold">Kiểm tra điều kiện &amp; Từ khoá cấm</h3>
-              <p className="text-xs text-muted">Tự động đối chiếu quy tắc BR01–BR02 và từ khoá nhạy cảm</p>
+              <p className="text-xs text-muted">Tự động đối chiếu điều kiện gửi duyệt và từ khoá nhạy cảm</p>
             </div>
 
             <div className="space-y-2">

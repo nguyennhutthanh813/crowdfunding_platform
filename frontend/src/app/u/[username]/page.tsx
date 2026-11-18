@@ -4,8 +4,7 @@ import { Suspense } from "react";
 import { Calendar, EyeOff, FolderKanban, HeartHandshake, MapPin, MessageSquare, Settings, UserCheck, Users } from "lucide-react";
 import { getViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
-import { getPublicProfile, isFollowing, profileBackedProjects, profileCreatedProjects } from "@/server/queries/public";
-import { savedProjectIds } from "@/server/queries/projects";
+import { getPublicProfileBundle } from "@/server/queries/public";
 import { ProjectCard } from "@/components/project/project-card";
 import { FollowButton } from "@/components/project/social-buttons";
 import { Reveal } from "@/components/fx/motion";
@@ -20,8 +19,9 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata(props: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await props.params;
-  const profile = getPublicProfile(username);
-  if (!profile) return { title: "Không tìm thấy người dùng" };
+  const bundle = await getPublicProfileBundle(username);
+  if (!bundle) return { title: "Không tìm thấy người dùng" };
+  const { profile } = bundle;
   return {
     title: `${profile.display_name} (@${profile.username})`,
     description: profile.bio || `Hồ sơ cộng đồng của ${profile.display_name} trên FundViet.`,
@@ -34,14 +34,12 @@ export default async function PublicProfilePage(props: {
 }) {
   const { username } = await props.params;
   const sp = await props.searchParams;
-  const profile = getPublicProfile(username);
-  if (!profile) notFound();
+  const [viewer, bundle] = await Promise.all([getViewer(), getPublicProfileBundle(username)]);
+  if (!bundle) notFound();
 
-  const viewer = await getViewer();
+  const { profile, following, saved, createdProjects, backedProjects } = bundle;
   const isSelf = viewer?.id === profile.id;
   const showBackedTab = profile.hide_backed !== 1 || isSelf;
-  const following = isFollowing(viewer?.id, profile.id);
-  const saved = savedProjectIds(viewer?.id);
   const showSave = !viewer || hasSystemPerm(viewer, "project.save");
   const showFollow = !isSelf && (!viewer || hasSystemPerm(viewer, "user.follow"));
   const showMessage = !isSelf && (!viewer || hasSystemPerm(viewer, "message.send"));
@@ -52,10 +50,7 @@ export default async function PublicProfilePage(props: {
   const activeTab: "created" | "backed" =
     rawTab === "backed" && showBackedTab ? "backed" : rawTab === "created" ? "created" : defaultTab;
 
-  const projects =
-    activeTab === "created"
-      ? profileCreatedProjects(profile.id)
-      : profileBackedProjects(profile.id, isSelf);
+  const projects = activeTab === "created" ? createdProjects : backedProjects;
 
   const tabs: TabItem[] = [
     { key: "created", label: "Dự án đã tạo", icon: <FolderKanban className="size-4" />, count: profile.created },

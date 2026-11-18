@@ -22,7 +22,7 @@ export default async function AdminAuditPage({
   const prefix = firstParam(sp.prefix).trim();
   const page = Number(firstParam(sp.page)) || 1;
 
-  const data = auditList({ prefix, page, limit: 30 });
+  const data = await auditList({ prefix, page, limit: 30 });
   const now = serverNow();
   const totalPrefixes = data.prefixes.reduce((sum, p) => sum + p.count, 0);
 

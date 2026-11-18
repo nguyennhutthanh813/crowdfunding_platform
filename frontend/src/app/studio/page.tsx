@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, BellRing, Clock, FolderKanban, HandCoins, Plus, Rocket, Sparkles, Users } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
-import { listStudioProjects, pendingInvitationsFor, type StudioCard } from "@/server/queries/studio";
+import { getStudioIndexBundle, type StudioCard } from "@/server/queries/studio";
 import { ButtonLink } from "@/components/ui/button";
 import { FundingBar } from "@/components/ui/funding-bar";
 import { EmptyState, PageHeader, SectionTitle, StatCard } from "@/components/ui/layout-bits";
@@ -26,8 +26,7 @@ export default async function StudioDashboardPage() {
   const viewer = await requireViewer("/studio");
   if (viewer.systemRoles.includes("ADMIN")) redirect("/admin");
 
-  const { mine, collab } = listStudioProjects(viewer.id);
-  const invitations = pendingInvitationsFor(viewer.id);
+  const { mine, collab, invitations } = await getStudioIndexBundle();
   const allProjects = [...mine, ...collab];
   const totalRaised = mine.reduce((s, p) => s + p.pledged_amount, 0);
   const totalBackers = mine.reduce((s, p) => s + p.backers_count, 0);

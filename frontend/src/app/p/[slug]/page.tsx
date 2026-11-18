@@ -22,24 +22,9 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { getDb } from "@/server/db";
-import { one } from "@/server/db/helpers";
 import { getViewer } from "@/server/auth/session";
-import { PUBLIC_STATUSES, canViewProject, hasSystemPerm, pledgeBlocker } from "@/server/rbac/rbac";
-import {
-  communityStats,
-  creatorSummary,
-  getProjectBySlug,
-  listAddOns,
-  listComments,
-  listFaqs,
-  listPublishedUpdates,
-  listSections,
-  listTiers,
-  projectTabCounts,
-  viewerProjectContext,
-} from "@/server/queries/public";
-import { savedProjectIds } from "@/server/queries/projects";
+import { PUBLIC_STATUSES, hasSystemPerm } from "@/server/rbac/rbac";
+import { getProjectDetail } from "@/server/queries/public";
 import { ProjectCard } from "@/components/project/project-card";
 import { FollowButton, SaveButton } from "@/components/project/social-buttons";
 import { CountUp } from "@/components/fx/motion";
@@ -71,14 +56,13 @@ const VALID_TABS: TabKey[] = ["campaign", "rewards", "creator", "faq", "updates"
 
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await props.params;
-  const project = getProjectBySlug(slug);
-  const viewer = await getViewer();
-  if (!project || !canViewProject(getDb(), viewer, project)) {
+  const detail = await getProjectDetail(slug);
+  if (!detail) {
     return { title: "Không tìm thấy dự án" };
   }
   return {
-    title: project.title,
-    description: project.blurb || `${project.title} trên FundViet`,
+    title: detail.project.title,
+    description: detail.project.blurb || `${detail.project.title} trên FundViet`,
   };
 }
 
@@ -91,14 +75,25 @@ export default async function ProjectDetailPage(props: {
   const rawTab = typeof sp.tab === "string" ? sp.tab : "campaign";
   const tab: TabKey = VALID_TABS.includes(rawTab as TabKey) ? (rawTab as TabKey) : "campaign";
 
-  const viewer = await getViewer();
-  const project = getProjectBySlug(slug);
-  const db = getDb();
-  if (!project || !canViewProject(db, viewer, project)) notFound();
+  const [viewer, detail] = await Promise.all([getViewer(), getProjectDetail(slug)]);
+  if (!detail) notFound();
 
-  const ctx = viewerProjectContext(viewer, project);
-  const blocker = pledgeBlocker(db, viewer, project);
-  const counts = projectTabCounts(project.id, ctx.canModerate || ctx.isAdmin);
+  const {
+    project,
+    ctx,
+    blocker,
+    counts,
+    statusNote,
+    sections,
+    tiers,
+    addOns,
+    faqs,
+    updates,
+    comments,
+    community,
+    creator: creatorInfo,
+    saved: savedSet,
+  } = detail;
 
   const isEnded = ["SUCCESS", "FAILED", "FULFILLING", "COMPLETED"].includes(project.status);
   const showFundingBar = project.status === "LIVE" || project.status === "SCHEDULED";
@@ -113,37 +108,6 @@ export default async function ProjectDetailPage(props: {
   const showFollow = (!viewer || hasSystemPerm(viewer, "user.follow")) && viewer?.id !== project.creator_id;
   const showMessage = (!viewer || hasSystemPerm(viewer, "message.send")) && viewer?.id !== project.creator_id;
   const canReport = Boolean(viewer && hasSystemPerm(viewer, "report.create") && !ctx.isMember);
-
-  // Lý do từ chối / tạm gỡ cho thành viên & admin
-  let statusNote: string | null = null;
-  if ((ctx.isMember || ctx.isAdmin) && project.status === "REJECTED") {
-    statusNote =
-      one<{ note: string }>(
-        db,
-        `SELECT note FROM project_reviews WHERE project_id = ? AND decision IN ('REJECTED','CHANGES_REQUESTED') ORDER BY created_at DESC LIMIT 1`,
-        project.id,
-      )?.note ?? null;
-  } else if ((ctx.isMember || ctx.isAdmin) && project.status === "SUSPENDED") {
-    statusNote =
-      one<{ reason: string }>(
-        db,
-        `SELECT reason FROM project_status_history WHERE project_id = ? AND to_status = 'SUSPENDED' ORDER BY created_at DESC LIMIT 1`,
-        project.id,
-      )?.reason ?? null;
-  }
-
-  // Dữ liệu theo tab & hiển thị hoàn thành FR08
-  const needsUpdatesForSummary = isEnded && project.completed_display === "UPDATES";
-  const sections = tab === "campaign" ? listSections(project.id) : [];
-  const tiers = tab === "campaign" || tab === "rewards" ? listTiers(project.id) : [];
-  const addOns = tab === "rewards" ? listAddOns(project.id) : [];
-  const faqs = tab === "faq" ? listFaqs(project.id) : [];
-  const updates = tab === "updates" || needsUpdatesForSummary ? listPublishedUpdates(project.id) : [];
-  const comments =
-    tab === "comments" ? listComments(project.id, viewer?.id ?? null, ctx.canModerate || ctx.isAdmin) : [];
-  const community = tab === "community" ? communityStats(project.id) : null;
-  const creatorInfo = tab === "creator" ? creatorSummary(project.creator_id, project.id) : null;
-  const savedSet = tab === "creator" ? savedProjectIds(viewer?.id) : new Set<string>();
 
   const tabs: TabItem[] = [
     { key: "campaign", label: "Chiến dịch" },
@@ -192,7 +156,7 @@ export default async function ProjectDetailPage(props: {
         </>
       )}
 
-      {/* FR08: Dự án đã kết thúc -> ẨN thanh tiến trình, hiển thị theo completed_display */}
+      {/* Dự án đã kết thúc -> Ẩn thanh tiến trình, hiển thị theo completed_display */}
       {isEnded && (
         <CompletedDisplayCard
           project={project}

@@ -792,19 +792,19 @@ export function PledgeStepper({
               <input type="hidden" name="note" value={note} />
               <input type="hidden" name="replaceExisting" value={existingPledge ? "1" : "0"} />
 
-              {/* Thẻ thanh toán mô phỏng */}
+              {/* Thẻ thanh toán uỷ quyền */}
               <div className="card space-y-4 p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="flex items-center gap-2 text-base font-bold sm:text-lg">
-                      <CreditCard className="size-4 text-violet-500" /> Phương thức thanh toán (MockPay)
+                      <CreditCard className="size-4 text-violet-500" /> Phương thức thanh toán uỷ quyền
                     </h2>
                     <p className="text-xs text-muted">
-                      Hệ thống chỉ lưu token mô phỏng & 4 số cuối — không lưu số thẻ thật (NFR07).
+                      Hệ thống chỉ lưu khoá token &amp; 4 số cuối — không lưu số thẻ đầy đủ trên máy chủ.
                     </p>
                   </div>
                   <Badge tone="emerald">
-                    <Lock className="size-3" /> Sandbox an toàn
+                    <Lock className="size-3" /> Bảo mật Token hoá
                   </Badge>
                 </div>
 
@@ -858,7 +858,7 @@ export function PledgeStepper({
                           : "border-line text-muted hover:border-violet-400/50 hover:text-fg",
                       )}
                     >
-                      <Plus className="size-4" /> Dùng thẻ mới (MockPay)
+                      <Plus className="size-4" /> Liên kết thẻ mới
                     </button>
                   </div>
                 )}

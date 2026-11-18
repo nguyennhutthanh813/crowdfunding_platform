@@ -14,12 +14,12 @@ export default async function MyActivityPage() {
     return <AdminOnlyNotice area="Bảng tin hoạt động" />;
   }
 
-  const items = activityFeed(v.id, 80);
+  const items = await activityFeed(80);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tương tác · FR27"
+        eyebrow="Tương tác"
         title="Bảng tin hoạt động"
         description="Theo dõi các bản tin Update mới, thay đổi trạng thái dự án đã góp/lưu và lịch sử tương tác của bạn."
       />

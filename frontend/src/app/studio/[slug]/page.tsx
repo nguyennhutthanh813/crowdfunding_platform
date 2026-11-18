@@ -15,34 +15,9 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { getDb } from "@/server/db";
 import { requireViewer } from "@/server/auth/session";
-import { analyzeProjectComments } from "@/server/services/ai/run";
 import { LABEL_META, type CommentLabel } from "@/server/services/ai/comments";
-import {
-  allProjectPermissions,
-  checklistOf,
-  commentInbox,
-  digitalCapturedCount,
-  getStudioProject,
-  hasAnyPledge,
-  listBackers,
-  listCategoriesForStudio,
-  listFaqs,
-  listInvitations,
-  listSections,
-  listShipments,
-  listUpdates,
-  livePrediction,
-  overviewData,
-  reviewHistory,
-  rewardsData,
-  rolePermissionList,
-  sidebarCounts,
-  statusTimeline,
-  studioAccess,
-  teamMembers,
-} from "@/server/queries/studio";
+import { getStudioWorkspace } from "@/server/queries/studio";
 import { ButtonLink } from "@/components/ui/button";
 import { FundingBar } from "@/components/ui/funding-bar";
 import { StatCard } from "@/components/ui/layout-bits";
@@ -66,8 +41,8 @@ import { SettingsPanel } from "@/components/studio/settings-panel";
 
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params;
-  const p = getStudioProject(slug);
-  return { title: p ? `${p.title} · Studio` : "Studio" };
+  const ws = await getStudioWorkspace(slug, "overview");
+  return { title: ws?.project ? `${ws.project.title} · Studio` : "Studio" };
 }
 
 export default async function StudioProjectPage(props: {
@@ -80,20 +55,23 @@ export default async function StudioProjectPage(props: {
   const viewer = await requireViewer(`/studio/${slug}`);
   if (viewer.systemRoles.includes("ADMIN")) redirect(`/admin/reviews/${slug}`);
 
-  const project = getStudioProject(slug);
-  if (!project) notFound();
+  const rawTab = typeof sp.tab === "string" ? sp.tab : "overview";
+  const requestedMeta = STUDIO_TABS.find((t) => t.key === rawTab);
+  const tabQuery = requestedMeta ? requestedMeta.key : "overview";
 
-  const access = studioAccess(viewer.id, project.id);
-  if (!access.role) notFound();
+  const ws = await getStudioWorkspace(slug, tabQuery);
+  if (!ws || !ws.project || !ws.access?.role) notFound();
+
+  const { project, access } = ws;
+  const counts = ws.counts ?? { pendingComments: 0, draftUpdates: 0, faqs: 0, backers: 0 };
+  const reviews = ws.reviews ?? [];
+  const timeline = ws.timeline ?? [];
 
   const permSet = new Set(access.perms);
   const allowedTabs = STUDIO_TABS.filter((t) => permSet.has(t.perm));
-  const rawTab = typeof sp.tab === "string" ? sp.tab : "overview";
-  const requestedMeta = STUDIO_TABS.find((t) => t.key === rawTab);
   const activeTab: StudioTabKey = requestedMeta ? requestedMeta.key : (allowedTabs[0]?.key ?? "overview");
   const isAllowed = requestedMeta ? permSet.has(requestedMeta.perm) : true;
 
-  const counts = sidebarCounts(project.id);
   const tabItems = allowedTabs.map((t) => ({
     key: t.key,
     label: t.label,
@@ -113,8 +91,8 @@ export default async function StudioProjectPage(props: {
   const left = timeLeft(project.end_at);
   const currentStepIdx = LIFECYCLE_STEPS.findIndex((s) => (s.statuses as readonly string[]).includes(project.status));
 
-  const latestReview = project.status === "REJECTED" ? reviewHistory(project.id)[0] : undefined;
-  const latestSuspend = project.status === "SUSPENDED" ? statusTimeline(project.id)[0] : undefined;
+  const latestReview = project.status === "REJECTED" ? reviews[0] : undefined;
+  const latestSuspend = project.status === "SUSPENDED" ? timeline[0] : undefined;
 
   // Chuẩn bị dữ liệu riêng theo tab đang mở & đã qua kiểm tra quyền
   let contentEl: React.ReactNode = null;
@@ -135,9 +113,17 @@ export default async function StudioProjectPage(props: {
     );
   } else if (activeTab === "overview") {
     const canSeeBackerNames = permSet.has("backer.view");
-    const ov = overviewData(project.id, canSeeBackerNames);
-    const activeMembers = teamMembers(project.id).filter((m) => m.status === "ACTIVE");
-    const fallbackPred = !ov.latest ? livePrediction(project.id) : null;
+    const ov = ws.overview ?? {
+      daily: [],
+      views7: 0,
+      saves: 0,
+      latest: null,
+      history: [],
+      pledges: [],
+      comments: [],
+    };
+    const activeMembers = (ws.team ?? []).filter((m) => m.status === "ACTIVE");
+    const fallbackPred = !ov.latest ? (ws.draftPrediction ?? null) : null;
     const aiDisplay = ov.latest
       ? {
           probability: ov.latest.probability,
@@ -301,64 +287,64 @@ export default async function StudioProjectPage(props: {
     contentEl = (
       <ContentTab
         project={project}
-        categories={listCategoriesForStudio()}
-        sections={listSections(project.id)}
+        categories={ws.categories ?? []}
+        sections={ws.sections ?? []}
       />
     );
   } else if (activeTab === "rewards") {
-    const rw = rewardsData(project.id);
+    const rw = ws.rewards ?? { tiers: [], addOns: [] };
     contentEl = <RewardsEditor projectId={project.id} tiers={rw.tiers} addOns={rw.addOns} />;
   } else if (activeTab === "updates") {
     contentEl = (
       <UpdatesPanel
         projectId={project.id}
-        updates={listUpdates(project.id)}
+        updates={ws.updates ?? []}
         canPublish={permSet.has("update.publish")}
       />
     );
   } else if (activeTab === "faq") {
-    contentEl = <FaqPanel projectId={project.id} faqs={listFaqs(project.id)} />;
+    contentEl = <FaqPanel projectId={project.id} faqs={ws.faqs ?? []} />;
   } else if (activeTab === "comments") {
-    analyzeProjectComments(getDb(), project.id);
     contentEl = (
       <CommentsInbox
         projectId={project.id}
-        comments={commentInbox(project.id)}
+        comments={ws.inbox ?? []}
         canReply={permSet.has("comment.reply")}
         canModerate={permSet.has("comment.moderate")}
         canFaq={permSet.has("faq.manage")}
       />
     );
   } else if (activeTab === "backers") {
-    contentEl = <BackersTable slug={project.slug} backers={listBackers(project.id)} />;
+    contentEl = <BackersTable slug={project.slug} backers={ws.backers ?? []} />;
   } else if (activeTab === "fulfillment") {
     contentEl = (
       <FulfillmentPanel
         projectId={project.id}
         status={project.status}
-        shipments={listShipments(project.id)}
-        digitalCount={digitalCapturedCount(project.id)}
+        shipments={ws.shipments ?? []}
+        digitalCount={ws.digitalCaptured ?? 0}
       />
     );
   } else if (activeTab === "team") {
+    const allPerms = ws.allPerms ?? [];
     contentEl = (
       <TeamPanel
         projectId={project.id}
-        members={teamMembers(project.id)}
-        invitations={listInvitations(project.id)}
-        allPerms={allProjectPermissions()}
-        collabPerms={rolePermissionList("COLLABORATOR").map((p) => p.code)}
-        creatorPerms={rolePermissionList("CREATOR").map((p) => p.code)}
+        members={ws.team ?? []}
+        invitations={ws.invitations ?? []}
+        allPerms={allPerms}
+        collabPerms={(ws.collabPerms ?? []).map((p) => p.code)}
+        creatorPerms={access.role === "CREATOR" ? access.perms : allPerms.map((p) => p.code)}
       />
     );
   } else if (activeTab === "settings") {
     contentEl = (
       <SettingsPanel
         project={project}
-        checklist={checklistOf(project.id)}
-        reviews={reviewHistory(project.id)}
-        timeline={statusTimeline(project.id)}
-        hasPledges={hasAnyPledge(project.id)}
+        checklist={ws.checklist ?? []}
+        reviews={reviews}
+        timeline={timeline}
+        hasPledges={Boolean(ws.anyPledge)}
       />
     );
   }
@@ -397,7 +383,7 @@ export default async function StudioProjectPage(props: {
                 {project.category_name}
               </span>
               <ProjectStatusBadge status={project.status} />
-              <RoleBadge role={access.role} />
+              <RoleBadge role={access.role!} />
             </div>
 
             <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">{project.title}</h1>

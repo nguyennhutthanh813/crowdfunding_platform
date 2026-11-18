@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Sparkles } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
-import { recommendations, savedIds } from "@/server/queries/me";
+import { recommendations } from "@/server/queries/me";
 import { AdminOnlyNotice } from "@/components/me/admin-only-notice";
 import { ProjectCard } from "@/components/project/project-card";
 import { ButtonLink } from "@/components/ui/button";
@@ -17,13 +17,12 @@ export default async function MyRecommendedPage() {
     return <AdminOnlyNotice area="Gợi ý dự án" />;
   }
 
-  const { items, coldStart, topCategories } = recommendations(v.id, 12);
-  const saved = savedIds(v.id);
+  const { items, coldStart, topCategories, saved } = await recommendations(12);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Khám phá · FR17"
+        eyebrow="Gợi ý thông minh"
         title="Đề xuất dành cho bạn"
         description="Hệ thống tính điểm minh bạch dựa trên thể loại bạn yêu thích, creator bạn theo dõi và xu hướng cộng đồng."
       />

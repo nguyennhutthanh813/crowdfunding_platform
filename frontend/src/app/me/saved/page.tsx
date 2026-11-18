@@ -15,13 +15,13 @@ export default async function MySavedPage() {
     return <AdminOnlyNotice area="Dự án đã lưu" />;
   }
 
-  const { upcoming, others, hidden } = savedProjects(v.id);
+  const { upcoming, others, hidden } = await savedProjects();
   const empty = upcoming.length === 0 && others.length === 0;
 
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Khám phá · FR16"
+        eyebrow="Đã lưu"
         title="Dự án đã lưu"
         description="Lưu lại những ý tưởng bạn quan tâm để nhận thông báo khi sắp mở hoặc quay lại góp vốn sau."
         actions={

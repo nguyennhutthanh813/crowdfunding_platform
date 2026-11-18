@@ -6,6 +6,7 @@ import type { SectionRow, StudioProject } from "@/server/queries/studio";
 import { updateBasicsAction } from "@/server/actions/studio";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
+import { ImageUploadButton } from "@/components/ui/image-upload";
 import { cn } from "@/lib/utils";
 import { COVER_GALLERY } from "./meta";
 import { StudioImage } from "./media";
@@ -59,9 +60,10 @@ export function ContentTab({
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="URL ảnh bìa">
-            <div className="flex gap-2">
-              <Input value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="/v3/projects/..." />
+          <Field label="Ảnh bìa dự án">
+            <div className="flex flex-wrap gap-2">
+              <Input value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." className="min-w-[180px] flex-1" />
+              <ImageUploadButton folder="projects" label="Tải ảnh bìa" onUploaded={setCoverUrl} className="h-11 px-3" />
               <button
                 type="button"
                 onClick={() => setShowGallery((o) => !o)}
