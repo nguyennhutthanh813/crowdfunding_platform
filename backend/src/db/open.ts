@@ -1,16 +1,21 @@
-import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
+import type { DatabaseSync } from "node:sqlite";
 import { mkdirSync, existsSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { SCHEMA_SQL, SCHEMA_VERSION } from "./schema.js";
 import { seedDatabase } from "./seed.js";
 
+const require = createRequire(import.meta.url);
+
 /** Khởi tạo / mở CSDL SQLite cục bộ và tự động nạp dữ liệu chuẩn nếu chưa có. */
 export function openSqliteDatabase(file: string, opts: { reset?: boolean; seed?: boolean } = {}): DatabaseSync {
+  const { DatabaseSync: SqliteDatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+
   if (opts.reset && existsSync(file)) {
     for (const f of [file, `${file}-wal`, `${file}-shm`]) if (existsSync(f)) rmSync(f);
   }
   mkdirSync(dirname(file), { recursive: true });
-  const db = new DatabaseSync(file);
+  const db = new SqliteDatabaseSync(file);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;");
   db.exec(SCHEMA_SQL);
   const seeded = db.prepare(`SELECT value FROM meta WHERE key = 'seeded_at'`).get() as { value?: string } | undefined;

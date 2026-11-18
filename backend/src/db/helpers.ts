@@ -115,7 +115,9 @@ export class PostgresDbClient implements DbClient {
     const needsSsl = !/localhost|127\.0\.0\.1/i.test(connectionString);
     this.pool = new pg.Pool({
       connectionString,
-      max: 10,
+      max: process.env.VERCEL ? 4 : 10,
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 20000,
       ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
     });
   }

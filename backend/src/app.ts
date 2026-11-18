@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import cors from "cors";
 import express from "express";
@@ -27,7 +28,12 @@ export function createApp() {
     cors({
       origin: (origin, cb) => {
         if (!origin) return cb(null, true);
-        if (env.corsOrigins.includes(origin) || env.corsOrigins.includes("*")) {
+        const normalized = origin.replace(/\/+$/, "");
+        if (
+          env.corsOrigins.includes(normalized) ||
+          env.corsOrigins.includes("*") ||
+          (env.isVercel && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalized))
+        ) {
           return cb(null, true);
         }
         return cb(null, false);
@@ -41,9 +47,22 @@ export function createApp() {
 
   // Phục vụ ảnh tĩnh nội bộ và ảnh tải lên cục bộ khi chưa cấu hình Cloudinary
   app.use("/v3", express.static(join(process.cwd(), "public", "v3"), { maxAge: "7d" }));
+  if (env.isVercel) {
+    app.use("/uploads", express.static(join(tmpdir(), "uploads"), { maxAge: "1d" }));
+  }
   app.use("/uploads", express.static(join(process.cwd(), "uploads"), { maxAge: "7d" }));
 
   app.use(attachViewerMiddleware);
+
+  app.get(["/", "/api"], (_req, res) => {
+    res.json({
+      ok: true,
+      service: "fundviet-backend",
+      version: "1.0.0",
+      status: "running",
+      health: "/api/v1/health",
+    });
+  });
 
   app.get("/api/v1/health", async (_req, res) => {
     try {

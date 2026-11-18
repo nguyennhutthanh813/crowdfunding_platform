@@ -8,7 +8,7 @@ on:
 
 jobs:
   quality:
-    name: Code Quality
+    name: Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -21,20 +21,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: 'pnpm'
+          node-version: 22
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: pnpm db:generate
 
       - name: Lint
         run: pnpm lint
 
       - name: Type Check
         run: pnpm type-check
+
+      - name: Backend API Tests
+        run: pnpm test:backend
 
       - name: Build
         run: pnpm build

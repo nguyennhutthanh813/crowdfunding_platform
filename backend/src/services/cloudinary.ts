@@ -73,7 +73,7 @@ export async function uploadImageBuffer(
     };
   }
 
-  // Fallback local storage khi chưa khai báo CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_SECRET
+  // Fallback lưu tệp tạm an toàn khi chưa khai báo đủ CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_SECRET
   const ext = mimeType.includes("webp")
     ? "webp"
     : mimeType.includes("png")
@@ -82,7 +82,7 @@ export async function uploadImageBuffer(
         ? "gif"
         : "jpg";
   const fileName = `${opts.publicId ?? randomUUID()}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const uploadDir = join(process.cwd(), "uploads");
+  const uploadDir = env.isVercel ? "/tmp/uploads" : join(process.cwd(), "uploads");
   mkdirSync(uploadDir, { recursive: true });
   writeFileSync(join(uploadDir, fileName), buffer);
   return {

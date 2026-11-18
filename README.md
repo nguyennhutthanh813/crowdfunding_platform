@@ -54,3 +54,21 @@ corepack pnpm lint
 corepack pnpm test:backend
 corepack pnpm build
 ```
+
+## Triển khai lên Vercel (Backend + Frontend)
+
+Repository hỗ trợ triển khai tách biệt 2 dịch vụ từ cùng một kho mã nguồn GitHub (`nguyennhutthanh813/crowdfunding_platform`):
+
+1. **Dịch vụ Backend (`fundviet-backend`)**:
+   - Tạo Project mới trên Vercel -> chọn repo `crowdfunding_platform` -> đặt **Root Directory** = `backend` (Node.js `22.x`).
+   - Khai báo Environment Variables dựa theo `backend/.env.example` (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL`, `DATABASE_URL`, `CLOUDINARY_*`, `SMTP_*`).
+   - Kiểm tra trạng thái sau khi deploy tại `https://<ten-backend>.vercel.app/api/v1/health`.
+
+2. **Dịch vụ Frontend (`fundviet-frontend`)**:
+   - Tạo Project thứ hai trên Vercel -> chọn cùng repo `crowdfunding_platform` -> đặt **Root Directory** = `frontend` (Framework `Next.js`).
+   - Khai báo Environment Variables dựa theo `frontend/.env.example`:
+     - `BACKEND_URL=https://<ten-backend>.vercel.app`
+     - `NEXT_PUBLIC_API_URL=https://<ten-backend>.vercel.app/api/v1`
+     - `NEXT_PUBLIC_SUPABASE_URL` & `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - Sau khi có domain chính thức của Frontend, cập nhật lại `FRONTEND_URL=https://<ten-frontend>.vercel.app` bên phía Project Backend rồi Redeploy Backend.
+

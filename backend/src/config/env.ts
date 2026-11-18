@@ -4,16 +4,30 @@ function cleanSecret(val: string | undefined): string {
   return (val ?? "").trim();
 }
 
+const vercelHost =
+  cleanSecret(process.env.VERCEL_PROJECT_PRODUCTION_URL) || cleanSecret(process.env.VERCEL_URL);
+const defaultBackendUrl = vercelHost
+  ? `https://${vercelHost.replace(/^https?:\/\//, "")}`
+  : `http://localhost:${process.env.PORT || 4000}`;
+
+const frontendUrl = cleanSecret(process.env.FRONTEND_URL) || "http://localhost:3000";
+const rawCors = (process.env.CORS_ORIGINS || frontendUrl)
+  .split(",")
+  .map((s) => s.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+const normalizedFrontend = frontendUrl.replace(/\/+$/, "");
+if (normalizedFrontend && !rawCors.includes(normalizedFrontend)) {
+  rawCors.push(normalizedFrontend);
+}
+
 export const env = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || "development",
   isProd: process.env.NODE_ENV === "production",
-  frontendUrl: cleanSecret(process.env.FRONTEND_URL) || "http://localhost:3000",
-  backendPublicUrl: cleanSecret(process.env.BACKEND_PUBLIC_URL) || `http://localhost:${process.env.PORT || 4000}`,
-  corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:3000")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
+  isVercel: Boolean(process.env.VERCEL),
+  frontendUrl: normalizedFrontend,
+  backendPublicUrl: (cleanSecret(process.env.BACKEND_PUBLIC_URL) || defaultBackendUrl).replace(/\/+$/, ""),
+  corsOrigins: rawCors,
 
   // Supabase
   supabaseUrl: cleanSecret(process.env.SUPABASE_URL),
@@ -34,7 +48,7 @@ export const env = {
   cloudinaryApiSecret: cleanSecret(process.env.CLOUDINARY_API_SECRET),
   cloudinaryFolder: cleanSecret(process.env.CLOUDINARY_FOLDER) || "fundviet",
 
-  // Gmail SMTP (App passwords from Google have spaces every 4 chars — strip spaces automatically)
+  // Gmail SMTP
   smtpHost: cleanSecret(process.env.SMTP_HOST) || "smtp.gmail.com",
   smtpPort: Number(process.env.SMTP_PORT || 465),
   smtpSecure: (process.env.SMTP_SECURE || "true").toLowerCase() !== "false",

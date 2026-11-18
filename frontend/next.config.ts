@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    const backend = process.env.BACKEND_URL || "http://localhost:4000";
+    const backend = (process.env.BACKEND_URL || "http://localhost:4000").replace(/\/+$/, "");
     return [{ source: "/uploads/:path*", destination: `${backend}/uploads/:path*` }];
   },
 };

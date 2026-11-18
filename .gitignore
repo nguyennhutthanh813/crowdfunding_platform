@@ -10,7 +10,7 @@ build
 .turbo
 .vercel
 
-# Environment secrets (NEVER commit real credentials)
+# Environment files
 .env
 .env.local
 .env.*.local
@@ -19,7 +19,7 @@ frontend/.env
 frontend/.env.local
 !**/.env.example
 
-# Runtime SQLite WAL/SHM & local uploads
+# Runtime SQLite temporary files & local uploads
 *.sqlite-wal
 *.sqlite-shm
 *.sqlite-journal
@@ -33,6 +33,10 @@ backend/uploads/*
 *.swo
 .DS_Store
 Thumbs.db
+.*cache
+.claude/
+.cursor/
+.gemini/
 
 # Logs & Misc
 npm-debug.log*
@@ -41,22 +45,3 @@ yarn-debug.log*
 yarn-error.log*
 coverage
 *.tsbuildinfo
-
-# AI / Agent configs & working notes
-.gemini/
-.claude/
-.codex/
-.cursor/
-.agent/
-.agents/
-.commandcode/
-AGENTS.md
-CLAUDE.md
-GEMINI.md
-CURSOR.md
-COPILOT.md
-ARCHITECTURE.md
-CONTEXT_CACHE.md
-walkthrough.md
-implementation_plan.md
-task.md
