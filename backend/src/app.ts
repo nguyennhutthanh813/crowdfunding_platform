@@ -102,9 +102,19 @@ export function createApp() {
     res.status(404).json({ ok: false, error: "Không tìm thấy đường dẫn API." });
   });
 
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     void _next;
-    res.status(500).json({ ok: false, error: humanizeError(err) });
+    const e = err as { type?: string; status?: number };
+    if (e?.type === "entity.parse.failed") {
+      res.status(400).json({ ok: false, code: "INVALID_JSON", error: "Dữ liệu gửi lên không đúng định dạng JSON." });
+      return;
+    }
+    if (e?.type === "entity.too.large") {
+      res.status(413).json({ ok: false, code: "PAYLOAD_TOO_LARGE", error: "Dữ liệu gửi lên quá lớn." });
+      return;
+    }
+    console.error(`[error] ${req.method} ${req.originalUrl}`, err);
+    res.status(500).json({ ok: false, code: "INTERNAL_ERROR", error: humanizeError(err) });
   });
 
   return app;

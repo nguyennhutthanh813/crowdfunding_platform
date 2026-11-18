@@ -173,6 +173,34 @@ async function main() {
     const smtpCheck = await verifySmtpConnection();
     console.log(`  ✓ Kiểm tra kết nối Gmail SMTP: ${smtpCheck.ok ? "Sẵn sàng gửi OTP qua Email" : `Cảnh báo: ${smtpCheck.error}`}`);
 
+    // 7. Thông báo bảo mật trong ứng dụng sau khi đăng nhập / bật tắt 2FA
+    const notifs = await req<{ ok: boolean; notifications: { title: string }[] }>("/me/notifications?unread=0&limit=50", {
+      token: tokens["Người dùng"],
+    });
+    assert.equal(notifs.status, 200);
+    const titles = notifs.data.notifications.map((n) => n.title);
+    assert.ok(titles.some((t) => t.includes("Đăng nhập mới")), "Phải có thông báo đăng nhập mới");
+    assert.ok(titles.some((t) => t.includes("xác thực 2 lớp")), "Phải có thông báo bật/tắt 2FA");
+    console.log("  ✓ Thông báo bảo mật (đăng nhập mới, bật/tắt 2FA) xuất hiện trong chuông thông báo");
+
+    // 8. JSON hỏng phải trả lỗi 400 rõ ràng thay vì 500
+    const bad = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{oops" });
+    const badJson = (await bad.json()) as { code?: string };
+    assert.equal(bad.status, 400);
+    assert.equal(badJson.code, "INVALID_JSON");
+
+    // 9. Chặn dò mật khẩu: vượt hạn mức đăng nhập phải nhận 429 kèm Retry-After
+    let limited = 0;
+    for (let i = 0; i < 12; i++) {
+      const r = await req<{ code?: string }>("/auth/login", { method: "POST", body: { identifier: "user000001@gmail.com", password: "sai-mat-khau" } });
+      if (r.status === 429) {
+        limited++;
+        assert.equal(r.data.code, "RATE_LIMITED");
+      }
+    }
+    assert.ok(limited > 0, "Phải bị giới hạn sau nhiều lần đăng nhập sai");
+    console.log(`  ✓ Chặn dò mật khẩu hoạt động (${limited} yêu cầu bị 429)`);
+
     console.log("✅ TẤT CẢ KIỂM THỬ BACKEND ĐỀU VƯỢT QUA!");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));

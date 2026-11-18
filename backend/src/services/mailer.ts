@@ -52,7 +52,36 @@ function wrapEmailLayout(title: string, contentHtml: string): string {
 </html>`;
 }
 
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+export async function sendSecurityAlertEmail(
+  to: string,
+  displayName: string,
+  title: string,
+  message: string,
+  detail: string,
+  siteUrl: string,
+): Promise<boolean> {
+  const t = getTransporter();
+  if (!t) return false;
+  const html = wrapEmailLayout(
+    esc(title),
+    `
+    <p style="margin:0 0 14px;line-height:1.6;">Xin chào <strong>${esc(displayName)}</strong>,</p>
+    <p style="margin:0 0 14px;line-height:1.6;">${esc(message)}</p>
+    ${detail ? `<p style="margin:0 0 14px;padding:12px 14px;background:#f1f5f9;border-radius:10px;font-size:13px;color:#334155;">${esc(detail)}</p>` : ""}
+    <p style="margin:0 0 6px;font-size:13px;color:#475569;line-height:1.6;">Nếu đây không phải bạn, hãy đổi mật khẩu ngay và bật xác thực 2 lớp tại
+      <a href="${esc(siteUrl)}/me/settings?tab=account" style="color:#6d28d9;">Cài đặt bảo mật</a>.</p>
+    `,
+  );
+  await t.sendMail({ from: env.mailFrom, to, subject: `[FundViet] ${title}`, html });
+  return true;
+}
+
 export async function sendPasswordResetOtpEmail(to: string, displayName: string, otpCode: string): Promise<boolean> {
+  displayName = esc(displayName);
   const t = getTransporter();
   if (!t) {
     console.warn(`[mailer] SMTP chưa cấu hình — OTP đặt lại mật khẩu cho ${to}: ${otpCode}`);
@@ -79,6 +108,7 @@ export async function sendPasswordResetOtpEmail(to: string, displayName: string,
 }
 
 export async function sendRegisterVerificationEmail(to: string, displayName: string, otpCode: string): Promise<boolean> {
+  displayName = esc(displayName);
   const t = getTransporter();
   if (!t) {
     console.warn(`[mailer] SMTP chưa cấu hình — OTP xác thực email cho ${to}: ${otpCode}`);

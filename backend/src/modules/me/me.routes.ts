@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getDb } from "../../db/index.js";
 import { humanizeError } from "../../db/helpers.js";
 import { requireAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { recordSecurityEvent } from "../../services/security-events.js";
 import { getTwoFactorStatus, listUserSessions } from "../auth/auth.service.js";
 import {
   activityFeed,
@@ -256,6 +257,12 @@ meRouter.patch("/account", async (req, res) => {
 
 meRouter.post("/password", async (req, res) => {
   const result = await changePassword(req.viewer, req.body ?? {}, req.sessionId);
+  if (!result.error && req.viewer) {
+    await recordSecurityEvent(getDb(), req.viewer, "PASSWORD_CHANGED", {
+      ip: req.ip,
+      userAgent: String(req.headers["user-agent"] ?? ""),
+    });
+  }
   res.status(result.error ? 400 : 200).json(result);
 });
 

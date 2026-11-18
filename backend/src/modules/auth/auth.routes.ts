@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { getDb } from "../../db/index.js";
-import { DomainError, humanizeError } from "../../db/helpers.js";
+import { DomainError, humanizeError, one } from "../../db/helpers.js";
 import { requireAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { rateLimit } from "../../middlewares/rate-limit.js";
+import { recordSecurityEvent } from "../../services/security-events.js";
 import { serializeViewer } from "../../rbac/rbac.js";
 import {
   confirmEmailVerificationOtp,
@@ -45,10 +47,27 @@ function sendError(res: { status: (c: number) => { json: (b: unknown) => void } 
               ? 409
               : 400
       : 400;
-  res.status(status).json({ ok: false, error: humanizeError(e) });
+  res.status(status).json({
+    ok: false,
+    error: humanizeError(e),
+    code: e instanceof DomainError ? e.code : "BAD_REQUEST",
+  });
 }
 
-authRouter.post("/register", async (req, res) => {
+const loginLimiter = rateLimit({
+  name: "login",
+  max: 10,
+  windowMs: 10 * 60_000,
+  message: "Bạn đã thử đăng nhập quá nhiều lần. Vui lòng đợi vài phút rồi thử lại.",
+});
+const otpLimiter = rateLimit({
+  name: "otp",
+  max: 6,
+  windowMs: 10 * 60_000,
+  message: "Bạn yêu cầu/nhập mã OTP quá nhiều lần. Vui lòng đợi vài phút rồi thử lại.",
+});
+
+authRouter.post("/register", rateLimit({ name: "register", max: 8, windowMs: 60 * 60_000 }), async (req, res) => {
   try {
     const result = await registerUser(getDb(), req.body, clientMeta(req));
     res.status(201).json({ ok: true, ...result });
@@ -57,18 +76,26 @@ authRouter.post("/register", async (req, res) => {
   }
 });
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", loginLimiter, async (req, res) => {
   try {
-    const result = await loginUser(getDb(), req.body ?? {}, clientMeta(req));
+    const db = getDb();
+    const meta = clientMeta(req);
+    const result = await loginUser(db, req.body ?? {}, meta);
+    if (!("requiresTwoFactor" in result && result.requiresTwoFactor) && "user" in result && result.user) {
+      await recordSecurityEvent(db, result.user, "LOGIN", meta);
+    }
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);
   }
 });
 
-authRouter.post("/2fa/verify-login", async (req, res) => {
+authRouter.post("/2fa/verify-login", loginLimiter, async (req, res) => {
   try {
-    const result = await verifyTwoFactorLogin(getDb(), req.body ?? {}, clientMeta(req));
+    const db = getDb();
+    const meta = clientMeta(req);
+    const result = await verifyTwoFactorLogin(db, req.body ?? {}, meta);
+    if (result.user) await recordSecurityEvent(db, result.user, "LOGIN", meta);
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);
@@ -102,7 +129,7 @@ authRouter.get("/me", (req, res) => {
   res.json({ ok: true, user: serializeViewer(req.viewer) });
 });
 
-authRouter.post("/forgot-password", async (req, res) => {
+authRouter.post("/forgot-password", otpLimiter, async (req, res) => {
   try {
     const result = await requestPasswordResetOtp(getDb(), String(req.body?.email ?? ""));
     res.json({ ok: true, ...result });
@@ -111,16 +138,20 @@ authRouter.post("/forgot-password", async (req, res) => {
   }
 });
 
-authRouter.post("/reset-password", async (req, res) => {
+authRouter.post("/reset-password", otpLimiter, async (req, res) => {
   try {
-    const result = await resetPasswordWithOtp(getDb(), req.body ?? {});
+    const db = getDb();
+    const result = await resetPasswordWithOtp(db, req.body ?? {});
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const u = email ? await one<{ id: string; email: string; display_name: string }>(db, `SELECT id, email, display_name FROM users WHERE email = ?`, email) : undefined;
+    if (u) await recordSecurityEvent(db, { id: u.id, email: u.email, displayName: u.display_name }, "PASSWORD_RESET", clientMeta(req));
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);
   }
 });
 
-authRouter.post("/verify-email/send", requireAuthMiddleware, async (req, res) => {
+authRouter.post("/verify-email/send", requireAuthMiddleware, otpLimiter, async (req, res) => {
   try {
     const result = await sendEmailVerificationOtp(getDb(), req.viewer!.id);
     res.json({ ok: true, ...result });
@@ -158,7 +189,9 @@ authRouter.post("/2fa/setup", requireAuthMiddleware, async (req, res) => {
 
 authRouter.post("/2fa/enable", requireAuthMiddleware, async (req, res) => {
   try {
-    const result = await enableTwoFactor(getDb(), req.viewer!.id, String(req.body?.code ?? ""));
+    const db = getDb();
+    const result = await enableTwoFactor(db, req.viewer!.id, String(req.body?.code ?? ""));
+    await recordSecurityEvent(db, req.viewer!, "TWO_FACTOR_ENABLED", clientMeta(req));
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);
@@ -176,7 +209,9 @@ authRouter.post("/2fa/backup-codes/regenerate", requireAuthMiddleware, async (re
 
 authRouter.post("/2fa/disable", requireAuthMiddleware, async (req, res) => {
   try {
-    const result = await disableTwoFactor(getDb(), req.viewer!.id, req.body ?? {});
+    const db = getDb();
+    const result = await disableTwoFactor(db, req.viewer!.id, req.body ?? {});
+    await recordSecurityEvent(db, req.viewer!, "TWO_FACTOR_DISABLED", clientMeta(req));
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);

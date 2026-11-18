@@ -57,6 +57,10 @@ export const env = {
   mailFrom: cleanSecret(process.env.MAIL_FROM) || `FundViet <${cleanSecret(process.env.SMTP_USER) || "noreply@fundviet.vn"}>`,
 };
 
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.warn("[env] Cảnh báo: chưa đặt JWT_SECRET, đang dùng khoá mặc định. Hãy khai báo biến môi trường trên máy chủ.");
+}
+
 export const isPostgresConfigured = () => Boolean(env.databaseUrl && /^postgres(ql)?:\/\//i.test(env.databaseUrl));
 export const isCloudinaryConfigured = () =>
   Boolean(env.cloudinaryCloudName && env.cloudinaryApiKey && env.cloudinaryApiSecret);
