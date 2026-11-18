@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import {
   BadgeCheck,
   CalendarDays,
+  CheckCircle2,
   MapPin,
   ShieldCheck,
   Users,
@@ -17,6 +18,8 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { api } from "@/lib/api";
 import { formatNumber, formatVnd, fundingPercent } from "@/lib/format";
+import { getServerSession } from "@/lib/auth/server-session";
+import { fetchBackendWithAuth } from "@/lib/auth/backend-fetch";
 
 
 export const dynamic = "force-dynamic";
@@ -62,6 +65,31 @@ export default async function ProjectDetailPage({
     month: "2-digit",
     timeZone: "Asia/Ho_Chi_Minh",
   }).format(new Date(campaign.launchDate));
+
+  const session = await getServerSession();
+  let userPledge: { id: string; rewardTier?: { id: string; title: string }; totalAmount?: number } | null = null;
+  if (session?.user?.id) {
+    try {
+      const myPledgesRes = await fetchBackendWithAuth(
+        `/pledges/me?campaignId=${campaign.id}`,
+        { method: "GET" },
+        session,
+      );
+      if (myPledgesRes.response.ok) {
+        const json = await myPledgesRes.response.json();
+        const pledges = Array.isArray(json) ? json : json?.data || [];
+        if (pledges.length > 0) {
+          userPledge = {
+            id: pledges[0].id,
+            rewardTier: pledges[0].rewardTier,
+            totalAmount: Number(pledges[0].totalAmount) || 0,
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   return (
     <>
@@ -205,6 +233,33 @@ export default async function ProjectDetailPage({
               <div className="mt-6">
                 {isPreLaunch ? (
                   <NotifyButton campaignId={campaign.id} fullWidth />
+                ) : userPledge ? (
+                  <div className="space-y-3">
+                    <div className="rounded-[14px] border border-emerald-300 bg-emerald-50 p-4 text-xs text-emerald-950 shadow-sm">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                        <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                        <span>Bạn đã ủng hộ dự án này</span>
+                      </div>
+                      <p className="mt-1.5 text-emerald-800">
+                        {userPledge.rewardTier?.title
+                          ? `Gói phần thưởng: ${userPledge.rewardTier.title}`
+                          : "Gói: Ủng hộ không nhận phần thưởng"}
+                      </p>
+                      {userPledge.totalAmount ? (
+                        <p className="mt-1 font-bold text-emerald-900">
+                          Tổng cam kết: {formatVnd(userPledge.totalAmount)}
+                        </p>
+                      ) : null}
+                    </div>
+                    {canPledge && (
+                      <Link
+                        href={`/pledge/${campaign.slug}?mode=update`}
+                        className="button-primary w-full justify-center text-center !bg-emerald-700 hover:!bg-emerald-800"
+                      >
+                        Cập nhật cam kết của bạn
+                      </Link>
+                    )}
+                  </div>
                 ) : canPledge ? (
                   <Link
                     href={`/projects/${campaign.slug}?tab=rewards#noi-dung-du-an`}
@@ -249,6 +304,7 @@ export default async function ProjectDetailPage({
         key={query.tab ?? "story"}
         campaign={campaign}
         initialTab={query.tab}
+        userPledge={userPledge}
       />
     </>
   );

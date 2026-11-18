@@ -150,16 +150,19 @@ export default async function CreatorPage() {
     );
   }
 
-  // Tìm chiến dịch của chính user này cần chỉnh sửa hoặc có phản hồi từ ban quản trị
+  // Tìm chiến dịch do chính user này làm chủ cần chỉnh sửa hoặc có phản hồi từ ban quản trị
   const campaignWithReviewFeedback = portfolio.campaigns.find(
-    (c) => c.reviewStatus === "NEEDS_CHANGES" || Boolean(c.reviewFeedback),
+    (c) =>
+      c.ownership === "OWNER" &&
+      (c.reviewStatus === "NEEDS_CHANGES" || Boolean(c.reviewFeedback)),
   );
 
   const draftReview = platformState.submittedReviews.find((review) =>
     portfolio.campaigns.some(
       (c) =>
-        c.id === review.campaignId ||
-        c.title.toLowerCase().trim() === review.title.toLowerCase().trim(),
+        c.ownership === "OWNER" &&
+        (c.id === review.campaignId ||
+          c.title.toLowerCase().trim() === review.title.toLowerCase().trim()),
     ),
   );
   const draftDecision = draftReview
@@ -174,14 +177,17 @@ export default async function CreatorPage() {
     (draftReview
       ? portfolio.campaigns.find(
           (c) =>
-            c.id === draftReview.campaignId ||
-            c.title.toLowerCase().trim() ===
-              draftReview.title.toLowerCase().trim(),
+            c.ownership === "OWNER" &&
+            (c.id === draftReview.campaignId ||
+              c.title.toLowerCase().trim() ===
+                draftReview.title.toLowerCase().trim()),
         )
       : null);
 
   const showAlert = Boolean(
     alertCampaign &&
+      alertCampaign.ownership === "OWNER" &&
+      alertCampaign.status === "DRAFT" &&
       (alertCampaign.reviewFeedback ||
         alertCampaign.reviewStatus === "NEEDS_CHANGES" ||
         draftFeedback ||

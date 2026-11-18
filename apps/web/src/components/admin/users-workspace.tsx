@@ -28,8 +28,10 @@ import { formatVnd } from "@/lib/format";
 import {
   AdminNotice,
   AdminPageHeader,
+  AdminTablePagination,
   adminRequestError,
   callAdminAction,
+  usePaginatedList,
 } from "./admin-shared";
 
 export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
@@ -139,6 +141,17 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
 
     return result;
   }, [users, query, roleFilter, statusFilter, sortBy]);
+
+  const {
+    pageItems: paginatedUsers,
+    currentPage,
+    pageSize,
+    setPage,
+    setPageSize,
+  } = usePaginatedList(
+    filteredUsers,
+    `${query}|${roleFilter}|${statusFilter}|${sortBy}`,
+  );
 
   // Derived campaigns for the currently viewed user
   const userOwnedCampaigns = useMemo(() => {
@@ -708,6 +721,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
       };
 
       setUsers([newUser, ...users]);
+      setPage(1);
       setNotice(`Đã tạo thành công tài khoản cho "${newUser.name}"!`);
       setIsCreateOpen(false);
       setCreateForm({
@@ -855,7 +869,9 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
           </div>
         </div>
 
-        {notice && <AdminNotice message={notice} />}
+        {notice && (
+          <AdminNotice message={notice} onClose={() => setNotice(null)} />
+        )}
 
         {/* ── Filters & Search Toolbar ────────────────────────── */}
         <div className="space-y-3 rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
@@ -996,7 +1012,7 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredUsers.map((user) => {
+                {paginatedUsers.map((user) => {
                   const isAdmin = user.roles.includes("Quản trị viên");
                   const isCreator = user.roles.includes("Chủ dự án");
 
@@ -1244,13 +1260,15 @@ export function UsersWorkspace({ data }: { data: AdminDashboardData }) {
             </table>
           </div>
 
-          <div className="flex items-center justify-between border-t border-line bg-[#fbfbfa] px-5 py-3 text-xs text-ink-muted">
-            <span>
-              Hiển thị <strong>{filteredUsers.length}</strong> / {users.length}{" "}
-              tài khoản
-            </span>
-            <span>Cập nhật theo dữ liệu phiên trực tiếp</span>
-          </div>
+          <AdminTablePagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalFiltered={filteredUsers.length}
+            totalAll={users.length}
+            itemLabel="tài khoản"
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       </div>
 

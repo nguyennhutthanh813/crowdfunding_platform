@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Be_Vietnam_Pro, Manrope } from 'next/font/google';
+import { Toaster } from 'sonner';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ConnectivityBanner } from '@/components/ui/connectivity-banner';
 import { SiteFooter } from '@/components/layout/site-footer';
@@ -59,6 +60,7 @@ export default async function RootLayout({
             {children}
           </main>
           <SiteFooter />
+          <Toaster position="bottom-right" richColors closeButton />
         </AuthProvider>
       </body>
     </html>

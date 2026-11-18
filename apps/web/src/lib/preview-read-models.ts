@@ -66,6 +66,18 @@ export function applyCreatorPortfolioPreviewState(
       };
     }
 
+    if (isRealDbCampaign && campaign.status === "IN_REVIEW") {
+      return {
+        ...campaign,
+        status: "IN_REVIEW" as const,
+        reviewStatus: "PENDING" as const,
+        reviewFeedback: undefined,
+        nextAction: "FOLLOW_REVIEW" as const,
+        nextActionLabel: "Theo dõi hàng chờ duyệt",
+        nextActionDetail: "Hồ sơ đang được ban quản trị xem xét trong 24 giờ.",
+      };
+    }
+
     const review = platform.submittedReviews?.find(
       (item) => item.campaignId === campaign.id || item.id === campaign.id,
     );
@@ -129,17 +141,19 @@ export function applyCreatorPortfolioPreviewState(
     return campaign;
   });
 
+  const ownedCampaigns = campaigns.filter((c) => c.ownership === "OWNER");
+
   return {
     ...data,
     campaigns,
     summary: {
       ...data.summary,
-      total: campaigns.length,
-      live: campaigns.filter((campaign) => campaign.status === "LIVE").length,
-      draftOrReview: campaigns.filter((campaign) =>
+      total: ownedCampaigns.length,
+      live: ownedCampaigns.filter((campaign) => campaign.status === "LIVE").length,
+      draftOrReview: ownedCampaigns.filter((campaign) =>
         ["DRAFT", "IN_REVIEW", "PRE_LAUNCH"].includes(campaign.status),
       ).length,
-      successful: campaigns.filter(
+      successful: ownedCampaigns.filter(
         (campaign) => campaign.status === "SUCCESSFUL",
       ).length,
     },
@@ -396,9 +410,19 @@ export function applyAdminPreviewState(
     ),
   );
 
-  const getReviewDecision = (review: (typeof allReviews)[number]) =>
-    reviewDecisions[review.id] ||
-    (review.campaignId ? reviewDecisions[review.campaignId] : undefined);
+  const getReviewDecision = (review: (typeof allReviews)[number]) => {
+    const dec =
+      reviewDecisions[review.id] ||
+      (review.campaignId ? reviewDecisions[review.campaignId] : undefined);
+    // Nếu chiến dịch trong DB thực tế đã ở trạng thái PENDING (IN_REVIEW), không để cookie CHANGES cũ ghi đè
+    const isRealPending =
+      review.status === "PENDING" &&
+      realReviews.some((r) => r.id === review.id || r.campaignId === review.campaignId);
+    if (isRealPending && dec === "CHANGES") {
+      return undefined;
+    }
+    return dec;
+  };
 
   const isReviewCompleted = (review: (typeof allReviews)[number]) => {
     const dec = getReviewDecision(review);

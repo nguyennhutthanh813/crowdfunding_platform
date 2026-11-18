@@ -42,10 +42,33 @@ export async function POST(request: Request) {
   try {
     const result = await api.authorizePledge(body);
 
+    // Chuẩn hóa campaignId thành UUID hợp lệ
+    let realCampaignId = body.campaignId;
+    let campaignSlug = "";
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realCampaignId);
+    if (!isUuid) {
+      const foundCampaign =
+        (await api.getCampaignBySlug(realCampaignId)) ||
+        (await api.listCampaigns()).find(
+          (c) => c.slug === realCampaignId || c.id === realCampaignId,
+        );
+      if (foundCampaign) {
+        realCampaignId = foundCampaign.id;
+        campaignSlug = foundCampaign.slug;
+      }
+    } else {
+      const foundCampaign = (await api.listCampaigns()).find(
+        (c) => c.id === realCampaignId,
+      );
+      if (foundCampaign) {
+        campaignSlug = foundCampaign.slug;
+      }
+    }
+
     // Lưu cam kết thật vào cơ sở dữ liệu PostgreSQL NestJS nếu có token
     try {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.campaignId);
-      if (isUuid) {
+      const isRealUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realCampaignId);
+      if (isRealUuid) {
         const addOnsList =
           Array.isArray(body.addOns) && body.addOns.length > 0
             ? body.addOns.map((item) => ({
@@ -54,7 +77,7 @@ export async function POST(request: Request) {
               }))
             : (body.addOnIds || []).map((id) => ({ addOnId: id, quantity: 1 }));
 
-        let shippingAddressId = (body as any).addressId;
+        let shippingAddressId = (body as { addressId?: string }).addressId;
         if (!shippingAddressId && body.address) {
           try {
             const addrRes = await fetchBackendWithAuth(
@@ -63,36 +86,114 @@ export async function POST(request: Request) {
               access.session,
             );
             if (addrRes.response.ok) {
-              const addrs = await addrRes.response.json();
+              const addrs = (await addrRes.response.json()) as
+                | Array<{ id?: string; isDefault?: boolean }>
+                | { data?: Array<{ id?: string; isDefault?: boolean }> };
               const list = Array.isArray(addrs) ? addrs : addrs?.data || [];
-              const def = list.find((a: any) => a.isDefault) || list[0];
-              if (def) shippingAddressId = def.id;
+              const def = list.find((a) => a.isDefault) || list[0];
+              if (def?.id) shippingAddressId = def.id;
+            }
+
+            // Nếu chưa có địa chỉ lưu trong DB nhưng đã nhập trên form, tạo mới luôn vào DB
+            if (!shippingAddressId && body.address.fullName?.trim() && body.address.line1?.trim()) {
+              const createAddrRes = await fetchBackendWithAuth(
+                "/users/me/addresses",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    recipientName: body.address.fullName.trim(),
+                    phone: body.address.phone.trim() || "0912345678",
+                    line1: body.address.line1.trim(),
+                    province: body.address.city || "TP. Hồ Chí Minh",
+                    isDefault: true,
+                  }),
+                },
+                access.session,
+              );
+              if (createAddrRes.response.ok) {
+                const createdAddr = (await createAddrRes.response.json()) as { id?: string };
+                if (createdAddr?.id) shippingAddressId = createdAddr.id;
+              }
             }
           } catch {
             // ignore address lookup error
           }
         }
 
-        await fetchBackendWithAuth(
+        const validRewardId =
+          body.rewardId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.rewardId)
+            ? body.rewardId
+            : undefined;
+
+        const validShippingOptionId =
+          body.shippingOptionId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.shippingOptionId)
+            ? body.shippingOptionId
+            : undefined;
+
+        const pledgeRes = await fetchBackendWithAuth(
           "/pledges",
           {
             method: "POST",
             body: JSON.stringify({
-              campaignId: body.campaignId,
-              rewardTierId: body.rewardId || undefined,
+              campaignId: realCampaignId,
+              rewardTierId: validRewardId,
+              shippingOptionId: validShippingOptionId,
               shippingAddressId: shippingAddressId || undefined,
               bonusAmount: body.bonusAmount || 0,
               addOns: addOnsList,
+              isUpdate: Boolean(body.isUpdate),
             }),
           },
           access.session,
         );
+
+        if (pledgeRes.response.ok) {
+          const pledgeData = await pledgeRes.response.json();
+          if (pledgeData?.id) {
+            try {
+              const paymentRes = await fetchBackendWithAuth(
+                "/payments/create-intent",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    pledgeId: pledgeData.id,
+                    simulateSuccess: true,
+                  }),
+                },
+                access.session,
+              );
+              if (paymentRes.response.ok) {
+                const paymentData = await paymentRes.response.json();
+                if (paymentData?.authorizationId) {
+                  result.authorizationId = paymentData.authorizationId;
+                }
+              }
+            } catch (payErr) {
+              console.warn("Payment intent authorization failed:", payErr);
+            }
+          }
+        } else {
+          const errDetail = await pledgeRes.response.text().catch(() => "");
+          console.warn("Could not save pledge to NestJS:", pledgeRes.response.status, errDetail);
+          if (pledgeRes.response.status === 409) {
+            return Response.json(
+              { message: "Bạn đã có khoản cam kết cho chiến dịch này. Vui lòng chuyển sang cập nhật cam kết hiện có." },
+              { status: 409 },
+            );
+          }
+        }
       }
     } catch (dbErr) {
       console.warn("Could not save pledge directly to NestJS DB:", dbErr);
     }
+
     const campaignCard = (await api.listCampaigns()).find(
-      (campaign) => campaign.id === body.campaignId,
+      (campaign) =>
+        campaign.id === realCampaignId ||
+        campaign.slug === realCampaignId ||
+        (campaignSlug && campaign.slug === campaignSlug),
     );
     const campaign = campaignCard
       ? await api.getCampaignBySlug(campaignCard.slug)
@@ -110,14 +211,15 @@ export async function POST(request: Request) {
         authorizedPledges: [
           {
             authorizationId: result.authorizationId,
-            campaignId: body.campaignId,
+            campaignId: realCampaignId,
+            campaignSlug: campaignSlug || campaign?.slug,
             rewardId: body.rewardId,
             rewardTitle,
             totalAmount: result.totalAmount,
             authorizedAt: result.authorizedAt,
           },
           ...previousPledges,
-        ].slice(0, 5),
+        ].slice(0, 10),
       },
     };
     const response = NextResponse.json(result, { status: 201 });

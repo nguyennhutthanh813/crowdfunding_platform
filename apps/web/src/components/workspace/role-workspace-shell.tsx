@@ -119,26 +119,41 @@ function creatorSnapshotForLocation(
     ? snapshot.creatorCampaigns?.find((item) => item.slug === slug)
     : undefined;
 
-  const totalCount =
-    snapshot.scopeCount ?? snapshot.creatorCampaigns?.length ?? 0;
-  const liveCount =
-    snapshot.creatorCampaigns?.filter((c) => c.status === "LIVE").length ?? 0;
+  const ownedList =
+    snapshot.creatorCampaigns?.filter((c) => c.ownership === "OWNER") ??
+    snapshot.creatorCampaigns ??
+    [];
+  const collabList =
+    snapshot.creatorCampaigns?.filter((c) => c.ownership === "COLLABORATOR") ??
+    [];
+  const totalCount = ownedList.length;
+  const liveCount = ownedList.filter((c) => c.status === "LIVE").length;
 
   if (!campaign) {
     return {
       ...snapshot,
       entityCode: "QUẢN LÝ DỰ ÁN",
       contextTitle: "Chiến dịch của tôi",
-      contextDetail: `${totalCount} chiến dịch đang quản lý`,
+      contextDetail:
+        collabList.length > 0
+          ? `${totalCount} dự án làm chủ · ${collabList.length} dự án cộng tác`
+          : `${totalCount} chiến dịch do bạn làm chủ`,
       statusLabel: "DANH MỤC DỰ ÁN",
       primaryMetric: {
-        label: "tổng dự án",
+        label: "dự án làm chủ",
         value: `${totalCount} chiến dịch`,
       },
-      secondaryMetric: {
-        label: "đang gọi vốn",
-        value: `${liveCount} dự án`,
-      },
+      secondaryMetric:
+        collabList.length > 0
+          ? {
+              label: "dự án cộng tác",
+              value: `${collabList.length} dự án`,
+            }
+          : {
+              label: "đang gọi vốn",
+              value: `${liveCount} dự án`,
+            },
+      scopeCount: totalCount,
       progress: undefined,
       selectedCampaignSlug: undefined,
       selectedCampaignStatus: undefined,
@@ -267,14 +282,39 @@ function navIsActive(
   currentTab: string | null,
 ) {
   const url = new URL(item.href, "http://gop.local");
-  if (url.pathname === pathname) return true;
-  if (pathname === "/admin" && item.href === "/admin/campaigns") return true;
-  if (pathname.startsWith(url.pathname) && url.pathname !== "/" && url.pathname !== "/admin") return true;
-  if (url.pathname !== pathname) return false;
   const itemTab = url.searchParams.get("tab");
-  if (!itemTab) return true;
-  const defaultTab = pathname === "/dashboard" ? "backed" : pathname === "/admin" ? "campaigns" : pathname.includes("/manage") ? "overview" : null;
-  return itemTab === (currentTab ?? defaultTab);
+
+  if (pathname === "/admin" && url.pathname === "/admin/campaigns") {
+    return true;
+  }
+
+  // Root workspace links (/creator, /collaborator) must not match sibling sub-routes like /creator/guidelines or /collaborator/forecast.
+  if (url.pathname === "/creator") {
+    return (
+      pathname === "/creator" ||
+      pathname === "/creator/campaigns" ||
+      pathname.startsWith("/creator/campaigns/")
+    );
+  }
+
+  if (url.pathname === "/collaborator") {
+    return pathname === "/collaborator";
+  }
+
+  if (url.pathname === pathname) {
+    if (!itemTab) return true;
+    const defaultTab =
+      pathname === "/dashboard"
+        ? "backed"
+        : pathname === "/admin"
+          ? "campaigns"
+          : pathname.includes("/manage")
+            ? "overview"
+            : null;
+    return itemTab === (currentTab ?? defaultTab);
+  }
+
+  return pathname.startsWith(`${url.pathname}/`);
 }
 
 function Sidebar({

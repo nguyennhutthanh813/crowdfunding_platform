@@ -52,6 +52,17 @@ export class CampaignsService {
         creator: { select: { id: true, displayName: true, avatarUrl: true } },
         category: { select: { id: true, name: true, slug: true } },
         media: { orderBy: { sortOrder: 'asc' } },
+        members: {
+          where: { status: 'ACCEPTED' },
+          select: {
+            userId: true,
+            role: true,
+            status: true,
+            canPostUpdates: true,
+            canReplyComments: true,
+            canViewAiDashboard: true,
+          },
+        },
         _count: { select: { pledges: true, comments: true } },
         reviews: {
           orderBy: { createdAt: 'desc' },
@@ -332,7 +343,7 @@ export class CampaignsService {
     }
 
     const data: any = { ...dto };
-    if (dto.title) {
+    if (dto.title && dto.title.trim() !== campaign.title.trim()) {
       data.slug = this.generateSlug(dto.title);
     }
 

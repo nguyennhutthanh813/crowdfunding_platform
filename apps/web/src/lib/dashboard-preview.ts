@@ -43,15 +43,23 @@ export function mergePreviewDashboardState(
       rows.findIndex((item) => item.campaignId === pledge.campaignId) === index,
   );
   const additions = latestPledges.flatMap((pledge): BackedProject[] => {
+    const pledgeCampaignSlug = (pledge as { campaignSlug?: string }).campaignSlug;
     const existing = data.backedProjects.find(
-      (item) => item.campaign.id === pledge.campaignId || item.pledgeId === pledge.authorizationId,
+      (item) =>
+        item.campaign.id === pledge.campaignId ||
+        item.campaign.slug === pledge.campaignId ||
+        (pledgeCampaignSlug && item.campaign.slug === pledgeCampaignSlug) ||
+        item.pledgeId === pledge.authorizationId,
     );
     if (existing) {
       return [];
     }
 
     const campaign = campaigns.find(
-      (item) => item.id === pledge.campaignId,
+      (item) =>
+        item.id === pledge.campaignId ||
+        item.slug === pledge.campaignId ||
+        (pledgeCampaignSlug && item.slug === pledgeCampaignSlug),
     );
     if (!campaign) return [];
 
@@ -77,7 +85,7 @@ export function mergePreviewDashboardState(
   ].map((item) => {
     const overrideStatus =
       platform?.fulfillmentStatuses?.[item.pledgeId] ||
-      platform?.fulfillmentStatuses?.[(item as any).fulfillmentId];
+      (item.fulfillmentId && platform?.fulfillmentStatuses?.[item.fulfillmentId]);
     const fulfillmentStatus = overrideStatus || item.fulfillmentStatus;
 
     const campaignStatusOverride =

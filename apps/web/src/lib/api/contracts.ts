@@ -81,6 +81,8 @@ export interface CreatorPortfolioCampaign {
   reviewStatus?: "NEEDS_CHANGES" | "PENDING" | "APPROVED" | "REJECTED";
   reviewFeedback?: string;
   ownership: "OWNER" | "COLLABORATOR";
+  creatorName?: string;
+  collaboratorPermissions?: string[];
   goalAmount: number;
   pledgedAmount: number;
   backerCount: number;
@@ -162,6 +164,15 @@ export interface CampaignComment {
   replies?: CampaignComment[];
 }
 
+export interface ShippingOptionItem {
+  id: string;
+  name: string;
+  feeAmount: number;
+  provinceCode?: string | null;
+  estimatedDaysMin?: number | null;
+  estimatedDaysMax?: number | null;
+}
+
 export interface CampaignDetail extends CampaignCardData {
   storyMarkdown?: string;
   gallery?: Array<{
@@ -193,6 +204,7 @@ export interface CampaignDetail extends CampaignCardData {
   };
   rewards: RewardTier[];
   addOns: AddOn[];
+  shippingOptions?: ShippingOptionItem[];
   faqs: Array<{ question: string; answer: string }>;
   updates: CampaignUpdate[];
   comments: CampaignComment[];
@@ -219,6 +231,7 @@ export type PaymentStatus = "AUTHORIZED" | "CAPTURED" | "CANCELED" | "FAILED";
 
 export interface BackedProject {
   pledgeId: string;
+  fulfillmentId?: string;
   referenceCode: string;
   campaign: CampaignCardData;
   amount: number;
@@ -308,6 +321,7 @@ export interface PredictionFactor {
 
 export interface CreatorAiDashboardData {
   campaign: CampaignCardData;
+  phase?: "PREPARATION" | "LIVE" | "ENDED";
   score: number;
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   model: { name: string; version: string; evaluatedAt: string; rocAuc: number };
@@ -320,6 +334,23 @@ export interface CreatorAiDashboardData {
   }>;
   timeline: Array<{ day: string; actual: number; expected: number }>;
   preLaunchSignals: { saves: number; notify: number; followers: number };
+  paceMetrics?: {
+    elapsedDays: number;
+    totalDays: number;
+    daysLeft: number;
+    dailyAverageAmount: number;
+    requiredDailyAmount: number;
+    projectedAmount: number;
+    projectedPercent: number;
+    pledgeCountLast7Days: number;
+    amountLast7Days: number;
+  };
+  readinessItems?: Array<{
+    id: string;
+    label: string;
+    done: boolean;
+    detail: string;
+  }>;
 }
 
 export type ContentCheckStatus = "GOOD" | "IMPROVE" | "MISSING";
@@ -678,6 +709,8 @@ export interface AdminDashboardData {
 export interface AuthorizePledgeInput {
   campaignId: string;
   rewardId: string | null;
+  shippingOptionId?: string;
+  isUpdate?: boolean;
   addOnIds: string[];
   addOns?: Array<{
     addOnId: string;

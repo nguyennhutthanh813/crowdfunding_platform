@@ -15,7 +15,9 @@ function extractUserIdFromBearer(authHeader?: string): string | null {
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
       return payload.sub || payload.id || null;
     }
-  } catch {}
+  } catch {
+    // Malformed token, ignore
+  }
   return null;
 }
 

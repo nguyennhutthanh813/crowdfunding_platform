@@ -27,6 +27,9 @@ export default async function NewCampaignPage({
   let campaignId: string | undefined = editingOrbitMini
     ? "cmp_orbit_mini"
     : undefined;
+  let campaignStatus: string | undefined = editingOrbitMini
+    ? "DRAFT"
+    : undefined;
   let reviewFeedback: string | null = null;
 
   if (campaign && !editingOrbitMini) {
@@ -104,6 +107,7 @@ export default async function NewCampaignPage({
 
     if (rawCampaign) {
       campaignId = rawCampaign.id;
+      campaignStatus = rawCampaign.status;
       const videoMedia = rawCampaign.media?.find(
         (m: any) => m.mediaType === "VIDEO",
       );
@@ -178,18 +182,26 @@ export default async function NewCampaignPage({
         );
       }
 
-      // Lấy phản hồi yêu cầu sửa của ban quản trị nếu có
-      reviewFeedback =
-        rawCampaign.reviews?.find(
-          (r: any) => r.decision === "CHANGES_REQUESTED" || r.feedback,
-        )?.feedback ||
-        portfolioCampaign?.reviewFeedback ||
-        (platformState?.reviewFeedback
-          ? platformState.reviewFeedback[rawCampaign.id]
-          : null) ||
-        null;
+      // Lấy phản hồi yêu cầu sửa của ban quản trị nếu chiến dịch đang ở trạng thái cần chỉnh sửa
+      const latestReview = rawCampaign.reviews?.[0];
+      const isRawNeedsChanges =
+        (rawCampaign.status === "DRAFT" ||
+          rawCampaign.status === "CHANGES_REQUESTED") &&
+        (latestReview?.decision === "CHANGES_REQUESTED" ||
+          latestReview?.decision === "CHANGES");
+      reviewFeedback = isRawNeedsChanges
+        ? latestReview?.feedback ||
+          portfolioCampaign?.reviewFeedback ||
+          (platformState?.reviewFeedback
+            ? platformState.reviewFeedback[rawCampaign.id]
+            : null) ||
+          null
+        : portfolioCampaign?.reviewStatus === "NEEDS_CHANGES"
+          ? portfolioCampaign.reviewFeedback || null
+          : null;
     } else if (portfolioCampaign) {
       campaignId = portfolioCampaign.id;
+      campaignStatus = portfolioCampaign.status;
       initialDraft = {
         title: portfolioCampaign.title || "",
         blurb: portfolioCampaign.blurb || "",
@@ -217,6 +229,7 @@ export default async function NewCampaignPage({
       mode={isEditing ? "edit" : "create"}
       campaignId={campaignId}
       campaignSlug={campaign}
+      campaignStatus={campaignStatus}
       initialDraft={initialDraft}
       initialRewards={initialRewards}
       initialAddOns={initialAddOns}

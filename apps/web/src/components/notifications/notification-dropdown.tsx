@@ -414,21 +414,6 @@ export function NotificationDropdown({
   const handleOpen = () => {
     setNow(Date.now());
     setIsOpen(true);
-    // When opening the dropdown, clear the unread indicator and mark unread items as seen
-    const unreadItems = notifications.filter((n) => !n.read);
-    if (unreadItems.length > 0) {
-      const unreadIds = unreadItems.map((n) => n.id);
-      storeAllReadIds(unreadIds);
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, read: true }))
-      );
-      setSessionReadIds(new Set(unreadIds));
-      fetch("/api/v1/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ readAll: true, allIds: unreadIds }),
-      }).catch(() => {});
-    }
   };
 
   // Periodic ticker to recalculate relative timestamps live every 10 seconds while dropdown is open

@@ -40,27 +40,82 @@ const steps = [
 
 const NO_REWARD_ID = "no_reward";
 
+export interface ExistingPledgeData {
+  id: string;
+  rewardTierId?: string | null;
+  shippingOptionId?: string | null;
+  shippingAddressId?: string | null;
+  bonusAmount?: number;
+  totalAmount?: number;
+  addOns?: Array<{ addOnId: string; quantity: number }>;
+}
+
 export function PledgeFlow({
   campaign,
   initialRewardId,
+  existingPledge,
+  isUpdate = false,
 }: {
   campaign: CampaignDetail;
   initialRewardId?: string;
+  existingPledge?: ExistingPledgeData | null;
+  isUpdate?: boolean;
 }) {
-  const defaultReward =
-    initialRewardId === NO_REWARD_ID ||
-    campaign.rewards.some((reward) => reward.id === initialRewardId)
-      ? initialRewardId!
-      : (campaign.rewards.find((reward) => reward.featured)?.id ??
-        campaign.rewards[0]?.id ??
-        NO_REWARD_ID);
+  const isUpdateMode = Boolean(isUpdate || existingPledge);
+
+  const defaultReward = useMemo(() => {
+    if (initialRewardId) {
+      if (
+        initialRewardId === NO_REWARD_ID ||
+        campaign.rewards.some((reward) => reward.id === initialRewardId)
+      ) {
+        return initialRewardId;
+      }
+    }
+    if (existingPledge?.rewardTierId) {
+      if (campaign.rewards.some((reward) => reward.id === existingPledge.rewardTierId)) {
+        return existingPledge.rewardTierId;
+      }
+    } else if (existingPledge && existingPledge.rewardTierId === null) {
+      return NO_REWARD_ID;
+    }
+    return (
+      campaign.rewards.find((reward) => reward.featured)?.id ??
+      campaign.rewards[0]?.id ??
+      NO_REWARD_ID
+    );
+  }, [initialRewardId, existingPledge, campaign.rewards]);
+
+  const initialAddOns = useMemo(() => {
+    if (!existingPledge?.addOns?.length) return {};
+    const map: Record<string, number> = {};
+    for (const item of existingPledge.addOns) {
+      map[item.addOnId] = item.quantity;
+    }
+    return map;
+  }, [existingPledge]);
+
+  const initialBonus = useMemo(() => {
+    if (existingPledge && typeof existingPledge.bonusAmount === "number") {
+      return String(existingPledge.bonusAmount);
+    }
+    return defaultReward === NO_REWARD_ID ? "100000" : "0";
+  }, [existingPledge, defaultReward]);
+
+  const shippingOptions = campaign.shippingOptions || [];
+  const initialShippingOptionId = useMemo(() => {
+    if (existingPledge?.shippingOptionId) {
+      return existingPledge.shippingOptionId;
+    }
+    return shippingOptions[0]?.id || null;
+  }, [existingPledge, shippingOptions]);
+
   const { session, updateProfile } = useAuth();
   const [step, setStep] = useState(0);
   const [rewardId, setRewardId] = useState<string>(defaultReward);
-  const [addOnQuantities, setAddOnQuantities] = useState<Record<string, number>>({});
-  const [bonus, setBonus] = useState(
-    defaultReward === NO_REWARD_ID ? "100000" : "0",
-  );
+  const [addOnQuantities, setAddOnQuantities] = useState<Record<string, number>>(initialAddOns);
+  const [bonus, setBonus] = useState(initialBonus);
+  const [shippingOptionId, setShippingOptionId] = useState<string | null>(initialShippingOptionId);
   const [address, setAddress] = useState({
     fullName: "",
     phone: "",
@@ -68,7 +123,9 @@ export function PledgeFlow({
     city: "TP. Hồ Chí Minh",
   });
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
+    existingPledge?.shippingAddressId || null,
+  );
   const [isUsingCustomAddress, setIsUsingCustomAddress] = useState(false);
   const [editingAddress, setEditingAddress] = useState<UserAddress | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -106,7 +163,11 @@ export function PledgeFlow({
         }
         const list = data.addresses as UserAddress[];
         setSavedAddresses(list);
-        const defaultAddr = list.find((a) => a.isDefault) || list[0];
+        const defaultAddr =
+          (existingPledge?.shippingAddressId &&
+            list.find((a) => a.id === existingPledge.shippingAddressId)) ||
+          list.find((a) => a.isDefault) ||
+          list[0];
         if (defaultAddr) {
           setSelectedAddressId(defaultAddr.id);
           const fullLine = [defaultAddr.line1, defaultAddr.ward, defaultAddr.district]
@@ -281,7 +342,20 @@ export function PledgeFlow({
   );
   const bonusAmount = Math.max(0, Number(bonus) || 0);
   const rewardAmount = reward?.amount ?? 0;
-  const shippingAmount = reward && reward.amount >= 500_000 ? 35_000 : 0;
+  const selectedShippingOption = useMemo(() => {
+    return (
+      shippingOptions.find((opt) => opt.id === shippingOptionId) ||
+      shippingOptions[0] ||
+      null
+    );
+  }, [shippingOptions, shippingOptionId]);
+
+  const shippingAmount = useMemo(() => {
+    if (!reward || rewardId === NO_REWARD_ID) return 0;
+    if (selectedShippingOption) return selectedShippingOption.feeAmount;
+    return reward.amount >= 500_000 ? 35_000 : 0;
+  }, [reward, rewardId, selectedShippingOption]);
+
   const total = rewardAmount + addOnAmount + bonusAmount + shippingAmount;
 
   const stepIssues = useMemo(() => {
@@ -427,6 +501,10 @@ export function PledgeFlow({
           body: JSON.stringify({
             campaignId: campaign.id,
             rewardId: reward?.id ?? null,
+            shippingOptionId:
+              reward && rewardId !== NO_REWARD_ID
+                ? selectedShippingOption?.id ?? undefined
+                : undefined,
             addOnIds: reward ? addOnIds : [],
             addOns: reward
               ? selectedAddOns.map(({ item, quantity }) => ({
@@ -437,6 +515,7 @@ export function PledgeFlow({
             bonusAmount,
             address,
             addressId: !isUsingCustomAddress ? selectedAddressId : undefined,
+            isUpdate: isUpdateMode,
           }),
         },
       );
@@ -459,14 +538,15 @@ export function PledgeFlow({
         <span className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
           <CheckCircle2 className="size-8" />
         </span>
-        <p className="eyebrow mt-6 text-emerald-700">Đã ghi nhận cam kết</p>
+        <p className="eyebrow mt-6 text-emerald-700">
+          {isUpdateMode ? "Đã cập nhật cam kết" : "Đã ghi nhận cam kết"}
+        </p>
         <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.045em]">
-          Cảm ơn bạn đã góp sức.
+          {isUpdateMode ? "Cam kết của bạn đã được cập nhật." : "Cảm ơn bạn đã góp sức."}
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-ink-soft">
           Cam kết <strong>{formatVnd(result.totalAmount)}</strong> đã được ghi
-          nhận nhưng chưa bị trừ khỏi thẻ. Hệ thống chỉ thu khoản này nếu chiến
-          dịch đạt mục tiêu khi hết hạn.
+          nhận vào hệ thống. Hệ thống chỉ thu khoản này nếu chiến dịch đạt mục tiêu khi hết hạn.
         </p>
         <dl className="mx-auto mt-7 grid max-w-md gap-3 rounded-2xl bg-[#f5f6ef] p-5 text-left text-xs sm:grid-cols-2">
           <div>
@@ -499,6 +579,19 @@ export function PledgeFlow({
 
   return (
     <div className="mt-9">
+      {isUpdateMode ? (
+        <div className="mb-6 flex items-start gap-3 rounded-[14px] border border-emerald-300 bg-emerald-50 p-4 text-xs text-emerald-950 shadow-sm">
+          <CheckCircle2 className="mt-0.5 size-4.5 shrink-0 text-emerald-600" />
+          <div>
+            <p className="font-bold text-emerald-900">
+              Bạn đang cập nhật cam kết cho chiến dịch này
+            </p>
+            <p className="mt-0.5 text-emerald-800">
+              Thông tin gói phần thưởng, phần bổ sung, địa chỉ và số tiền cam kết mới sẽ được cập nhật thay thế cho cam kết trước đó của bạn.
+            </p>
+          </div>
+        </div>
+      ) : null}
       <ol className="grid grid-cols-4 gap-2" aria-label="Các bước ủng hộ">
         {steps.map((item, index) => {
           const Icon = item.icon;
@@ -1178,10 +1271,47 @@ export function PledgeFlow({
                 </div>
               )}
 
-              <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4f6e8] p-4 text-xs leading-5 text-[#4c612d]">
-                <MapPin className="mt-0.5 size-4 shrink-0" /> Phí giao hàng tạm
-                tính: {formatVnd(shippingAmount)}.
-              </div>
+              {shippingOptions.length > 0 ? (
+                <div className="mt-5 space-y-2">
+                  <p className="text-xs font-bold text-ink">Hình thức giao hàng:</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {shippingOptions.map((opt) => {
+                      const isSelected =
+                        (shippingOptionId || shippingOptions[0].id) === opt.id;
+                      return (
+                        <label
+                          key={opt.id}
+                          className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 text-xs transition-colors ${
+                            isSelected
+                              ? "border-forest bg-forest/5 font-bold text-forest"
+                              : "border-line bg-canvas-soft text-ink hover:border-ink-muted"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="shipping-option"
+                              value={opt.id}
+                              checked={isSelected}
+                              onChange={() => setShippingOptionId(opt.id)}
+                              className="text-forest focus:ring-forest"
+                            />
+                            <span>{opt.name}</span>
+                          </div>
+                          <span className="font-display">
+                            {formatVnd(opt.feeAmount)}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4f6e8] p-4 text-xs leading-5 text-[#4c612d]">
+                  <MapPin className="mt-0.5 size-4 shrink-0" /> Phí giao hàng tạm
+                  tính: {formatVnd(shippingAmount)}.
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -1357,7 +1487,8 @@ export function PledgeFlow({
                   </>
                 ) : (
                   <>
-                    <LockKeyhole className="size-4" /> Xác nhận ủy quyền
+                    <LockKeyhole className="size-4" />{" "}
+                    {isUpdateMode ? "Cập nhật cam kết" : "Xác nhận ủy quyền"}
                   </>
                 )}
               </button>

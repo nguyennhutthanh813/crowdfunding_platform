@@ -170,19 +170,6 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
           </div>
         </div>
       )}
-
-      {/* Rủi ro và thách thức */}
-      {campaign.story.risks && (
-        <div className="mt-12 rounded-[18px] bg-forest p-6 text-white sm:p-8">
-          <ShieldCheck className="size-6 text-lime" />
-          <h3 className="mt-4 font-display text-xl font-extrabold">
-            Rủi ro và thách thức
-          </h3>
-          <p className="mt-3 text-sm leading-7 text-white/70">
-            {campaign.story.risks}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -190,12 +177,15 @@ function StoryPanel({ campaign }: { campaign: CampaignDetail }) {
 function RewardCard({
   reward,
   campaign,
+  userPledge,
 }: {
   reward: RewardTier;
   campaign: CampaignDetail;
+  userPledge?: { id: string; rewardTier?: { id: string; title: string }; totalAmount?: number } | null;
 }) {
   const remaining = reward.limit ? reward.limit - reward.claimed : null;
   const canPledge = campaign.status === "LIVE";
+  const isCurrentReward = userPledge?.rewardTier?.id === reward.id;
   return (
     <article
       className={`rounded-[22px] border p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-1 hover:shadow-lg ${reward.featured ? "border-coral/45 bg-[#fff8f4]" : "border-line bg-white"}`}
@@ -237,10 +227,15 @@ function RewardCard({
       </div>
       {canPledge ? (
         <Link
-          href={`/pledge/${campaign.slug}?reward=${reward.id}`}
-          className="button-dark mt-5 w-full"
+          href={`/pledge/${campaign.slug}?reward=${reward.id}${userPledge ? "&mode=update" : ""}`}
+          className={`mt-5 w-full ${isCurrentReward ? "button-primary !bg-emerald-700 hover:!bg-emerald-800" : "button-dark"}`}
         >
-          Chọn gói này <ArrowRight className="size-4" />
+          {isCurrentReward
+            ? "✓ Gói hiện tại của bạn"
+            : userPledge
+              ? "Đổi sang gói này"
+              : "Chọn gói này"}{" "}
+          <ArrowRight className="size-4" />
         </Link>
       ) : (
         <p className="mt-5 rounded-full bg-forest/7 px-4 py-3 text-center text-xs font-bold text-ink-soft">
@@ -257,7 +252,13 @@ function RewardCard({
   );
 }
 
-function RewardsPanel({ campaign }: { campaign: CampaignDetail }) {
+function RewardsPanel({
+  campaign,
+  userPledge,
+}: {
+  campaign: CampaignDetail;
+  userPledge?: { id: string; rewardTier?: { id: string; title: string }; totalAmount?: number } | null;
+}) {
   return (
     <div id="rewards">
       <h2 className="font-display text-2xl font-extrabold tracking-[-0.035em]">
@@ -273,7 +274,12 @@ function RewardsPanel({ campaign }: { campaign: CampaignDetail }) {
       {campaign.rewards && campaign.rewards.length > 0 ? (
         <div className="mt-7 grid gap-4">
           {campaign.rewards.map((reward) => (
-            <RewardCard key={reward.id} reward={reward} campaign={campaign} />
+            <RewardCard
+              key={reward.id}
+              reward={reward}
+              campaign={campaign}
+              userPledge={userPledge}
+            />
           ))}
         </div>
       ) : (
@@ -1477,14 +1483,17 @@ function TabContent({
   campaign,
   commentIntent,
   onAskQuestion,
+  userPledge,
 }: {
   tab: Tab;
   campaign: CampaignDetail;
   commentIntent: "comment" | "question";
   onAskQuestion: () => void;
+  userPledge?: { id: string; rewardTier?: { id: string; title: string }; totalAmount?: number } | null;
 }) {
   if (tab === "Story") return <StoryPanel campaign={campaign} />;
-  if (tab === "Rewards") return <RewardsPanel campaign={campaign} />;
+  if (tab === "Rewards")
+    return <RewardsPanel campaign={campaign} userPledge={userPledge} />;
   if (tab === "Creator") return <CreatorPanel campaign={campaign} />;
   if (tab === "FAQ")
     return <FaqPanel campaign={campaign} onGoToComments={onAskQuestion} />;
@@ -1497,9 +1506,11 @@ function TabContent({
 export function ProjectExperience({
   campaign,
   initialTab,
+  userPledge,
 }: {
   campaign: CampaignDetail;
   initialTab?: string;
+  userPledge?: { id: string; rewardTier?: { id: string; title: string }; totalAmount?: number } | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -1584,6 +1595,7 @@ export function ProjectExperience({
             campaign={campaign}
             commentIntent={commentIntent}
             onAskQuestion={askQuestion}
+            userPledge={userPledge}
           />
         </div>
         <aside className="hidden lg:block">
@@ -1634,6 +1646,18 @@ export function ProjectExperience({
                 <div className="mt-5">
                   {isPreLaunch ? (
                     <NotifyButton campaignId={campaign.id} fullWidth />
+                  ) : userPledge ? (
+                    <div className="space-y-2">
+                      <div className="rounded-[10px] border border-emerald-300 bg-emerald-50 p-2.5 text-center text-xs text-emerald-900">
+                        <span className="font-bold">✓ Bạn đã ủng hộ dự án này</span>
+                      </div>
+                      <Link
+                        href={`/pledge/${campaign.slug}?mode=update`}
+                        className="button-primary w-full justify-center text-center !bg-emerald-700 hover:!bg-emerald-800"
+                      >
+                        Cập nhật cam kết <ArrowRight className="size-4" />
+                      </Link>
+                    </div>
                   ) : canPledge ? (
                     <Link
                       href={
@@ -1691,6 +1715,13 @@ export function ProjectExperience({
               <div className="min-w-42">
                 <NotifyButton campaignId={campaign.id} fullWidth />
               </div>
+            ) : userPledge ? (
+              <Link
+                href={`/pledge/${campaign.slug}?mode=update`}
+                className="button-primary min-w-42 !bg-emerald-700 hover:!bg-emerald-800"
+              >
+                Cập nhật cam kết
+              </Link>
             ) : (
               <Link
                 href={`/pledge/${campaign.slug}`}

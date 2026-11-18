@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { buildPaginationArgs, buildPaginatedResponse } from '../../common/helpers';
@@ -43,14 +44,27 @@ export class PledgesService {
       rewardAmount = reward.amount;
     }
 
-    if (dto.shippingOptionId) {
+    let shippingOptionId = dto.shippingOptionId;
+    if (shippingOptionId) {
       const shipping = await this.prisma.shippingOption.findUnique({
-        where: { id: dto.shippingOptionId },
+        where: { id: shippingOptionId },
       });
       if (!shipping || shipping.campaignId !== dto.campaignId) {
         throw new NotFoundException('Shipping option not found');
       }
       shippingAmount = shipping.feeAmount;
+    } else if (dto.rewardTierId) {
+      // Tự động gán gói giao hàng mặc định của chiến dịch nếu có
+      const defaultShipping = await this.prisma.shippingOption.findFirst({
+        where: { campaignId: dto.campaignId, isActive: true },
+        orderBy: [{ feeAmount: 'asc' }],
+      });
+      if (defaultShipping) {
+        shippingOptionId = defaultShipping.id;
+        shippingAmount = defaultShipping.feeAmount;
+      } else if (rewardAmount >= BigInt(500000)) {
+        shippingAmount = BigInt(35000);
+      }
     }
 
     // Calculate add-on total
@@ -85,12 +99,71 @@ export class PledgesService {
       shippingAmount +
       BigInt(dto.bonusAmount ?? 0);
 
+    // Kiểm tra xem người dùng đã từng cam kết cho chiến dịch này chưa (ràng buộc UNIQUE(campaign_id, backer_id))
+    const existingPledge = await this.prisma.pledge.findUnique({
+      where: {
+        campaignId_backerId: {
+          campaignId: dto.campaignId,
+          backerId,
+        },
+      },
+    });
+
+    if (existingPledge) {
+      if (['CAPTURED', 'REFUNDED'].includes(existingPledge.status)) {
+        throw new BadRequestException('Khoản ủng hộ cho chiến dịch này đã hoàn tất thanh toán hoặc hoàn tiền.');
+      }
+
+      if (!dto.isUpdate) {
+        throw new ConflictException(
+          'Bạn đã có một khoản cam kết cho chiến dịch này. Vui lòng sử dụng tính năng cập nhật cam kết thay vì tạo mới.'
+        );
+      }
+
+      // Xóa các add-on cũ nếu có trước khi cập nhật
+      await this.prisma.pledgeAddOn.deleteMany({
+        where: { pledgeId: existingPledge.id },
+      });
+
+      // Cập nhật cam kết hiện có thành thông tin mới
+      const updatedPledge = await this.prisma.pledge.update({
+        where: { id: existingPledge.id },
+        data: {
+          rewardTierId: dto.rewardTierId,
+          shippingOptionId: shippingOptionId || undefined,
+          shippingAddressId: shippingAddressId || undefined,
+          rewardAmount,
+          addOnAmount,
+          shippingAmount,
+          bonusAmount: dto.bonusAmount ?? 0,
+          totalAmount,
+          status: 'PENDING',
+          addOns: addOnItems.length > 0 ? {
+            createMany: {
+              data: addOnItems.map((item) => ({
+                addOnId: item.addOnId,
+                quantity: item.quantity,
+                unitAmount: addOnMap.get(item.addOnId) ?? BigInt(0),
+              })),
+            },
+          } : undefined,
+        },
+        include: {
+          rewardTier: true,
+          shippingOption: true,
+          addOns: { include: { addOn: true } },
+        },
+      });
+
+      return updatedPledge;
+    }
+
     const pledge = await this.prisma.pledge.create({
       data: {
         campaignId: dto.campaignId,
         backerId,
         rewardTierId: dto.rewardTierId,
-        shippingOptionId: dto.shippingOptionId,
+        shippingOptionId: shippingOptionId || undefined,
         shippingAddressId: shippingAddressId || undefined,
         rewardAmount,
         addOnAmount,
@@ -160,8 +233,10 @@ export class PledgesService {
             },
           },
           rewardTier: { select: { id: true, title: true, amount: true } },
+          shippingOption: true,
           shippingAddress: true,
           fulfillment: true,
+          addOns: { include: { addOn: true } },
         },
       }),
       this.prisma.pledge.count({ where }),

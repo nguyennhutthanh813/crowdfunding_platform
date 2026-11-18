@@ -122,7 +122,9 @@ export function FraudWorkspace({ data }: { data: AdminDashboardData }) {
           </label>
         </div>
 
-        {notice ? <AdminNotice message={notice} /> : null}
+        {notice ? (
+          <AdminNotice message={notice} onClose={() => setNotice(null)} />
+        ) : null}
 
         <div className="space-y-4">
           {filtered.map((alert) => {

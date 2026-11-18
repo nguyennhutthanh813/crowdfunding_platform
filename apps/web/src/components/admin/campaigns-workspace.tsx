@@ -27,8 +27,10 @@ import { formatVnd } from "@/lib/format";
 import {
   AdminNotice,
   AdminPageHeader,
+  AdminTablePagination,
   InlineActionConfirm,
   callAdminAction,
+  usePaginatedList,
   type ReviewDecision,
 } from "./admin-shared";
 
@@ -74,6 +76,7 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
   } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showReviewToast, setShowReviewToast] = useState(true);
 
   useEffect(() => {
     if (data.campaigns) setCampaigns(data.campaigns);
@@ -147,6 +150,17 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
 
     return result;
   }, [campaigns, featuredOnly, statusFilter, categoryFilter, searchTerm, sortBy]);
+
+  const {
+    pageItems: paginatedCampaigns,
+    currentPage,
+    pageSize,
+    setPage,
+    setPageSize,
+  } = usePaginatedList(
+    filteredCampaigns,
+    `${featuredOnly}|${statusFilter}|${categoryFilter}|${searchTerm}|${sortBy}`,
+  );
 
   // Handle Suspend / Resume toggle
   const handleToggleStatus = async () => {
@@ -454,23 +468,28 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
         snapshotAt={data.operations.snapshotAt}
       />
 
-      <div className="container-shell pt-6 space-y-6">
-        {notice && <AdminNotice message={notice} />}
+      <div className="container-shell pt-6 space-y-5">
+        {notice ? (
+          <AdminNotice message={notice} onClose={() => setNotice(null)} />
+        ) : showReviewToast && inReviewCount > 0 && statusFilter !== "IN_REVIEW" ? (
+          <AdminNotice
+            tone="warning"
+            message={`Có ${inReviewCount} hồ sơ chiến dịch đang chờ thẩm định lên sàn.`}
+            actionLabel="Xem hồ sơ"
+            onAction={() => setStatusFilter("IN_REVIEW")}
+            onClose={() => setShowReviewToast(false)}
+            durationMs={4500}
+          />
+        ) : null}
 
-        {/* ── Quick KPI Stat Cards ────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {/* ── Single Unified KPI & Status Filter Row ──────────────── */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           {[
             {
               label: "Tổng dự án",
               value: totalCount,
               status: "ALL",
               tone: "text-ink bg-white border-line",
-            },
-            {
-              label: "Đang gọi vốn",
-              value: liveCount,
-              status: "LIVE",
-              tone: "text-forest bg-[#f4f7f4] border-emerald-200",
             },
             {
               label: "Chờ thẩm định",
@@ -482,10 +501,28 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                   : "text-ink-soft bg-white border-line",
             },
             {
+              label: "Sắp ra mắt",
+              value: preLaunchCount,
+              status: "PRE_LAUNCH",
+              tone: "text-indigo-800 bg-indigo-50/60 border-indigo-200",
+            },
+            {
+              label: "Đang gọi vốn",
+              value: liveCount,
+              status: "LIVE",
+              tone: "text-forest bg-[#f4f7f4] border-emerald-200",
+            },
+            {
               label: "Thành công",
               value: successfulCount,
               status: "SUCCESSFUL",
               tone: "text-teal-800 bg-teal-50 border-teal-200",
+            },
+            {
+              label: "Bản nháp",
+              value: draftCount,
+              status: "DRAFT",
+              tone: "text-ink-soft bg-white border-line",
             },
             {
               label: "Tạm khóa",
@@ -503,7 +540,7 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                 key={card.label}
                 type="button"
                 onClick={() => setStatusFilter(card.status)}
-                className={`flex flex-col items-start rounded-2xl border p-4 text-left transition hover:shadow-xs ${card.tone} ${
+                className={`flex flex-col items-start rounded-2xl border p-3.5 text-left transition hover:shadow-xs ${card.tone} ${
                   active ? "ring-2 ring-forest shadow-xs" : ""
                 }`}
               >
@@ -518,38 +555,8 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
           })}
         </div>
 
-        {/* ── In-Review Urgent Banner ─────────────────────────── */}
-        {inReviewCount > 0 && statusFilter !== "IN_REVIEW" && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 sm:flex-row sm:items-center sm:justify-between shadow-xs">
-            <div className="flex items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white shadow-xs">
-                <FileCheck2 className="size-5" />
-              </span>
-              <div>
-                <p className="text-xs font-bold text-amber-950">
-                  Có {inReviewCount} hồ sơ chiến dịch đang chờ thẩm định lên sàn
-                </p>
-                <p className="text-[11px] text-amber-800/80">
-                  Kiểm tra tính pháp lý, tính khả thi ngân sách và kế hoạch giao
-                  quà trước khi duyệt công khai.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("IN_REVIEW")}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 text-xs font-bold text-white transition hover:bg-amber-700 shrink-0 shadow-xs"
-            >
-              <span>Xem hồ sơ chờ duyệt</span>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black">
-                {inReviewCount}
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* ── Filter & Search Toolbar ─────────────────────────── */}
-        <div className="space-y-3 rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
+        {/* ── Search & Filter Toolbar ─────────────────────────── */}
+        <div className="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <label className="relative flex-1">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
@@ -571,86 +578,10 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
             </label>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-                <SlidersHorizontal className="size-3.5" />
-                <span>Danh mục:</span>
-              </div>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="rounded-xl border border-line bg-[#fbfbfa] px-3 py-2 text-xs font-semibold text-ink outline-none transition focus:border-forest"
-              >
-                <option value="ALL">Tất cả danh mục</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex items-center gap-1.5 pl-2 text-xs text-ink-muted">
-                <span>Sắp xếp:</span>
-              </div>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="rounded-xl border border-line bg-[#fbfbfa] px-3 py-2 text-xs font-semibold text-ink outline-none transition focus:border-forest"
-              >
-                <option value="newest">Mặc định</option>
-                <option value="pledged">Gây quỹ nhiều nhất</option>
-                <option value="goal">Mục tiêu lớn nhất</option>
-                <option value="backers">Nhiều người ủng hộ</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Quick status filters */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line/60">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-ink-muted mr-1">
-                Lọc trạng thái:
-              </span>
-              {[
-                { id: "ALL", label: "Tất cả", count: totalCount },
-                { id: "IN_REVIEW", label: "Chờ duyệt", count: inReviewCount },
-                { id: "LIVE", label: "Đang gọi vốn", count: liveCount },
-                { id: "SUCCESSFUL", label: "Thành công", count: successfulCount },
-                { id: "SUSPENDED", label: "Tạm khóa", count: suspendedCount },
-                { id: "PRE_LAUNCH", label: "Sắp ra mắt", count: preLaunchCount },
-                { id: "DRAFT", label: "Bản nháp", count: draftCount },
-              ].map((pill) => {
-                const active = statusFilter === pill.id;
-                return (
-                  <button
-                    key={pill.id}
-                    type="button"
-                    onClick={() => setStatusFilter(pill.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
-                      active
-                        ? "bg-forest text-white shadow-sm"
-                        : "bg-[#f3f3ed] text-ink-soft hover:bg-stone-200"
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.2 text-[10px] ${
-                        active
-                          ? "bg-white/25 text-white"
-                          : "bg-white text-ink-muted"
-                      }`}
-                    >
-                      {pill.count}
-                    </span>
-                  </button>
-                );
-              })}
-
-              <span className="h-4 w-px bg-line/80 mx-1 hidden sm:inline-block" />
-
               <button
                 type="button"
                 onClick={() => setFeaturedOnly((prev) => !prev)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
                   featuredOnly
                     ? "bg-amber-500 text-white shadow-sm"
                     : "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
@@ -673,28 +604,59 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                   {featuredCount}
                 </span>
               </button>
-            </div>
 
-            {(statusFilter !== "ALL" ||
-              categoryFilter !== "ALL" ||
-              searchTerm.trim() !== "" ||
-              sortBy !== "newest" ||
-              featuredOnly) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStatusFilter("ALL");
-                  setCategoryFilter("ALL");
-                  setSearchTerm("");
-                  setSortBy("newest");
-                  setFeaturedOnly(false);
-                }}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-forest hover:underline"
+              <div className="flex items-center gap-1.5 pl-1 text-xs text-ink-muted">
+                <SlidersHorizontal className="size-3.5" />
+                <span>Danh mục:</span>
+              </div>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="rounded-xl border border-line bg-[#fbfbfa] px-3 py-2 text-xs font-semibold text-ink outline-none transition focus:border-forest"
               >
-                <X className="size-3" />
-                <span>Đặt lại bộ lọc</span>
-              </button>
-            )}
+                <option value="ALL">Tất cả danh mục</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex items-center gap-1.5 pl-1 text-xs text-ink-muted">
+                <span>Sắp xếp:</span>
+              </div>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="rounded-xl border border-line bg-[#fbfbfa] px-3 py-2 text-xs font-semibold text-ink outline-none transition focus:border-forest"
+              >
+                <option value="newest">Mặc định</option>
+                <option value="pledged">Gây quỹ nhiều nhất</option>
+                <option value="goal">Mục tiêu lớn nhất</option>
+                <option value="backers">Nhiều người ủng hộ</option>
+              </select>
+
+              {(statusFilter !== "ALL" ||
+                categoryFilter !== "ALL" ||
+                searchTerm.trim() !== "" ||
+                sortBy !== "newest" ||
+                featuredOnly) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter("ALL");
+                    setCategoryFilter("ALL");
+                    setSearchTerm("");
+                    setSortBy("newest");
+                    setFeaturedOnly(false);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-xl bg-stone-100 px-3 py-2 text-[11px] font-bold text-forest transition hover:bg-stone-200"
+                >
+                  <X className="size-3" />
+                  <span>Đặt lại</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -713,8 +675,8 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/60">
-                {filteredCampaigns.length > 0 ? (
-                  filteredCampaigns.map((camp) => {
+                {paginatedCampaigns.length > 0 ? (
+                  paginatedCampaigns.map((camp) => {
                     const percent =
                       camp.goalAmount > 0
                         ? Math.round(
@@ -1005,13 +967,15 @@ export function CampaignsWorkspace({ data }: { data: AdminDashboardData }) {
             </table>
           </div>
 
-          <div className="flex items-center justify-between border-t border-line bg-[#fbfbfa] px-5 py-3 text-xs text-ink-muted">
-            <span>
-              Hiển thị <strong>{filteredCampaigns.length}</strong> / {totalCount}{" "}
-              chiến dịch
-            </span>
-            <span>Dữ liệu đồng bộ trực tiếp từ hệ thống</span>
-          </div>
+          <AdminTablePagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalFiltered={filteredCampaigns.length}
+            totalAll={totalCount}
+            itemLabel="chiến dịch"
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       </div>
 

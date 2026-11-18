@@ -13,6 +13,7 @@ import { CommunicationModule } from './modules/communication/communication.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AiModule } from './modules/ai/ai.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { AiModule } from './modules/ai/ai.module';
     UsersModule,
     CampaignsModule,
     PledgesModule,
+    PaymentsModule,
     FulfillmentModule,
     SocialModule,
     CommunicationModule,

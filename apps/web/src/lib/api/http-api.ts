@@ -307,6 +307,15 @@ export function transformCampaignDetail(
     amount: Number(a.amount),
   }));
 
+  const shippingOptions = (raw.shippingOptions ?? []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    feeAmount: Number(s.feeAmount),
+    provinceCode: s.provinceCode,
+    estimatedDaysMin: s.estimatedDaysMin,
+    estimatedDaysMax: s.estimatedDaysMax,
+  }));
+
   const faqs = (raw.faqs ?? []).map((f: any) => ({
     question: f.question,
     answer: f.answer,
@@ -485,6 +494,7 @@ export function transformCampaignDetail(
     },
     rewards,
     addOns,
+    shippingOptions,
     faqs,
     updates,
     comments: mappedComments,
@@ -848,9 +858,12 @@ export class HttpPlatformApi implements PlatformApi {
 
       const latestReview = Array.isArray(c.reviews) ? c.reviews[0] : undefined;
       const isNeedsChanges =
-        latestReview?.decision === "CHANGES_REQUESTED" ||
-        latestReview?.decision === "CHANGES";
-      const reviewFeedback = latestReview?.feedback || undefined;
+        (c.status === "DRAFT" || c.status === "CHANGES_REQUESTED") &&
+        (latestReview?.decision === "CHANGES_REQUESTED" ||
+          latestReview?.decision === "CHANGES");
+      const reviewFeedback = isNeedsChanges
+        ? latestReview?.feedback || undefined
+        : undefined;
 
       if (isNeedsChanges) {
         nextAction = "CONTINUE_DRAFT";
@@ -886,6 +899,17 @@ export class HttpPlatformApi implements PlatformApi {
           "Thu thập địa chỉ giao hàng và xuất danh sách sản xuất.";
       }
 
+      const myMemberRecord = Array.isArray(c.members)
+        ? c.members.find((m: any) => m.userId === effectiveUserId)
+        : undefined;
+      const collaboratorPermissions = !isOwner
+        ? ([
+            myMemberRecord?.canPostUpdates !== false ? "Đăng bài cập nhật" : null,
+            myMemberRecord?.canReplyComments !== false ? "Trả lời bình luận" : null,
+            myMemberRecord?.canViewAiDashboard ? "Xem phân tích AI" : null,
+          ].filter(Boolean) as string[])
+        : undefined;
+
       return {
         id: card.id,
         slug: card.slug,
@@ -899,6 +923,8 @@ export class HttpPlatformApi implements PlatformApi {
         reviewStatus: isNeedsChanges ? ("NEEDS_CHANGES" as const) : undefined,
         reviewFeedback,
         ownership: (isOwner ? "OWNER" : "COLLABORATOR") as "OWNER" | "COLLABORATOR",
+        creatorName: card.creator.name,
+        collaboratorPermissions,
         goalAmount: card.goalAmount,
         pledgedAmount: card.pledgedAmount,
         backerCount: card.backerCount,
@@ -918,20 +944,21 @@ export class HttpPlatformApi implements PlatformApi {
       };
     });
 
-    const total = mappedCampaigns.length;
-    const live = mappedCampaigns.filter((c) => c.status === "LIVE").length;
-    const draftOrReview = mappedCampaigns.filter((c) =>
+    const ownedCampaigns = mappedCampaigns.filter((c) => c.ownership === "OWNER");
+    const total = ownedCampaigns.length;
+    const live = ownedCampaigns.filter((c) => c.status === "LIVE").length;
+    const draftOrReview = ownedCampaigns.filter((c) =>
       ["DRAFT", "IN_REVIEW"].includes(c.status),
     ).length;
-    const successful = mappedCampaigns.filter(
+    const successful = ownedCampaigns.filter(
       (c) => c.status === "SUCCESSFUL",
     ).length;
-    const totalPledgedAmount = mappedCampaigns.reduce(
+    const totalPledgedAmount = ownedCampaigns.reduce(
       (sum, c) => sum + c.pledgedAmount,
       0,
     );
 
-    const activeId = mappedCampaigns[0]?.id ?? "";
+    const activeId = ownedCampaigns[0]?.id ?? mappedCampaigns[0]?.id ?? "";
     const creatorDisplayName = user?.name || "Chủ dự án";
 
     return {
@@ -1011,6 +1038,13 @@ export class HttpPlatformApi implements PlatformApi {
           label: "Cà phê & Công nghệ",
         },
       },
+      phase: ["DRAFT", "IN_REVIEW", "PRE_LAUNCH", "CHANGES_REQUESTED"].includes(
+        campaign?.status ?? "LIVE",
+      )
+        ? "PREPARATION"
+        : campaign?.status === "LIVE"
+          ? "LIVE"
+          : "ENDED",
       score: 87,
       riskLevel: "LOW",
       model: {
@@ -1058,10 +1092,10 @@ export class HttpPlatformApi implements PlatformApi {
         },
       ],
       timeline: [
-        { day: "Ngày 1", actual: 45000000, expected: 40000000 },
-        { day: "Ngày 7", actual: 95000000, expected: 85000000 },
-        { day: "Ngày 14", actual: 140000000, expected: 130000000 },
-        { day: "Ngày 21", actual: 184500000, expected: 175000000 },
+        { day: "Ngày 1", actual: 22, expected: 20 },
+        { day: "Ngày 7", actual: 48, expected: 42 },
+        { day: "Ngày 14", actual: 70, expected: 65 },
+        { day: "Ngày 21", actual: 92, expected: 88 },
       ],
       preLaunchSignals: {
         saves: 384,
@@ -1482,7 +1516,23 @@ export class HttpPlatformApi implements PlatformApi {
         : null;
 
     const rewardAmount = reward ? reward.amount : 0;
-    const shippingAmount = reward && reward.amount >= 500_000 ? 35_000 : 0;
+    let shippingAmount = 0;
+    if (
+      campaign &&
+      "shippingOptions" in campaign &&
+      Array.isArray((campaign as CampaignDetail).shippingOptions) &&
+      (campaign as CampaignDetail).shippingOptions!.length > 0
+    ) {
+      const options = (campaign as CampaignDetail).shippingOptions!;
+      if (input.shippingOptionId) {
+        const found = options.find((s) => s.id === input.shippingOptionId);
+        if (found) shippingAmount = found.feeAmount;
+      } else if (reward) {
+        shippingAmount = options[0].feeAmount;
+      }
+    } else if (reward && reward.amount >= 500_000) {
+      shippingAmount = 35_000;
+    }
     const bonusAmount = input.bonusAmount || 0;
     let addOnAmount = 0;
     if (

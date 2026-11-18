@@ -114,7 +114,9 @@ export function SettingsWorkspace({ data }: { data: AdminDashboardData }) {
       />
 
       <div className="container-shell pt-6 space-y-6">
-        {notice && <AdminNotice message={notice} />}
+        {notice && (
+          <AdminNotice message={notice} onClose={() => setNotice(null)} />
+        )}
 
         <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
           <article className="rounded-2xl border border-line bg-white p-6 shadow-xs">

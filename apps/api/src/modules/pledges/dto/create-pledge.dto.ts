@@ -3,6 +3,7 @@ import {
   IsUUID,
   IsOptional,
   IsInt,
+  IsBoolean,
   IsArray,
   ValidateNested,
   Min,
@@ -54,4 +55,9 @@ export class CreatePledgeDto {
   @ValidateNested({ each: true })
   @Type(() => PledgeAddOnItemDto)
   addOns?: PledgeAddOnItemDto[];
+
+  @ApiPropertyOptional({ description: 'Explicitly mark request as pledge update' })
+  @IsOptional()
+  @IsBoolean()
+  isUpdate?: boolean;
 }

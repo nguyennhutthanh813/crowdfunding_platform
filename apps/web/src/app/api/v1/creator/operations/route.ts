@@ -13,10 +13,15 @@ import { getEffectivePreviewState } from "@/lib/auth/preview-state";
 import { requireSession } from "@/lib/auth/require-session";
 import { writePreviewSessionCookie } from "@/lib/auth/write-session-cookie";
 import { applyOperationsPreviewState } from "@/lib/preview-read-models";
-import { syncCampaignToPostgres } from "@/lib/api/real-campaign-sync";
+import {
+  deleteDraftCampaignFromPostgres,
+  type DraftPayload,
+  syncCampaignToPostgres,
+} from "@/lib/api/real-campaign-sync";
 
 const allowedActions = new Set([
   "SAVE_DRAFT",
+  "DELETE_DRAFT",
   "SUBMIT_REVIEW",
   "LAUNCH",
   "CLOSE_CAMPAIGN",
@@ -33,6 +38,7 @@ const allowedActions = new Set([
 
 const ownerOnlyActions = new Set([
   "SAVE_DRAFT",
+  "DELETE_DRAFT",
   "SUBMIT_REVIEW",
   "LAUNCH",
   "CLOSE_CAMPAIGN",
@@ -114,15 +120,19 @@ export async function POST(request: Request) {
     return apiError(400, "INVALID_ACTION", "Thao tác không hợp lệ.");
   }
 
+  let campaignId =
+    typeof payload.campaignId === "string" ? payload.campaignId : "";
+  const isCreatingNewDraft =
+    (action === "SAVE_DRAFT" || action === "SUBMIT_REVIEW") &&
+    campaignId === "cmp_draft";
+
   const access = await requireSession(
-    action === "RESPOND_INVITATION"
+    action === "RESPOND_INVITATION" || isCreatingNewDraft
       ? ["CREATOR", "COLLABORATOR", "BACKER", "ADMIN"]
       : ["CREATOR", "COLLABORATOR", "ADMIN"],
   );
   if (access.response) return access.response;
 
-  let campaignId =
-    typeof payload.campaignId === "string" ? payload.campaignId : "";
   if (!campaignId) {
     return apiError(
       422,
@@ -147,7 +157,11 @@ export async function POST(request: Request) {
       "Không tìm thấy chiến dịch trong hệ thống.",
     );
   }
-  if (action !== "RESPOND_INVITATION" && !campaignAccess.canOpenWorkspace) {
+  if (
+    action !== "RESPOND_INVITATION" &&
+    !isCreatingNewDraft &&
+    !campaignAccess.canOpenWorkspace
+  ) {
     return apiError(
       403,
       "FORBIDDEN_WORKSPACE",
@@ -155,7 +169,11 @@ export async function POST(request: Request) {
     );
   }
 
-  if (ownerOnlyActions.has(action) && !campaignAccess.isOwner) {
+  if (
+    ownerOnlyActions.has(action) &&
+    !isCreatingNewDraft &&
+    !campaignAccess.isOwner
+  ) {
     return apiError(
       403,
       "CAMPAIGN_OWNER_REQUIRED",
@@ -164,12 +182,73 @@ export async function POST(request: Request) {
   }
 
   let reviewSyncedToDb = false;
+  let syncedSlug: string | undefined;
+  let updatedSessionFromSync = access.session!;
+  let shouldPersistSession = false;
 
   if (action === "SAVE_DRAFT") {
     // Lưu bản nháp trực tiếp vào cơ sở dữ liệu PostgreSQL
-    const draftSync = await syncCampaignToPostgres(payload as any, access.session, false);
+    const draftSync = await syncCampaignToPostgres(payload as unknown as DraftPayload, access.session, false);
+    if (!draftSync.success) {
+      return apiError(
+        draftSync.statusCode && draftSync.statusCode >= 400
+          ? draftSync.statusCode
+          : 422,
+        "SAVE_DRAFT_FAILED",
+        draftSync.error || "Chưa thể lưu bản nháp vào cơ sở dữ liệu.",
+      );
+    }
     if (draftSync.campaignId) {
       campaignId = draftSync.campaignId;
+    }
+    if (draftSync.slug) {
+      syncedSlug = draftSync.slug;
+    }
+    if (draftSync.refreshedSession) {
+      updatedSessionFromSync = draftSync.refreshedSession;
+      shouldPersistSession = true;
+    }
+    if (!updatedSessionFromSync.user.roles.includes("CREATOR")) {
+      updatedSessionFromSync = {
+        ...updatedSessionFromSync,
+        user: {
+          ...updatedSessionFromSync.user,
+          roles: [...updatedSessionFromSync.user.roles, "CREATOR"],
+        },
+      };
+      shouldPersistSession = true;
+    }
+  }
+
+  let deletedDraftPlatformCleanup = false;
+  if (action === "DELETE_DRAFT") {
+    const deleteRes = await deleteDraftCampaignFromPostgres(
+      campaignId,
+      access.session,
+    );
+    if (!deleteRes.success) {
+      return apiError(
+        deleteRes.statusCode && deleteRes.statusCode >= 400
+          ? deleteRes.statusCode
+          : 422,
+        "DELETE_DRAFT_FAILED",
+        deleteRes.error || "Chưa thể xóa bản nháp.",
+      );
+    }
+    if (deleteRes.refreshedSession) {
+      updatedSessionFromSync = deleteRes.refreshedSession;
+      shouldPersistSession = true;
+    }
+    if (platformState.campaignStatuses[campaignId]) {
+      delete platformState.campaignStatuses[campaignId];
+      deletedDraftPlatformCleanup = true;
+    }
+    const prevReviewsLen = platformState.submittedReviews.length;
+    platformState.submittedReviews = platformState.submittedReviews.filter(
+      (item) => item.campaignId !== campaignId,
+    );
+    if (platformState.submittedReviews.length !== prevReviewsLen) {
+      deletedDraftPlatformCleanup = true;
     }
   }
 
@@ -198,6 +277,9 @@ export async function POST(request: Request) {
     if (syncRes.campaignId) {
       campaignId = syncRes.campaignId;
       reviewSyncedToDb = true;
+    }
+    if (syncRes.slug) {
+      syncedSlug = syncRes.slug;
     }
   }
 
@@ -308,9 +390,9 @@ export async function POST(request: Request) {
     }
   }
 
-  const previewState = getEffectivePreviewState(access.session!);
-  let persisted = false;
-  let platformPersisted = false;
+  const previewState = getEffectivePreviewState(updatedSessionFromSync);
+  let persisted = shouldPersistSession;
+  let platformPersisted = deletedDraftPlatformCleanup;
   let operationResultData: any = null;
 
   if (action === "RESPOND_INVITATION") {
@@ -694,6 +776,25 @@ export async function POST(request: Request) {
     const campaign = campaignAccess.campaign!;
     const submittedTitle = (payload.title as string).trim();
 
+    // Xóa các quyết định yêu cầu sửa (CHANGES) cũ trong cookie để chiến dịch chuyển sang chờ xét duyệt
+    for (const key of [
+      campaignId,
+      campaign.id,
+      `review_${campaignId}`,
+      `review_${campaign.id}`,
+    ]) {
+      delete platformState.reviewDecisions[key];
+      delete platformState.reviewFeedback[key];
+      if (platformState.reviewTimestamps) {
+        delete platformState.reviewTimestamps[key];
+      }
+      if (previewState.reviewDecisions) {
+        delete previewState.reviewDecisions[key];
+      }
+    }
+    persisted = true;
+    platformPersisted = true;
+
     if (reviewSyncedToDb) {
       // Đã lưu và gửi duyệt trực tiếp vào PostgreSQL thật:
       // Xóa các bản nháp giả lập cũ trong cookie để không bị trùng lặp trên trang admin
@@ -769,8 +870,8 @@ export async function POST(request: Request) {
 
 
   const nextSession = persisted
-    ? { ...access.session!, previewState }
-    : access.session!;
+    ? { ...updatedSessionFromSync, previewState }
+    : updatedSessionFromSync;
   const response = NextResponse.json({
     data: {
       action,
@@ -779,6 +880,7 @@ export async function POST(request: Request) {
       result: operationResultData,
       actorId: access.session!.user.id,
       campaignId,
+      campaignSlug: syncedSlug,
       auditId: `audit_${crypto.randomUUID().slice(0, 8)}`,
       processedAt: new Date().toISOString(),
       persisted: persisted || platformPersisted,

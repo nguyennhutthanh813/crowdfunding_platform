@@ -28,6 +28,7 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
         update: jest.fn(),
         delete: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn().mockImplementation((args) => prisma.campaign.findUnique(args)),
         findMany: jest.fn(),
         count: jest.fn(),
       },
@@ -581,6 +582,12 @@ describe('CampaignsService - Section 4: Creator Campaign Lifecycle & Operations'
   // ═══════════════════════════════════════════════════════════
   describe('CREAT-UPD-01: Campaign Updates & Backer Notifications', () => {
     it('should publish update and notify all campaign backers', async () => {
+      prisma.campaign.findUnique.mockResolvedValue({
+        id: mockCampaignId,
+        creatorId: mockCreatorId,
+        status: 'DRAFT',
+        slug: 'test-campaign',
+      });
       // User is verified as campaign member
       prisma.campaignMember.findUnique.mockResolvedValue({
         campaignId: mockCampaignId,
