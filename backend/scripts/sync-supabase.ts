@@ -53,6 +53,7 @@ const TOPOLOGICAL_TABLES = [
   "reports",
   "audit_logs",
   "scheduler_runs",
+  "email_outbox",
 ];
 
 async function main() {

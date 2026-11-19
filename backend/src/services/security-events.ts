@@ -1,5 +1,6 @@
-import { env, isSmtpConfigured } from "../config/env.js";
+import { env } from "../config/env.js";
 import { notify, type DbClient } from "../db/helpers.js";
+import { canEmailUser } from "./email-policy.js";
 import { sendSecurityAlertEmail } from "./mailer.js";
 
 export type SecurityEvent =
@@ -59,7 +60,7 @@ export async function recordSecurityEvent(
     console.error("[security-event] notify", e);
   }
 
-  if (!isSmtpConfigured()) return;
+  if (!canEmailUser(user)) return;
   try {
     // Chờ tối đa 4 giây để serverless không cắt giữa chừng nhưng cũng không làm chậm đăng nhập
     await Promise.race([

@@ -56,6 +56,30 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+export async function sendNotificationEmail(
+  to: string,
+  displayName: string,
+  title: string,
+  body: string,
+  link: string,
+): Promise<boolean> {
+  const t = getTransporter();
+  if (!t) return false;
+  const html = wrapEmailLayout(
+    esc(title),
+    `
+    <p style="margin:0 0 14px;line-height:1.6;">Xin chào <strong>${esc(displayName)}</strong>,</p>
+    ${body ? `<p style="margin:0 0 18px;line-height:1.6;">${esc(body)}</p>` : ""}
+    <p style="margin:0 0 6px;">
+      <a href="${esc(link)}" style="display:inline-block;padding:11px 20px;background:#6d28d9;color:#ffffff;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px;">Xem chi tiết</a>
+    </p>
+    <p style="margin:16px 0 0;font-size:12px;color:#64748b;">Bạn có thể tắt bớt loại email này trong mục Cài đặt → Thông báo &amp; riêng tư.</p>
+    `,
+  );
+  await t.sendMail({ from: env.mailFrom, to, subject: `[FundViet] ${title}`, html });
+  return true;
+}
+
 export async function sendSecurityAlertEmail(
   to: string,
   displayName: string,

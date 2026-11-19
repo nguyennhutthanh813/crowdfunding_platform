@@ -656,6 +656,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT ${NOW},
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code

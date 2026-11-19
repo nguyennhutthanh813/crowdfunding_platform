@@ -45,7 +45,11 @@ function maybeTick(db: DbClient) {
   const now = Date.now();
   if (g.__fundvietBackendTick && now - g.__fundvietBackendTick < 60_000) return;
   g.__fundvietBackendTick = now;
-  void runScheduler(db, { source: "AUTO" }).catch((e) => {
-    console.error("[scheduler]", e);
-  });
+  void runScheduler(db, { source: "AUTO" })
+    .catch((e) => {
+      console.error("[scheduler]", e);
+    })
+    .then(() => import("../services/email-outbox.js"))
+    .then((m) => m?.flushEmailOutbox(db))
+    .catch((e) => console.error("[email-outbox]", e));
 }

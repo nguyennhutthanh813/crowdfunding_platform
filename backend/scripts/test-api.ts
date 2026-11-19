@@ -5,12 +5,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../src/app.js";
 import { generateTotpCode } from "../src/auth/totp.js";
+import { getDb } from "../src/db/index.js";
+import { notify } from "../src/db/helpers.js";
 import { verifySmtpConnection } from "../src/services/mailer.js";
 
 async function main() {
   const tempDb = join(tmpdir(), `fundviet-test-${Date.now()}.sqlite`);
   process.env.FUNDVIET_DB_FILE = tempDb;
   process.env.FUNDVIET_AUTO_SCHEDULER = "0";
+  // Không gửi email thật trong lúc chạy test
+  process.env.EMAIL_NOTIFICATIONS = "off";
   const app = createApp();
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, "127.0.0.1", () => resolve(s));
@@ -200,6 +204,28 @@ async function main() {
     }
     assert.ok(limited > 0, "Phải bị giới hạn sau nhiều lần đăng nhập sai");
     console.log(`  ✓ Chặn dò mật khẩu hoạt động (${limited} yêu cầu bị 429)`);
+
+    // 10. Hàng đợi email: thông báo quan trọng được xếp hàng, tài khoản mẫu không bị gửi email thật
+    await notify(getDb(), {
+      userId: "usr_minhanh",
+      type: "PLEDGE_CONFIRMED",
+      title: "Góp vốn thành công (kiểm thử)",
+      body: "Kiểm thử hàng đợi email.",
+      link: "/me/backed",
+    });
+    const before = await req<{ ok: boolean; stats: Record<string, number> }>("/admin/email-outbox", { token: tokens["Admin"] });
+    assert.equal(before.status, 200);
+    assert.ok(before.data.stats.PENDING >= 1, "Thông báo PLEDGE_CONFIRMED phải được xếp vào hàng đợi email");
+    const flushed = await req<{ ok: boolean; sent: number; skipped: number }>("/admin/email-outbox/flush", {
+      method: "POST",
+      token: tokens["Admin"],
+    });
+    assert.equal(flushed.status, 200);
+    assert.equal(flushed.data.sent, 0, "Không được gửi email thật cho tài khoản mẫu khi đang test");
+    assert.ok(flushed.data.skipped >= 1);
+    const userForbidden = await req("/admin/email-outbox", { token: tokens["Người dùng"] });
+    assert.equal(userForbidden.status, 403);
+    console.log("  ✓ Hàng đợi email thông báo hoạt động (xếp hàng, bỏ qua tài khoản mẫu, chỉ admin được xem)");
 
     console.log("✅ TẤT CẢ KIỂM THỬ BACKEND ĐỀU VƯỢT QUA!");
   } finally {

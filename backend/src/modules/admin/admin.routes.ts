@@ -1,6 +1,9 @@
 import { Router } from "express";
+import { isSmtpConfigured } from "../../config/env.js";
+import { getDb } from "../../db/index.js";
 import { humanizeError } from "../../db/helpers.js";
 import { requireAuthMiddleware, requireSystemPermMiddleware } from "../../middlewares/auth.middleware.js";
+import { emailOutboxStats, flushEmailOutbox } from "../../services/email-outbox.js";
 import {
   adminBadges,
   adminCategories,
@@ -206,6 +209,28 @@ adminRouter.post("/scheduler/run", async (req, res) => {
 adminRouter.post("/scheduler/settle-project", async (req, res) => {
   const r = await settleLiveProjectNow(req.viewer, req.body ?? {});
   res.status(r.error ? 400 : 200).json(r);
+});
+
+// Hàng đợi email thông báo: xem tình trạng và gửi ngay
+adminRouter.get("/email-outbox", requireSystemPermMiddleware("admin.scheduler.run"), async (_req, res) => {
+  try {
+    res.json({ ok: true, smtpConfigured: isSmtpConfigured(), ...(await emailOutboxStats(getDb())) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: humanizeError(e) });
+  }
+});
+
+adminRouter.post("/email-outbox/flush", requireSystemPermMiddleware("admin.scheduler.run"), async (_req, res) => {
+  try {
+    const result = await flushEmailOutbox(getDb(), 50);
+    res.json({
+      ok: true,
+      ...result,
+      message: `Đã gửi ${result.sent} email, bỏ qua ${result.skipped}, lỗi ${result.failed}.`,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: humanizeError(e) });
+  }
 });
 
 adminRouter.get("/audit", requireSystemPermMiddleware("admin.audit.view"), async (req, res) => {

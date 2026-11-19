@@ -644,6 +644,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -1293,6 +1306,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -1823,6 +1849,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -2473,6 +2512,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -3004,6 +3056,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -3517,6 +3582,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -4167,6 +4245,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -4697,6 +4788,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -5347,6 +5451,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -5878,6 +5995,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -6391,6 +6521,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -6922,6 +7065,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -7572,6 +7728,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -8103,6 +8272,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -8616,6 +8798,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -9266,6 +9461,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -9797,6 +10005,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -10310,6 +10531,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -10842,6 +11076,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   note            TEXT NOT NULL DEFAULT ''
 );
 
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
+
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
@@ -11355,6 +11602,19 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
   finished_at     TEXT NOT NULL,
   note            TEXT NOT NULL DEFAULT ''
 );
+
+-- Hàng đợi email cho thông báo quan trọng: ghi cùng giao dịch với notifications,
+-- gửi sau (khi request kết thúc hoặc ở nhịp bộ lập lịch) để không làm chậm thao tác chính.
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id              TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENDING','SENT','SKIPPED','FAILED')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  sent_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
 CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
@@ -11543,34 +11803,34 @@ INSERT INTO role_permissions (role_code, permission_code, scope) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO categories (id, parent_id, name, slug, description, image_url, color, sort_order, is_active, created_at) VALUES
-  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-18T14:04:02.887Z'),
-  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-18T14:04:02.887Z'),
-  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-18T14:04:02.887Z'),
-  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-18T14:04:02.887Z'),
-  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-18T14:04:02.887Z'),
-  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-18T14:04:02.887Z'),
-  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-18T14:04:02.887Z'),
-  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-18T14:04:02.887Z')
+  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-19T00:03:07.944Z'),
+  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-19T00:03:07.944Z'),
+  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-19T00:03:07.944Z'),
+  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-19T00:03:07.944Z'),
+  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-19T00:03:07.944Z'),
+  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-19T00:03:07.944Z'),
+  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-19T00:03:07.945Z'),
+  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-19T00:03:07.945Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (id, email, username, password_hash, display_name, avatar_url, bio, country_code, province, status, locked_reason, email_verified_at, last_login_at, created_at, updated_at) VALUES
-  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$2hP5.wYu0qopMb8U7RmzfOqPsmkmqZVVbRhFgQ7F4d0d.bKOPDpze', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T06:39:54.631Z', '2026-11-17T09:23:34.737Z', '2025-10-20T06:39:54.631Z', '2025-10-20T06:39:54.631Z'),
-  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$9xy9QvY16H04AiYGypvZqOv4ha5HbMajiQ08LyWpbZl6VQehL.kEm', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-27T18:28:03.921Z', '2026-11-16T07:41:20.748Z', '2025-12-27T18:28:03.921Z', '2025-12-27T18:28:03.921Z'),
-  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$8zZI/pUjaCXEk/6/qcFPpOCfV4oNQoecDoq3cKzQvC8QPaychaiA6', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T06:16:06.138Z', '2026-11-17T16:34:15.388Z', '2025-11-24T06:16:06.138Z', '2025-11-24T06:16:06.138Z'),
-  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$78iF5FCYTW8zB9qPyc/jd.qK4n.Hij4pJE.wn6lkMA3flJZrJd7GG', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-21T12:58:24.925Z', '2026-11-16T18:02:48.859Z', '2025-12-21T12:58:24.925Z', '2025-12-21T12:58:24.925Z')
+  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$/nH1VFhQIVtqJhdvJjFDaen6446HMIc4ZiXEdEYEvHpo4YdO5NVse', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T16:38:59.691Z', '2026-11-17T19:22:39.797Z', '2025-10-20T16:38:59.691Z', '2025-10-20T16:38:59.691Z'),
+  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$nMTGdEfNimvqJQEh5unql.YS2FjI1mSIQJNyfQ91j1Nnk/vt06dcS', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-28T04:27:08.981Z', '2026-11-16T17:40:25.808Z', '2025-12-28T04:27:08.981Z', '2025-12-28T04:27:08.981Z'),
+  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$z0JYa/uEnORrCTEe7Z7CyeX/ENy3UHIc8xmrWAMaecJdvIbn5.dUa', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T16:15:11.198Z', '2026-11-18T02:33:20.448Z', '2025-11-24T16:15:11.198Z', '2025-11-24T16:15:11.198Z'),
+  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$MvduiZwTarSEhSt7UFxppOHq95M8AIZNl2HHa40QcFxTIX48uytJa', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-21T22:57:29.985Z', '2026-11-17T04:01:53.919Z', '2025-12-21T22:57:29.985Z', '2025-12-21T22:57:29.985Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_settings (user_id, notify_new_project, notify_project_update, notify_comment_reply, notify_message, hide_backed_projects, theme, updated_at) VALUES
-  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.015Z'),
-  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.168Z'),
-  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.109Z'),
-  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-18T14:04:03.284Z')
+  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.081Z'),
+  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.233Z'),
+  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.146Z'),
+  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.389Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_code, scope, granted_by, granted_at) VALUES
-  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T06:39:54.631Z'),
-  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-27T18:28:03.921Z'),
-  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T06:16:06.138Z'),
-  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-21T12:58:24.925Z')
+  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T16:38:59.691Z'),
+  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-28T04:27:08.981Z'),
+  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T16:15:11.198Z'),
+  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-21T22:57:29.985Z')
 ON CONFLICT DO NOTHING;
 

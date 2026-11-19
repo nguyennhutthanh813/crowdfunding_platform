@@ -245,6 +245,21 @@ export async function run(db: DbClient, sql: string, ...args: Cell[]) {
   return db.execute(sql, args);
 }
 
+/** Loại thông báo đáng gửi kèm email. Các loại khác chỉ hiện trong chuông thông báo. */
+export const EMAILABLE_NOTIFICATION_TYPES = new Set([
+  "PLEDGE_RECEIVED",
+  "PLEDGE_CONFIRMED",
+  "PROJECT_UPDATE",
+  "PROJECT_LAUNCHED",
+  "PROJECT_RESULT",
+  "COMMENT_REPLY",
+  "MESSAGE",
+  "INVITATION",
+  "REVIEW_RESULT",
+  "NEW_PROJECT_FROM_FOLLOWED",
+  "SHIPMENT",
+]);
+
 export async function notify(
   db: DbClient,
   n: {
@@ -257,8 +272,9 @@ export async function notify(
     projectId?: string | null;
   },
 ) {
+  const id = newId();
   await insert(db, "notifications", {
-    id: newId(),
+    id,
     user_id: n.userId,
     type: n.type,
     title: n.title,
@@ -267,6 +283,9 @@ export async function notify(
     actor_id: n.actorId ?? null,
     project_id: n.projectId ?? null,
   });
+  if (EMAILABLE_NOTIFICATION_TYPES.has(n.type)) {
+    await insert(db, "email_outbox", { id: newId(), notification_id: id });
+  }
 }
 
 export async function audit(

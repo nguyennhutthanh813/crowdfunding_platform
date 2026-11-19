@@ -7,6 +7,7 @@ import { env, isCloudinaryConfigured, isPostgresConfigured, isSmtpConfigured } f
 import { getDb } from "./db/index.js";
 import { humanizeError, one } from "./db/helpers.js";
 import { attachViewerMiddleware } from "./middlewares/auth.middleware.js";
+import { flushEmailOutbox } from "./services/email-outbox.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { uploadRouter } from "./modules/upload/upload.routes.js";
 import { publicRouter } from "./modules/public/public.routes.js";
@@ -59,6 +60,18 @@ export function createApp() {
   app.use("/uploads", express.static(join(process.cwd(), "uploads"), { maxAge: "7d" }));
 
   app.use(attachViewerMiddleware);
+
+  // Sau mỗi thao tác ghi dữ liệu, gửi luôn các email thông báo vừa phát sinh (nếu có)
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
+      res.on("finish", () => {
+        if (res.statusCode < 400) {
+          void flushEmailOutbox(getDb(), 10).catch((e) => console.error("[email-outbox]", e));
+        }
+      });
+    }
+    next();
+  });
 
   app.get(["/", "/api"], (_req, res) => {
     res.json({
