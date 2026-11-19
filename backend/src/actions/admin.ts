@@ -390,6 +390,252 @@ export async function toggleCategory(viewer: Viewer | null, bodyIn: Payload): Pr
   }
 }
 
+export async function deleteCategory(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireAdminPerm(viewer, "admin.category.manage");
+  if (!auth.ok) return { error: auth.error };
+
+  const id = strVal(bodyIn, "id");
+  if (!id) return { error: "Thiếu mã thể loại." };
+
+  const db = getDb();
+  try {
+    const msg = await tx(db, async () => {
+      const cat = await one<{ id: string; name: string }>(db, `SELECT id, name FROM categories WHERE id = ?`, id);
+      if (!cat) throw new DomainError("Không tìm thấy thể loại.", "NOT_FOUND");
+      const used = await one<{ c: number }>(db, `SELECT COUNT(*) AS c FROM projects WHERE category_id = ?`, cat.id);
+      if (Number(used?.c ?? 0) > 0) {
+        throw new DomainError(`Thể loại “${cat.name}” đang gắn với ${used?.c} dự án nên không thể xoá — hãy dùng chức năng Ẩn.`);
+      }
+      await run(db, `DELETE FROM categories WHERE id = ?`, cat.id);
+      await audit(db, auth.viewer.id, "category.delete", "category", cat.id, cat.name);
+      return `Đã xoá thể loại “${cat.name}”.`;
+    });
+    return { ok: true, message: msg };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function adminResetUserTwoFactor(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireAdminPerm(viewer, "admin.user.lock");
+  if (!auth.ok) return { error: auth.error };
+
+  const userId = strVal(bodyIn, "userId");
+  const reason = strVal(bodyIn, "reason");
+  if (!userId) return { error: "Thiếu mã người dùng." };
+  if (reason.length < 5) return { error: "Vui lòng nhập lý do gỡ khoá 2FA (tối thiểu 5 ký tự)." };
+
+  const db = getDb();
+  try {
+    const msg = await tx(db, async () => {
+      const target = await one<{ id: string; display_name: string; username: string }>(
+        db,
+        `SELECT id, display_name, username FROM users WHERE id = ?`,
+        userId,
+      );
+      if (!target) throw new DomainError("Không tìm thấy tài khoản.", "NOT_FOUND");
+      const now = nowIso();
+      await run(db, `DELETE FROM user_two_factor WHERE user_id = ?`, target.id);
+      await run(db, `DELETE FROM user_backup_codes WHERE user_id = ?`, target.id);
+      await run(
+        db,
+        `UPDATE users SET two_factor_enabled = 0, two_factor_verified_at = NULL, updated_at = ? WHERE id = ?`,
+        now,
+        target.id,
+      );
+      await notify(db, {
+        userId: target.id,
+        type: "SYSTEM",
+        title: "Quản trị viên đã đặt lại xác thực 2 lớp (2FA)",
+        body: `Lý do: ${reason}. Vui lòng đăng nhập và thiết lập lại bảo mật 2FA trong phần Cài đặt.`,
+        link: "/me/settings?tab=account",
+        actorId: auth.viewer.id,
+      });
+      await audit(db, auth.viewer.id, "user.2fa_admin_reset", "user", target.id, reason);
+      return `Đã gỡ khoá 2FA cho ${target.display_name} (@${target.username}).`;
+    });
+    return { ok: true, message: msg };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function refundPledge(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireAdminPerm(viewer, "admin.transaction.view");
+  if (!auth.ok) return { error: auth.error };
+
+  const pledgeId = strVal(bodyIn, "pledgeId");
+  const reason = strVal(bodyIn, "reason");
+  if (!pledgeId) return { error: "Thiếu mã khoản góp vốn." };
+  if (reason.length < 5) {
+    return { error: "Vui lòng nhập lý do hoàn tiền đối soát (ít nhất 5 ký tự).", fieldErrors: { reason: "Ít nhất 5 ký tự." } };
+  }
+
+  const db = getDb();
+  try {
+    const out = await tx(db, async () => {
+      const pl = await one<{
+        id: string;
+        code: string;
+        project_id: string;
+        backer_id: string;
+        total_amount: number;
+        status: string;
+        slug: string;
+        title: string;
+        creator_id: string;
+      }>(
+        db,
+        `SELECT pl.id, pl.code, pl.project_id, pl.backer_id, pl.total_amount, pl.status, p.slug, p.title, p.creator_id
+         FROM pledges pl JOIN projects p ON p.id = pl.project_id
+         WHERE pl.id = ?`,
+        pledgeId,
+      );
+      if (!pl) throw new DomainError("Không tìm thấy khoản góp vốn.", "NOT_FOUND");
+      if (pl.status !== "CAPTURED") {
+        throw new DomainError("Chỉ hoàn tiền được khoản góp vốn đã thu tiền thành công (CAPTURED).");
+      }
+
+      const ship = await one<{ status: string }>(db, `SELECT status FROM shipments WHERE pledge_id = ?`, pl.id);
+      if (ship?.status === "DELIVERED") {
+        throw new DomainError("Đơn hàng quà vật lý đã giao thành công nên không thể hoàn tiền tự động.");
+      }
+
+      const now = nowIso();
+      const refNo = `${14990000 + Math.floor(Math.random() * 9999)}`;
+      await run(db, `UPDATE pledges SET status = 'REFUNDED', updated_at = ? WHERE id = ?`, now, pl.id);
+      if (ship) {
+        await run(db, `DELETE FROM shipments WHERE pledge_id = ? AND status <> 'DELIVERED'`, pl.id);
+      }
+      await insert(db, "payment_transactions", {
+        id: newId(),
+        pledge_id: pl.id,
+        kind: "REFUND",
+        amount: pl.total_amount,
+        status: "SUCCEEDED",
+        idempotency_key: `${pl.id}:REFUND`,
+        provider: "VNPAY",
+        provider_ref: refNo,
+        bank_code: "VNPAY",
+        vnp_response_code: "00",
+        message: `Hoàn tiền VNPAY: ${reason.slice(0, 240)}`,
+        created_at: now,
+      });
+      await notify(db, {
+        userId: pl.backer_id,
+        type: "PROJECT_RESULT",
+        title: `Đã hoàn tiền khoản góp vốn ${pl.code}`,
+        body: `Số tiền ${Number(pl.total_amount).toLocaleString("vi-VN")}đ từ dự án "${pl.title}" đã được hoàn qua VNPAY. Lý do: ${reason}`,
+        link: "/me/backed",
+        actorId: auth.viewer.id,
+        projectId: pl.project_id,
+      });
+      await notify(db, {
+        userId: pl.creator_id,
+        type: "SYSTEM",
+        title: `Đối soát hoàn tiền pledge ${pl.code}`,
+        body: `Quản trị viên đã hoàn ${Number(pl.total_amount).toLocaleString("vi-VN")}đ trên dự án "${pl.title}".`,
+        link: `/studio/${pl.slug}?tab=backers`,
+        actorId: auth.viewer.id,
+        projectId: pl.project_id,
+      });
+      await audit(db, auth.viewer.id, "pledge.refund", "pledge", pl.id, `${pl.code} · ${reason}`);
+      return { slug: pl.slug, code: pl.code, amount: Number(pl.total_amount) };
+    });
+
+    return {
+      ok: true,
+      slug: out.slug,
+      message: `Đã hoàn tiền ${out.amount.toLocaleString("vi-VN")}đ cho mã ${out.code} qua cổng VNPAY.`,
+    };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function resolveFailedCapture(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireAdminPerm(viewer, "admin.transaction.view");
+  if (!auth.ok) return { error: auth.error };
+
+  const pledgeId = strVal(bodyIn, "pledgeId");
+  const op = strVal(bodyIn, "op").toUpperCase();
+  const note = strVal(bodyIn, "note") || (op === "VOID" ? "Giải phóng khoản thu lỗi quá hạn" : "Đối soát thu lại thành công qua VNPAY");
+  if (!pledgeId || (op !== "RETRY_CAPTURE" && op !== "VOID")) {
+    return { error: "Tham số xử lý giao dịch lỗi không hợp lệ." };
+  }
+
+  const db = getDb();
+  try {
+    const out = await tx(db, async () => {
+      const pl = await one<{
+        id: string;
+        code: string;
+        project_id: string;
+        backer_id: string;
+        total_amount: number;
+        status: string;
+        slug: string;
+        title: string;
+      }>(
+        db,
+        `SELECT pl.id, pl.code, pl.project_id, pl.backer_id, pl.total_amount, pl.status, p.slug, p.title
+         FROM pledges pl JOIN projects p ON p.id = pl.project_id WHERE pl.id = ?`,
+        pledgeId,
+      );
+      if (!pl) throw new DomainError("Không tìm thấy khoản góp vốn.", "NOT_FOUND");
+      if (pl.status !== "CAPTURE_FAILED") {
+        throw new DomainError("Khoản góp vốn này không ở trạng thái lỗi thu tiền (CAPTURE_FAILED).");
+      }
+
+      const now = nowIso();
+      if (op === "RETRY_CAPTURE") {
+        await run(db, `UPDATE pledges SET status = 'CAPTURED', captured_at = ?, updated_at = ? WHERE id = ?`, now, now, pl.id);
+        await insert(db, "payment_transactions", {
+          id: newId(),
+          pledge_id: pl.id,
+          kind: "CAPTURE",
+          amount: pl.total_amount,
+          status: "SUCCEEDED",
+          idempotency_key: `${pl.id}:CAPTURE:ADMIN:${Date.now()}`,
+          provider: "VNPAY",
+          provider_ref: `${14880000 + Math.floor(Math.random() * 9999)}`,
+          bank_code: "VNPAY",
+          vnp_response_code: "00",
+          message: note.slice(0, 240),
+          created_at: now,
+        });
+        await audit(db, auth.viewer.id, "pledge.admin_capture", "pledge", pl.id, `${pl.code} · ${note}`);
+      } else {
+        await run(db, `UPDATE pledges SET status = 'VOIDED', voided_at = ?, updated_at = ? WHERE id = ?`, now, now, pl.id);
+        await insert(db, "payment_transactions", {
+          id: newId(),
+          pledge_id: pl.id,
+          kind: "VOID",
+          amount: pl.total_amount,
+          status: "SUCCEEDED",
+          idempotency_key: `${pl.id}:VOID:ADMIN:${Date.now()}`,
+          provider: "VNPAY",
+          message: note.slice(0, 240),
+          created_at: now,
+        });
+        await audit(db, auth.viewer.id, "pledge.admin_void", "pledge", pl.id, `${pl.code} · ${note}`);
+      }
+      return { slug: pl.slug, code: pl.code };
+    });
+
+    return {
+      ok: true,
+      slug: out.slug,
+      message:
+        op === "RETRY_CAPTURE"
+          ? `Đã xác nhận thu tiền thành công cho mã ${out.code}.`
+          : `Đã giải phóng khoản thu lỗi ${out.code}.`,
+    };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
 export async function runSchedulerNow(viewer: Viewer | null): Promise<ActionResult> {
   const auth = requireAdminPerm(viewer, "admin.scheduler.run");
   if (!auth.ok) return { error: auth.error };

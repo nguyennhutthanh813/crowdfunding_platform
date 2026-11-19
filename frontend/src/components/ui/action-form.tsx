@@ -46,7 +46,11 @@ export function ActionForm({ action, children, className, resetOnSuccess, onSucc
       if (state.celebrate) celebrate();
       if (resetOnSuccess) ref.current?.reset();
       onSuccess?.(state);
-      if (state.redirect) router.push(state.redirect);
+      if (state.redirect) {
+        router.push(state.redirect);
+      } else {
+        router.refresh();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);

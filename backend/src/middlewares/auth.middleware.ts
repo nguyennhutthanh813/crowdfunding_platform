@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
-import { verifyAccessToken, type AccessTokenPayload } from "../auth/jwt.js";
+import { openTwoFactorVault, verifyAccessToken, type AccessTokenPayload } from "../auth/jwt.js";
 import { hashFastCommunityPassword } from "../auth/password.js";
 import { env } from "../config/env.js";
 import { getDb } from "../db/index.js";
-import { nowIso, one, run, tx, type DbClient } from "../db/helpers.js";
+import { newId, nowIso, one, run, tx, type DbClient } from "../db/helpers.js";
 import { hasSystemPerm, loadViewer, type Viewer } from "../rbac/rbac.js";
 
 declare global {
@@ -12,6 +12,7 @@ declare global {
     interface Request {
       viewer: Viewer | null;
       sessionId: string | null;
+      twoFactorVaultHeader: string | undefined;
     }
   }
 }
@@ -54,12 +55,81 @@ export async function ensureEphemeralUserHydrated(
   });
 }
 
+/**
+ * Đồng bộ trạng thái 2FA đã mã hoá AES-256-GCM sang SQLite tạm của container hiện tại
+ * (chỉ chạy khi env.isVercel && db.engine === "sqlite" và bảng user_two_factor chưa có dòng kích hoạt).
+ */
+export async function ensureEphemeralTwoFactorHydrated(
+  db: DbClient,
+  sealedHeader: string | undefined,
+  targetUserId?: string,
+) {
+  if (!env.isVercel || db.engine !== "sqlite" || !sealedHeader) return;
+  const vault = openTwoFactorVault(sealedHeader);
+  const entries = targetUserId
+    ? vault[targetUserId]
+      ? [vault[targetUserId]]
+      : []
+    : Object.values(vault);
+  if (entries.length === 0) return;
+
+  for (const entry of entries) {
+    const userExists = await one<{ id: string }>(db, `SELECT id FROM users WHERE id = ?`, entry.userId);
+    if (!userExists) continue;
+    const tf = await one<{ is_enabled: number }>(
+      db,
+      `SELECT is_enabled FROM user_two_factor WHERE user_id = ?`,
+      entry.userId,
+    );
+    if (Number(tf?.is_enabled ?? 0) === 1) continue;
+    const now = nowIso();
+    await tx(db, async () => {
+      await run(db, `DELETE FROM user_two_factor WHERE user_id = ?`, entry.userId);
+      await run(
+        db,
+        `INSERT INTO user_two_factor (user_id, secret_base32, is_enabled, verified_at, created_at, updated_at)
+         VALUES (?, ?, 1, ?, ?, ?)`,
+        entry.userId,
+        entry.secret,
+        entry.verifiedAt || now,
+        entry.verifiedAt || now,
+        now,
+      );
+      await run(
+        db,
+        `UPDATE users SET two_factor_enabled = 1, two_factor_verified_at = ?, updated_at = ? WHERE id = ?`,
+        entry.verifiedAt || now,
+        now,
+        entry.userId,
+      );
+      await run(db, `DELETE FROM user_backup_codes WHERE user_id = ?`, entry.userId);
+      for (const h of entry.backupCodeHashes ?? []) {
+        await run(
+          db,
+          `INSERT INTO user_backup_codes (id, user_id, code_hash, created_at) VALUES (?, ?, ?, ?)`,
+          newId(),
+          entry.userId,
+          h,
+          entry.verifiedAt || now,
+        );
+      }
+    });
+  }
+}
+
 /** Giải mã JWT Bearer Token (nếu có) và gắn Viewer vào req.viewer. */
 export async function attachViewerMiddleware(req: Request, _res: Response, next: NextFunction) {
   req.viewer = null;
   req.sessionId = null;
+  req.twoFactorVaultHeader =
+    typeof req.headers["x-fv-2fa-vault"] === "string" ? req.headers["x-fv-2fa-vault"].trim() : undefined;
 
   try {
+    const db = getDb();
+    if (req.twoFactorVaultHeader) {
+      await ensureEphemeralTwoFactorHydrated(db, req.twoFactorVaultHeader);
+    }
+
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
     if (!token) return next();
@@ -67,7 +137,6 @@ export async function attachViewerMiddleware(req: Request, _res: Response, next:
     const payload = verifyAccessToken(token);
     if (!payload) return next();
 
-    const db = getDb();
     const now = nowIso();
     const sess = await one<{ id: string; revoked_at: string | null; expires_at: string }>(
       db,
@@ -79,11 +148,13 @@ export async function attachViewerMiddleware(req: Request, _res: Response, next:
     if (sess) {
       if (sess.revoked_at || sess.expires_at <= now) return next();
     } else if (!(env.isVercel && db.engine === "sqlite")) {
-      // Trên CSDL bền vững (PostgreSQL hoặc SQLite máy trạm đơn), yêu cầu phiên phải tồn tại trong bảng sessions
       return next();
     }
 
     await ensureEphemeralUserHydrated(db, payload);
+    if (req.twoFactorVaultHeader) {
+      await ensureEphemeralTwoFactorHydrated(db, req.twoFactorVaultHeader, payload.sub);
+    }
 
     const viewer = await loadViewer(db, payload.sub);
     if (viewer && viewer.status === "ACTIVE") {

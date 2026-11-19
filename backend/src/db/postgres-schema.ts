@@ -82,12 +82,12 @@ FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_insert();
 
 CREATE OR REPLACE FUNCTION fn_pledges_after_update() RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status NOT IN ('CANCELLED', 'VOIDED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'VOIDED', 'REFUNDED') THEN
+  IF OLD.status NOT IN ('CANCELLED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'REFUNDED') THEN
     UPDATE projects
     SET pledged_amount = GREATEST(0, pledged_amount - NEW.total_amount),
         backers_count = GREATEST(0, backers_count - 1)
     WHERE id = NEW.project_id;
-    IF NEW.tier_id IS NOT NULL THEN
+    IF NEW.tier_id IS NOT NULL AND NEW.status = 'CANCELLED' THEN
       UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = NEW.tier_id;
     END IF;
   END IF;
@@ -98,6 +98,30 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_pg_pledges_au ON pledges;
 CREATE TRIGGER trg_pg_pledges_au AFTER UPDATE OF status ON pledges
 FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_update();
+
+CREATE OR REPLACE FUNCTION fn_sync_user_two_factor() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    UPDATE users
+    SET two_factor_enabled = 0,
+        two_factor_verified_at = NULL,
+        updated_at = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    WHERE id = OLD.user_id;
+    RETURN OLD;
+  ELSE
+    UPDATE users
+    SET two_factor_enabled = NEW.is_enabled,
+        two_factor_verified_at = NEW.verified_at,
+        updated_at = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    WHERE id = NEW.user_id;
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_pg_user_two_factor_sync ON user_two_factor;
+CREATE TRIGGER trg_pg_user_two_factor_sync AFTER INSERT OR UPDATE OR DELETE ON user_two_factor
+FOR EACH ROW EXECUTE FUNCTION fn_sync_user_two_factor();
 
 CREATE OR REPLACE FUNCTION fn_pledge_add_ons_stock() RETURNS TRIGGER AS $$
 BEGIN

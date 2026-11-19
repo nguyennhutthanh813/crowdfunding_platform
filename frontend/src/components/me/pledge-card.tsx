@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { MyPledge } from "@/server/queries/me";
 import { cancelMyPledgeAction } from "@/server/actions/me";
+import { createVnpayRetryOrderAction } from "@/server/actions/public";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { ButtonLink } from "@/components/ui/button";
 import { FundingBar } from "@/components/ui/funding-bar";
@@ -304,6 +305,15 @@ export function PledgeCard({ p }: { p: MyPledge }) {
           <ButtonLink href={`/p/${p.slug}`} variant="ghost" size="xs">
             <ExternalLink className="size-3.5" /> Xem dự án
           </ButtonLink>
+          {p.status === "CAPTURE_FAILED" && (
+            <ActionForm action={createVnpayRetryOrderAction}>
+              <input type="hidden" name="retryPledgeId" value={p.id} />
+              <input type="hidden" name="bankCode" value="NCB" />
+              <SubmitButton variant="primary" size="sm" pendingText="Đang mở VNPAY…">
+                <CreditCard className="size-3.5" /> Thanh toán lại qua VNPAY
+              </SubmitButton>
+            </ActionForm>
+          )}
           {p.changeable && (
             <>
               <ButtonLink href={`/p/${p.slug}/back?change=1`} variant="outline" size="sm">

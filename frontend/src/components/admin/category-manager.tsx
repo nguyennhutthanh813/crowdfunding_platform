@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, Pencil, Plus } from "lucide-react";
+import { Eye, EyeOff, Pencil, Plus, Trash2 } from "lucide-react";
 import type { AdminCategory } from "@/server/queries/admin";
-import { saveCategoryAction, toggleCategoryAction } from "@/server/actions/admin";
+import { deleteCategoryAction, saveCategoryAction, toggleCategoryAction } from "@/server/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -124,20 +124,30 @@ export function CategoryManager({
               <Button type="button" variant="outline" size="xs" onClick={() => openEdit(cat)}>
                 <Pencil className="size-3.5" /> Sửa
               </Button>
-              <ActionForm action={toggleCategoryAction}>
-                <input type="hidden" name="id" value={cat.id} />
-                <SubmitButton variant={cat.is_active === 1 ? "ghost" : "success"} size="xs">
-                  {cat.is_active === 1 ? (
-                    <>
-                      <EyeOff className="size-3.5" /> Ẩn
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="size-3.5" /> Bật
-                    </>
-                  )}
-                </SubmitButton>
-              </ActionForm>
+              <div className="flex items-center gap-1.5">
+                <ActionForm action={toggleCategoryAction}>
+                  <input type="hidden" name="id" value={cat.id} />
+                  <SubmitButton variant={cat.is_active === 1 ? "ghost" : "success"} size="xs">
+                    {cat.is_active === 1 ? (
+                      <>
+                        <EyeOff className="size-3.5" /> Ẩn
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="size-3.5" /> Bật
+                      </>
+                    )}
+                  </SubmitButton>
+                </ActionForm>
+                {cat.projects === 0 && (
+                  <ActionForm action={deleteCategoryAction} confirm={`Xoá thể loại "${cat.name}"?`}>
+                    <input type="hidden" name="id" value={cat.id} />
+                    <SubmitButton variant="ghost" size="xs" className="text-rose-600 hover:bg-rose-500/10">
+                      <Trash2 className="size-3.5" /> Xoá
+                    </SubmitButton>
+                  </ActionForm>
+                )}
+              </div>
             </div>
           </div>
         ))}

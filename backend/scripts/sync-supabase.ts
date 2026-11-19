@@ -36,6 +36,7 @@ const TOPOLOGICAL_TABLES = [
   "pledges",
   "pledge_add_ons",
   "payment_transactions",
+  "vnpay_orders",
   "shipments",
   "project_updates",
   "faqs",

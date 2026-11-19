@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createApp } from "../src/app.js";
 import { generateTotpCode } from "../src/auth/totp.js";
 import { getDb } from "../src/db/index.js";
-import { notify } from "../src/db/helpers.js";
+import { notify, one } from "../src/db/helpers.js";
 import { verifySmtpConnection } from "../src/services/mailer.js";
 
 async function main() {
@@ -81,33 +81,53 @@ async function main() {
       console.log(`  ✓ Đăng nhập ${acc.label} (${acc.identifier}) thành công`);
     }
 
-    // 3. Kiểm thử Refresh Token JWT rotation
+    // 3. Kiểm thử Refresh Token JWT rotation + Grace Window 60s
+    const oldRefresh = refreshTokens["Người dùng"];
     const refreshed = await req<{ ok: boolean; accessToken: string; refreshToken: string }>("/auth/refresh", {
       method: "POST",
-      body: { refreshToken: refreshTokens["Người dùng"] },
+      body: { refreshToken: oldRefresh },
     });
     assert.equal(refreshed.status, 200);
     assert.equal(refreshed.data.ok, true);
-    tokens["Người dùng"] = refreshed.data.accessToken;
-    console.log("  ✓ Xoay vòng JWT Refresh Token hoạt động chuẩn");
-
-    // 4. Kiểm thử 2FA TOTP (Google Authenticator / 2fa.live) trọn vòng đời trên tài khoản Người dùng
-    const setup2fa = await req<{ ok: boolean; secret: string; otpauthUrl: string; qrCodeDataUrl: string }>("/auth/2fa/setup", {
+    const graceCheck = await req<{ ok: boolean; accessToken: string }>("/auth/refresh", {
       method: "POST",
-      token: tokens["Người dùng"],
+      body: { refreshToken: oldRefresh },
     });
+    assert.equal(graceCheck.status, 200, "Refresh song song trong 60s không được làm văng phiên");
+    tokens["Người dùng"] = refreshed.data.accessToken;
+    refreshTokens["Người dùng"] = refreshed.data.refreshToken;
+    console.log("  ✓ Xoay vòng JWT Refresh Token + cửa sổ ân hạn 60s hoạt động chuẩn");
+
+    // 4. Kiểm thử 2FA TOTP (Google Authenticator / 2fa.live) + lưu trữ CSDL users.two_factor_enabled
+    const setup2fa = await req<{ ok: boolean; secret: string; setupToken: string; otpauthUrl: string; qrCodeDataUrl: string }>(
+      "/auth/2fa/setup",
+      {
+        method: "POST",
+        token: tokens["Người dùng"],
+      },
+    );
     assert.equal(setup2fa.status, 200);
     assert.ok(setup2fa.data.secret.length >= 16, "Secret Base32 phải hợp lệ cho 2fa.live");
     assert.ok(setup2fa.data.qrCodeDataUrl.startsWith("data:image/png;base64,"), "QR Code Data URL phải hợp lệ");
 
+    // Dán mã có khoảng trắng kiểu "123 456" từ 2fa.live
     const otpCode1 = generateTotpCode(setup2fa.data.secret);
-    const enable2fa = await req<{ ok: boolean; backupCodes: string[] }>("/auth/2fa/enable", {
+    const spacedOtp = `${otpCode1.slice(0, 3)} ${otpCode1.slice(3)}`;
+    const enable2fa = await req<{ ok: boolean; backupCodes: string[]; twoFactorVault?: string }>("/auth/2fa/enable", {
       method: "POST",
       token: tokens["Người dùng"],
-      body: { code: otpCode1 },
+      body: { code: spacedOtp, setupToken: setup2fa.data.setupToken },
     });
     assert.equal(enable2fa.status, 200);
     assert.equal(enable2fa.data.backupCodes.length, 8);
+    assert.ok(enable2fa.data.twoFactorVault?.startsWith("v1."), "Phải sinh khoá mã hoá AES-256-GCM twoFactorVault");
+
+    const dbUserAfterEnable = await one<{ two_factor_enabled: number; two_factor_verified_at: string | null }>(
+      getDb(),
+      `SELECT two_factor_enabled, two_factor_verified_at FROM users WHERE id = 'usr_minhanh'`,
+    );
+    assert.equal(Number(dbUserAfterEnable?.two_factor_enabled), 1, "Cột users.two_factor_enabled phải lưu = 1 trong CSDL");
+    assert.ok(dbUserAfterEnable?.two_factor_verified_at, "Cột users.two_factor_verified_at phải được lưu");
 
     // Đăng nhập khi đã bật 2FA -> phải yêu cầu bước 2 (challengeToken)
     const loginStep1 = await req<{ ok: boolean; requiresTwoFactor: boolean; challengeToken: string }>("/auth/login", {
@@ -134,7 +154,12 @@ async function main() {
       body: { password: "user000001@Abc", code: generateTotpCode(setup2fa.data.secret) },
     });
     assert.equal(disable2fa.status, 200);
-    console.log("  ✓ Luồng 2FA TOTP (Setup Secret Base32 / QR -> Enable -> Challenge Login -> Disable) hoạt động chuẩn");
+    const dbUserAfterDisable = await one<{ two_factor_enabled: number }>(
+      getDb(),
+      `SELECT two_factor_enabled FROM users WHERE id = 'usr_minhanh'`,
+    );
+    assert.equal(Number(dbUserAfterDisable?.two_factor_enabled), 0, "Cột users.two_factor_enabled phải về 0 khi tắt 2FA");
+    console.log("  ✓ Luồng 2FA TOTP (Setup -> Enable lưu CSDL users -> Challenge Login -> Disable) hoạt động chuẩn");
 
     // 5. Kiểm thử Public / Explore / Chi tiết dự án / Studio / Admin / Me
     const home = await req<{ ok: boolean; trending: unknown[]; categories: unknown[] }>("/home");
@@ -186,6 +211,138 @@ async function main() {
     assert.ok(titles.some((t) => t.includes("Đăng nhập mới")), "Phải có thông báo đăng nhập mới");
     assert.ok(titles.some((t) => t.includes("xác thực 2 lớp")), "Phải có thông báo bật/tắt 2FA");
     console.log("  ✓ Thông báo bảo mật (đăng nhập mới, bật/tắt 2FA) xuất hiện trong chuông thông báo");
+
+    // 7b. Kiểm thử cổng VNPAY Sandbox trọn luồng (Create Order HMAC-SHA512 -> Order QR -> Process NCB -> Verify Return -> Admin Refund & Retry)
+    const orbitProj = await one<{ id: string }>(getDb(), `SELECT id FROM projects WHERE slug = 'orbit-one'`);
+    assert.ok(orbitProj?.id);
+
+    const vnpInit = await req<{ ok: boolean; redirect: string }>("/pledges", {
+      method: "POST",
+      token: tokens["Người dùng"],
+      body: {
+        projectId: orbitProj.id,
+        tierId: "none",
+        bonusAmount: 250000,
+        paymentGateway: "VNPAY",
+        vnpPayChannel: "VNBANK",
+        vnpBankCode: "NCB",
+        replaceExisting: true,
+        note: "Kiểm thử ký quỹ VNPAY Sandbox",
+      },
+    });
+    assert.equal(vnpInit.status, 201);
+    assert.ok(vnpInit.data.redirect?.startsWith("/vnpay/checkout?"));
+
+    const checkoutQs = vnpInit.data.redirect.split("?")[1] ?? "";
+    const parsedQs = new URLSearchParams(checkoutQs);
+    const txnRef = parsedQs.get("vnp_TxnRef") ?? "";
+    assert.ok(txnRef.startsWith("VNP"));
+
+    const orderView = await req<{ ok: boolean; order: { signatureVerified: boolean; amount: number }; qrDataUrl: string }>(
+      `/vnpay/orders/${encodeURIComponent(txnRef)}?${checkoutQs}`,
+      { token: tokens["Người dùng"] },
+    );
+    assert.equal(orderView.status, 200);
+    assert.equal(orderView.data.order.signatureVerified, true);
+    assert.equal(orderView.data.order.amount, 250000);
+    assert.ok(orderView.data.qrDataUrl.startsWith("data:image/png;base64,"));
+
+    const payRes = await req<{ ok: boolean; responseCode: string; pledgeCode: string; returnUrl: string }>("/vnpay/process", {
+      method: "POST",
+      token: tokens["Người dùng"],
+      body: {
+        txnRef,
+        orderToken: parsedQs.get("token") ?? undefined,
+        payChannel: "VNBANK",
+        bankCode: "NCB",
+        cardNumber: "9704198526191432198",
+        cardHolder: "NGUYEN VAN A",
+        issueDate: "07/15",
+        otp: "123456",
+      },
+    });
+    assert.equal(payRes.status, 200);
+    assert.equal(payRes.data.responseCode, "00");
+    assert.ok(payRes.data.pledgeCode.startsWith("FV-"));
+
+    const returnQs = payRes.data.returnUrl.split("?")[1] ?? "";
+    const verifiedReturn = await req<{ ok: boolean; signatureValid: boolean; isSuccess: boolean; pledgeCode: string }>(
+      `/vnpay/verify-return?${returnQs}`,
+    );
+    assert.equal(verifiedReturn.status, 200);
+    assert.equal(verifiedReturn.data.signatureValid, true);
+    assert.equal(verifiedReturn.data.isSuccess, true);
+    assert.equal(verifiedReturn.data.pledgeCode, payRes.data.pledgeCode);
+
+    // Kiểm thử Admin xử lý CAPTURE_FAILED và Hoàn tiền VNPAY (REFUND)
+    const failedPl = await one<{ id: string }>(getDb(), `SELECT id FROM pledges WHERE status = 'CAPTURE_FAILED' LIMIT 1`);
+    if (failedPl) {
+      const resolved = await req<{ ok: boolean }>("/admin/transactions/resolve-failed", {
+        method: "POST",
+        token: tokens["Admin"],
+        body: { pledgeId: failedPl.id, op: "RETRY_CAPTURE", note: "Đối soát thu lại thành công" },
+      });
+      assert.equal(resolved.status, 200);
+      assert.equal(resolved.data.ok, true);
+    }
+
+    const capturedPl = await one<{ id: string }>(
+      getDb(),
+      `SELECT pl.id FROM pledges pl
+       LEFT JOIN shipments s ON s.pledge_id = pl.id
+       WHERE pl.status = 'CAPTURED' AND (s.status IS NULL OR s.status <> 'DELIVERED')
+       LIMIT 1`,
+    );
+    assert.ok(capturedPl?.id);
+    const refundRes = await req<{ ok: boolean }>("/admin/transactions/refund", {
+      method: "POST",
+      token: tokens["Admin"],
+      body: { pledgeId: capturedPl.id, reason: "Đối soát hoàn tiền kiểm thử qua cổng VNPAY" },
+    });
+    assert.equal(refundRes.status, 200);
+    assert.equal(refundRes.data.ok, true);
+
+    // Kiểm thử CRUD Bình luận của tác giả (Create -> Edit -> Delete) & CRUD Thể loại Admin
+    const createdCmt = await req<{ ok: boolean }>("/comments", {
+      method: "POST",
+      token: tokens["Người dùng"],
+      body: { projectId: orbitProj.id, body: "Bình luận kiểm thử ban đầu" },
+    });
+    assert.equal(createdCmt.status, 201);
+    const cmtRow = await one<{ id: string }>(
+      getDb(),
+      `SELECT id FROM comments WHERE project_id = ? AND author_id = 'usr_minhanh' ORDER BY created_at DESC LIMIT 1`,
+      orbitProj.id,
+    );
+    assert.ok(cmtRow?.id);
+    const editedCmt = await req<{ ok: boolean }>("/comments", {
+      method: "PATCH",
+      token: tokens["Người dùng"],
+      body: { commentId: cmtRow.id, body: "Bình luận đã chỉnh sửa thành công" },
+    });
+    assert.equal(editedCmt.status, 200);
+    const deletedOwnCmt = await req<{ ok: boolean }>("/comments/moderate", {
+      method: "POST",
+      token: tokens["Người dùng"],
+      body: { commentId: cmtRow.id, op: "delete" },
+    });
+    assert.equal(deletedOwnCmt.status, 200);
+
+    const catCreate = await req<{ ok: boolean }>("/admin/categories/save", {
+      method: "POST",
+      token: tokens["Admin"],
+      body: { name: "Âm nhạc Độc lập", slug: "am-nhac-doc-lap", description: "Dự án indie music", color: "#0EA5E9", sort_order: 99 },
+    });
+    assert.equal(catCreate.status, 200);
+    const createdCatRow = await one<{ id: string }>(getDb(), `SELECT id FROM categories WHERE slug = 'am-nhac-doc-lap'`);
+    assert.ok(createdCatRow?.id);
+    const catDelete = await req<{ ok: boolean }>("/admin/categories/delete", {
+      method: "POST",
+      token: tokens["Admin"],
+      body: { id: createdCatRow.id },
+    });
+    assert.equal(catDelete.status, 200);
+    console.log("  ✓ Cổng VNPAY Sandbox (HMAC-SHA512, QR, NCB OTP, Return, Admin Refund/Retry) & CRUD Bình luận/Thể loại hoạt động chuẩn");
 
     // 8. JSON hỏng phải trả lỗi 400 rõ ràng thay vì 500
     const bad = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{oops" });

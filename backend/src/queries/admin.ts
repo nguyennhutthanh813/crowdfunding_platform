@@ -514,6 +514,8 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     avatar_url: string | null;
     status: string;
     locked_reason: string | null;
+    two_factor_enabled: number;
+    email_verified_at: string | null;
     created_at: string;
     last_login_at: string | null;
     roles: string | null;
@@ -524,7 +526,8 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     reports_against: number;
   }>(
     db,
-    `SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.status, u.locked_reason, u.created_at, u.last_login_at,
+    `SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.status, u.locked_reason,
+            u.two_factor_enabled, u.email_verified_at, u.created_at, u.last_login_at,
             (SELECT GROUP_CONCAT(role_code) FROM user_roles r WHERE r.user_id = u.id) AS roles,
             (SELECT COUNT(*) FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'CREATOR') AS creator_count,
             (SELECT COUNT(*) FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'COLLABORATOR' AND m.status = 'ACTIVE') AS collab_count,
@@ -568,6 +571,9 @@ export async function adminUserDetail(userId: string) {
     avatar_url: string | null;
     status: string;
     locked_reason: string | null;
+    two_factor_enabled: number;
+    two_factor_verified_at: string | null;
+    email_verified_at: string | null;
     created_at: string;
     last_login_at: string | null;
     province: string | null;
@@ -575,7 +581,10 @@ export async function adminUserDetail(userId: string) {
     bio: string;
   }>(
     db,
-    `SELECT id, username, display_name, email, avatar_url, status, locked_reason, created_at, last_login_at, province, country_code, bio FROM users WHERE id = ?`,
+    `SELECT id, username, display_name, email, avatar_url, status, locked_reason,
+            two_factor_enabled, two_factor_verified_at, email_verified_at,
+            created_at, last_login_at, province, country_code, bio
+     FROM users WHERE id = ?`,
     userId,
   );
   if (!u) return null;
@@ -688,13 +697,32 @@ export async function adminReports(status: string) {
 export type AdminReportRow = Awaited<ReturnType<typeof adminReports>>["rows"][number];
 
 /* ═══════════════════════ 6. Giao dịch ═══════════════════════ */
-export async function adminTransactions(f: { kind?: string; status?: string; project?: string; from?: string; to?: string; page?: number }) {
+export async function adminTransactions(f: {
+  kind?: string;
+  status?: string;
+  provider?: string;
+  q?: string;
+  project?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+}) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const args: Cell[] = [];
   if (f.status) {
     where.push(`t.status = ?`);
     args.push(f.status);
+  }
+  if (f.provider) {
+    where.push(`t.provider = ?`);
+    args.push(f.provider);
+  }
+  if (f.q) {
+    where.push(
+      `(LOWER(pl.code) LIKE LOWER(?) OR LOWER(COALESCE(t.vnp_txn_ref, '')) LIKE LOWER(?) OR LOWER(COALESCE(t.provider_ref, '')) LIKE LOWER(?) OR LOWER(u.display_name) LIKE LOWER(?) OR LOWER(u.username) LIKE LOWER(?))`,
+    );
+    args.push(`%${f.q}%`, `%${f.q}%`, `%${f.q}%`, `%${f.q}%`, `%${f.q}%`);
   }
   if (f.project) {
     where.push(`p.slug = ?`);
@@ -733,11 +761,16 @@ export async function adminTransactions(f: { kind?: string; status?: string; pro
   const page = Math.max(1, Math.min(f.page ?? 1, pages));
   const rows = await all<{
     id: string;
+    pledge_id: string;
     kind: string;
     amount: number;
     status: string;
     provider: string;
     provider_ref: string | null;
+    bank_code: string | null;
+    vnp_txn_ref: string | null;
+    vnp_response_code: string | null;
+    idempotency_key: string;
     message: string;
     created_at: string;
     code: string;
@@ -748,14 +781,48 @@ export async function adminTransactions(f: { kind?: string; status?: string; pro
     backer_username: string;
   }>(
     db,
-    `SELECT t.id, t.kind, t.amount, t.status, t.provider, t.provider_ref, t.message, t.created_at, pl.code, pl.status AS pledge_status,
+    `SELECT t.id, t.pledge_id, t.kind, t.amount, t.status, t.provider, t.provider_ref,
+            t.bank_code, t.vnp_txn_ref, t.vnp_response_code, t.idempotency_key,
+            t.message, t.created_at, pl.code, pl.status AS pledge_status,
             p.slug, p.title, u.display_name AS backer, u.username AS backer_username
      ${base} WHERE ${where.join(" AND ")} ORDER BY t.created_at DESC LIMIT ? OFFSET ?`,
     ...args,
     PAGE_SIZE,
     (page - 1) * PAGE_SIZE,
   );
-  return { rows, total, page, pages, totalsByKind };
+
+  const vnpayOrders = await all<{
+    id: string;
+    txn_ref: string;
+    purpose: string;
+    amount: number;
+    bank_code: string;
+    pay_channel: string;
+    status: string;
+    vnp_transaction_no: string | null;
+    vnp_response_code: string | null;
+    card_mask: string | null;
+    created_at: string;
+    paid_at: string | null;
+    slug: string;
+    title: string;
+    backer: string;
+    backer_username: string;
+    pledge_code: string | null;
+  }>(
+    db,
+    `SELECT vo.id, vo.txn_ref, vo.purpose, vo.amount, vo.bank_code, vo.pay_channel, vo.status,
+            vo.vnp_transaction_no, vo.vnp_response_code, vo.card_mask, vo.created_at, vo.paid_at,
+            p.slug, p.title, u.display_name AS backer, u.username AS backer_username,
+            pl.code AS pledge_code
+     FROM vnpay_orders vo
+     JOIN projects p ON p.id = vo.project_id
+     JOIN users u ON u.id = vo.backer_id
+     LEFT JOIN pledges pl ON pl.id = vo.pledge_id
+     ORDER BY vo.created_at DESC LIMIT 25`,
+  );
+
+  return { rows, total, page, pages, totalsByKind, vnpayOrders };
 }
 
 export async function projectMoneySummary() {
@@ -767,6 +834,7 @@ export async function projectMoneySummary() {
     held: number;
     captured: number;
     voided: number;
+    refunded: number;
     failed: number;
     cancelled: number;
   }>(
@@ -775,6 +843,7 @@ export async function projectMoneySummary() {
             COALESCE(SUM(CASE WHEN pl.status = 'AUTHORIZED' THEN pl.total_amount END), 0) AS held,
             COALESCE(SUM(CASE WHEN pl.status = 'CAPTURED' THEN pl.total_amount END), 0) AS captured,
             COALESCE(SUM(CASE WHEN pl.status = 'VOIDED' THEN pl.total_amount END), 0) AS voided,
+            COALESCE(SUM(CASE WHEN pl.status = 'REFUNDED' THEN pl.total_amount END), 0) AS refunded,
             COALESCE(SUM(CASE WHEN pl.status = 'CAPTURE_FAILED' THEN pl.total_amount END), 0) AS failed,
             COALESCE(SUM(CASE WHEN pl.status = 'CANCELLED' THEN pl.total_amount END), 0) AS cancelled
      FROM projects p JOIN pledges pl ON pl.project_id = p.id

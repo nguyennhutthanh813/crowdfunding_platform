@@ -32,6 +32,8 @@ export interface AdminUserRow {
   avatar_url: string | null;
   status: string;
   locked_reason: string | null;
+  two_factor_enabled?: number;
+  email_verified_at?: string | null;
   created_at: string;
   last_login_at: string | null;
   roles: string[];
@@ -51,6 +53,9 @@ export interface AdminUserDetail {
     avatar_url: string | null;
     status: string;
     locked_reason: string | null;
+    two_factor_enabled?: number;
+    two_factor_verified_at?: string | null;
+    email_verified_at?: string | null;
     created_at: string;
     last_login_at: string | null;
     province: string | null;
@@ -392,9 +397,53 @@ export async function adminReports(status: string) {
   };
 }
 
+export interface AdminTransactionRow {
+  id: string;
+  pledge_id: string;
+  kind: string;
+  amount: number;
+  status: string;
+  provider: string;
+  provider_ref: string | null;
+  bank_code: string | null;
+  vnp_txn_ref: string | null;
+  vnp_response_code: string | null;
+  idempotency_key: string;
+  message: string;
+  created_at: string;
+  code: string;
+  pledge_status: string;
+  slug: string;
+  title: string;
+  backer: string;
+  backer_username: string;
+}
+
+export interface AdminVnpayOrderRow {
+  id: string;
+  txn_ref: string;
+  purpose: string;
+  amount: number;
+  bank_code: string;
+  pay_channel: string;
+  status: string;
+  vnp_transaction_no: string | null;
+  vnp_response_code: string | null;
+  card_mask: string | null;
+  created_at: string;
+  paid_at: string | null;
+  slug: string;
+  title: string;
+  backer: string;
+  backer_username: string;
+  pledge_code: string | null;
+}
+
 export async function adminTransactionsBundle(f: {
   kind?: string;
   status?: string;
+  provider?: string;
+  q?: string;
   project?: string;
   from?: string;
   to?: string;
@@ -403,6 +452,8 @@ export async function adminTransactionsBundle(f: {
   const qs = new URLSearchParams();
   if (f.kind) qs.set("kind", f.kind);
   if (f.status) qs.set("status", f.status);
+  if (f.provider) qs.set("provider", f.provider);
+  if (f.q) qs.set("q", f.q);
   if (f.project) qs.set("project", f.project);
   if (f.from) qs.set("from", f.from);
   if (f.to) qs.set("to", f.to);
@@ -410,26 +461,12 @@ export async function adminTransactionsBundle(f: {
   const res = await apiGet<{
     ok?: boolean;
     txData?: {
-      rows: {
-        id: string;
-        kind: string;
-        amount: number;
-        status: string;
-        provider: string;
-        provider_ref: string | null;
-        message: string;
-        created_at: string;
-        code: string;
-        pledge_status: string;
-        slug: string;
-        title: string;
-        backer: string;
-        backer_username: string;
-      }[];
+      rows: AdminTransactionRow[];
       total: number;
       page: number;
       pages: number;
       totalsByKind: Record<string, { count: number; amount: number; failed: number }>;
+      vnpayOrders?: AdminVnpayOrderRow[];
     };
     summary?: {
       slug: string;
@@ -439,6 +476,7 @@ export async function adminTransactionsBundle(f: {
       held: number;
       captured: number;
       voided: number;
+      refunded?: number;
       failed: number;
       cancelled: number;
     }[];
@@ -447,12 +485,13 @@ export async function adminTransactionsBundle(f: {
 
   const emptyKind = { count: 0, amount: 0, failed: 0 };
   return {
-    txData: res.txData ?? {
-      rows: [],
-      total: 0,
-      page: 1,
-      pages: 1,
-      totalsByKind: { AUTHORIZE: emptyKind, CAPTURE: emptyKind, VOID: emptyKind, REFUND: emptyKind },
+    txData: {
+      rows: res.txData?.rows ?? [],
+      total: res.txData?.total ?? 0,
+      page: res.txData?.page ?? 1,
+      pages: res.txData?.pages ?? 1,
+      totalsByKind: res.txData?.totalsByKind ?? { AUTHORIZE: emptyKind, CAPTURE: emptyKind, VOID: emptyKind, REFUND: emptyKind },
+      vnpayOrders: res.txData?.vnpayOrders ?? [],
     },
     summary: res.summary ?? [],
     projectOptions: res.projectOptions ?? [],

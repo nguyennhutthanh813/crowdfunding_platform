@@ -172,8 +172,11 @@ export function UpdatesPanel({
                         </Button>
                       ))}
 
-                    {isDraft && (
-                      <ActionForm action={deleteUpdateDraftAction} confirm="Xoá bản nháp Update này?">
+                    {(isDraft || canPublish) && (
+                      <ActionForm
+                        action={deleteUpdateDraftAction}
+                        confirm={isDraft ? "Xoá bản nháp Update này?" : "Xoá bản tin Update đã đăng này?"}
+                      >
                         <input type="hidden" name="project_id" value={projectId} />
                         <input type="hidden" name="update_id" value={u.id} />
                         <SubmitButton variant="ghost" size="xs" className="text-rose-500 hover:bg-rose-500/10">

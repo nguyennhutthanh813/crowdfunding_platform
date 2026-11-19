@@ -3,13 +3,14 @@ import { cookies, headers } from "next/headers";
 
 export const ACCESS_COOKIE = "fv_access";
 export const REFRESH_COOKIE = "fv_refresh";
+export const TWO_FACTOR_VAULT_COOKIE = "fv_2fa_vault";
 
 const rawBackendBase =
   process.env.BACKEND_URL ||
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, "") ||
   "http://127.0.0.1:4000";
 
-const BACKEND_BASE = rawBackendBase.replace(/\/+$/, "");
+export const BACKEND_BASE = rawBackendBase.replace(/\/+$/, "");
 
 const requestTokenMemo = new WeakMap<object, string | null>();
 
@@ -23,7 +24,6 @@ async function safeNetworkFetch(url: string, init: RequestInit): Promise<Respons
   try {
     return await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
   } catch (err) {
-    // Trên Windows/Node 24, localhost có thể trỏ sang ::1 khi server lắng nghe IPv4 127.0.0.1
     if (url.startsWith("http://localhost:")) {
       const ipv4Url = url.replace("http://localhost:", "http://127.0.0.1:");
       try {
@@ -46,7 +46,7 @@ export async function setAuthCookies(accessToken: string, refreshToken: string) 
       sameSite: "lax",
       secure,
       path: "/",
-      maxAge: 60 * 30, // 30 phút
+      maxAge: 60 * 60 * 2, // 2 giờ (khớp JWT_ACCESS_EXPIRES_IN)
     });
     jar.set(REFRESH_COOKIE, refreshToken, {
       httpOnly: true,
@@ -56,7 +56,24 @@ export async function setAuthCookies(accessToken: string, refreshToken: string) 
       maxAge: 60 * 60 * 24 * 14, // 14 ngày
     });
   } catch {
-    // Đang trong Server Component render (chỉ đọc cookie)
+    // Đang trong Server Component render (chỉ đọc cookie — proxy.ts đã lo làm mới trước đó)
+  }
+}
+
+export async function setTwoFactorVaultCookie(sealed: string | undefined) {
+  if (!sealed) return;
+  const jar = await cookies();
+  const secure = process.env.NODE_ENV === "production";
+  try {
+    jar.set(TWO_FACTOR_VAULT_COOKIE, sealed, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365, // Lưu bền vững 1 năm (không xoá khi logout)
+    });
+  } catch {
+    // Bỏ qua nếu đang ở ngữ cảnh chỉ đọc
   }
 }
 
@@ -66,16 +83,19 @@ export async function clearAuthCookies() {
     jar.delete(ACCESS_COOKIE);
     jar.delete(REFRESH_COOKIE);
     jar.delete("fv_session");
+    // Lưu ý: KHÔNG xoá TWO_FACTOR_VAULT_COOKIE để trạng thái kích hoạt 2FA vẫn giữ nguyên sau khi đăng xuất
   } catch {
     // Bỏ qua nếu đang ở ngữ cảnh chỉ đọc
   }
 }
 
-async function tryRefreshAccessToken(refreshToken: string): Promise<string | null> {
+async function tryRefreshAccessToken(refreshToken: string, vault?: string): Promise<string | null> {
   try {
+    const reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (vault) reqHeaders["X-FV-2FA-Vault"] = vault;
     const res = await safeNetworkFetch(backendUrl("/auth/refresh"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: reqHeaders,
       body: JSON.stringify({ refreshToken }),
       cache: "no-store",
     });
@@ -104,7 +124,8 @@ export async function getValidAccessToken(): Promise<string | null> {
     requestTokenMemo.set(jar, null);
     return null;
   }
-  const renewed = await tryRefreshAccessToken(refresh);
+  const vault = jar.get(TWO_FACTOR_VAULT_COOKIE)?.value;
+  const renewed = await tryRefreshAccessToken(refresh, vault);
   requestTokenMemo.set(jar, renewed);
   return renewed;
 }
@@ -120,11 +141,13 @@ export async function apiFetch<T = Record<string, unknown>>(
 ): Promise<{ status: number; data: T }> {
   const jar = await cookies();
   const hdrs = await headers();
+  const vault = jar.get(TWO_FACTOR_VAULT_COOKIE)?.value;
   let token = opts.auth === false ? null : await getValidAccessToken();
 
   const doCall = async (bearer: string | null) => {
     const reqHeaders: Record<string, string> = {};
     if (bearer) reqHeaders.Authorization = `Bearer ${bearer}`;
+    if (vault) reqHeaders["X-FV-2FA-Vault"] = vault;
     const ua = hdrs.get("user-agent");
     if (ua) reqHeaders["User-Agent"] = ua;
     const xff = hdrs.get("x-forwarded-for");
@@ -150,7 +173,7 @@ export async function apiFetch<T = Record<string, unknown>>(
   if (res && res.status === 401 && opts.auth !== false) {
     const refresh = jar.get(REFRESH_COOKIE)?.value ?? null;
     if (refresh) {
-      const renewed = await tryRefreshAccessToken(refresh);
+      const renewed = await tryRefreshAccessToken(refresh, vault);
       requestTokenMemo.set(jar, renewed);
       if (renewed) {
         token = renewed;

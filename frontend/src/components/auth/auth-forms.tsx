@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, KeyRound, LogIn, Mail, ShieldCheck, UserPlus } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LogIn,
+  Mail,
+  ShieldCheck,
+  UserPlus,
+} from "lucide-react";
 import {
   loginAction,
   registerAction,
@@ -15,12 +27,16 @@ import { SubmitButton } from "@/components/ui/action-form";
 
 export function LoginForm({ next, resetSuccess }: { next?: string; resetSuccess?: boolean }) {
   const [state, action] = useActionState<FormState, FormData>(loginAction, null);
+  const [identifier, setIdentifier] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
   const [dismissChallenge, setDismissChallenge] = useState(false);
   const [lastToken, setLastToken] = useState<string | undefined>(undefined);
 
   if (state?.challengeToken && state.challengeToken !== lastToken) {
     setLastToken(state.challengeToken);
     setDismissChallenge(false);
+    setTwoFactorCode("");
   }
 
   const showTwoFactor = Boolean(state?.requiresTwoFactor && state?.challengeToken && !dismissChallenge);
@@ -54,6 +70,8 @@ export function LoginForm({ next, resetSuccess }: { next?: string; resetSuccess?
         <Field label="Mã OTP 6 chữ số hoặc mã dự phòng" required>
           <Input
             name="code"
+            value={twoFactorCode}
+            onChange={(e) => setTwoFactorCode(e.target.value.toUpperCase().slice(0, 12))}
             autoComplete="one-time-code"
             placeholder="Ví dụ: 123456 hoặc ABCD-EFGH"
             className="text-center font-mono text-lg tracking-widest"
@@ -88,7 +106,14 @@ export function LoginForm({ next, resetSuccess }: { next?: string; resetSuccess?
       )}
 
       <Field label="Email hoặc tên đăng nhập" required>
-        <Input name="identifier" autoComplete="username" placeholder="tenban@gmail.com hoặc username" required />
+        <Input
+          name="identifier"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          autoComplete="username"
+          placeholder="tenban@gmail.com hoặc username"
+          required
+        />
       </Field>
 
       <div className="space-y-1.5">
@@ -103,7 +128,24 @@ export function LoginForm({ next, resetSuccess }: { next?: string; resetSuccess?
             Quên mật khẩu?
           </Link>
         </div>
-        <Input name="password" type="password" autoComplete="current-password" placeholder="••••••••" required />
+        <div className="relative">
+          <Input
+            name="password"
+            type={showPass ? "text" : "password"}
+            autoComplete="current-password"
+            placeholder="••••••••"
+            className="pr-10"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPass((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg"
+            aria-label={showPass ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+          >
+            {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        </div>
       </div>
 
       {state?.error && <ErrorNote text={state.error} />}
@@ -127,23 +169,69 @@ export function LoginForm({ next, resetSuccess }: { next?: string; resetSuccess?
 
 export function RegisterForm({ next }: { next?: string }) {
   const [state, action] = useActionState<FormState, FormData>(registerAction, null);
+  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const fe = state?.fieldErrors ?? {};
+
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next ?? ""} />
       <Field label="Họ và tên hiển thị" error={fe.displayName} required>
-        <Input name="displayName" placeholder="Nguyễn Văn A" required />
+        <Input
+          name="displayName"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Nguyễn Văn A"
+          required
+        />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Tên đăng nhập" error={fe.username} hint="Dùng cho hồ sơ /u/username" required>
-          <Input name="username" placeholder="nguyenvana" required />
+          <Input
+            name="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_.]/g, "").slice(0, 30))}
+            placeholder="nguyenvana"
+            required
+          />
         </Field>
         <Field label="Địa chỉ Email" error={fe.email} required>
-          <Input name="email" type="email" placeholder="ban@gmail.com" required />
+          <Input
+            name="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="ban@gmail.com"
+            required
+          />
         </Field>
       </div>
-      <Field label="Mật khẩu" error={fe.password} hint="Tối thiểu 8 ký tự. Sau khi đăng ký bạn có thể bật thêm bảo mật 2FA." required>
-        <Input name="password" type="password" minLength={8} autoComplete="new-password" required />
+      <Field
+        label="Mật khẩu"
+        error={fe.password}
+        hint="Tối thiểu 8 ký tự. Sau khi đăng ký bạn có thể bật thêm bảo mật 2FA TOTP."
+        required
+      >
+        <div className="relative">
+          <Input
+            name="password"
+            type={showPass ? "text" : "password"}
+            minLength={8}
+            autoComplete="new-password"
+            className="pr-10"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPass((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg"
+            aria-label={showPass ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+          >
+            {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        </div>
       </Field>
       {state?.error && <ErrorNote text={state.error} />}
       <SubmitButton className="w-full" pendingText="Đang tạo tài khoản…">
@@ -163,6 +251,8 @@ export function ForgotPasswordForm() {
   const [reqState, reqAction] = useActionState<FormState, FormData>(requestPasswordResetAction, null);
   const [resetState, resetAction] = useActionState<FormState, FormData>(resetPasswordWithOtpAction, null);
   const [manualEmail, setManualEmail] = useState("");
+  const [otpVal, setOtpVal] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [step2Override, setStep2Override] = useState(false);
 
   const activeEmail = resetState?.email || reqState?.email || manualEmail;
@@ -189,8 +279,8 @@ export function ForgotPasswordForm() {
           <Input
             name="otp"
             inputMode="numeric"
-            pattern="\d{6}"
-            maxLength={6}
+            value={otpVal}
+            onChange={(e) => setOtpVal(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="123456"
             className="text-center font-mono text-lg tracking-[0.35em]"
             autoFocus
@@ -200,10 +290,33 @@ export function ForgotPasswordForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Mật khẩu mới" hint="Ít nhất 8 ký tự" required>
-            <Input name="newPassword" type="password" minLength={8} autoComplete="new-password" required />
+            <div className="relative">
+              <Input
+                name="newPassword"
+                type={showPass ? "text" : "password"}
+                minLength={8}
+                autoComplete="new-password"
+                className="pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg"
+                aria-label={showPass ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              >
+                {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           </Field>
           <Field label="Xác nhận mật khẩu mới" required>
-            <Input name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required />
+            <Input
+              name="confirmPassword"
+              type={showPass ? "text" : "password"}
+              minLength={8}
+              autoComplete="new-password"
+              required
+            />
           </Field>
         </div>
 

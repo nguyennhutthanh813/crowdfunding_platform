@@ -38,9 +38,16 @@ export const env = {
   jwtSecret: cleanSecret(process.env.JWT_SECRET) || "fundviet-dev-jwt-secret-change-in-production-64chars",
   jwtRefreshSecret:
     cleanSecret(process.env.JWT_REFRESH_SECRET) || "fundviet-dev-refresh-secret-change-in-production-64chars",
-  jwtAccessExpiresIn: cleanSecret(process.env.JWT_ACCESS_EXPIRES_IN) || "15m",
-  jwtRefreshExpiresIn: cleanSecret(process.env.JWT_REFRESH_EXPIRES_IN) || "7d",
+  jwtAccessExpiresIn: cleanSecret(process.env.JWT_ACCESS_EXPIRES_IN) || "2h",
+  jwtRefreshExpiresIn: cleanSecret(process.env.JWT_REFRESH_EXPIRES_IN) || "14d",
   totpIssuer: cleanSecret(process.env.TOTP_ISSUER) || "FundViet",
+
+  // VNPAY Sandbox
+  vnpTmnCode: cleanSecret(process.env.VNP_TMN_CODE) || "FUNDVIET",
+  vnpHashSecret:
+    cleanSecret(process.env.VNP_HASH_SECRET) ||
+    cleanSecret(process.env.JWT_SECRET) ||
+    "FUNDVIETVNPAYSANDBOXSECRETKEY2026HMACSHA512",
 
   // Cloudinary
   cloudinaryCloudName: cleanSecret(process.env.CLOUDINARY_CLOUD_NAME),

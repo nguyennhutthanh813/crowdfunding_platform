@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Lock, ShieldAlert, Unlock } from "lucide-react";
+import { KeyRound, Lock, ShieldAlert, ShieldCheck, Unlock } from "lucide-react";
 import type { AdminUserDetail } from "@/server/queries/admin";
-import { toggleUserLockAction } from "@/server/actions/admin";
+import { adminResetUserTwoFactorAction, toggleUserLockAction } from "@/server/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -137,6 +137,64 @@ export function UserLockButton({
   );
 }
 
+export function UserReset2FaButton({
+  userId,
+  displayName,
+  username,
+}: {
+  userId: string;
+  displayName: string;
+  username: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  return (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <KeyRound className="size-3.5 text-amber-600" /> Đặt lại 2FA
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Đặt lại xác thực 2 lớp (2FA) khẩn cấp"
+        description={`Hỗ trợ gỡ khoá 2FA khi ${displayName} (@${username}) mất thiết bị xác thực và không còn mã dự phòng.`}
+      >
+        <ActionForm
+          action={adminResetUserTwoFactorAction}
+          onSuccess={() => {
+            setOpen(false);
+            setReason("");
+          }}
+          className="space-y-4"
+        >
+          <input type="hidden" name="userId" value={userId} />
+          <Field label="Lý do gỡ khoá 2FA" required hint="Ít nhất 5 ký tự để ghi nhận vào nhật ký kiểm toán.">
+            <Textarea
+              name="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              minLength={5}
+              required
+              placeholder="Ví dụ: Đã xác minh chính chủ qua email và hỗ trợ khôi phục quyền truy cập."
+              className="min-h-24"
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Huỷ
+            </Button>
+            <SubmitButton variant="danger" size="sm" pendingText="Đang đặt lại…">
+              Xác nhận gỡ 2FA
+            </SubmitButton>
+          </div>
+        </ActionForm>
+      </Dialog>
+    </>
+  );
+}
+
 export function UserDetailDialog({
   detail,
   closeHref,
@@ -169,6 +227,11 @@ export function UserDetailDialog({
                 <Badge tone={detail.user.status === "LOCKED" ? "rose" : "emerald"} dot>
                   {detail.user.status === "LOCKED" ? "Đã khoá" : "Hoạt động"}
                 </Badge>
+                {Number(detail.user.two_factor_enabled ?? 0) === 1 && (
+                  <Badge tone="sky">
+                    <ShieldCheck className="size-3" /> 2FA Đang bật
+                  </Badge>
+                )}
               </div>
               <div className="text-xs font-normal text-muted">
                 @{detail.user.username} · {detail.user.email}
@@ -318,15 +381,24 @@ export function UserDetailDialog({
                 Mở hồ sơ công khai →
               </Link>
             </div>
-            <UserLockButton
-              userId={detail.user.id}
-              displayName={detail.user.display_name}
-              username={detail.user.username}
-              status={detail.user.status}
-              roles={detail.roles}
-              viewerId={viewerId}
-              size="sm"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              {Number(detail.user.two_factor_enabled ?? 0) === 1 && detail.user.id !== viewerId && (
+                <UserReset2FaButton
+                  userId={detail.user.id}
+                  displayName={detail.user.display_name}
+                  username={detail.user.username}
+                />
+              )}
+              <UserLockButton
+                userId={detail.user.id}
+                displayName={detail.user.display_name}
+                username={detail.user.username}
+                status={detail.user.status}
+                roles={detail.roles}
+                viewerId={viewerId}
+                size="sm"
+              />
+            </div>
           </div>
         </div>
       )}

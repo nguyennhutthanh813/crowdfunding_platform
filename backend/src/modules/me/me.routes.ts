@@ -3,7 +3,7 @@ import { getDb } from "../../db/index.js";
 import { humanizeError } from "../../db/helpers.js";
 import { requireAuthMiddleware } from "../../middlewares/auth.middleware.js";
 import { recordSecurityEvent } from "../../services/security-events.js";
-import { getTwoFactorStatus, listUserSessions } from "../auth/auth.service.js";
+import { getTwoFactorStatus, issueSessionTokens, listUserSessions } from "../auth/auth.service.js";
 import {
   activityFeed,
   conversationThread,
@@ -247,11 +247,39 @@ meRouter.post("/conversations/:id/read", async (req, res) => {
 
 meRouter.patch("/profile", async (req, res) => {
   const result = await updateProfile(req.viewer, req.body ?? {});
+  if (!result.error && req.viewer) {
+    try {
+      const tokens = await issueSessionTokens(
+        getDb(),
+        req.viewer.id,
+        { ip: req.ip, userAgent: String(req.headers["user-agent"] ?? "") },
+        req.sessionId,
+      );
+      res.json({ ...result, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
+      return;
+    } catch {
+      // fallback trả kết quả gốc
+    }
+  }
   res.status(result.error ? 400 : 200).json(result);
 });
 
 meRouter.patch("/account", async (req, res) => {
   const result = await updateAccount(req.viewer, req.body ?? {});
+  if (!result.error && req.viewer) {
+    try {
+      const tokens = await issueSessionTokens(
+        getDb(),
+        req.viewer.id,
+        { ip: req.ip, userAgent: String(req.headers["user-agent"] ?? "") },
+        req.sessionId,
+      );
+      res.json({ ...result, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
+      return;
+    } catch {
+      // fallback trả kết quả gốc
+    }
+  }
   res.status(result.error ? 400 : 200).json(result);
 });
 
@@ -262,6 +290,18 @@ meRouter.post("/password", async (req, res) => {
       ip: req.ip,
       userAgent: String(req.headers["user-agent"] ?? ""),
     });
+    try {
+      const tokens = await issueSessionTokens(
+        getDb(),
+        req.viewer.id,
+        { ip: req.ip, userAgent: String(req.headers["user-agent"] ?? "") },
+        req.sessionId,
+      );
+      res.json({ ...result, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
+      return;
+    } catch {
+      // fallback
+    }
   }
   res.status(result.error ? 400 : 200).json(result);
 });

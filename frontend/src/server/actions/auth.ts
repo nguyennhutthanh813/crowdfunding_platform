@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { apiDelete, apiFetch, apiPost, setAuthCookies } from "../api";
+import { apiDelete, apiFetch, apiPost, setAuthCookies, setTwoFactorVaultCookie } from "../api";
 import { destroySession } from "../auth/session";
 import type { SerializedViewer } from "../rbac/rbac";
 
@@ -11,6 +11,7 @@ export type FormState = {
   error?: string;
   message?: string;
   fieldErrors?: Record<string, string>;
+  values?: Record<string, string>;
   requiresTwoFactor?: boolean;
   challengeToken?: string;
   resetToken?: string;
@@ -61,6 +62,7 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
       error?: string;
       accessToken?: string;
       refreshToken?: string;
+      twoFactorVault?: string;
       user?: SerializedViewer;
     }>("/auth/2fa/verify-login", {
       method: "POST",
@@ -78,6 +80,7 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
     }
 
     await setAuthCookies(data.accessToken, data.refreshToken);
+    if (data.twoFactorVault) await setTwoFactorVaultCookie(data.twoFactorVault);
     redirect(nextUrl || (await homeFor(data.user)));
   }
 
@@ -85,7 +88,10 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
   const identifier = String(form.get("identifier") ?? "").trim();
   const password = String(form.get("password") ?? "");
   if (!identifier || !password) {
-    return { error: "Vui lòng nhập email/tên đăng nhập và mật khẩu." };
+    return {
+      error: "Vui lòng nhập email/tên đăng nhập và mật khẩu.",
+      values: { identifier },
+    };
   }
 
   const { data } = await apiFetch<{
@@ -104,7 +110,10 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
   });
 
   if (!data.ok) {
-    return { error: data.error ?? "Thông tin đăng nhập không chính xác." };
+    return {
+      error: data.error ?? "Thông tin đăng nhập không chính xác.",
+      values: { identifier },
+    };
   }
 
   if (data.requiresTwoFactor && data.challengeToken) {
@@ -112,12 +121,16 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
       requiresTwoFactor: true,
       challengeToken: data.challengeToken,
       emailMasked: data.emailMasked ?? identifier,
+      values: { identifier },
       message: "Tài khoản đang bật bảo mật 2 lớp. Vui lòng nhập mã 6 số từ Google Authenticator / 2fa.live.",
     };
   }
 
   if (!data.accessToken || !data.refreshToken || !data.user) {
-    return { error: "Không nhận được phiên đăng nhập hợp lệ từ máy chủ." };
+    return {
+      error: "Không nhận được phiên đăng nhập hợp lệ từ máy chủ.",
+      values: { identifier },
+    };
   }
 
   await setAuthCookies(data.accessToken, data.refreshToken);
@@ -143,7 +156,10 @@ export async function registerAction(_: FormState, form: FormData): Promise<Form
   });
 
   if (!data.ok || !data.accessToken || !data.refreshToken) {
-    return { error: data.error ?? "Không thể tạo tài khoản, vui lòng kiểm tra lại thông tin." };
+    return {
+      error: data.error ?? "Không thể tạo tài khoản, vui lòng kiểm tra lại thông tin.",
+      values: { displayName, username, email },
+    };
   }
 
   await setAuthCookies(data.accessToken, data.refreshToken);
@@ -170,7 +186,7 @@ export async function requestPasswordResetAction(_: FormState, form: FormData): 
     },
   );
 
-  if (!data.ok) return { error: data.error ?? "Không thể gửi yêu cầu khôi phục mật khẩu." };
+  if (!data.ok) return { error: data.error ?? "Không thể gửi yêu cầu khôi phục mật khẩu.", values: { email } };
   return {
     ok: true,
     email,
@@ -181,7 +197,7 @@ export async function requestPasswordResetAction(_: FormState, form: FormData): 
 
 export async function resetPasswordWithOtpAction(_: FormState, form: FormData): Promise<FormState> {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
-  const otp = String(form.get("otp") ?? "").trim();
+  const otp = String(form.get("otp") ?? "").replace(/\s+/g, "");
   const newPassword = String(form.get("newPassword") ?? "");
   const confirmPassword = String(form.get("confirmPassword") ?? "");
   const resetToken = String(form.get("resetToken") ?? "").trim();
@@ -217,7 +233,7 @@ export async function sendEmailVerifyOtpAction(): Promise<{ ok: boolean; message
 }
 
 export async function confirmEmailVerifyOtpAction(_: FormState, form: FormData): Promise<FormState> {
-  const otp = String(form.get("otp") ?? "").trim();
+  const otp = String(form.get("otp") ?? "").replace(/\s+/g, "");
   const data = await apiPost<{ ok?: boolean; message?: string; error?: string }>("/auth/verify-email/confirm", { otp });
   if (!data.ok) return { error: data.error ?? "Mã OTP không hợp lệ." };
   revalidatePath("/me/settings");
@@ -251,43 +267,54 @@ export async function setupTwoFactorAction(): Promise<{
 }
 
 export async function enableTwoFactorAction(_: FormState, form: FormData): Promise<FormState> {
-  const code = String(form.get("code") ?? "").trim();
+  const code = String(form.get("code") ?? "").replace(/[\s-]+/g, "");
   const setupToken = String(form.get("setupToken") ?? "").trim();
-  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; error?: string }>("/auth/2fa/enable", {
-    code,
-    setupToken: setupToken || undefined,
-  });
+  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; twoFactorVault?: string; message?: string; error?: string }>(
+    "/auth/2fa/enable",
+    {
+      code,
+      setupToken: setupToken || undefined,
+    },
+  );
   if (!data.ok) return { error: data.error ?? "Mã OTP không chính xác." };
+  if (data.twoFactorVault) await setTwoFactorVaultCookie(data.twoFactorVault);
   revalidatePath("/me/settings");
+  revalidatePath("/me", "layout");
   return {
     ok: true,
     backupCodes: data.backupCodes ?? [],
-    message: "Đã bật bảo mật 2 lớp (2FA) thành công! Hãy lưu lại 8 mã dự phòng dưới đây.",
+    message: data.message ?? "Đã bật bảo mật 2 lớp (2FA) và lưu vào CSDL người dùng!",
   };
 }
 
 export async function regenerateBackupCodesAction(_: FormState, form: FormData): Promise<FormState> {
-  const code = String(form.get("code") ?? "").trim();
-  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; error?: string }>(
+  const code = String(form.get("code") ?? "").replace(/[\s-]+/g, "");
+  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; twoFactorVault?: string; message?: string; error?: string }>(
     "/auth/2fa/backup-codes/regenerate",
     { code },
   );
   if (!data.ok) return { error: data.error ?? "Mã OTP không chính xác." };
+  if (data.twoFactorVault) await setTwoFactorVaultCookie(data.twoFactorVault);
   revalidatePath("/me/settings");
   return {
     ok: true,
     backupCodes: data.backupCodes ?? [],
-    message: "Đã tạo mới bộ 8 mã dự phòng 2FA!",
+    message: data.message ?? "Đã tạo mới bộ 8 mã dự phòng 2FA!",
   };
 }
 
 export async function disableTwoFactorAction(_: FormState, form: FormData): Promise<FormState> {
   const currentPassword = String(form.get("currentPassword") ?? form.get("password") ?? "");
   const code = String(form.get("code") ?? "").trim();
-  const data = await apiPost<{ ok?: boolean; error?: string }>("/auth/2fa/disable", { currentPassword, code });
+  const data = await apiPost<{ ok?: boolean; twoFactorVault?: string; message?: string; error?: string }>(
+    "/auth/2fa/disable",
+    { currentPassword, code },
+  );
   if (!data.ok) return { error: data.error ?? "Không thể tắt bảo mật 2 lớp." };
+  if (data.twoFactorVault) await setTwoFactorVaultCookie(data.twoFactorVault);
   revalidatePath("/me/settings");
-  return { ok: true, message: "Đã tắt xác thực 2 lớp cho tài khoản." };
+  revalidatePath("/me", "layout");
+  return { ok: true, message: data.message ?? "Đã tắt xác thực 2 lớp cho tài khoản." };
 }
 
 export async function revokeSessionAction(sessionId: string): Promise<{ ok: boolean; error?: string }> {

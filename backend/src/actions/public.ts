@@ -4,6 +4,7 @@ import { PUBLIC_STATUSES, canProject, hasSystemPerm, loadProjectAccess, type Vie
 import { bumpDailyStats } from "../services/stats.js";
 import { analyzeComment } from "../services/ai/comments.js";
 import { createPledge, type PledgeInput } from "../services/pledge.js";
+import { createVnpayOrder } from "../services/vnpay.js";
 import { boolVal, intVal, strVal, type ActionResult, type Payload } from "../utils-shared.js";
 
 export type CommentLikeResult = { ok: boolean; on?: boolean; error?: string; needLogin?: boolean };
@@ -191,6 +192,55 @@ export async function toggleCommentLike(v: Viewer | null, commentId: string): Pr
   }
 }
 
+export async function editComment(v: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  if (!v) return { error: "Vui lòng đăng nhập để chỉnh sửa bình luận." };
+  const commentId = strVal(bodyIn, "commentId");
+  const body = strVal(bodyIn, "body");
+  if (!commentId) return { error: "Thiếu mã bình luận." };
+  if (!body || body.length > 2000) return { error: "Nội dung bình luận phải từ 1 đến 2000 ký tự." };
+
+  const db = getDb();
+  const row = await one<{ id: string; project_id: string; author_id: string; parent_id: string | null; status: string; slug: string }>(
+    db,
+    `SELECT c.id, c.project_id, c.author_id, c.parent_id, c.status, p.slug
+     FROM comments c JOIN projects p ON p.id = c.project_id
+     WHERE c.id = ?`,
+    commentId,
+  );
+  if (!row || row.status === "DELETED") return { error: "Bình luận không còn tồn tại." };
+  if (row.author_id !== v.id) return { error: "Bạn chỉ có thể chỉnh sửa bình luận của chính mình." };
+  if (row.status !== "VISIBLE") return { error: "Không thể chỉnh sửa bình luận đang bị ẩn." };
+
+  try {
+    const now = nowIso();
+    const access = await loadProjectAccess(db, v.id, row.project_id);
+    await tx(db, async () => {
+      await run(db, `UPDATE comments SET body = ?, updated_at = ? WHERE id = ?`, body, now, row.id);
+      if (!row.parent_id && access.role === null) {
+        const a = analyzeComment(body);
+        await run(
+          db,
+          `UPDATE comment_analyses
+           SET label = ?, sentiment = ?, needs_action = ?, topic = ?, summary = ?, suggested_reply = ?, confidence = ?, analyzed_at = ?
+           WHERE comment_id = ?`,
+          a.label,
+          a.sentiment,
+          a.needsAction ? 1 : 0,
+          a.topic,
+          a.summary,
+          a.suggestedReply,
+          a.confidence,
+          now,
+          row.id,
+        );
+      }
+    });
+    return { ok: true, slug: row.slug, message: "Đã cập nhật bình luận." };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
 export async function moderateComment(v: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
   if (!v) return { error: "Vui lòng đăng nhập." };
 
@@ -200,22 +250,23 @@ export async function moderateComment(v: Viewer | null, bodyIn: Payload): Promis
   if (!commentId) return { error: "Thiếu mã bình luận." };
 
   const db = getDb();
-  const row = await one<{ id: string; project_id: string; status: string; slug: string }>(
+  const row = await one<{ id: string; project_id: string; author_id: string; status: string; slug: string }>(
     db,
-    `SELECT c.id, c.project_id, c.status, p.slug
+    `SELECT c.id, c.project_id, c.author_id, c.status, p.slug
      FROM comments c JOIN projects p ON p.id = c.project_id
      WHERE c.id = ?`,
     commentId,
   );
   if (!row) return { error: "Không tìm thấy bình luận." };
 
+  const isOwn = row.author_id === v.id;
   const canModProject = await canProject(db, v, row.project_id, "comment.moderate");
   const canModAdmin = hasSystemPerm(v, "admin.comment.moderate");
 
   if (op === "hide" || op === "unhide") {
     if (!canModProject) return { error: "Chỉ Creator hoặc Collaborator dự án mới được ẩn/hiện bình luận." };
   } else if (op === "delete") {
-    if (!canModProject && !canModAdmin) return { error: "Bạn không có quyền xoá bình luận này." };
+    if (!isOwn && !canModProject && !canModAdmin) return { error: "Bạn không có quyền xoá bình luận này." };
   } else {
     return { error: "Thao tác kiểm duyệt không hợp lệ." };
   }
@@ -343,6 +394,43 @@ export async function submitPledge(v: Viewer | null, bodyIn: Payload): Promise<A
     }
   }
 
+  const anonymous = boolVal(bodyIn, "anonymous");
+  const note = strVal(bodyIn, "note").slice(0, 300);
+  const replaceExisting = boolVal(bodyIn, "replaceExisting");
+  const paymentGateway = strVal(bodyIn, "paymentGateway").toUpperCase();
+
+  if (paymentGateway === "VNPAY") {
+    try {
+      const bankCode = strVal(bodyIn, "vnpBankCode") || "NCB";
+      const payChannelRaw = strVal(bodyIn, "vnpPayChannel").toUpperCase();
+      const payChannel =
+        payChannelRaw === "VNPAYQR" || payChannelRaw === "INTCARD" || payChannelRaw === "VNBANK"
+          ? payChannelRaw
+          : undefined;
+      const vnp = await createVnpayOrder(db, v.id, {
+        projectId: project.id,
+        tierId,
+        bonusAmount,
+        addOns,
+        addressId,
+        newAddress,
+        anonymous,
+        note,
+        replaceExisting,
+        bankCode,
+        payChannel,
+      });
+      return {
+        ok: true,
+        slug: project.slug,
+        message: "Đang chuyển tới cổng thanh toán VNPAY...",
+        redirect: vnp.checkoutUrl,
+      };
+    } catch (e) {
+      return { error: humanizeError(e) };
+    }
+  }
+
   const cardMode = strVal(bodyIn, "cardMode") || "saved";
   let paymentMethodId: string | null = null;
   let newCard: PledgeInput["newCard"] = null;
@@ -361,10 +449,6 @@ export async function submitPledge(v: Viewer | null, bodyIn: Payload): Promise<A
     paymentMethodId = strVal(bodyIn, "paymentMethodId") || null;
     if (!paymentMethodId) return { error: "Vui lòng chọn hoặc nhập thẻ thanh toán." };
   }
-
-  const anonymous = boolVal(bodyIn, "anonymous");
-  const note = strVal(bodyIn, "note").slice(0, 300);
-  const replaceExisting = boolVal(bodyIn, "replaceExisting");
 
   try {
     const res = await createPledge(db, v.id, {

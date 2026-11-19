@@ -33,7 +33,7 @@ import {
   viewerProjectContext,
 } from "../../queries/public.js";
 import { listUserAddresses, listUserCards, quotePledge } from "../../services/pledge.js";
-import { addComment, moderateComment, recordProjectView, submitPledge, toggleCommentLike } from "../../actions/public.js";
+import { addComment, editComment, moderateComment, recordProjectView, submitPledge, toggleCommentLike } from "../../actions/public.js";
 import { createReport, markNotificationsRead, toggleFollow, toggleSave } from "../../actions/social.js";
 
 export const publicRouter = Router();
@@ -314,6 +314,11 @@ publicRouter.get("/pledges/by-code/:code", requireAuthMiddleware, async (req, re
 publicRouter.post("/comments", requireAuthMiddleware, async (req, res) => {
   const result = await addComment(req.viewer, req.body ?? {});
   res.status(result.error ? 400 : 201).json(result);
+});
+
+publicRouter.patch("/comments", requireAuthMiddleware, async (req, res) => {
+  const result = await editComment(req.viewer, req.body ?? {});
+  res.status(result.error ? 400 : 200).json(result);
 });
 
 publicRouter.post("/comments/:id/like", async (req, res) => {

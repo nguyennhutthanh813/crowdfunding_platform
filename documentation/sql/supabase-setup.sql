@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -83,15 +85,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -150,7 +154,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 ~ '^[0-9]+),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -397,18 +401,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -688,6 +724,8 @@ CREATE OR REPLACE VIEW v_project_backer_countries AS
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -745,15 +783,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -812,7 +852,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -1059,18 +1099,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -1356,7 +1428,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -1603,18 +1675,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -1894,6 +1998,8 @@ CREATE OR REPLACE VIEW v_project_backer_countries AS
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -1951,15 +2057,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -2018,7 +2126,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -2265,18 +2373,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -2562,7 +2702,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -2809,18 +2949,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -3336,18 +3508,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -3627,6 +3831,8 @@ CREATE OR REPLACE VIEW v_project_backer_countries AS
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -3684,15 +3890,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -3751,7 +3959,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 ~ '^[0-9]+),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -3998,18 +4206,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -4295,7 +4535,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -4542,18 +4782,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -4833,6 +5105,8 @@ CREATE OR REPLACE VIEW v_project_backer_countries AS
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -4890,15 +5164,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -4957,7 +5233,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -5204,18 +5480,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -5501,7 +5809,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -5748,18 +6056,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -6275,18 +6615,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -6572,7 +6944,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 ~ '^[0-9]+),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -6819,18 +7191,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -7110,6 +7514,8 @@ CREATE OR REPLACE VIEW v_project_backer_countries AS
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -7167,15 +7573,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -7234,7 +7642,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -7481,18 +7889,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -7778,7 +8218,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -8025,18 +8465,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -8552,18 +9024,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -8843,6 +9347,8 @@ CREATE OR REPLACE VIEW v_project_backer_countries AS
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
@@ -8900,15 +9406,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -8967,7 +9475,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 ~ '^[0-9]+),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -9214,18 +9722,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -9511,7 +10051,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -9758,18 +10298,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -10285,18 +10857,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -10582,7 +11186,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 ~ '^[0-9]+),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -10829,18 +11433,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -11356,18 +11992,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          BIGINT NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            BIGINT NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             BIGINT NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -11677,12 +12345,12 @@ FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_insert();
 
 CREATE OR REPLACE FUNCTION fn_pledges_after_update() RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status NOT IN ('CANCELLED', 'VOIDED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'VOIDED', 'REFUNDED') THEN
+  IF OLD.status NOT IN ('CANCELLED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'REFUNDED') THEN
     UPDATE projects
     SET pledged_amount = GREATEST(0, pledged_amount - NEW.total_amount),
         backers_count = GREATEST(0, backers_count - 1)
     WHERE id = NEW.project_id;
-    IF NEW.tier_id IS NOT NULL THEN
+    IF NEW.tier_id IS NOT NULL AND NEW.status = 'CANCELLED' THEN
       UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = NEW.tier_id;
     END IF;
   END IF;
@@ -11693,6 +12361,30 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_pg_pledges_au ON pledges;
 CREATE TRIGGER trg_pg_pledges_au AFTER UPDATE OF status ON pledges
 FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_update();
+
+CREATE OR REPLACE FUNCTION fn_sync_user_two_factor() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    UPDATE users
+    SET two_factor_enabled = 0,
+        two_factor_verified_at = NULL,
+        updated_at = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    WHERE id = OLD.user_id;
+    RETURN OLD;
+  ELSE
+    UPDATE users
+    SET two_factor_enabled = NEW.is_enabled,
+        two_factor_verified_at = NEW.verified_at,
+        updated_at = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    WHERE id = NEW.user_id;
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_pg_user_two_factor_sync ON user_two_factor;
+CREATE TRIGGER trg_pg_user_two_factor_sync AFTER INSERT OR UPDATE OR DELETE ON user_two_factor
+FOR EACH ROW EXECUTE FUNCTION fn_sync_user_two_factor();
 
 CREATE OR REPLACE FUNCTION fn_pledge_add_ons_stock() RETURNS TRIGGER AS $$
 BEGIN
@@ -11806,34 +12498,34 @@ INSERT INTO role_permissions (role_code, permission_code, scope) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO categories (id, parent_id, name, slug, description, image_url, color, sort_order, is_active, created_at) VALUES
-  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-19T01:52:15.035Z'),
-  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-19T01:52:15.035Z'),
-  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-19T01:52:15.035Z'),
-  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-19T01:52:15.035Z'),
-  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-19T01:52:15.035Z'),
-  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-19T01:52:15.035Z'),
-  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-19T01:52:15.035Z'),
-  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-19T01:52:15.035Z')
+  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-19T03:34:15.948Z'),
+  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-19T03:34:15.948Z'),
+  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-19T03:34:15.948Z'),
+  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-19T03:34:15.948Z'),
+  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-19T03:34:15.948Z'),
+  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-19T03:34:15.948Z'),
+  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-19T03:34:15.948Z'),
+  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-19T03:34:15.948Z')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO users (id, email, username, password_hash, display_name, avatar_url, bio, country_code, province, status, locked_reason, email_verified_at, last_login_at, created_at, updated_at) VALUES
-  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$R6Rz4pzdSyRGCLcQWhsCvOVExYXyWbsBJQSVCHhR0oPTlx.imPJ8O', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T18:28:06.782Z', '2026-11-17T21:11:46.888Z', '2025-10-20T18:28:06.782Z', '2025-10-20T18:28:06.782Z'),
-  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$0D7BrJGWiLc8.uQvWmHqiOJsq3LNX.Pu06WeUt7N/tyvopJDbdkzm', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-28T06:16:16.072Z', '2026-11-16T19:29:32.899Z', '2025-12-28T06:16:16.072Z', '2025-12-28T06:16:16.072Z'),
-  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$hGJ4hGiU5cSfDXiLvY1E5eKZHFOApPe1krWxwQO5inhfo.NxFzE62', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T18:04:18.289Z', '2026-11-18T04:22:27.539Z', '2025-11-24T18:04:18.289Z', '2025-11-24T18:04:18.289Z'),
-  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$khrXhT3Ucc6rTA0cdzCkruon8Tr3GFcQalBuwHqAj1vYJ8r/SoPEO', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-22T00:46:37.076Z', '2026-11-17T05:51:01.010Z', '2025-12-22T00:46:37.076Z', '2025-12-22T00:46:37.076Z')
+INSERT INTO users (id, email, username, password_hash, display_name, avatar_url, bio, country_code, province, status, locked_reason, email_verified_at, two_factor_enabled, two_factor_verified_at, last_login_at, created_at, updated_at) VALUES
+  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$brzJhe04rZpZ6rQBhe2lCOLdpp1F9QU8zisYCI07pwP95onU4MR8W', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T20:10:07.688Z', 0, NULL, '2026-11-17T22:53:47.794Z', '2025-10-20T20:10:07.688Z', '2025-10-20T20:10:07.688Z'),
+  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$Qq0iECUPp.oXRmZyOHVTXe5fSkVW/8h/i9Hp5dzBteB7ffLyRXuyW', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-28T07:58:16.978Z', 0, NULL, '2026-11-16T21:11:33.805Z', '2025-12-28T07:58:16.978Z', '2025-12-28T07:58:16.978Z'),
+  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$sr1cNv.z66GTIRUm/UEEeek0db2ggnVF2Gc31IphiMxboTI8wtUdS', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T19:46:19.195Z', 0, NULL, '2026-11-18T06:04:28.445Z', '2025-11-24T19:46:19.195Z', '2025-11-24T19:46:19.195Z'),
+  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$oxrNFfOCeypiFue513xLyu.6HGnBb5wr7wvHFNpQ04PkbLkDhqDJG', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-22T02:28:37.982Z', 0, NULL, '2026-11-17T07:33:01.916Z', '2025-12-22T02:28:37.982Z', '2025-12-22T02:28:37.982Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_settings (user_id, notify_new_project, notify_project_update, notify_comment_reply, notify_message, hide_backed_projects, theme, updated_at) VALUES
-  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.142Z'),
-  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.269Z'),
-  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.208Z'),
-  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.325Z')
+  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.042Z'),
+  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.151Z'),
+  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.089Z'),
+  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.201Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_code, scope, granted_by, granted_at) VALUES
-  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T18:28:06.782Z'),
-  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-28T06:16:16.072Z'),
-  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T18:04:18.289Z'),
-  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-22T00:46:37.076Z')
+  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T20:10:07.688Z'),
+  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-28T07:58:16.978Z'),
+  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T19:46:19.195Z'),
+  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-22T02:28:37.982Z')
 ON CONFLICT DO NOTHING;
 

@@ -31,6 +31,7 @@ export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
   const NOW = nowDate.getTime();
   const rand = mulberry32(20261118);
   const idRand = mulberry32(99002026);
+  const vnpRand = mulberry32(20260519);
   const hex4 = () => Math.floor(idRand() * 0x10000).toString(16).padStart(4, "0");
   const randomUUID = () => `${hex4()}${hex4()}-${hex4()}-4${hex4().slice(1)}-8${hex4().slice(1)}-${hex4()}${hex4()}${hex4()}`;
   const pick = <T,>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
@@ -460,8 +461,14 @@ export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
       const total = (t?.amount ?? 0) + r.bonus + addOnAmount + ship;
       const a = t?.ships ? addrOf(r.backer) : null;
       const plId = randomUUID();
+      const plCode = `FV-${String(++pledgeSeq).padStart(6, "0")}`;
+      const isVnp = vnpRand() < 0.68;
+      const vnpBank = ["NCB", "VCB", "TCB", "MBB", "BIDV", "ACB", "VNPAYQR"][Math.floor(vnpRand() * 7)];
+      const vnpChannel = vnpBank === "VNPAYQR" ? "VNPAYQR" : "VNBANK";
+      const vnpTxnRef = `VNP${vnDate(r.at).replace(/-/g, "")}${String(pledgeSeq).padStart(6, "0")}`;
+      const vnpTransNo = `${14400000 + pledgeSeq}`;
       ins("pledges", {
-        id: plId, code: `FV-${String(++pledgeSeq).padStart(6, "0")}`, project_id: id, backer_id: r.backer, tier_id: t?.id ?? null,
+        id: plId, code: plCode, project_id: id, backer_id: r.backer, tier_id: t?.id ?? null,
         payment_method_id: cardOf(r.backer), address_id: a?.id ?? null, reward_amount: t?.amount ?? 0, bonus_amount: r.bonus,
         add_on_amount: addOnAmount, shipping_amount: ship, total_amount: total, status: "AUTHORIZED",
         ship_recipient: a?.recipient_name ?? null, ship_phone: a?.phone ?? null,
@@ -469,7 +476,47 @@ export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
         is_anonymous: rand() < 0.08 ? 1 : 0, created_at: iso(r.at), updated_at: iso(r.at),
       });
       for (const ad of r.addons) ins("pledge_add_ons", { pledge_id: plId, add_on_id: ad.id, project_id: id, quantity: ad.q, unit_price: ad.price });
-      ins("payment_transactions", { id: randomUUID(), pledge_id: plId, kind: "AUTHORIZE", amount: total, status: "SUCCEEDED", idempotency_key: `${plId}:AUTHORIZE`, provider_ref: `fvp_${randomUUID().slice(0, 12)}`, message: "Đã uỷ quyền giữ chỗ (chưa trừ tiền)", created_at: iso(r.at) });
+      ins("payment_transactions", {
+        id: randomUUID(),
+        pledge_id: plId,
+        kind: "AUTHORIZE",
+        amount: total,
+        status: "SUCCEEDED",
+        idempotency_key: `${plId}:AUTHORIZE`,
+        provider: isVnp ? "VNPAY" : "FUNDVIET_PAY",
+        provider_ref: isVnp ? vnpTransNo : `fvp_${randomUUID().slice(0, 12)}`,
+        bank_code: isVnp ? vnpBank : null,
+        vnp_txn_ref: isVnp ? vnpTxnRef : null,
+        vnp_response_code: isVnp ? "00" : null,
+        message: isVnp
+          ? `Đã ký quỹ tạm giữ qua VNPAY (${vnpBank}) — chỉ giải ngân khi dự án đạt mục tiêu`
+          : "Đã uỷ quyền giữ chỗ trên thẻ (chưa trừ tiền)",
+        created_at: iso(r.at),
+      });
+      if (isVnp && pledgeSeq % 12 === 0) {
+        ins("vnpay_orders", {
+          id: randomUUID(),
+          txn_ref: vnpTxnRef,
+          project_id: id,
+          backer_id: r.backer,
+          pledge_id: plId,
+          purpose: "NEW_PLEDGE",
+          amount: total,
+          bank_code: vnpBank,
+          pay_channel: vnpChannel,
+          order_info: `Tam giu gop von ${plCode} du an ${p.slug}`,
+          payload_json: JSON.stringify({ tierId: t?.id ?? null, bonusAmount: r.bonus }),
+          status: "PAID",
+          vnp_transaction_no: vnpTransNo,
+          vnp_response_code: "00",
+          card_mask: vnpBank === "VNPAYQR" ? "VNPAY-QR" : "970419••••••198",
+          card_holder: "NGUYEN VAN A",
+          ip_address: "113.161.72.18",
+          expires_at: iso(r.at + 15 * 60_000),
+          paid_at: iso(r.at + 45_000),
+          created_at: iso(r.at),
+        });
+      }
       pledgesByProject[p.slug].push({ id: plId, backer: r.backer, at: r.at, total, tier: t?.id, ships: Boolean(t?.ships) });
     }
     // Một vài backer huỷ trước hạn (dự án LIVE)
@@ -483,9 +530,63 @@ export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
     // Chốt kết quả
     const endMs = meta.end;
     if (["SUCCESS", "FULFILLING", "COMPLETED"].includes(p.status)) {
+      let idxInSuccess = 0;
       for (const pl of pledgesByProject[p.slug]) {
+        idxInSuccess++;
+        if (p.status === "SUCCESS" && idxInSuccess === pledgesByProject[p.slug].length && pl.backer !== uid.usr_minhanh) {
+          run(`UPDATE pledges SET status='CAPTURE_FAILED', updated_at=? WHERE id=? AND status='AUTHORIZED'`, iso(endMs + HOUR), pl.id);
+          ins("payment_transactions", {
+            id: randomUUID(),
+            pledge_id: pl.id,
+            kind: "CAPTURE",
+            amount: pl.total,
+            status: "FAILED",
+            idempotency_key: `${pl.id}:CAPTURE`,
+            provider: "VNPAY",
+            provider_ref: `1459${idxInSuccess}`,
+            bank_code: "NCB",
+            vnp_response_code: "51",
+            message: "Tài khoản thẻ không đủ số dư khi quyết toán chiến dịch — chờ thanh toán lại",
+            created_at: iso(endMs + HOUR),
+          });
+          continue;
+        }
         run(`UPDATE pledges SET status='CAPTURED', captured_at=?, updated_at=? WHERE id=? AND status='AUTHORIZED'`, iso(endMs + HOUR), iso(endMs + HOUR), pl.id);
-        ins("payment_transactions", { id: randomUUID(), pledge_id: pl.id, kind: "CAPTURE", amount: pl.total, status: "SUCCEEDED", idempotency_key: `${pl.id}:CAPTURE`, message: "Dự án đạt mục tiêu — đã trừ tiền", created_at: iso(endMs + HOUR) });
+        ins("payment_transactions", {
+          id: randomUUID(),
+          pledge_id: pl.id,
+          kind: "CAPTURE",
+          amount: pl.total,
+          status: "SUCCEEDED",
+          idempotency_key: `${pl.id}:CAPTURE`,
+          provider: idxInSuccess % 3 === 0 ? "FUNDVIET_PAY" : "VNPAY",
+          provider_ref: idxInSuccess % 3 === 0 ? `fvp_${randomUUID().slice(0, 10)}` : `1460${String(idxInSuccess).padStart(4, "0")}`,
+          bank_code: idxInSuccess % 3 === 0 ? null : "VCB",
+          vnp_response_code: idxInSuccess % 3 === 0 ? null : "00",
+          message: "Dự án đạt mục tiêu — đã quyết toán giải ngân thành công",
+          created_at: iso(endMs + HOUR),
+        });
+      }
+      if (p.status === "SUCCESS" && pledgesByProject[p.slug].length > 5) {
+        const refCandidate = pledgesByProject[p.slug].find((x) => x.backer !== uid.usr_minhanh && !x.ships);
+        if (refCandidate) {
+          const refAt = Math.min(NOW - HOUR, endMs + 2 * DAY);
+          run(`UPDATE pledges SET status='REFUNDED', updated_at=? WHERE id=? AND status='CAPTURED'`, iso(refAt), refCandidate.id);
+          ins("payment_transactions", {
+            id: randomUUID(),
+            pledge_id: refCandidate.id,
+            kind: "REFUND",
+            amount: refCandidate.total,
+            status: "SUCCEEDED",
+            idempotency_key: `${refCandidate.id}:REFUND`,
+            provider: "VNPAY",
+            provider_ref: `14990001`,
+            bank_code: "NCB",
+            vnp_response_code: "00",
+            message: "Hoàn tiền theo yêu cầu đối soát của người ủng hộ qua cổng VNPAY",
+            created_at: iso(refAt),
+          });
+        }
       }
       run(`UPDATE projects SET status='SUCCESS', ended_at=? WHERE id=?`, iso(endMs), id);
       history(id, "LIVE", "SUCCESS", null, endMs, "Đạt mục tiêu khi kết thúc");

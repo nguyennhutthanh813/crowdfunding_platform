@@ -709,13 +709,15 @@ export async function publishUpdate(viewer: Viewer | null, bodyIn: Payload): Pro
 export async function deleteUpdateDraft(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
   try {
     const projectId = strVal(bodyIn, "project_id");
-    const { db, p } = await requireActor(viewer, projectId, "update.draft");
+    const { v, db, p } = await requireActor(viewer, projectId, "update.draft");
     const updateId = strVal(bodyIn, "update_id");
     const cur = await one<{ status: string }>(db, `SELECT status FROM project_updates WHERE id = ? AND project_id = ?`, updateId, projectId);
-    if (!cur) throw new DomainError("Không tìm thấy bản nháp.", "NOT_FOUND");
-    if (cur.status !== "DRAFT") throw new DomainError("Chỉ có thể xoá Update ở trạng thái bản nháp.");
-    await run(db, `DELETE FROM project_updates WHERE id = ? AND project_id = ? AND status = 'DRAFT'`, updateId, projectId);
-    return { ok: true, slug: p.slug, message: "Đã xoá bản nháp Update." };
+    if (!cur) throw new DomainError("Không tìm thấy bản tin Update.", "NOT_FOUND");
+    if (cur.status !== "DRAFT" && !(await canProject(db, v, projectId, "update.publish"))) {
+      throw new DomainError("Collaborator chỉ có thể xoá bản nháp Update. Chỉ Creator mới xoá được bản tin đã đăng.");
+    }
+    await run(db, `DELETE FROM project_updates WHERE id = ? AND project_id = ?`, updateId, projectId);
+    return { ok: true, slug: p.slug, message: cur.status === "DRAFT" ? "Đã xoá bản nháp Update." : "Đã xoá bản tin Update." };
   } catch (e) {
     return { error: humanizeError(e) };
   }

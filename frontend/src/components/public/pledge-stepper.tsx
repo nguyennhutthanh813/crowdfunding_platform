@@ -194,7 +194,10 @@ export function PledgeStepper({
   const [district, setDistrict] = useState("");
   const [province, setProvince] = useState("TP. Hồ Chí Minh");
 
-  // Bước 3: Thẻ mô phỏng & tuỳ chọn
+  // Bước 3: Cổng VNPAY hoặc Thẻ lưu sẵn & tuỳ chọn
+  const [paymentGateway, setPaymentGateway] = useState<"VNPAY" | "CARD">("VNPAY");
+  const [vnpPayChannel, setVnpPayChannel] = useState<"VNPAYQR" | "VNBANK" | "INTCARD">("VNBANK");
+  const [vnpBankCode, setVnpBankCode] = useState<string>("NCB");
   const [cardMode, setCardMode] = useState<"saved" | "new">(cards.length > 0 ? "saved" : "new");
   const [paymentMethodId, setPaymentMethodId] = useState<string>(initialCardId ?? cards[0]?.id ?? "");
   const [cardNumber, setCardNumber] = useState("");
@@ -782,6 +785,9 @@ export function PledgeStepper({
               <input type="hidden" name="ward" value={ward} />
               <input type="hidden" name="district" value={district} />
               <input type="hidden" name="province" value={province} />
+              <input type="hidden" name="paymentGateway" value={paymentGateway} />
+              <input type="hidden" name="vnpPayChannel" value={vnpPayChannel} />
+              <input type="hidden" name="vnpBankCode" value={vnpBankCode} />
               <input type="hidden" name="cardMode" value={cardMode} />
               <input type="hidden" name="paymentMethodId" value={paymentMethodId} />
               <input type="hidden" name="cardNumber" value={cardNumber} />
@@ -792,23 +798,141 @@ export function PledgeStepper({
               <input type="hidden" name="note" value={note} />
               <input type="hidden" name="replaceExisting" value={existingPledge ? "1" : "0"} />
 
-              {/* Thẻ thanh toán uỷ quyền */}
+              {/* Lựa chọn cổng thanh toán VNPAY hoặc Thẻ Token hoá */}
               <div className="card space-y-4 p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="flex items-center gap-2 text-base font-bold sm:text-lg">
-                      <CreditCard className="size-4 text-violet-500" /> Phương thức thanh toán uỷ quyền
+                      <CreditCard className="size-4 text-violet-500" /> Chọn kênh thanh toán ký quỹ
                     </h2>
                     <p className="text-xs text-muted">
-                      Hệ thống chỉ lưu khoá token &amp; 4 số cuối — không lưu số thẻ đầy đủ trên máy chủ.
+                      Hỗ trợ cổng VNPAY chuẩn chữ ký số HMAC-SHA512 hoặc thẻ lưu sẵn Token hoá.
                     </p>
                   </div>
                   <Badge tone="emerald">
-                    <Lock className="size-3" /> Bảo mật Token hoá
+                    <Lock className="size-3" /> Chuẩn bảo mật PCI-DSS &amp; SHA-512
                   </Badge>
                 </div>
 
-                {cards.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentGateway("VNPAY")}
+                    className={cn(
+                      "flex flex-col items-start gap-1.5 rounded-2xl border p-4 text-left transition",
+                      paymentGateway === "VNPAY"
+                        ? "border-sky-500 bg-sky-500/10 ring-2 ring-sky-500/20"
+                        : "border-line bg-surface hover:border-sky-400/50",
+                    )}
+                  >
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-2 font-extrabold text-sky-700 dark:text-sky-300">
+                        <span className="rounded-md bg-gradient-to-r from-red-600 to-blue-700 px-2 py-0.5 text-[11px] font-black tracking-wider text-white">
+                          VNPAY
+                        </span>
+                        Cổng VNPAY Sandbox
+                      </span>
+                      <Badge tone="sky">Khuyên dùng</Badge>
+                    </div>
+                    <p className="text-xs text-muted">
+                      Quét mã VNPAY-QR, thẻ ATM nội địa (NCB, Vietcombank, BIDV, Techcombank, MB...) hoặc thẻ quốc tế.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentGateway("CARD")}
+                    className={cn(
+                      "flex flex-col items-start gap-1.5 rounded-2xl border p-4 text-left transition",
+                      paymentGateway === "CARD"
+                        ? "border-violet-500 bg-violet-500/10 ring-2 ring-violet-500/20"
+                        : "border-line bg-surface hover:border-violet-400/50",
+                    )}
+                  >
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <span className="font-extrabold">Thẻ lưu sẵn (1 chạm)</span>
+                      <Badge tone="violet">Token hoá</Badge>
+                    </div>
+                    <p className="text-xs text-muted">
+                      Uỷ quyền giữ chỗ trực tiếp bằng thẻ VISA / MasterCard / JCB / NAPAS đã liên kết trong tài khoản.
+                    </p>
+                  </button>
+                </div>
+
+                {paymentGateway === "VNPAY" && (
+                  <div className="space-y-4 rounded-2xl border border-sky-500/30 bg-sky-500/[0.05] p-4">
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-muted">
+                        Phương thức trên cổng VNPAY
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          { ch: "VNBANK" as const, bank: "NCB", title: "Thẻ ATM / Ngân hàng", sub: "NCB, VCB, TCB, MB, BIDV..." },
+                          { ch: "VNPAYQR" as const, bank: "VNPAYQR", title: "Quét mã VNPAY-QR", sub: "App Ngân hàng & Ví VNPAY" },
+                          { ch: "INTCARD" as const, bank: "VISA", title: "Thẻ Quốc tế", sub: "Visa / MasterCard / JCB" },
+                        ].map((opt) => {
+                          const active = vnpPayChannel === opt.ch;
+                          return (
+                            <button
+                              key={opt.ch}
+                              type="button"
+                              onClick={() => {
+                                setVnpPayChannel(opt.ch);
+                                setVnpBankCode(opt.bank);
+                              }}
+                              className={cn(
+                                "rounded-xl border p-3 text-left transition",
+                                active
+                                  ? "border-sky-500 bg-surface shadow-sm"
+                                  : "border-line bg-surface/60 hover:border-sky-400/40",
+                              )}
+                            >
+                              <div className="text-xs font-bold">{opt.title}</div>
+                              <div className="mt-0.5 text-[11px] text-muted">{opt.sub}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {vnpPayChannel === "VNBANK" && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-bold text-fg">Chọn ngân hàng nội địa:</div>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { code: "NCB", label: "NCB (Thẻ test chuẩn)" },
+                            { code: "VCB", label: "Vietcombank" },
+                            { code: "TCB", label: "Techcombank" },
+                            { code: "MBB", label: "MB Bank" },
+                            { code: "BIDV", label: "BIDV" },
+                            { code: "CTG", label: "VietinBank" },
+                            { code: "ACB", label: "ACB" },
+                          ].map((b) => (
+                            <button
+                              key={b.code}
+                              type="button"
+                              onClick={() => setVnpBankCode(b.code)}
+                              className={cn(
+                                "rounded-xl border px-3 py-1.5 text-xs font-bold transition",
+                                vnpBankCode === b.code
+                                  ? "border-sky-500 bg-sky-600 text-white"
+                                  : "border-line bg-surface text-muted hover:text-fg",
+                              )}
+                            >
+                              {b.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rounded-xl border border-line bg-surface p-3 text-xs text-muted">
+                      Khi bấm tiếp tục, hệ thống sẽ khởi tạo đơn ký quỹ có chữ ký số <b>HMAC-SHA512</b> và chuyển bạn sang giao diện <b>Cổng thanh toán VNPAY Sandbox</b> để xác nhận OTP / mã QR.
+                    </div>
+                  </div>
+                )}
+
+                {paymentGateway === "CARD" && cards.length > 0 && (
                   <div className="space-y-2.5">
                     {cards.map((c) => {
                       const checked = cardMode === "saved" && paymentMethodId === c.id;
@@ -863,7 +987,7 @@ export function PledgeStepper({
                   </div>
                 )}
 
-                {cardMode === "new" && (
+                {paymentGateway === "CARD" && cardMode === "new" && (
                   <div className="space-y-4 rounded-2xl border border-line bg-surface-2/40 p-4">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="text-muted">Điền nhanh thẻ thử:</span>
@@ -1003,9 +1127,17 @@ export function PledgeStepper({
                 <Button type="button" variant="outline" size="md" onClick={() => setStep(2)}>
                   <ArrowLeft className="size-4" /> Quay lại
                 </Button>
-                <SubmitButton variant="primary" size="lg" pendingText="Đang xử lý giữ chỗ…">
+                <SubmitButton
+                  variant="primary"
+                  size="lg"
+                  pendingText={paymentGateway === "VNPAY" ? "Đang kết nối cổng VNPAY…" : "Đang xử lý giữ chỗ…"}
+                >
                   <ShieldCheck className="size-5" />
-                  {existingPledge ? "Xác nhận đổi góp vốn" : `Xác nhận giữ chỗ ${formatVnd(totalAmount)}`}
+                  {paymentGateway === "VNPAY"
+                    ? `Thanh toán qua VNPAY · ${formatVnd(totalAmount)}`
+                    : existingPledge
+                      ? "Xác nhận đổi góp vốn"
+                      : `Xác nhận giữ chỗ ${formatVnd(totalAmount)}`}
                 </SubmitButton>
               </div>
             </ActionForm>

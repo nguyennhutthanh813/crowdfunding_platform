@@ -22,8 +22,12 @@ import {
   schedulerOverview,
 } from "../../queries/admin.js";
 import {
+  adminResetUserTwoFactor,
   decideReview,
+  deleteCategory,
   handleReport,
+  refundPledge,
+  resolveFailedCapture,
   restoreProjectOp,
   runSchedulerNow,
   saveCategory,
@@ -138,6 +142,11 @@ adminRouter.post("/users/lock", async (req, res) => {
   res.status(r.error ? 400 : 200).json(r);
 });
 
+adminRouter.post("/users/reset-2fa", async (req, res) => {
+  const r = await adminResetUserTwoFactor(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
 adminRouter.get("/reports", requireSystemPermMiddleware("admin.report.handle"), async (req, res) => {
   try {
     const raw = String(req.query.status ?? "OPEN").toUpperCase();
@@ -158,12 +167,14 @@ adminRouter.get("/transactions", requireSystemPermMiddleware("admin.transaction.
   try {
     const kind = typeof req.query.kind === "string" && req.query.kind.trim() ? req.query.kind.trim() : undefined;
     const status = typeof req.query.status === "string" && req.query.status.trim() ? req.query.status.trim() : undefined;
+    const provider = typeof req.query.provider === "string" && req.query.provider.trim() ? req.query.provider.trim() : undefined;
+    const q = typeof req.query.q === "string" && req.query.q.trim() ? req.query.q.trim() : undefined;
     const project = typeof req.query.project === "string" && req.query.project.trim() ? req.query.project.trim() : undefined;
     const from = typeof req.query.from === "string" && req.query.from.trim() ? req.query.from.trim() : undefined;
     const to = typeof req.query.to === "string" && req.query.to.trim() ? req.query.to.trim() : undefined;
     const page = Number(req.query.page) || 1;
     const [txData, summary, projectOptions] = await Promise.all([
-      adminTransactions({ kind, status, project, from, to, page }),
+      adminTransactions({ kind, status, provider, q, project, from, to, page }),
       projectMoneySummary(),
       projectsWithPledges(),
     ]);
@@ -171,6 +182,16 @@ adminRouter.get("/transactions", requireSystemPermMiddleware("admin.transaction.
   } catch (e) {
     res.status(500).json({ ok: false, error: humanizeError(e) });
   }
+});
+
+adminRouter.post("/transactions/refund", async (req, res) => {
+  const r = await refundPledge(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/transactions/resolve-failed", async (req, res) => {
+  const r = await resolveFailedCapture(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
 });
 
 adminRouter.get("/categories", requireSystemPermMiddleware("admin.category.manage"), async (_req, res) => {
@@ -189,6 +210,11 @@ adminRouter.post("/categories/save", async (req, res) => {
 
 adminRouter.post("/categories/toggle", async (req, res) => {
   const r = await toggleCategory(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/categories/delete", async (req, res) => {
+  const r = await deleteCategory(req.viewer, req.body ?? {});
   res.status(r.error ? 400 : 200).json(r);
 });
 

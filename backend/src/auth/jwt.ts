@@ -1,5 +1,5 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
-import { createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { env } from "../config/env.js";
 
 export interface AccessTokenPayload {
@@ -42,6 +42,33 @@ export interface TwoFactorSetupPayload {
   type: "2fa_setup";
 }
 
+export interface TwoFactorVaultEntry {
+  userId: string;
+  email: string;
+  secret: string;
+  verifiedAt: string;
+  backupCodeHashes: string[];
+}
+
+export type TwoFactorVaultMap = Record<string, TwoFactorVaultEntry>;
+
+export interface VnpayOrderTokenPayload {
+  id: string;
+  txnRef: string;
+  projectId: string;
+  backerId: string;
+  pledgeId: string | null;
+  purpose: "NEW_PLEDGE" | "REPLACE_PLEDGE" | "RETRY_CAPTURE";
+  amount: number;
+  bankCode: string;
+  payChannel: "VNPAYQR" | "VNBANK" | "INTCARD";
+  orderInfo: string;
+  payloadJson: string;
+  expiresAt: string;
+  createdAt: string;
+  type: "vnpay_order";
+}
+
 export function signAccessToken(payload: Omit<AccessTokenPayload, "type">): string {
   const opts: SignOptions = { expiresIn: env.jwtAccessExpiresIn as SignOptions["expiresIn"] };
   return jwt.sign({ ...payload, type: "access" }, env.jwtSecret, opts);
@@ -58,7 +85,7 @@ export function signRefreshToken(
   const decoded = jwt.decode(token) as { exp?: number } | null;
   const expiresAt = decoded?.exp
     ? new Date(decoded.exp * 1000).toISOString()
-    : new Date(Date.now() + 7 * 86_400_000).toISOString();
+    : new Date(Date.now() + 14 * 86_400_000).toISOString();
   return { token, tokenHash: hashToken(token), expiresAt };
 }
 
@@ -72,6 +99,10 @@ export function signPasswordResetChallenge(userId: string, email: string, otpHas
 
 export function signTwoFactorSetupToken(userId: string, secret: string): string {
   return jwt.sign({ userId, secret, type: "2fa_setup" }, env.jwtSecret, { expiresIn: "10m" });
+}
+
+export function signVnpayOrderToken(payload: Omit<VnpayOrderTokenPayload, "type">): string {
+  return jwt.sign({ ...payload, type: "vnpay_order" }, env.jwtSecret, { expiresIn: "20m" });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload | null {
@@ -119,6 +150,48 @@ export function verifyTwoFactorSetupToken(token: string): TwoFactorSetupPayload 
   }
 }
 
+export function verifyVnpayOrderToken(token: string): VnpayOrderTokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, env.jwtSecret) as VnpayOrderTokenPayload;
+    return decoded?.type === "vnpay_order" && decoded.txnRef && decoded.projectId ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function vaultKey(): Buffer {
+  return createHash("sha256").update(`fundviet-2fa-vault:${env.jwtSecret}`).digest();
+}
+
+/** Mã hoá AES-256-GCM trạng thái 2FA để đồng bộ an toàn giữa các serverless container khi dùng SQLite tạm. */
+export function sealTwoFactorVault(map: TwoFactorVaultMap): string {
+  const entries = Object.entries(map).slice(-6);
+  const trimmed = Object.fromEntries(entries);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", vaultKey(), iv);
+  const enc = Buffer.concat([cipher.update(JSON.stringify(trimmed), "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v1.${iv.toString("base64url")}.${tag.toString("base64url")}.${enc.toString("base64url")}`;
+}
+
+export function openTwoFactorVault(sealed: string | undefined | null): TwoFactorVaultMap {
+  if (!sealed || !sealed.startsWith("v1.")) return {};
+  try {
+    const parts = sealed.split(".");
+    if (parts.length !== 4) return {};
+    const iv = Buffer.from(parts[1], "base64url");
+    const tag = Buffer.from(parts[2], "base64url");
+    const data = Buffer.from(parts[3], "base64url");
+    const decipher = createDecipheriv("aes-256-gcm", vaultKey(), iv);
+    decipher.setAuthTag(tag);
+    const plain = Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+    const parsed = JSON.parse(plain) as TwoFactorVaultMap;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
 }

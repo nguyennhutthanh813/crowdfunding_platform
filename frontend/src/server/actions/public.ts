@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { apiPost, formToPayload } from "../api";
+import { apiPatch, apiPost, formToPayload } from "../api";
 import type { ActionResult } from "@/components/ui/action-form";
 
 export type CommentLikeResult = { ok: boolean; on?: boolean; error?: string; needLogin?: boolean };
@@ -34,6 +34,12 @@ export async function addCommentAction(_prev: ActionResult, form: FormData): Pro
   return res;
 }
 
+export async function editCommentAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const res = await apiPatch<ActionResult & { slug?: string }>("/comments", formToPayload(form));
+  if (res.ok && res.slug) revalidatePath(`/p/${res.slug}`);
+  return res;
+}
+
 export async function toggleCommentLikeAction(commentId: string, slug: string): Promise<CommentLikeResult> {
   const res = await apiPost<CommentLikeResult>(`/comments/${encodeURIComponent(commentId)}/like`, {});
   if (res.ok) revalidatePath(`/p/${slug}`);
@@ -56,4 +62,54 @@ export async function submitPledgeAction(_prev: ActionResult, form: FormData): P
     revalidatePath("/");
   }
   return res;
+}
+
+export async function createVnpayRetryOrderAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const res = await apiPost<{ ok?: boolean; error?: string; checkoutUrl?: string; slug?: string }>(
+    "/vnpay/create-order",
+    formToPayload(form),
+  );
+  if (!res.ok || !res.checkoutUrl) {
+    return { error: res.error ?? "Không thể khởi tạo phiên thanh toán lại qua VNPAY." };
+  }
+  return {
+    ok: true,
+    message: "Đang chuyển tới cổng thanh toán VNPAY...",
+    redirect: res.checkoutUrl,
+  };
+}
+
+export async function processVnpayGatewayAction(payload: {
+  txnRef: string;
+  orderToken?: string;
+  payChannel: "VNPAYQR" | "VNBANK" | "INTCARD";
+  bankCode: string;
+  cardNumber?: string;
+  cardHolder?: string;
+  issueDate?: string;
+  otp?: string;
+  simulateCode?: string;
+}): Promise<{ ok: boolean; responseCode?: string; returnUrl?: string; error?: string }> {
+  const res = await apiPost<{
+    ok?: boolean;
+    responseCode?: string;
+    returnUrl?: string;
+    pledgeCode?: string;
+    error?: string;
+  }>("/vnpay/process", payload);
+
+  if (res.ok) {
+    revalidatePath("/me");
+    revalidatePath("/me/backed");
+    revalidatePath("/admin/transactions");
+    revalidatePath("/explore");
+    revalidatePath("/");
+  }
+
+  return {
+    ok: Boolean(res.ok),
+    responseCode: res.responseCode,
+    returnUrl: res.returnUrl,
+    error: res.error,
+  };
 }

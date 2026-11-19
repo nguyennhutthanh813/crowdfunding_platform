@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/components/ui/action-form";
-import { apiPatch, apiPost, formToPayload } from "../api";
+import { apiPatch, apiPost, formToPayload, setAuthCookies } from "../api";
 
 type Res = NonNullable<ActionResult>;
 
@@ -56,17 +56,23 @@ export async function startConversationAction(_: ActionResult, form: FormData): 
 }
 
 export async function updateProfileAction(_: ActionResult, form: FormData): Promise<ActionResult> {
-  const res = await apiPatch<Res & { username?: string }>("/me/profile", formToPayload(form));
-  if (res.ok) revalidateMe(res.username ? [`/u/${res.username}`] : []);
+  const res = await apiPatch<Res & { username?: string; accessToken?: string; refreshToken?: string }>(
+    "/me/profile",
+    formToPayload(form),
+  );
+  if (res.ok) {
+    if (res.accessToken && res.refreshToken) await setAuthCookies(res.accessToken, res.refreshToken);
+    revalidateMe(res.username ? [`/u/${res.username}`] : []);
+  }
   return res;
 }
 
 export async function updateAccountAction(_: ActionResult, form: FormData): Promise<ActionResult> {
-  const res = await apiPatch<Res & { oldUsername?: string; newUsername?: string }>(
-    "/me/account",
-    formToPayload(form),
-  );
+  const res = await apiPatch<
+    Res & { oldUsername?: string; newUsername?: string; accessToken?: string; refreshToken?: string }
+  >("/me/account", formToPayload(form));
   if (res.ok) {
+    if (res.accessToken && res.refreshToken) await setAuthCookies(res.accessToken, res.refreshToken);
     const paths: string[] = [];
     if (res.oldUsername) paths.push(`/u/${res.oldUsername}`);
     if (res.newUsername) paths.push(`/u/${res.newUsername}`);
@@ -76,8 +82,14 @@ export async function updateAccountAction(_: ActionResult, form: FormData): Prom
 }
 
 export async function changePasswordAction(_: ActionResult, form: FormData): Promise<ActionResult> {
-  const res = await apiPost<Res>("/me/password", formToPayload(form));
-  if (res.ok) revalidateMe();
+  const res = await apiPost<Res & { accessToken?: string; refreshToken?: string }>(
+    "/me/password",
+    formToPayload(form),
+  );
+  if (res.ok) {
+    if (res.accessToken && res.refreshToken) await setAuthCookies(res.accessToken, res.refreshToken);
+    revalidateMe();
+  }
   return res;
 }
 

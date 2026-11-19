@@ -26,11 +26,15 @@ import {
 
 export const authRouter = Router();
 
-function clientMeta(req: { ip?: string; headers: Record<string, unknown> }) {
+function clientMeta(req: { ip?: string; headers: Record<string, unknown>; twoFactorVaultHeader?: string }) {
   const forwarded = typeof req.headers["x-forwarded-for"] === "string" ? req.headers["x-forwarded-for"].split(",")[0] : null;
+  const vault =
+    req.twoFactorVaultHeader ||
+    (typeof req.headers["x-fv-2fa-vault"] === "string" ? req.headers["x-fv-2fa-vault"].trim() : undefined);
   return {
     ip: forwarded?.trim() || req.ip || null,
     userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+    twoFactorVault: vault,
   };
 }
 
@@ -190,13 +194,15 @@ authRouter.post("/2fa/setup", requireAuthMiddleware, async (req, res) => {
 authRouter.post("/2fa/enable", requireAuthMiddleware, async (req, res) => {
   try {
     const db = getDb();
+    const meta = clientMeta(req);
     const result = await enableTwoFactor(
       db,
       req.viewer!.id,
       String(req.body?.code ?? ""),
       typeof req.body?.setupToken === "string" ? req.body.setupToken : undefined,
+      meta.twoFactorVault,
     );
-    await recordSecurityEvent(db, req.viewer!, "TWO_FACTOR_ENABLED", clientMeta(req));
+    await recordSecurityEvent(db, req.viewer!, "TWO_FACTOR_ENABLED", meta);
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);
@@ -205,7 +211,13 @@ authRouter.post("/2fa/enable", requireAuthMiddleware, async (req, res) => {
 
 authRouter.post("/2fa/backup-codes/regenerate", requireAuthMiddleware, async (req, res) => {
   try {
-    const result = await regenerateTwoFactorBackupCodes(getDb(), req.viewer!.id, String(req.body?.code ?? ""));
+    const meta = clientMeta(req);
+    const result = await regenerateTwoFactorBackupCodes(
+      getDb(),
+      req.viewer!.id,
+      String(req.body?.code ?? ""),
+      meta.twoFactorVault,
+    );
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);
@@ -215,8 +227,9 @@ authRouter.post("/2fa/backup-codes/regenerate", requireAuthMiddleware, async (re
 authRouter.post("/2fa/disable", requireAuthMiddleware, async (req, res) => {
   try {
     const db = getDb();
-    const result = await disableTwoFactor(db, req.viewer!.id, req.body ?? {});
-    await recordSecurityEvent(db, req.viewer!, "TWO_FACTOR_DISABLED", clientMeta(req));
+    const meta = clientMeta(req);
+    const result = await disableTwoFactor(db, req.viewer!.id, req.body ?? {}, meta.twoFactorVault);
+    await recordSecurityEvent(db, req.viewer!, "TWO_FACTOR_DISABLED", meta);
     res.json({ ok: true, ...result });
   } catch (e) {
     sendError(res, e);

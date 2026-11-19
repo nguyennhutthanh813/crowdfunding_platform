@@ -45,6 +45,10 @@ export async function toggleUserLockAction(_p: ActionResult, form: FormData): Pr
   return runAdminPost("/admin/users/lock", form);
 }
 
+export async function adminResetUserTwoFactorAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/users/reset-2fa", form);
+}
+
 export async function handleReportAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runAdminPost("/admin/reports/handle", form, ["/", "/explore"]);
 }
@@ -55,6 +59,18 @@ export async function saveCategoryAction(_p: ActionResult, form: FormData): Prom
 
 export async function toggleCategoryAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runAdminPost("/admin/categories/toggle", form, ["/", "/explore"]);
+}
+
+export async function deleteCategoryAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/categories/delete", form, ["/", "/explore"]);
+}
+
+export async function refundPledgeAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/transactions/refund", form, ["/", "/explore", "/me/backed"]);
+}
+
+export async function resolveFailedCaptureAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/transactions/resolve-failed", form, ["/me/backed"]);
 }
 
 export async function runSchedulerNowAction(_p: ActionResult, _form: FormData): Promise<ActionResult> {

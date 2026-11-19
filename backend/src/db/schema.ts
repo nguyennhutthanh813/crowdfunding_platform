@@ -9,7 +9,7 @@
  *    Trigger đọc quyền qua view v_project_permissions / v_user_system_permissions,
  *    nên đổi ma trận quyền chỉ cần đổi dữ liệu.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const NOW = "(strftime('%Y-%m-%dT%H:%M:%fZ','now'))";
 const BOOL = (col: string, def: 0 | 1) =>
@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS users (
   status            TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','LOCKED')),
   locked_reason     TEXT,
   email_verified_at TEXT,
+  ${BOOL("two_factor_enabled", 0)},
+  two_factor_verified_at TEXT,
   last_login_at     TEXT,
   created_at        TEXT NOT NULL DEFAULT ${NOW},
   updated_at        TEXT NOT NULL DEFAULT ${NOW},
@@ -95,15 +97,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id                 TEXT PRIMARY KEY,
-  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  refresh_token_hash TEXT NOT NULL UNIQUE,
-  ip_address         TEXT,
-  user_agent         TEXT,
-  expires_at         TEXT NOT NULL,
-  revoked_at         TEXT,
-  last_seen_at       TEXT NOT NULL DEFAULT ${NOW},
-  created_at         TEXT NOT NULL DEFAULT ${NOW}
+  id                      TEXT PRIMARY KEY,
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash      TEXT NOT NULL UNIQUE,
+  prev_refresh_token_hash TEXT,
+  rotated_at              TEXT,
+  ip_address              TEXT,
+  user_agent              TEXT,
+  expires_at              TEXT NOT NULL,
+  revoked_at              TEXT,
+  last_seen_at            TEXT NOT NULL DEFAULT ${NOW},
+  created_at              TEXT NOT NULL DEFAULT ${NOW}
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
@@ -162,7 +166,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_address_default ON addresses(user_id) WHERE
 CREATE TABLE IF NOT EXISTS payment_methods (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS')),
+  brand          TEXT NOT NULL CHECK (brand IN ('VISA','MASTERCARD','JCB','NAPAS','VNPAY')),
   last4          TEXT NOT NULL CHECK (length(last4) = 4 AND last4 NOT GLOB '*[^0-9]*'),
   exp_month      INTEGER NOT NULL CHECK (exp_month BETWEEN 1 AND 12),
   exp_year       INTEGER NOT NULL CHECK (exp_year BETWEEN 2024 AND 2099),
@@ -409,18 +413,50 @@ CREATE TABLE IF NOT EXISTS pledge_add_ons (
 );
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
-  id              TEXT PRIMARY KEY,
-  pledge_id       TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
-  kind            TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
-  amount          INTEGER NOT NULL CHECK (amount > 0),
-  status          TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
-  idempotency_key TEXT NOT NULL UNIQUE,
-  provider        TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
-  provider_ref    TEXT,
-  message         TEXT NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT ${NOW}
+  id                TEXT PRIMARY KEY,
+  pledge_id         TEXT NOT NULL REFERENCES pledges(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('AUTHORIZE','CAPTURE','VOID','REFUND')),
+  amount            INTEGER NOT NULL CHECK (amount > 0),
+  status            TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  idempotency_key   TEXT NOT NULL UNIQUE,
+  provider          TEXT NOT NULL DEFAULT 'FUNDVIET_PAY',
+  provider_ref      TEXT,
+  bank_code         TEXT,
+  vnp_txn_ref       TEXT,
+  vnp_response_code TEXT,
+  message           TEXT NOT NULL DEFAULT '',
+  created_at        TEXT NOT NULL DEFAULT ${NOW}
 );
 CREATE INDEX IF NOT EXISTS idx_payment_tx_pledge ON payment_transactions(pledge_id, created_at);
+
+-- Phiên thanh toán cổng VNPAY Sandbox (tạo URL chữ ký số HMAC-SHA512, xử lý OTP/QR & đối soát IPN/Return).
+CREATE TABLE IF NOT EXISTS vnpay_orders (
+  id                 TEXT PRIMARY KEY,
+  txn_ref            TEXT NOT NULL UNIQUE,
+  project_id         TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  backer_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pledge_id          TEXT REFERENCES pledges(id) ON DELETE SET NULL,
+  purpose            TEXT NOT NULL DEFAULT 'NEW_PLEDGE'
+                       CHECK (purpose IN ('NEW_PLEDGE','REPLACE_PLEDGE','RETRY_CAPTURE')),
+  amount             INTEGER NOT NULL CHECK (amount >= 10000),
+  bank_code          TEXT NOT NULL DEFAULT 'NCB',
+  pay_channel        TEXT NOT NULL DEFAULT 'VNBANK'
+                       CHECK (pay_channel IN ('VNPAYQR','VNBANK','INTCARD')),
+  order_info         TEXT NOT NULL,
+  payload_json       TEXT NOT NULL DEFAULT '{}',
+  status             TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PAID','FAILED','CANCELLED','EXPIRED')),
+  vnp_transaction_no TEXT,
+  vnp_response_code  TEXT,
+  card_mask          TEXT,
+  card_holder        TEXT,
+  ip_address         TEXT,
+  expires_at         TEXT NOT NULL,
+  paid_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT ${NOW}
+);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_backer  ON vnpay_orders(backer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vnpay_orders_project ON vnpay_orders(project_id, status);
 
 -- 1-1 với pledges: chỉ pledge đã thu tiền và có quà vật lý mới có shipment.
 CREATE TABLE IF NOT EXISTS shipments (
@@ -896,6 +932,33 @@ BEGIN
                     WHERE user_id = NEW.reviewer_id AND permission_code = 'admin.project.review');
 END;
 
+CREATE TRIGGER IF NOT EXISTS trg_user_two_factor_ai AFTER INSERT ON user_two_factor
+BEGIN
+  UPDATE users
+  SET two_factor_enabled = NEW.is_enabled,
+      two_factor_verified_at = NEW.verified_at,
+      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+  WHERE id = NEW.user_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_user_two_factor_au AFTER UPDATE ON user_two_factor
+BEGIN
+  UPDATE users
+  SET two_factor_enabled = NEW.is_enabled,
+      two_factor_verified_at = NEW.verified_at,
+      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+  WHERE id = NEW.user_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_user_two_factor_ad AFTER DELETE ON user_two_factor
+BEGIN
+  UPDATE users
+  SET two_factor_enabled = 0,
+      two_factor_verified_at = NULL,
+      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+  WHERE id = OLD.user_id;
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_users_touch AFTER UPDATE ON users
 WHEN NEW.updated_at = OLD.updated_at
 BEGIN
@@ -911,8 +974,8 @@ END;
 /** Danh sách bảng theo nhóm — dùng cho trang /system và tài liệu. */
 export const TABLE_GROUPS: Record<string, string[]> = {
   "Danh tính & phân quyền": [
-    "users", "user_settings", "roles", "permissions", "role_permissions", "user_roles",
-    "sessions", "addresses", "payment_methods",
+    "users", "user_settings", "user_two_factor", "user_backup_codes", "auth_otp_codes",
+    "roles", "permissions", "role_permissions", "user_roles", "sessions", "addresses", "payment_methods",
   ],
   "Danh mục": ["categories"],
   "Dự án": [
@@ -920,10 +983,10 @@ export const TABLE_GROUPS: Record<string, string[]> = {
     "project_reviews", "project_status_history",
   ],
   "Phần quà": ["reward_tiers", "reward_items", "add_ons", "reward_tier_add_ons"],
-  "Góp vốn & thanh toán": ["pledges", "pledge_add_ons", "payment_transactions", "shipments"],
+  "Góp vốn & thanh toán": ["pledges", "pledge_add_ons", "payment_transactions", "vnpay_orders", "shipments"],
   "Nội dung & tương tác": [
     "project_updates", "faqs", "comments", "comment_likes", "comment_analyses", "saved_projects",
-    "follows", "conversations", "conversation_participants", "messages", "notifications",
+    "follows", "conversations", "conversation_participants", "messages", "notifications", "email_outbox",
   ],
   "Thống kê & AI": ["project_daily_stats", "ai_predictions"],
   "Quản trị": ["reports", "audit_logs", "scheduler_runs"],

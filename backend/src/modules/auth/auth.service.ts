@@ -2,6 +2,8 @@ import { z } from "zod";
 import { hashPassword, verifyPassword } from "../../auth/password.js";
 import {
   hashToken,
+  openTwoFactorVault,
+  sealTwoFactorVault,
   signAccessToken,
   signPasswordResetChallenge,
   signRefreshToken,
@@ -13,7 +15,7 @@ import {
   verifyTwoFactorSetupToken,
 } from "../../auth/jwt.js";
 import { env } from "../../config/env.js";
-import { ensureEphemeralUserHydrated } from "../../middlewares/auth.middleware.js";
+import { ensureEphemeralTwoFactorHydrated, ensureEphemeralUserHydrated } from "../../middlewares/auth.middleware.js";
 import {
   buildOtpAuthUrl,
   generateBackupCodes,
@@ -45,16 +47,17 @@ function maskEmail(email: string): string {
   return `${visible}***@${domain}`;
 }
 
-async function issueSessionTokens(
+export async function issueSessionTokens(
   db: DbClient,
   userId: string,
   meta: { ip?: string | null; userAgent?: string | null },
+  existingSessionId?: string | null,
 ): Promise<AuthTokensResult> {
   const viewer = await loadViewer(db, userId);
   if (!viewer) throw new DomainError("Không tìm thấy tài khoản.", "NOT_FOUND");
   if (viewer.status !== "ACTIVE") throw new DomainError("Tài khoản đã bị khoá.", "FORBIDDEN");
 
-  const sessionId = newId();
+  const sessionId = existingSessionId || newId();
   const refresh = signRefreshToken(viewer.id, sessionId, {
     email: viewer.email,
     username: viewer.username,
@@ -64,16 +67,38 @@ async function issueSessionTokens(
   const now = nowIso();
 
   await tx(db, async () => {
-    await insert(db, "sessions", {
-      id: sessionId,
-      user_id: viewer.id,
-      refresh_token_hash: refresh.tokenHash,
-      ip_address: meta.ip ?? null,
-      user_agent: (meta.userAgent ?? "").slice(0, 300) || null,
-      expires_at: refresh.expiresAt,
-      last_seen_at: now,
-      created_at: now,
-    });
+    const curSess = existingSessionId
+      ? await one<{ id: string; refresh_token_hash: string }>(
+          db,
+          `SELECT id, refresh_token_hash FROM sessions WHERE id = ? AND user_id = ?`,
+          existingSessionId,
+          viewer.id,
+        )
+      : undefined;
+
+    if (curSess) {
+      await run(
+        db,
+        `UPDATE sessions SET prev_refresh_token_hash = ?, rotated_at = ?, refresh_token_hash = ?, expires_at = ?, last_seen_at = ? WHERE id = ?`,
+        curSess.refresh_token_hash,
+        now,
+        refresh.tokenHash,
+        refresh.expiresAt,
+        now,
+        curSess.id,
+      );
+    } else {
+      await insert(db, "sessions", {
+        id: sessionId,
+        user_id: viewer.id,
+        refresh_token_hash: refresh.tokenHash,
+        ip_address: meta.ip ?? null,
+        user_agent: (meta.userAgent ?? "").slice(0, 300) || null,
+        expires_at: refresh.expiresAt,
+        last_seen_at: now,
+        created_at: now,
+      });
+    }
     await run(db, `UPDATE users SET last_login_at = ? WHERE id = ?`, now, viewer.id);
   });
 
@@ -179,12 +204,43 @@ export async function registerUser(
   return { ...tokens, verificationEmailSent };
 }
 
+async function buildUpdatedVaultForUser(
+  db: DbClient,
+  userId: string,
+  prevVaultHeader?: string,
+): Promise<string> {
+  const vault = openTwoFactorVault(prevVaultHeader);
+  const tf = await one<{ secret_base32: string; is_enabled: number; verified_at: string | null }>(
+    db,
+    `SELECT secret_base32, is_enabled, verified_at FROM user_two_factor WHERE user_id = ?`,
+    userId,
+  );
+  const u = await one<{ email: string }>(db, `SELECT email FROM users WHERE id = ?`, userId);
+  if (tf && Number(tf.is_enabled) === 1 && u) {
+    const backups = await all<{ code_hash: string }>(
+      db,
+      `SELECT code_hash FROM user_backup_codes WHERE user_id = ? AND used_at IS NULL`,
+      userId,
+    );
+    vault[userId] = {
+      userId,
+      email: u.email,
+      secret: tf.secret_base32,
+      verifiedAt: tf.verified_at ?? nowIso(),
+      backupCodeHashes: backups.map((b) => b.code_hash),
+    };
+  } else {
+    delete vault[userId];
+  }
+  return sealTwoFactorVault(vault);
+}
+
 // ───────────────────────── ĐĂNG NHẬP (LOGIN + 2FA CHALLENGE) ─────────────────────────
 
 export async function loginUser(
   db: DbClient,
   input: { identifier?: string; password?: string },
-  meta: { ip?: string | null; userAgent?: string | null },
+  meta: { ip?: string | null; userAgent?: string | null; twoFactorVault?: string },
 ): Promise<LoginResult> {
   const identifier = String(input.identifier ?? "").trim();
   const password = String(input.password ?? "");
@@ -198,9 +254,10 @@ export async function loginUser(
     password_hash: string;
     status: string;
     locked_reason: string | null;
+    two_factor_enabled: number;
   }>(
     db,
-    `SELECT id, email, password_hash, status, locked_reason
+    `SELECT id, email, password_hash, status, locked_reason, two_factor_enabled
      FROM users
      WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)`,
     identifier,
@@ -217,12 +274,16 @@ export async function loginUser(
     );
   }
 
+  if (meta.twoFactorVault) {
+    await ensureEphemeralTwoFactorHydrated(db, meta.twoFactorVault, user.id);
+  }
+
   const tf = await one<{ is_enabled: number }>(
     db,
     `SELECT is_enabled FROM user_two_factor WHERE user_id = ?`,
     user.id,
   );
-  if (Number(tf?.is_enabled ?? 0) === 1) {
+  if (Number(tf?.is_enabled ?? user.two_factor_enabled ?? 0) === 1) {
     const challengeToken = signTwoFactorChallenge(user.id, user.email);
     return {
       requiresTwoFactor: true,
@@ -240,8 +301,8 @@ export async function loginUser(
 export async function verifyTwoFactorLogin(
   db: DbClient,
   input: { challengeToken?: string; code?: string },
-  meta: { ip?: string | null; userAgent?: string | null },
-): Promise<AuthTokensResult> {
+  meta: { ip?: string | null; userAgent?: string | null; twoFactorVault?: string },
+): Promise<AuthTokensResult & { twoFactorVault?: string }> {
   const challengeToken = String(input.challengeToken ?? "").trim();
   const rawCode = String(input.code ?? "").trim();
   if (!challengeToken || !rawCode) {
@@ -253,6 +314,10 @@ export async function verifyTwoFactorLogin(
     throw new DomainError("Phiên xác thực 2 lớp đã hết hạn (5 phút). Vui lòng đăng nhập lại.", "UNAUTHORIZED");
   }
 
+  if (meta.twoFactorVault) {
+    await ensureEphemeralTwoFactorHydrated(db, meta.twoFactorVault, payload.sub);
+  }
+
   const tf = await one<{ secret_base32: string; is_enabled: number }>(
     db,
     `SELECT secret_base32, is_enabled FROM user_two_factor WHERE user_id = ?`,
@@ -262,9 +327,9 @@ export async function verifyTwoFactorLogin(
     throw new DomainError("Tài khoản chưa kích hoạt xác thực 2 lớp.");
   }
 
+  let usedBackup = false;
   const isValidTotp = verifyTotpCode(tf.secret_base32, rawCode);
   if (!isValidTotp) {
-    // Kiểm tra mã dự phòng khôi phục (Backup Code)
     const codeHash = hashBackupCode(rawCode);
     const backup = await one<{ id: string }>(
       db,
@@ -277,9 +342,14 @@ export async function verifyTwoFactorLogin(
     }
     await run(db, `UPDATE user_backup_codes SET used_at = ? WHERE id = ?`, nowIso(), backup.id);
     await audit(db, payload.sub, "user.2fa_backup_used", "user", payload.sub, "Đăng nhập bằng mã dự phòng 2FA");
+    usedBackup = true;
   }
 
-  return issueSessionTokens(db, payload.sub, meta);
+  const tokens = await issueSessionTokens(db, payload.sub, meta);
+  const twoFactorVault = usedBackup
+    ? await buildUpdatedVaultForUser(db, payload.sub, meta.twoFactorVault)
+    : undefined;
+  return { ...tokens, ...(twoFactorVault ? { twoFactorVault } : {}) };
 }
 
 // ───────────────────────── REFRESH & LOGOUT ─────────────────────────
@@ -289,18 +359,38 @@ export async function refreshAuthTokens(db: DbClient, refreshToken: string): Pro
   if (!payload) throw new DomainError("Phiên đăng nhập không hợp lệ hoặc đã hết hạn.", "UNAUTHORIZED");
 
   const now = nowIso();
+  const nowMs = Date.now();
   const currentHash = hashToken(refreshToken);
-  const sess = await one<{ id: string; user_id: string; refresh_token_hash: string; revoked_at: string | null; expires_at: string }>(
+  const sess = await one<{
+    id: string;
+    user_id: string;
+    refresh_token_hash: string;
+    prev_refresh_token_hash: string | null;
+    rotated_at: string | null;
+    revoked_at: string | null;
+    expires_at: string;
+  }>(
     db,
-    `SELECT id, user_id, refresh_token_hash, revoked_at, expires_at FROM sessions WHERE id = ? AND user_id = ?`,
+    `SELECT id, user_id, refresh_token_hash, prev_refresh_token_hash, rotated_at, revoked_at, expires_at
+     FROM sessions WHERE id = ? AND user_id = ?`,
     payload.sid,
     payload.sub,
   );
 
+  let isGraceHit = false;
   if (sess) {
-    if (sess.revoked_at || sess.expires_at <= now || sess.refresh_token_hash !== currentHash) {
+    if (sess.revoked_at || sess.expires_at <= now) {
       throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
     }
+    const matchesCurrent = sess.refresh_token_hash === currentHash;
+    const withinGrace =
+      sess.prev_refresh_token_hash === currentHash &&
+      Boolean(sess.rotated_at) &&
+      nowMs - new Date(sess.rotated_at!).getTime() <= 60_000;
+    if (!matchesCurrent && !withinGrace) {
+      throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
+    }
+    isGraceHit = !matchesCurrent && withinGrace;
   } else if (!(env.isVercel && db.engine === "sqlite")) {
     throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
   }
@@ -328,14 +418,23 @@ export async function refreshAuthTokens(db: DbClient, refreshToken: string): Pro
   });
 
   if (sess) {
-    await run(
-      db,
-      `UPDATE sessions SET refresh_token_hash = ?, expires_at = ?, last_seen_at = ? WHERE id = ?`,
-      nextRefresh.tokenHash,
-      nextRefresh.expiresAt,
-      now,
-      sess.id,
-    );
+    if (!isGraceHit) {
+      await run(
+        db,
+        `UPDATE sessions
+         SET prev_refresh_token_hash = ?, rotated_at = ?, refresh_token_hash = ?, expires_at = ?, last_seen_at = ?
+         WHERE id = ?`,
+        sess.refresh_token_hash,
+        now,
+        nextRefresh.tokenHash,
+        nextRefresh.expiresAt,
+        now,
+        sess.id,
+      );
+    } else {
+      // Nếu là request song song trong cửa sổ 60s (ví dụ RSC render), vẫn giữ nguyên refresh_token_hash mới nhất đã xoay
+      await run(db, `UPDATE sessions SET last_seen_at = ? WHERE id = ?`, now, sess.id);
+    }
   } else {
     await insert(db, "sessions", {
       id: payload.sid,
@@ -358,7 +457,7 @@ export async function refreshAuthTokens(db: DbClient, refreshToken: string): Pro
 
   return {
     accessToken,
-    refreshToken: nextRefresh.token,
+    refreshToken: isGraceHit ? refreshToken : nextRefresh.token,
     user: serializeViewer(viewer)!,
   };
 }
@@ -640,13 +739,19 @@ export async function setupTwoFactor(db: DbClient, userId: string) {
   };
 }
 
-export async function enableTwoFactor(db: DbClient, userId: string, codeRaw: string, setupToken?: string) {
+export async function enableTwoFactor(
+  db: DbClient,
+  userId: string,
+  codeRaw: string,
+  setupToken?: string,
+  prevVaultHeader?: string,
+) {
   let tf = await one<{ secret_base32: string; is_enabled: number }>(
     db,
     `SELECT secret_base32, is_enabled FROM user_two_factor WHERE user_id = ?`,
     userId,
   );
-  if (!tf && setupToken && env.isVercel && db.engine === "sqlite") {
+  if (!tf && setupToken) {
     const signed = verifyTwoFactorSetupToken(setupToken);
     if (signed && signed.userId === userId) {
       const now = nowIso();
@@ -667,7 +772,8 @@ export async function enableTwoFactor(db: DbClient, userId: string, codeRaw: str
     throw new DomainError("Xác thực 2 lớp đã được kích hoạt.");
   }
 
-  if (!verifyTotpCode(tf.secret_base32, codeRaw)) {
+  const normalizedCode = codeRaw.replace(/[\s-]+/g, "");
+  if (!verifyTotpCode(tf.secret_base32, normalizedCode)) {
     throw new DomainError("Mã OTP 6 chữ số không chính xác. Hãy kiểm tra lại trên Google Authenticator hoặc 2fa.live.");
   }
 
@@ -678,6 +784,13 @@ export async function enableTwoFactor(db: DbClient, userId: string, codeRaw: str
     await run(
       db,
       `UPDATE user_two_factor SET is_enabled = 1, verified_at = ?, updated_at = ? WHERE user_id = ?`,
+      now,
+      now,
+      userId,
+    );
+    await run(
+      db,
+      `UPDATE users SET two_factor_enabled = 1, two_factor_verified_at = ?, updated_at = ? WHERE id = ?`,
       now,
       now,
       userId,
@@ -694,14 +807,21 @@ export async function enableTwoFactor(db: DbClient, userId: string, codeRaw: str
     await audit(db, userId, "user.2fa_enabled", "user", userId, "Bật xác thực 2 lớp TOTP");
   });
 
+  const twoFactorVault = await buildUpdatedVaultForUser(db, userId, prevVaultHeader);
   return {
     enabled: true,
     backupCodes: rawCodes,
-    message: "Đã bật xác thực 2 lớp (2FA) thành công! Vui lòng lưu lại 8 mã dự phòng khôi phục.",
+    twoFactorVault,
+    message: "Đã bật xác thực 2 lớp (2FA) và lưu vào hồ sơ bảo mật! Vui lòng lưu lại 8 mã dự phòng khôi phục.",
   };
 }
 
-export async function regenerateTwoFactorBackupCodes(db: DbClient, userId: string, codeRaw: string) {
+export async function regenerateTwoFactorBackupCodes(
+  db: DbClient,
+  userId: string,
+  codeRaw: string,
+  prevVaultHeader?: string,
+) {
   const tf = await one<{ secret_base32: string; is_enabled: number }>(
     db,
     `SELECT secret_base32, is_enabled FROM user_two_factor WHERE user_id = ?`,
@@ -710,7 +830,7 @@ export async function regenerateTwoFactorBackupCodes(db: DbClient, userId: strin
   if (!tf || Number(tf.is_enabled) !== 1) {
     throw new DomainError("Tài khoản chưa bật xác thực 2 lớp.");
   }
-  if (!verifyTotpCode(tf.secret_base32, codeRaw)) {
+  if (!verifyTotpCode(tf.secret_base32, codeRaw.replace(/[\s-]+/g, ""))) {
     throw new DomainError("Mã OTP 6 chữ số không chính xác.");
   }
 
@@ -729,13 +849,15 @@ export async function regenerateTwoFactorBackupCodes(db: DbClient, userId: strin
     await audit(db, userId, "user.2fa_backup_regen", "user", userId, "Tạo mới bộ mã dự phòng 2FA");
   });
 
-  return { backupCodes: rawCodes, message: "Đã tạo mới 8 mã dự phòng khôi phục." };
+  const twoFactorVault = await buildUpdatedVaultForUser(db, userId, prevVaultHeader);
+  return { backupCodes: rawCodes, twoFactorVault, message: "Đã tạo mới 8 mã dự phòng khôi phục." };
 }
 
 export async function disableTwoFactor(
   db: DbClient,
   userId: string,
   input: { currentPassword?: string; password?: string; code?: string },
+  prevVaultHeader?: string,
 ) {
   const currentPassword = String(input.currentPassword ?? input.password ?? "");
   const code = String(input.code ?? "").trim();
@@ -757,7 +879,7 @@ export async function disableTwoFactor(
     throw new DomainError("Tài khoản chưa bật xác thực 2 lớp.");
   }
 
-  let valid = verifyTotpCode(tf.secret_base32, code);
+  let valid = verifyTotpCode(tf.secret_base32, code.replace(/[\s-]+/g, ""));
   if (!valid) {
     const backup = await one<{ id: string }>(
       db,
@@ -771,13 +893,21 @@ export async function disableTwoFactor(
     throw new DomainError("Mã OTP hoặc mã dự phòng không chính xác.", "UNAUTHORIZED");
   }
 
+  const now = nowIso();
   await tx(db, async () => {
     await run(db, `DELETE FROM user_two_factor WHERE user_id = ?`, userId);
     await run(db, `DELETE FROM user_backup_codes WHERE user_id = ?`, userId);
+    await run(
+      db,
+      `UPDATE users SET two_factor_enabled = 0, two_factor_verified_at = NULL, updated_at = ? WHERE id = ?`,
+      now,
+      userId,
+    );
     await audit(db, userId, "user.2fa_disabled", "user", userId, "Tắt xác thực 2 lớp TOTP");
   });
 
-  return { enabled: false, message: "Đã tắt xác thực 2 lớp trên tài khoản." };
+  const twoFactorVault = await buildUpdatedVaultForUser(db, userId, prevVaultHeader);
+  return { enabled: false, twoFactorVault, message: "Đã tắt xác thực 2 lớp trên tài khoản." };
 }
 
 export async function listUserSessions(db: DbClient, userId: string, currentSessionId: string | null) {

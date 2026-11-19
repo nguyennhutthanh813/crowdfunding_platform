@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
-import { Eye, EyeOff, Heart, MessageCircle, Reply, Send, ShieldAlert, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Heart, MessageCircle, Pencil, Reply, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { CommentVM } from "@/server/queries/public";
-import { addCommentAction, moderateCommentAction, toggleCommentLikeAction } from "@/server/actions/public";
+import { addCommentAction, editCommentAction, moderateCommentAction, toggleCommentLikeAction } from "@/server/actions/public";
 import { burstAt } from "@/components/fx/confetti";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -274,6 +274,8 @@ function CommentItem({
   compact?: boolean;
 }) {
   const isOwn = viewer?.id === comment.author_id;
+  const [editingBody, setEditingBody] = useState<string | null>(null);
+
   return (
     <div className="flex items-start gap-3">
       <Link href={`/u/${comment.username}`} className="shrink-0">
@@ -295,9 +297,35 @@ function CommentItem({
           </span>
         </div>
 
-        <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-fg/95">
-          {comment.body}
-        </p>
+        {editingBody !== null ? (
+          <ActionForm
+            action={editCommentAction}
+            onSuccess={() => setEditingBody(null)}
+            className="mt-2 space-y-2"
+          >
+            <input type="hidden" name="commentId" value={comment.id} />
+            <Textarea
+              name="body"
+              value={editingBody}
+              onChange={(e) => setEditingBody(e.target.value)}
+              maxLength={2000}
+              className="min-h-20"
+              required
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" size="xs" onClick={() => setEditingBody(null)}>
+                Huỷ
+              </Button>
+              <SubmitButton size="xs" pendingText="Đang lưu…">
+                Lưu sửa
+              </SubmitButton>
+            </div>
+          </ActionForm>
+        ) : (
+          <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-fg/95">
+            {comment.body}
+          </p>
+        )}
 
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           <CommentLikeButton
@@ -341,7 +369,17 @@ function CommentItem({
             </ActionForm>
           )}
 
-          {(viewer?.canModerate || viewer?.canDelete) && (
+          {isOwn && comment.status === "VISIBLE" && editingBody === null && (
+            <button
+              type="button"
+              onClick={() => setEditingBody(comment.body)}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted transition hover:bg-surface-2 hover:text-fg"
+            >
+              <Pencil className="size-3.5" /> Sửa
+            </button>
+          )}
+
+          {(isOwn || viewer?.canModerate || viewer?.canDelete) && (
             <button
               type="button"
               onClick={() => onModerate("delete")}

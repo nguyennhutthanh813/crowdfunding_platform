@@ -207,6 +207,11 @@ export default async function AdminUsersPage({
                           <Badge tone={u.status === "LOCKED" ? "rose" : "emerald"} dot>
                             {u.status === "LOCKED" ? "Đã khoá" : "Hoạt động"}
                           </Badge>
+                          {Number(u.two_factor_enabled ?? 0) === 1 && (
+                            <Badge tone="sky">
+                              <ShieldCheck className="size-3" /> 2FA Bật
+                            </Badge>
+                          )}
                           {u.locked_reason && <span className="max-w-52 truncate text-rose-600 dark:text-rose-300">{u.locked_reason}</span>}
                           {u.reports_against > 0 && <Badge tone="amber">{u.reports_against} báo cáo mở</Badge>}
                         </div>

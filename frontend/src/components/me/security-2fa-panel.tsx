@@ -1,11 +1,13 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Check,
   CheckCircle2,
   Copy,
+  Download,
   ExternalLink,
   KeyRound,
   Laptop,
@@ -50,16 +52,25 @@ export function SecurityTwoFactorPanel({
   return (
     <div className="space-y-5">
       {!emailVerifiedAt && <EmailVerificationCard email={email} />}
-      <TwoFactorCard twoFactor={twoFactor} />
+      <TwoFactorCard email={email} twoFactor={twoFactor} />
       <ActiveSessionsCard sessions={sessionList} />
     </div>
   );
 }
 
 function EmailVerificationCard({ email }: { email: string }) {
+  const router = useRouter();
   const [sent, setSent] = useState(false);
+  const [otpVal, setOtpVal] = useState("");
   const [sending, startSend] = useTransition();
   const [state, action] = useActionState<FormState, FormData>(confirmEmailVerifyOtpAction, null);
+
+  useEffect(() => {
+    if (state?.ok) {
+      toast.success(state.message ?? "Đã xác thực địa chỉ email thành công!");
+      router.refresh();
+    }
+  }, [state, router]);
 
   if (state?.ok) return null;
 
@@ -106,8 +117,8 @@ function EmailVerificationCard({ email }: { email: string }) {
               <Input
                 name="otp"
                 inputMode="numeric"
-                pattern="\d{6}"
-                maxLength={6}
+                value={otpVal}
+                onChange={(e) => setOtpVal(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="123456"
                 className="font-mono tracking-[0.3em]"
                 required
@@ -128,25 +139,82 @@ function EmailVerificationCard({ email }: { email: string }) {
   );
 }
 
-function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
+function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFactorStatusInfo }) {
+  const router = useRouter();
   const [setupData, setSetupData] = useState<{
     secret: string;
     setupToken?: string;
     otpauthUrl: string;
     qrCodeDataUrl: string;
   } | null>(null);
+  const [otpInput, setOtpInput] = useState("");
+  const [regenOtpInput, setRegenOtpInput] = useState("");
   const [loadingSetup, startSetup] = useTransition();
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [copiedBackup, setCopiedBackup] = useState(false);
   const [disableOpen, setDisableOpen] = useState(false);
   const [regenOpen, setRegenOpen] = useState(false);
+  const [localEnabled, setLocalEnabled] = useState(twoFactor.enabled);
+  const [prevPropEnabled, setPrevPropEnabled] = useState(twoFactor.enabled);
+  const [backupCodesView, setBackupCodesView] = useState<string[] | null>(null);
+  const [enableError, setEnableError] = useState<string | null>(null);
+  const [regenError, setRegenError] = useState<string | null>(null);
+  const [disableError, setDisableError] = useState<string | null>(null);
 
-  const [enableState, enableAction] = useActionState<FormState, FormData>(enableTwoFactorAction, null);
-  const [regenState, regenAction] = useActionState<FormState, FormData>(regenerateBackupCodesAction, null);
-  const [disableState, disableAction] = useActionState<FormState, FormData>(disableTwoFactorAction, null);
+  if (twoFactor.enabled !== prevPropEnabled) {
+    setPrevPropEnabled(twoFactor.enabled);
+    setLocalEnabled(twoFactor.enabled);
+  }
 
-  const isEnabled = twoFactor.enabled || Boolean(enableState?.ok && !disableState?.ok);
-  const displayedBackupCodes = regenState?.backupCodes ?? enableState?.backupCodes ?? null;
+  const handleEnableSubmit = async (fd: FormData) => {
+    setEnableError(null);
+    const res = await enableTwoFactorAction(null, fd);
+    if (res?.ok) {
+      setLocalEnabled(true);
+      setSetupData(null);
+      setOtpInput("");
+      if (res.backupCodes?.length) setBackupCodesView(res.backupCodes);
+      toast.success(res.message ?? "Đã kích hoạt và lưu xác thực 2 lớp (2FA) vào tài khoản!");
+      router.refresh();
+    } else {
+      const msg = res?.error ?? "Mã OTP không chính xác.";
+      setEnableError(msg);
+      toast.error(msg);
+    }
+  };
+
+  const handleRegenSubmit = async (fd: FormData) => {
+    setRegenError(null);
+    const res = await regenerateBackupCodesAction(null, fd);
+    if (res?.ok) {
+      setRegenOpen(false);
+      setRegenOtpInput("");
+      if (res.backupCodes?.length) setBackupCodesView(res.backupCodes);
+      toast.success(res.message ?? "Đã tạo mới bộ 8 mã dự phòng 2FA!");
+      router.refresh();
+    } else {
+      const msg = res?.error ?? "Mã OTP không chính xác.";
+      setRegenError(msg);
+      toast.error(msg);
+    }
+  };
+
+  const handleDisableSubmit = async (fd: FormData) => {
+    setDisableError(null);
+    const res = await disableTwoFactorAction(null, fd);
+    if (res?.ok) {
+      setLocalEnabled(false);
+      setSetupData(null);
+      setBackupCodesView(null);
+      setDisableOpen(false);
+      toast.success(res.message ?? "Đã tắt xác thực 2 lớp.");
+      router.refresh();
+    } else {
+      const msg = res?.error ?? "Không thể tắt xác thực 2 lớp.";
+      setDisableError(msg);
+      toast.error(msg);
+    }
+  };
 
   const copyText = async (text: string, onDone: () => void) => {
     try {
@@ -158,15 +226,39 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
     }
   };
 
+  const downloadBackupCodes = (codes: string[]) => {
+    const content = [
+      "FUNDVIET — MÃ DỰ PHÒNG KHÔI PHỤC XÁC THỰC HAI LỚP (2FA)",
+      `Tài khoản: ${email}`,
+      `Ngày xuất: ${new Date().toLocaleString("vi-VN")}`,
+      "Lưu ý: Mỗi mã chỉ sử dụng được 1 lần duy nhất.",
+      "--------------------------------------------------",
+      ...codes.map((c, idx) => `${idx + 1}. ${c}`),
+    ].join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fundviet-2fa-backup-codes-${email.split("@")[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <Card className="p-5 sm:p-6 space-y-4">
+    <Card className="space-y-4 p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-violet-600 dark:text-violet-400" />
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-base font-bold">Xác thực hai lớp (2FA TOTP)</h3>
-              {isEnabled ? <Badge tone="emerald">Đang bật bảo vệ</Badge> : <Badge tone="slate">Chưa kích hoạt</Badge>}
+              {localEnabled ? (
+                <Badge tone="emerald" dot>
+                  Đang bật bảo vệ (Đã lưu CSDL)
+                </Badge>
+              ) : (
+                <Badge tone="slate">Chưa kích hoạt</Badge>
+              )}
             </div>
             <p className="mt-0.5 text-xs text-muted">
               Tương thích chuẩn RFC 6238 với <b>Google Authenticator</b>, Authy hoặc dán trực tiếp chuỗi mã vào{" "}
@@ -183,7 +275,7 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
           </div>
         </div>
 
-        {!isEnabled && !setupData && (
+        {!localEnabled && !setupData && (
           <Button
             type="button"
             size="sm"
@@ -192,6 +284,7 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
               startSetup(async () => {
                 const res = await setupTwoFactorAction();
                 if (res.ok && res.secret && res.qrCodeDataUrl) {
+                  setOtpInput("");
                   setSetupData({
                     secret: res.secret,
                     setupToken: res.setupToken,
@@ -209,7 +302,7 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
           </Button>
         )}
 
-        {isEnabled && (
+        {localEnabled && (
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="xs" variant="outline" onClick={() => setRegenOpen(true)}>
               <RefreshCw className="size-3.5" /> Tạo lại mã dự phòng
@@ -227,16 +320,21 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
         )}
       </div>
 
-      {isEnabled && (
+      {localEnabled && (
         <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3.5 text-xs text-muted">
           Tài khoản đang yêu cầu mã OTP 6 số khi đăng nhập.
-          {twoFactor.verifiedAt && <> Kích hoạt ngày <b>{formatDate(twoFactor.verifiedAt, true)}</b> · </>}
-          Còn <b>{displayedBackupCodes ? displayedBackupCodes.length : twoFactor.backupCodesRemaining}</b> mã dự phòng khôi phục chưa sử dụng.
+          {twoFactor.verifiedAt && (
+            <>
+              {" "}
+              Kích hoạt lúc <b>{formatDate(twoFactor.verifiedAt, true)}</b> ·{" "}
+            </>
+          )}
+          Còn <b>{backupCodesView ? backupCodesView.length : twoFactor.backupCodesRemaining || 8}</b> mã dự phòng khôi phục chưa sử dụng.
         </div>
       )}
 
       {/* Khung thiết lập QR + Chuỗi mã Secret Base32 */}
-      {!isEnabled && setupData && (
+      {!localEnabled && setupData && (
         <div className="grid gap-5 rounded-2xl border border-violet-500/30 bg-surface-2/60 p-4 sm:p-5 lg:grid-cols-[210px_1fr]">
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-white p-3 shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -247,7 +345,7 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
           <div className="space-y-4">
             <div className="space-y-1.5">
               <div className="text-xs font-bold text-fg">
-                Hoặc dán chuỗi mã Base32 vào 2fa.live / ứng dụng xác thực:
+                Hoặc sao chép chuỗi khoá Base32 bên dưới dán vào 2fa.live / ứng dụng xác thực:
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <code className="select-all rounded-xl border border-line bg-surface px-3 py-2 font-mono text-sm font-bold tracking-wider text-violet-700 dark:text-violet-300">
@@ -278,24 +376,25 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
               </div>
             </div>
 
-            <form action={enableAction} className="space-y-3 border-t border-line pt-3.5">
+            <form action={handleEnableSubmit} className="space-y-3 border-t border-line pt-3.5">
               <input type="hidden" name="setupToken" value={setupData.setupToken ?? ""} />
               <Field
                 label="Bước xác nhận: Nhập mã OTP 6 chữ số vừa sinh ra"
-                hint="Sau khi xác nhận đúng, hệ thống sẽ kích hoạt 2FA và cấp 8 mã dự phòng khôi phục."
+                hint="Bạn có thể dán trực tiếp mã 6 số từ 2fa.live hoặc Google Authenticator. Sau khi xác nhận, hệ thống lưu vào CSDL và cấp 8 mã dự phòng."
                 required
               >
                 <div className="flex flex-col gap-2.5 sm:flex-row">
                   <Input
                     name="code"
                     inputMode="numeric"
-                    pattern="\d{6}"
-                    maxLength={6}
+                    autoComplete="one-time-code"
+                    value={otpInput}
+                    onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="123456"
                     className="font-mono text-base tracking-[0.3em] sm:max-w-[200px]"
                     required
                   />
-                  <SubmitButton size="sm" pendingText="Đang kích hoạt…">
+                  <SubmitButton size="sm" disabled={otpInput.length !== 6} pendingText="Đang lưu & kích hoạt…">
                     <ShieldCheck className="size-4" /> Kích hoạt 2FA
                   </SubmitButton>
                   <Button type="button" size="sm" variant="ghost" onClick={() => setSetupData(null)}>
@@ -303,9 +402,9 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
                   </Button>
                 </div>
               </Field>
-              {enableState?.error && (
+              {enableError && (
                 <div className="flex items-center gap-2 rounded-xl bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
-                  <AlertCircle className="size-3.5 shrink-0" /> {enableState.error}
+                  <AlertCircle className="size-3.5 shrink-0" /> {enableError}
                 </div>
               )}
             </form>
@@ -314,7 +413,7 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
       )}
 
       {/* Hiển thị 8 mã dự phòng sau khi bật / tạo lại */}
-      {displayedBackupCodes && displayedBackupCodes.length > 0 && (
+      {backupCodesView && backupCodesView.length > 0 && (
         <div className="space-y-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -322,26 +421,31 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
                 <KeyRound className="size-4" /> 8 mã dự phòng khôi phục (mỗi mã dùng 1 lần)
               </div>
               <p className="text-xs text-amber-800/90 dark:text-amber-200/80">
-                Hãy lưu các mã này ở nơi an toàn để đăng nhập khi mất điện thoại. Vì lý do bảo mật, các mã này chỉ hiển thị một lần duy nhất.
+                Hãy sao chép hoặc tải về lưu ở nơi an toàn để đăng nhập khi mất điện thoại.
               </p>
             </div>
-            <Button
-              type="button"
-              size="xs"
-              variant="secondary"
-              onClick={() =>
-                copyText(displayedBackupCodes.join("\n"), () => {
-                  setCopiedBackup(true);
-                  setTimeout(() => setCopiedBackup(false), 2000);
-                })
-              }
-            >
-              {copiedBackup ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-              Sao chép tất cả
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="xs"
+                variant="secondary"
+                onClick={() =>
+                  copyText(backupCodesView.join("\n"), () => {
+                    setCopiedBackup(true);
+                    setTimeout(() => setCopiedBackup(false), 2000);
+                  })
+                }
+              >
+                {copiedBackup ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                {copiedBackup ? "Đã sao chép" : "Sao chép tất cả"}
+              </Button>
+              <Button type="button" size="xs" variant="outline" onClick={() => downloadBackupCodes(backupCodesView)}>
+                <Download className="size-3.5" /> Tải file .txt
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {displayedBackupCodes.map((c) => (
+            {backupCodesView.map((c) => (
               <code
                 key={c}
                 className="rounded-xl border border-amber-500/25 bg-surface px-2.5 py-1.5 text-center font-mono text-xs font-bold tracking-wider"
@@ -360,30 +464,24 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
         title="Tạo mới 8 mã dự phòng 2FA"
         description="Bộ mã dự phòng cũ sẽ bị vô hiệu hoá ngay sau khi tạo bộ mới."
       >
-        <form
-          action={async (fd) => {
-            await regenAction(fd);
-            setRegenOpen(false);
-          }}
-          className="space-y-4"
-        >
+        <form action={handleRegenSubmit} className="space-y-4">
           <Field label="Nhập mã OTP 6 chữ số hiện tại để xác nhận" required>
             <Input
               name="code"
               inputMode="numeric"
-              pattern="\d{6}"
-              maxLength={6}
+              value={regenOtpInput}
+              onChange={(e) => setRegenOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder="123456"
               className="text-center font-mono tracking-[0.3em]"
               required
             />
           </Field>
-          {regenState?.error && <p className="text-xs text-rose-600">{regenState.error}</p>}
+          {regenError && <p className="text-xs text-rose-600">{regenError}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setRegenOpen(false)}>
               Đóng
             </Button>
-            <SubmitButton size="sm" pendingText="Đang tạo…">
+            <SubmitButton size="sm" disabled={regenOtpInput.length !== 6} pendingText="Đang tạo…">
               Tạo mới 8 mã
             </SubmitButton>
           </div>
@@ -397,21 +495,14 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
         title="Tắt xác thực hai lớp (2FA)"
         description="Nhập mật khẩu hiện tại kèm mã OTP 6 số (hoặc mã dự phòng) để xác nhận tắt bảo vệ 2FA."
       >
-        <form
-          action={async (fd) => {
-            await disableAction(fd);
-            setSetupData(null);
-            setDisableOpen(false);
-          }}
-          className="space-y-4"
-        >
+        <form action={handleDisableSubmit} className="space-y-4">
           <Field label="Mật khẩu hiện tại" required>
             <Input name="currentPassword" type="password" autoComplete="current-password" required />
           </Field>
           <Field label="Mã OTP 6 chữ số hoặc mã dự phòng" required>
             <Input name="code" placeholder="123456 hoặc ABCD-EFGH" className="font-mono tracking-widest" required />
           </Field>
-          {disableState?.error && <p className="text-xs text-rose-600">{disableState.error}</p>}
+          {disableError && <p className="text-xs text-rose-600">{disableError}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setDisableOpen(false)}>
               Huỷ
@@ -427,12 +518,13 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
 }
 
 function ActiveSessionsCard({ sessions }: { sessions: ActiveSessionInfo[] }) {
+  const router = useRouter();
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   if (!sessions.length) return null;
 
   return (
-    <Card className="p-5 sm:p-6 space-y-4">
+    <Card className="space-y-4 p-5 sm:p-6">
       <div>
         <h3 className="text-base font-bold">Thiết bị & Phiên đăng nhập JWT đang hoạt động</h3>
         <p className="text-xs text-muted">
@@ -443,19 +535,20 @@ function ActiveSessionsCard({ sessions }: { sessions: ActiveSessionInfo[] }) {
       <div className="divide-y divide-line rounded-2xl border border-line">
         {sessions.map((s) => (
           <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-3.5 text-xs">
-            <div className="flex items-start gap-3 min-w-0">
+            <div className="flex min-w-0 items-start gap-3">
               <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-muted">
                 <Laptop className="size-4" />
               </div>
               <div className="min-w-0 space-y-0.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate font-semibold text-fg max-w-md">
+                  <span className="max-w-md truncate font-semibold text-fg">
                     {s.userAgent ? s.userAgent.slice(0, 72) : "Trình duyệt web"}
                   </span>
                   {s.isCurrent && <Badge tone="violet">Thiết bị hiện tại</Badge>}
                 </div>
                 <div className="text-muted">
-                  IP: {s.ipAddress ?? " nội bộ"} · Hoạt động {timeAgo(s.lastSeenAt)} · Đăng nhập {formatDate(s.createdAt, true)}
+                  IP: {s.ipAddress ?? "nội bộ"} · Hoạt động {timeAgo(s.lastSeenAt)} · Đăng nhập{" "}
+                  {formatDate(s.createdAt, true)}
                 </div>
               </div>
             </div>
@@ -471,8 +564,12 @@ function ActiveSessionsCard({ sessions }: { sessions: ActiveSessionInfo[] }) {
                   setRevokingId(s.id);
                   const res = await revokeSessionAction(s.id);
                   setRevokingId(null);
-                  if (res.ok) toast.success("Đã thu hồi phiên đăng nhập trên thiết bị đó.");
-                  else toast.error(res.error ?? "Không thể thu hồi phiên.");
+                  if (res.ok) {
+                    toast.success("Đã thu hồi phiên đăng nhập trên thiết bị đó.");
+                    router.refresh();
+                  } else {
+                    toast.error(res.error ?? "Không thể thu hồi phiên.");
+                  }
                 }}
               >
                 {revokingId === s.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
