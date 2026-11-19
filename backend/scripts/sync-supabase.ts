@@ -2,7 +2,7 @@ import { join } from "node:path";
 import pg from "pg";
 import { env, isPostgresConfigured } from "../src/config/env.js";
 import { openSqliteDatabase } from "../src/db/open.js";
-import { buildSupabasePostgresSchema } from "../src/db/postgres-schema.js";
+import { buildSupabasePostgresSchema, POSTGRES_TRIGGER_LIST } from "../src/db/postgres-schema.js";
 
 if (!isPostgresConfigured()) {
   console.error("Thiếu DATABASE_URL trong backend/.env. Vui lòng điền chuỗi kết nối PostgreSQL từ Supabase trước khi chạy đồng bộ.");
@@ -71,13 +71,11 @@ async function main() {
     console.log("1. Đang tạo lược đồ bảng + view + trigger trên Supabase PostgreSQL...");
     await client.query(buildSupabasePostgresSchema());
 
-    console.log("2. Tạm tắt trigger bộ đếm khi nạp dữ liệu gốc...");
+    console.log("2. Tạm tắt toàn bộ trigger nghiệp vụ khi nạp/đối soát dữ liệu gốc...");
     await client.query("BEGIN");
-    await client.query("DROP TRIGGER IF EXISTS trg_pg_projects_creator_member ON projects");
-    await client.query("DROP TRIGGER IF EXISTS trg_pg_pledges_ai ON pledges");
-    await client.query("DROP TRIGGER IF EXISTS trg_pg_pledges_au ON pledges");
-    await client.query("DROP TRIGGER IF EXISTS trg_pg_pledge_add_ons_stock ON pledge_add_ons");
-    await client.query("DROP TRIGGER IF EXISTS trg_pg_user_two_factor_sync ON user_two_factor");
+    for (const [trgName, tblName] of POSTGRES_TRIGGER_LIST) {
+      await client.query(`DROP TRIGGER IF EXISTS ${trgName} ON ${tblName}`);
+    }
 
     for (const table of TOPOLOGICAL_TABLES) {
       const rows = sqlite.prepare(`SELECT * FROM ${table}`).all() as Record<string, unknown>[];

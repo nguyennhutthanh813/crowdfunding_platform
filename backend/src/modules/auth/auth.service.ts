@@ -9,13 +9,10 @@ import {
   signRefreshToken,
   signTwoFactorChallenge,
   signTwoFactorSetupToken,
-  verifyPasswordResetChallenge,
   verifyRefreshToken,
   verifyTwoFactorChallenge,
   verifyTwoFactorSetupToken,
 } from "../../auth/jwt.js";
-import { env } from "../../config/env.js";
-import { ensureEphemeralTwoFactorHydrated, ensureEphemeralUserHydrated } from "../../middlewares/auth.middleware.js";
 import {
   buildOtpAuthUrl,
   generateBackupCodes,
@@ -274,10 +271,6 @@ export async function loginUser(
     );
   }
 
-  if (meta.twoFactorVault) {
-    await ensureEphemeralTwoFactorHydrated(db, meta.twoFactorVault, user.id);
-  }
-
   const tf = await one<{ is_enabled: number }>(
     db,
     `SELECT is_enabled FROM user_two_factor WHERE user_id = ?`,
@@ -312,10 +305,6 @@ export async function verifyTwoFactorLogin(
   const payload = verifyTwoFactorChallenge(challengeToken);
   if (!payload) {
     throw new DomainError("Phiên xác thực 2 lớp đã hết hạn (5 phút). Vui lòng đăng nhập lại.", "UNAUTHORIZED");
-  }
-
-  if (meta.twoFactorVault) {
-    await ensureEphemeralTwoFactorHydrated(db, meta.twoFactorVault, payload.sub);
   }
 
   const tf = await one<{ secret_base32: string; is_enabled: number }>(
@@ -391,18 +380,8 @@ export async function refreshAuthTokens(db: DbClient, refreshToken: string): Pro
       throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
     }
     isGraceHit = !matchesCurrent && withinGrace;
-  } else if (!(env.isVercel && db.engine === "sqlite")) {
+  } else {
     throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
-  }
-
-  if (payload.email && payload.username) {
-    await ensureEphemeralUserHydrated(db, {
-      sub: payload.sub,
-      email: payload.email,
-      username: payload.username,
-      displayName: payload.displayName,
-      roles: payload.roles ?? ["MEMBER"],
-    });
   }
 
   const viewer = await loadViewer(db, payload.sub);
@@ -540,7 +519,6 @@ export async function resetPasswordWithOtp(
   const email = String(input.email ?? "").trim().toLowerCase();
   const otp = String(input.otp ?? "").replace(/\s+/g, "");
   const newPassword = String(input.newPassword ?? "");
-  const resetToken = String(input.resetToken ?? "").trim();
 
   if (!email || !/^\d{6}$/.test(otp)) {
     throw new DomainError("Vui lòng nhập đúng địa chỉ email và mã OTP 6 chữ số.");
@@ -572,14 +550,6 @@ export async function resetPasswordWithOtp(
     }
     if (expectedHash !== record.code_hash) {
       await run(db, `UPDATE auth_otp_codes SET attempts = attempts + 1 WHERE id = ?`, record.id);
-      throw new DomainError("Mã xác thực OTP không chính xác.");
-    }
-  } else if (env.isVercel && db.engine === "sqlite" && resetToken) {
-    const signed = verifyPasswordResetChallenge(resetToken);
-    if (!signed || signed.email.toLowerCase() !== email) {
-      throw new DomainError("Mã OTP không tồn tại hoặc đã hết hạn (15 phút). Vui lòng yêu cầu mã mới.");
-    }
-    if (signed.otpHash !== expectedHash) {
       throw new DomainError("Mã xác thực OTP không chính xác.");
     }
   } else {

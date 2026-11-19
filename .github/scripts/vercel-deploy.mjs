@@ -186,7 +186,7 @@ function stageAppDirectory(srcDir, kind) {
         return false;
       }
       if (norm.endsWith("/.env") || norm.endsWith("/.env.local")) return false;
-      if (kind === "backend" && norm.includes("/backend/scripts")) {
+      if (kind === "backend" && (norm.includes("/backend/scripts") || norm.includes("/backend/.data"))) {
         return false;
       }
       return true;

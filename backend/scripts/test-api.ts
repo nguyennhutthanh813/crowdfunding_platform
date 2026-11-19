@@ -11,6 +11,7 @@ import { verifySmtpConnection } from "../src/services/mailer.js";
 
 async function main() {
   const tempDb = join(tmpdir(), `fundviet-test-${Date.now()}.sqlite`);
+  process.env.FUNDVIET_TEST_SQLITE = "1";
   process.env.FUNDVIET_DB_FILE = tempDb;
   process.env.FUNDVIET_AUTO_SCHEDULER = "0";
   // Không gửi email thật trong lúc chạy test

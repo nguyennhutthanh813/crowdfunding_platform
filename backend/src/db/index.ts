@@ -1,6 +1,3 @@
-import { copyFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { env, isPostgresConfigured } from "../config/env.js";
 import { PostgresDbClient, SqliteDbClient, type DbClient } from "./helpers.js";
 import { openSqliteDatabase } from "./open.js";
@@ -8,32 +5,23 @@ import { runScheduler } from "../services/scheduler.js";
 
 const g = globalThis as unknown as { __fundvietBackendDb?: DbClient; __fundvietBackendTick?: number };
 
-function resolveSqlitePath(): string {
-  if (process.env.FUNDVIET_DB_FILE) return process.env.FUNDVIET_DB_FILE;
-  const bundled = join(process.cwd(), ".data", "fundviet.sqlite");
-  // Trên môi trường serverless (Vercel), ổ đĩa mã nguồn là chỉ-đọc -> sao chép sang /tmp để đọc/ghi an toàn
-  if (env.isVercel) {
-    const writableTmp = join(tmpdir(), "fundviet.sqlite");
-    if (!existsSync(writableTmp) && existsSync(bundled)) {
-      copyFileSync(bundled, writableTmp);
-    }
-    return writableTmp;
-  }
-  return bundled;
-}
-
 /**
  * Trả về kết nối Database dùng chung cho Backend:
- * - Ưu tiên kết nối Supabase PostgreSQL khi có DATABASE_URL.
- * - Tự động fallback sang SQLite chuẩn (.data/fundviet.sqlite hoặc /tmp trên serverless) khi chưa điền DATABASE_URL.
+ * - Chạy 100% trên Supabase PostgreSQL qua biến môi trường DATABASE_URL (cả Local lẫn Vercel).
+ * - Không còn chế độ SQLite tạm (/tmp/fundviet.sqlite). Chế độ SQLite cô lập chỉ mở duy nhất khi
+ *   chạy bộ kiểm thử tự động offline (FUNDVIET_TEST_SQLITE=1) để không làm bẩn dữ liệu Supabase thật.
  */
 export function getDb(): DbClient {
   if (!g.__fundvietBackendDb) {
-    if (isPostgresConfigured() && !process.env.FUNDVIET_DB_FILE) {
+    if (process.env.FUNDVIET_TEST_SQLITE === "1" && process.env.FUNDVIET_DB_FILE) {
+      const raw = openSqliteDatabase(process.env.FUNDVIET_DB_FILE);
+      g.__fundvietBackendDb = new SqliteDbClient(raw);
+    } else if (isPostgresConfigured()) {
       g.__fundvietBackendDb = new PostgresDbClient(env.databaseUrl);
     } else {
-      const raw = openSqliteDatabase(resolveSqlitePath());
-      g.__fundvietBackendDb = new SqliteDbClient(raw);
+      throw new Error(
+        "Thiếu biến môi trường DATABASE_URL (Supabase PostgreSQL). Hệ thống đã bỏ SQLite tạm và yêu cầu kết nối trực tiếp tới Supabase PostgreSQL.",
+      );
     }
   }
   maybeTick(g.__fundvietBackendDb);
