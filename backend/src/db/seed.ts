@@ -4,6 +4,7 @@
  */
 import type { DatabaseSync } from "node:sqlite";
 import { ROLES, PERMISSIONS, ROLE_PERMISSIONS } from "./catalog.js";
+import { resolveAssetUrl } from "./cloudinary-assets.js";
 import { hashPassword, hashFastCommunityPassword } from "../auth/password.js";
 import { analyzeComment } from "../services/ai/comments.js";
 import { predictSuccess } from "../services/ai/predict.js";
@@ -71,7 +72,7 @@ export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
   const catId: Record<string, string> = {};
   CATS.forEach(([slug, name, description, color], i) => {
     catId[slug] = `cat_${slug}`;
-    ins("categories", { id: catId[slug], name, slug, description, color, image_url: `/v3/categories/${slug}.webp`, sort_order: i });
+    ins("categories", { id: catId[slug], name, slug, description, color, image_url: resolveAssetUrl(`/v3/categories/${slug}.webp`), sort_order: i });
   });
 
   // ───────────── 3. Người dùng (Khởi tạo 4 tài khoản chính đầu tiên) ─────────────
@@ -300,7 +301,7 @@ export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
 
   const story = (p: ProjSpec) => [
     ["TEXT", "Câu chuyện", `${p.blurb}\n\nÝ tưởng ${p.title.split("–")[0].trim()} bắt đầu từ một câu hỏi rất đời thường: vì sao người Việt phải chờ hàng ngoại cho những thứ mình hoàn toàn có thể tự làm tốt? Sau hơn một năm thử nghiệm, nhóm đã có mẫu hoàn chỉnh và cần cộng đồng cùng đưa ${p.product} đến tay nhiều người hơn.`],
-    ["IMAGE", "", `/v3/projects/${p.cover}.webp`],
+    ["IMAGE", "", resolveAssetUrl(`/v3/projects/${p.cover}.webp`)],
     ["TEXT", "Điểm đặc biệt", `• Thiết kế và sản xuất tại Việt Nam, kiểm soát chất lượng từng khâu.\n• Vật liệu được chọn để bền, an toàn và thân thiện với môi trường.\n• Mỗi ${p.product} đều có mã định danh, bảo hành và hỗ trợ trực tiếp từ nhóm.\n• Lắng nghe góp ý của backer trong suốt quá trình hoàn thiện.`],
     ["TEXT", "Vì sao cần bạn", `Mục tiêu gọi vốn giúp nhóm đặt sản xuất lô đầu tiên, hoàn thiện khuôn mẫu và chi phí kiểm định. FundViet áp dụng cơ chế All-or-Nothing: bạn chỉ bị trừ tiền khi dự án đạt mục tiêu khi kết thúc chiến dịch.`],
     ["TEXT", "Kế hoạch & tiến độ", `Tháng 1: chốt thiết kế cuối cùng theo góp ý backer.\nTháng 2: sản xuất lô đầu và kiểm tra chất lượng.\nTháng 3: đóng gói, giao hàng toàn quốc và cập nhật mã vận đơn cho từng backer.`],
@@ -328,7 +329,7 @@ export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
     const initial = ["SCHEDULED", "DRAFT", "PENDING_REVIEW", "REJECTED", "CANCELLED"].includes(p.status) ? (p.status === "CANCELLED" ? "DRAFT" : p.status) : "LIVE";
     ins("projects", {
       id, creator_id: uid[p.creator], category_id: catId[p.cat], title: p.title, slug: p.slug, blurb: p.blurb,
-      cover_url: `/v3/projects/${p.cover}.webp`, video_url: p.video ? "https://www.youtube.com/embed/aqz-KE-bpKQ" : null,
+      cover_url: resolveAssetUrl(`/v3/projects/${p.cover}.webp`), video_url: p.video ? "https://www.youtube.com/embed/aqz-KE-bpKQ" : null,
       goal_amount: p.goal, duration_days: p.days, start_at: hasDates ? iso(start) : null, end_at: hasDates ? iso(end) : null,
       status: initial, is_preview_public: 1,
       risks: p.status === "DRAFT" ? "" : "Rủi ro lớn nhất là chậm tiến độ sản xuất do nguyên liệu. Nhóm đã ký trước với hai nhà cung cấp dự phòng và để dư 3 tuần trong kế hoạch giao hàng; mọi thay đổi sẽ được thông báo qua Updates.",

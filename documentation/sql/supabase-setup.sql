@@ -12498,34 +12498,34 @@ INSERT INTO role_permissions (role_code, permission_code, scope) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO categories (id, parent_id, name, slug, description, image_url, color, sort_order, is_active, created_at) VALUES
-  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-19T03:34:15.948Z'),
-  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-19T03:34:15.948Z'),
-  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-19T03:34:15.948Z'),
-  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-19T03:34:15.948Z'),
-  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-19T03:34:15.948Z'),
-  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-19T03:34:15.948Z'),
-  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-19T03:34:15.948Z'),
-  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-19T03:34:15.948Z')
+  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065913/fundviet/categories/art.webp', '#EC4899', 0, 1, '2026-11-19T05:27:18.743Z'),
+  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065913/fundviet/categories/comics.webp', '#F97316', 1, 1, '2026-11-19T05:27:18.743Z'),
+  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065913/fundviet/categories/crafts.webp', '#D97706', 2, 1, '2026-11-19T05:27:18.743Z'),
+  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065914/fundviet/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-19T05:27:18.743Z'),
+  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065913/fundviet/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-19T05:27:18.743Z'),
+  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065915/fundviet/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-19T05:27:18.743Z'),
+  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065915/fundviet/categories/games.webp', '#10B981', 6, 1, '2026-11-19T05:27:18.743Z'),
+  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', 'https://res.cloudinary.com/fwetktp4/image/upload/v1795065915/fundviet/categories/tech.webp', '#6366F1', 7, 1, '2026-11-19T05:27:18.743Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (id, email, username, password_hash, display_name, avatar_url, bio, country_code, province, status, locked_reason, email_verified_at, two_factor_enabled, two_factor_verified_at, last_login_at, created_at, updated_at) VALUES
-  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$brzJhe04rZpZ6rQBhe2lCOLdpp1F9QU8zisYCI07pwP95onU4MR8W', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T20:10:07.688Z', 0, NULL, '2026-11-17T22:53:47.794Z', '2025-10-20T20:10:07.688Z', '2025-10-20T20:10:07.688Z'),
-  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$Qq0iECUPp.oXRmZyOHVTXe5fSkVW/8h/i9Hp5dzBteB7ffLyRXuyW', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-28T07:58:16.978Z', 0, NULL, '2026-11-16T21:11:33.805Z', '2025-12-28T07:58:16.978Z', '2025-12-28T07:58:16.978Z'),
-  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$sr1cNv.z66GTIRUm/UEEeek0db2ggnVF2Gc31IphiMxboTI8wtUdS', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T19:46:19.195Z', 0, NULL, '2026-11-18T06:04:28.445Z', '2025-11-24T19:46:19.195Z', '2025-11-24T19:46:19.195Z'),
-  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$oxrNFfOCeypiFue513xLyu.6HGnBb5wr7wvHFNpQ04PkbLkDhqDJG', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-22T02:28:37.982Z', 0, NULL, '2026-11-17T07:33:01.916Z', '2025-12-22T02:28:37.982Z', '2025-12-22T02:28:37.982Z')
+  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$z4zmiRjGPi6HH5NArTRxsuTDxdEr9DQfPRI4H/W0GMK71pBUq06rW', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T22:03:10.491Z', 0, NULL, '2026-11-18T00:46:50.597Z', '2025-10-20T22:03:10.491Z', '2025-10-20T22:03:10.491Z'),
+  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$TL2VXSeS6MyFxY.7OZKXT.gwrinNegS0Ndojg/NduTw4CM8WdIpfS', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-28T09:51:19.781Z', 0, NULL, '2026-11-16T23:04:36.608Z', '2025-12-28T09:51:19.781Z', '2025-12-28T09:51:19.781Z'),
+  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$HZryY3Las7FK7ugnc4j4AO5NYn.4SrLH0Z2kqYrBKTkUpK2ksSx2.', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T21:39:21.998Z', 0, NULL, '2026-11-18T07:57:31.248Z', '2025-11-24T21:39:21.998Z', '2025-11-24T21:39:21.998Z'),
+  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$MRTyeQMronNtxwq9eNGv7OhTy1n0ZFad3H5GG3ft8lZ1LR.g/tkwC', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-22T04:21:40.785Z', 0, NULL, '2026-11-17T09:26:04.719Z', '2025-12-22T04:21:40.785Z', '2025-12-22T04:21:40.785Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_settings (user_id, notify_new_project, notify_project_update, notify_comment_reply, notify_message, hide_backed_projects, theme, updated_at) VALUES
-  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.042Z'),
-  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.151Z'),
-  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.089Z'),
-  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-19T03:34:16.201Z')
+  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-19T05:27:18.843Z'),
+  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-19T05:27:18.968Z'),
+  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-19T05:27:18.910Z'),
+  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-19T05:27:19.023Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_code, scope, granted_by, granted_at) VALUES
-  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T20:10:07.688Z'),
-  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-28T07:58:16.978Z'),
-  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T19:46:19.195Z'),
-  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-22T02:28:37.982Z')
+  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T22:03:10.491Z'),
+  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-28T09:51:19.781Z'),
+  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T21:39:21.998Z'),
+  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-22T04:21:40.785Z')
 ON CONFLICT DO NOTHING;
 
