@@ -29,7 +29,7 @@ function resolveSqlitePath(): string {
  */
 export function getDb(): DbClient {
   if (!g.__fundvietBackendDb) {
-    if (isPostgresConfigured()) {
+    if (isPostgresConfigured() && !process.env.FUNDVIET_DB_FILE) {
       g.__fundvietBackendDb = new PostgresDbClient(env.databaseUrl);
     } else {
       const raw = openSqliteDatabase(resolveSqlitePath());

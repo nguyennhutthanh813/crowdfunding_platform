@@ -34,9 +34,9 @@ export function buildSupabasePostgresSchema(): string {
       /\(strftime\('%Y-%m-%dT%H:%M:%fZ','now'\)\)/g,
       "(to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'))",
     )
-    .replace(/username NOT GLOB '\*\[\^a-zA-Z0-9_\.\]\*'/g, "username ~ '^[a-zA-Z0-9_.]+$'")
-    .replace(/phone NOT GLOB '\*\[\^0-9\]\*'/g, "phone ~ '^[0-9]+$'")
-    .replace(/last4 NOT GLOB '\*\[\^0-9\]\*'/g, "last4 ~ '^[0-9]+$'");
+    .replace(/username NOT GLOB '\*\[\^a-zA-Z0-9_\.\]\*'/g, "username ~ '^[a-zA-Z0-9_.]+$$'")
+    .replace(/phone NOT GLOB '\*\[\^0-9\]\*'/g, "phone ~ '^[0-9]+$$'")
+    .replace(/last4 NOT GLOB '\*\[\^0-9\]\*'/g, "last4 ~ '^[0-9]+$$'");
 
   for (const col of BIGINT_COLS) {
     const re = new RegExp(`(\\b${col}\\s+)INTEGER\\b`, "g");

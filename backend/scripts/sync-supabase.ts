@@ -77,16 +77,25 @@ async function main() {
     await client.query("DROP TRIGGER IF EXISTS trg_pg_pledges_ai ON pledges");
     await client.query("DROP TRIGGER IF EXISTS trg_pg_pledges_au ON pledges");
     await client.query("DROP TRIGGER IF EXISTS trg_pg_pledge_add_ons_stock ON pledge_add_ons");
+    await client.query("DROP TRIGGER IF EXISTS trg_pg_user_two_factor_sync ON user_two_factor");
 
     for (const table of TOPOLOGICAL_TABLES) {
       const rows = sqlite.prepare(`SELECT * FROM ${table}`).all() as Record<string, unknown>[];
       if (!rows.length) continue;
       const cols = Object.keys(rows[0]);
-      for (const row of rows) {
-        const placeholders = cols.map((_, idx) => `$${idx + 1}`).join(", ");
-        const values = cols.map((c) => row[c]);
+      const batchSize = Math.max(1, Math.floor(2000 / Math.max(1, cols.length)));
+      for (let start = 0; start < rows.length; start += batchSize) {
+        const slice = rows.slice(start, start + batchSize);
+        const values: unknown[] = [];
+        const tuples = slice.map((row) => {
+          const placeholders = cols.map((c) => {
+            values.push(row[c]);
+            return `$${values.length}`;
+          });
+          return `(${placeholders.join(", ")})`;
+        });
         await client.query(
-          `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
+          `INSERT INTO ${table} (${cols.join(", ")}) VALUES ${tuples.join(", ")} ON CONFLICT DO NOTHING`,
           values,
         );
       }
