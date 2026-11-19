@@ -1,5 +1,6 @@
 import "server-only";
-import { apiGet } from "../api";
+import { redirect } from "next/navigation";
+import { apiFetch, apiGet } from "../api";
 
 export const PAGE_SIZE = 20;
 
@@ -175,7 +176,38 @@ export async function adminDashboard() {
       now: number;
     };
   }>("/admin/dashboard");
-  return res.data!;
+  if (!res.data) {
+    const check = await apiFetch<{ ok?: boolean }>("/auth/me");
+    if (check.status === 401 || !check.data?.ok) redirect("/login?next=/admin");
+    return {
+      kpis: {
+        held: 0,
+        heldCount: 0,
+        captured: 0,
+        capturedCount: 0,
+        live: 0,
+        successRate: 0,
+        succeeded: 0,
+        ended: 0,
+        users: 0,
+        locked: 0,
+        activeBackers: 0,
+        openReports: 0,
+        pending: 0,
+      },
+      perDay: [],
+      byStatus: [],
+      byCategory: [],
+      newUsers: [],
+      pendingQueue: [],
+      openReports: [],
+      flagged: [],
+      endingSoon: [],
+      recentAudit: [],
+      now: Date.now(),
+    };
+  }
+  return res.data;
 }
 
 export async function reviewQueue() {

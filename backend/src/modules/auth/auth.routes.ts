@@ -190,7 +190,12 @@ authRouter.post("/2fa/setup", requireAuthMiddleware, async (req, res) => {
 authRouter.post("/2fa/enable", requireAuthMiddleware, async (req, res) => {
   try {
     const db = getDb();
-    const result = await enableTwoFactor(db, req.viewer!.id, String(req.body?.code ?? ""));
+    const result = await enableTwoFactor(
+      db,
+      req.viewer!.id,
+      String(req.body?.code ?? ""),
+      typeof req.body?.setupToken === "string" ? req.body.setupToken : undefined,
+    );
     await recordSecurityEvent(db, req.viewer!, "TWO_FACTOR_ENABLED", clientMeta(req));
     res.json({ ok: true, ...result });
   } catch (e) {

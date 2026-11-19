@@ -13,6 +13,8 @@ export type FormState = {
   fieldErrors?: Record<string, string>;
   requiresTwoFactor?: boolean;
   challengeToken?: string;
+  resetToken?: string;
+  setupToken?: string;
   emailMasked?: string;
   email?: string;
   secret?: string;
@@ -159,16 +161,20 @@ export async function requestPasswordResetAction(_: FormState, form: FormData): 
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   if (!email) return { error: "Vui lòng nhập địa chỉ email tài khoản." };
 
-  const { data } = await apiFetch<{ ok?: boolean; error?: string; message?: string }>("/auth/forgot-password", {
-    method: "POST",
-    auth: false,
-    body: { email },
-  });
+  const { data } = await apiFetch<{ ok?: boolean; error?: string; message?: string; resetToken?: string }>(
+    "/auth/forgot-password",
+    {
+      method: "POST",
+      auth: false,
+      body: { email },
+    },
+  );
 
   if (!data.ok) return { error: data.error ?? "Không thể gửi yêu cầu khôi phục mật khẩu." };
   return {
     ok: true,
     email,
+    resetToken: data.resetToken,
     message: data.message ?? "Đã gửi mã OTP 6 chữ số tới hộp thư email của bạn.",
   };
 }
@@ -178,25 +184,26 @@ export async function resetPasswordWithOtpAction(_: FormState, form: FormData): 
   const otp = String(form.get("otp") ?? "").trim();
   const newPassword = String(form.get("newPassword") ?? "");
   const confirmPassword = String(form.get("confirmPassword") ?? "");
+  const resetToken = String(form.get("resetToken") ?? "").trim();
 
   if (!email || !otp || !newPassword) {
-    return { error: "Vui lòng điền đầy đủ mã OTP và mật khẩu mới.", email };
+    return { error: "Vui lòng điền đầy đủ mã OTP và mật khẩu mới.", email, resetToken };
   }
   if (newPassword.length < 8) {
-    return { error: "Mật khẩu mới phải có ít nhất 8 ký tự.", email };
+    return { error: "Mật khẩu mới phải có ít nhất 8 ký tự.", email, resetToken };
   }
   if (confirmPassword && newPassword !== confirmPassword) {
-    return { error: "Xác nhận mật khẩu mới chưa khớp.", email };
+    return { error: "Xác nhận mật khẩu mới chưa khớp.", email, resetToken };
   }
 
   const { data } = await apiFetch<{ ok?: boolean; error?: string; message?: string }>("/auth/reset-password", {
     method: "POST",
     auth: false,
-    body: { email, otp, newPassword },
+    body: { email, otp, newPassword, resetToken: resetToken || undefined },
   });
 
   if (!data.ok) {
-    return { error: data.error ?? "Mã OTP không đúng hoặc đã hết hạn.", email };
+    return { error: data.error ?? "Mã OTP không đúng hoặc đã hết hạn.", email, resetToken };
   }
 
   redirect("/login?reset=1");
@@ -220,6 +227,7 @@ export async function confirmEmailVerifyOtpAction(_: FormState, form: FormData):
 export async function setupTwoFactorAction(): Promise<{
   ok: boolean;
   secret?: string;
+  setupToken?: string;
   otpauthUrl?: string;
   qrCodeDataUrl?: string;
   error?: string;
@@ -227,6 +235,7 @@ export async function setupTwoFactorAction(): Promise<{
   const data = await apiPost<{
     ok?: boolean;
     secret?: string;
+    setupToken?: string;
     otpauthUrl?: string;
     qrCodeDataUrl?: string;
     error?: string;
@@ -234,6 +243,7 @@ export async function setupTwoFactorAction(): Promise<{
   return {
     ok: Boolean(data.ok),
     secret: data.secret,
+    setupToken: data.setupToken,
     otpauthUrl: data.otpauthUrl,
     qrCodeDataUrl: data.qrCodeDataUrl,
     error: data.error,
@@ -242,7 +252,11 @@ export async function setupTwoFactorAction(): Promise<{
 
 export async function enableTwoFactorAction(_: FormState, form: FormData): Promise<FormState> {
   const code = String(form.get("code") ?? "").trim();
-  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; error?: string }>("/auth/2fa/enable", { code });
+  const setupToken = String(form.get("setupToken") ?? "").trim();
+  const data = await apiPost<{ ok?: boolean; backupCodes?: string[]; error?: string }>("/auth/2fa/enable", {
+    code,
+    setupToken: setupToken || undefined,
+  });
   if (!data.ok) return { error: data.error ?? "Mã OTP không chính xác." };
   revalidatePath("/me/settings");
   return {

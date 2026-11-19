@@ -1,5 +1,6 @@
 import "server-only";
-import { apiGet } from "../api";
+import { redirect } from "next/navigation";
+import { apiFetch, apiGet } from "../api";
 import type { ProjectCardData } from "./projects";
 
 export interface MeSummary {
@@ -172,7 +173,7 @@ export async function meSummary(): Promise<MeSummary | null> {
 }
 
 export async function meOverviewBundle() {
-  const res = await apiGet<{
+  const { status, data: res } = await apiFetch<{
     ok?: boolean;
     summary?: MeSummary;
     invitations?: InvitationRow[];
@@ -193,8 +194,29 @@ export async function meOverviewBundle() {
     recos?: { items: Recommendation[]; coldStart: boolean; topCategories: { name: string; weight: number }[] };
     savedIds?: string[];
   }>("/me/overview");
+  if (status === 401) redirect("/login?next=/me");
+  const fallbackSummary: MeSummary = {
+    id: "",
+    username: "thanhvien",
+    display_name: "Thành viên",
+    email: "",
+    avatar_url: null,
+    bio: "",
+    country_code: "VN",
+    created_at: new Date().toISOString(),
+    creator_count: 0,
+    collab_count: 0,
+    total_backed: 0,
+    backed_projects: 0,
+    saved_count: 0,
+    following_count: 0,
+    follower_count: 0,
+    unread_notifications: 0,
+    unread_messages: 0,
+    pending_invites: 0,
+  };
   return {
-    summary: res.summary!,
+    summary: res.summary ?? fallbackSummary,
     invitations: res.invitations ?? [],
     waiting: res.waiting ?? [],
     notifications: res.notifications ?? [],
@@ -332,7 +354,7 @@ export async function myNotifications(unreadOnly: boolean, limit = 150): Promise
 }
 
 export async function settingsData() {
-  const res = await apiGet<{
+  const { status, data: res } = await apiFetch<{
     ok?: boolean;
     user?: {
       username: string;
@@ -375,12 +397,16 @@ export async function settingsData() {
       active_use: number;
     }[];
     sessions?: number;
-    twoFactor?: TwoFactorStatusInfo;
+    twoFactor?: TwoFactorStatusInfo & { remainingBackupCodes?: number };
     sessionList?: ActiveSessionInfo[];
   }>("/me/settings");
 
+  if (status === 401 || !res.user) {
+    redirect("/login?next=/me/settings");
+  }
+
   return {
-    user: res.user!,
+    user: res.user,
     settings: res.settings ?? {
       notify_new_project: 1,
       notify_project_update: 1,
@@ -391,7 +417,11 @@ export async function settingsData() {
     addresses: res.addresses ?? [],
     cards: res.cards ?? [],
     sessions: res.sessions ?? 0,
-    twoFactor: res.twoFactor ?? { enabled: false, verifiedAt: null, backupCodesRemaining: 0 },
+    twoFactor: {
+      enabled: Boolean(res.twoFactor?.enabled),
+      verifiedAt: res.twoFactor?.verifiedAt ?? null,
+      backupCodesRemaining: Number(res.twoFactor?.backupCodesRemaining ?? res.twoFactor?.remainingBackupCodes ?? 0),
+    },
     sessionList: res.sessionList ?? [],
   };
 }

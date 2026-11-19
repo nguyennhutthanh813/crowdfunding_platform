@@ -131,6 +131,7 @@ function EmailVerificationCard({ email }: { email: string }) {
 function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
   const [setupData, setSetupData] = useState<{
     secret: string;
+    setupToken?: string;
     otpauthUrl: string;
     qrCodeDataUrl: string;
   } | null>(null);
@@ -193,6 +194,7 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
                 if (res.ok && res.secret && res.qrCodeDataUrl) {
                   setSetupData({
                     secret: res.secret,
+                    setupToken: res.setupToken,
                     otpauthUrl: res.otpauthUrl ?? "",
                     qrCodeDataUrl: res.qrCodeDataUrl,
                   });
@@ -277,6 +279,7 @@ function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorStatusInfo }) {
             </div>
 
             <form action={enableAction} className="space-y-3 border-t border-line pt-3.5">
+              <input type="hidden" name="setupToken" value={setupData.setupToken ?? ""} />
               <Field
                 label="Bước xác nhận: Nhập mã OTP 6 chữ số vừa sinh ra"
                 hint="Sau khi xác nhận đúng, hệ thống sẽ kích hoạt 2FA và cấp 8 mã dự phòng khôi phục."

@@ -16,7 +16,8 @@ export function openSqliteDatabase(file: string, opts: { reset?: boolean; seed?:
   }
   mkdirSync(dirname(file), { recursive: true });
   const db = new SqliteDatabaseSync(file);
-  db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;");
+  const journalMode = process.env.VERCEL ? "MEMORY" : "WAL";
+  db.exec(`PRAGMA journal_mode = ${journalMode}; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;`);
   db.exec(SCHEMA_SQL);
   const seeded = db.prepare(`SELECT value FROM meta WHERE key = 'seeded_at'`).get() as { value?: string } | undefined;
   if (!seeded && opts.seed !== false) {

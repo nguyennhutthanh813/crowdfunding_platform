@@ -4,7 +4,12 @@ import { cookies, headers } from "next/headers";
 export const ACCESS_COOKIE = "fv_access";
 export const REFRESH_COOKIE = "fv_refresh";
 
-const BACKEND_BASE = (process.env.BACKEND_URL || "http://localhost:4000").replace(/\/+$/, "");
+const rawBackendBase =
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, "") ||
+  "http://127.0.0.1:4000";
+
+const BACKEND_BASE = rawBackendBase.replace(/\/+$/, "");
 
 const requestTokenMemo = new WeakMap<object, string | null>();
 
@@ -12,6 +17,24 @@ export function backendUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
   const p = path.startsWith("/api/") ? path : `/api/v1${path.startsWith("/") ? path : `/${path}`}`;
   return `${BACKEND_BASE}${p}`;
+}
+
+async function safeNetworkFetch(url: string, init: RequestInit): Promise<Response | null> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
+  } catch (err) {
+    // Trên Windows/Node 24, localhost có thể trỏ sang ::1 khi server lắng nghe IPv4 127.0.0.1
+    if (url.startsWith("http://localhost:")) {
+      const ipv4Url = url.replace("http://localhost:", "http://127.0.0.1:");
+      try {
+        return await fetch(ipv4Url, { ...init, signal: AbortSignal.timeout(15_000) });
+      } catch {
+        // rơi xuống trả null bên dưới
+      }
+    }
+    console.error("[apiFetch] network error:", url, err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 export async function setAuthCookies(accessToken: string, refreshToken: string) {
@@ -33,7 +56,7 @@ export async function setAuthCookies(accessToken: string, refreshToken: string) 
       maxAge: 60 * 60 * 24 * 14, // 14 ngày
     });
   } catch {
-    // Đang trong Server Component render (chỉ đọc cookie) — giữ token trong bộ nhớ tạm của request
+    // Đang trong Server Component render (chỉ đọc cookie)
   }
 }
 
@@ -50,13 +73,13 @@ export async function clearAuthCookies() {
 
 async function tryRefreshAccessToken(refreshToken: string): Promise<string | null> {
   try {
-    const res = await fetch(backendUrl("/auth/refresh"), {
+    const res = await safeNetworkFetch(backendUrl("/auth/refresh"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
       cache: "no-store",
     });
-    if (!res.ok) return null;
+    if (!res || !res.ok) return null;
     const json = (await res.json()) as { ok?: boolean; accessToken?: string; refreshToken?: string };
     if (!json.ok || !json.accessToken || !json.refreshToken) return null;
     await setAuthCookies(json.accessToken, json.refreshToken);
@@ -115,7 +138,7 @@ export async function apiFetch<T = Record<string, unknown>>(
       bodyInit = JSON.stringify(opts.body);
     }
 
-    return fetch(backendUrl(path), {
+    return safeNetworkFetch(backendUrl(path), {
       method: opts.method ?? "GET",
       headers: reqHeaders,
       body: bodyInit,
@@ -124,7 +147,7 @@ export async function apiFetch<T = Record<string, unknown>>(
   };
 
   let res = await doCall(token);
-  if (res.status === 401 && opts.auth !== false) {
+  if (res && res.status === 401 && opts.auth !== false) {
     const refresh = jar.get(REFRESH_COOKIE)?.value ?? null;
     if (refresh) {
       const renewed = await tryRefreshAccessToken(refresh);
@@ -136,11 +159,18 @@ export async function apiFetch<T = Record<string, unknown>>(
     }
   }
 
+  if (!res) {
+    return {
+      status: 503,
+      data: { ok: false, error: "Không thể kết nối tới máy chủ Backend API. Vui lòng kiểm tra kết nối hoặc thử lại." } as unknown as T,
+    };
+  }
+
   let data: T;
   try {
     data = (await res.json()) as T;
   } catch {
-    data = { ok: false, error: "Không thể kết nối tới máy chủ Backend API." } as unknown as T;
+    data = { ok: false, error: "Phản hồi từ máy chủ không hợp lệ." } as unknown as T;
   }
   return { status: res.status, data };
 }

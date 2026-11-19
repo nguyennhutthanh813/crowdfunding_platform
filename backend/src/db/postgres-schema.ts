@@ -19,16 +19,17 @@ const BIGINT_COLS = [
 
 /**
  * Chuyển đổi lược đồ bảng + view sang chuẩn PostgreSQL 15+ cho Supabase
- * (dùng BIGINT cho tiền VND để không tràn số 32-bit, giữ nguyên tên bảng/cột và bổ sung trigger PL/pgSQL).
+ * (dùng BIGINT cho tiền VND để không tràn số 32-bit, chuyển CREATE VIEW sang CREATE OR REPLACE VIEW,
+ *  giữ nguyên tên bảng/cột và bổ sung trigger PL/pgSQL).
  */
 export function buildSupabasePostgresSchema(): string {
-  const triggerMarker = "-- ═══════════════════════ TRIGGER: TOÀN VẸN NGHIỆP VỤ ═══════════════════════";
-  const idx = SCHEMA_SQL.indexOf(triggerMarker);
-  let base = idx >= 0 ? SCHEMA_SQL.slice(0, idx) : SCHEMA_SQL;
+  const triggerMatch = SCHEMA_SQL.search(/--\s*═+.*TRIGGER/i);
+  let base = triggerMatch >= 0 ? SCHEMA_SQL.slice(0, triggerMatch) : SCHEMA_SQL;
 
   base = base
     .replace(/PRAGMA\s+foreign_keys\s*=\s*ON\s*;/gi, "")
     .replace(/\s+COLLATE\s+NOCASE/gi, "")
+    .replace(/CREATE\s+VIEW\s+IF\s+NOT\s+EXISTS\b/gi, "CREATE OR REPLACE VIEW")
     .replace(
       /\(strftime\('%Y-%m-%dT%H:%M:%fZ','now'\)\)/g,
       "(to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'))",
@@ -42,7 +43,10 @@ export function buildSupabasePostgresSchema(): string {
     base = base.replace(re, "$1BIGINT");
   }
 
-  const pgTriggers = /* sql */ `
+  const pgExtras = /* sql */ `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username));
+
 -- ═══════════════════════ TRIGGER CẬP NHẬT BỘ ĐẾM TRÊN POSTGRESQL (SUPABASE) ═══════════════════════
 CREATE OR REPLACE FUNCTION fn_projects_creator_member() RETURNS TRIGGER AS $$
 BEGIN
@@ -78,12 +82,12 @@ FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_insert();
 
 CREATE OR REPLACE FUNCTION fn_pledges_after_update() RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status NOT IN ('CANCELLED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'REFUNDED') THEN
+  IF OLD.status NOT IN ('CANCELLED', 'VOIDED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'VOIDED', 'REFUNDED') THEN
     UPDATE projects
     SET pledged_amount = GREATEST(0, pledged_amount - NEW.total_amount),
         backers_count = GREATEST(0, backers_count - 1)
     WHERE id = NEW.project_id;
-    IF NEW.tier_id IS NOT NULL AND NEW.status = 'CANCELLED' THEN
+    IF NEW.tier_id IS NOT NULL THEN
       UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = NEW.tier_id;
     END IF;
   END IF;
@@ -107,5 +111,5 @@ CREATE TRIGGER trg_pg_pledge_add_ons_stock AFTER INSERT ON pledge_add_ons
 FOR EACH ROW EXECUTE FUNCTION fn_pledge_add_ons_stock();
 `;
 
-  return `${base}\n${pgTriggers}\n`;
+  return `${base}\n${pgExtras}\n`;
 }

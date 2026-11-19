@@ -658,13 +658,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -672,7 +672,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -1320,13 +1320,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -1334,7 +1334,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -1864,13 +1864,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -1878,7 +1878,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -2526,13 +2526,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -2540,7 +2540,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -3070,13 +3070,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -3084,7 +3084,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -3597,13 +3597,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -3611,7 +3611,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -4259,13 +4259,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -4273,7 +4273,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -4803,13 +4803,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -4817,7 +4817,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -5465,13 +5465,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -5479,7 +5479,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -6009,13 +6009,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -6023,7 +6023,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -6536,13 +6536,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -6550,7 +6550,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -7080,13 +7080,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -7094,7 +7094,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -7742,13 +7742,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -7756,7 +7756,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -8286,13 +8286,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -8300,7 +8300,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -8813,13 +8813,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -8827,7 +8827,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -9475,13 +9475,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -9489,7 +9489,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -10019,13 +10019,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -10033,7 +10033,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -10546,13 +10546,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -10560,7 +10560,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -11090,13 +11090,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -11104,7 +11104,7 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
@@ -11617,13 +11617,13 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, created_at);
 
 -- ═══════════════════════ VIEW PHÂN QUYỀN ═══════════════════════
-CREATE VIEW IF NOT EXISTS v_user_system_permissions AS
+CREATE OR REPLACE VIEW v_user_system_permissions AS
   SELECT ur.user_id, rp.permission_code
   FROM user_roles ur
   JOIN users u ON u.id = ur.user_id AND u.status = 'ACTIVE'
   JOIN role_permissions rp ON rp.role_code = ur.role_code AND rp.scope = 'SYSTEM';
 
-CREATE VIEW IF NOT EXISTS v_project_permissions AS
+CREATE OR REPLACE VIEW v_project_permissions AS
   SELECT pm.project_id, pm.user_id, pm.role_code, rp.permission_code
   FROM project_members pm
   JOIN users u ON u.id = pm.user_id AND u.status = 'ACTIVE'
@@ -11631,13 +11631,16 @@ CREATE VIEW IF NOT EXISTS v_project_permissions AS
   WHERE pm.status = 'ACTIVE';
 
 -- Thống kê cộng đồng (FR28): góp vốn theo quốc gia.
-CREATE VIEW IF NOT EXISTS v_project_backer_countries AS
+CREATE OR REPLACE VIEW v_project_backer_countries AS
   SELECT p.project_id, u.country_code, COUNT(*) AS backers, SUM(p.total_amount) AS amount
   FROM pledges p JOIN users u ON u.id = p.backer_id
   WHERE p.status NOT IN ('CANCELLED','REFUNDED')
   GROUP BY p.project_id, u.country_code;
 
 
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username));
 
 -- ═══════════════════════ TRIGGER CẬP NHẬT BỘ ĐẾM TRÊN POSTGRESQL (SUPABASE) ═══════════════════════
 CREATE OR REPLACE FUNCTION fn_projects_creator_member() RETURNS TRIGGER AS $$
@@ -11674,12 +11677,12 @@ FOR EACH ROW EXECUTE FUNCTION fn_pledges_after_insert();
 
 CREATE OR REPLACE FUNCTION fn_pledges_after_update() RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status NOT IN ('CANCELLED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'REFUNDED') THEN
+  IF OLD.status NOT IN ('CANCELLED', 'VOIDED', 'REFUNDED') AND NEW.status IN ('CANCELLED', 'VOIDED', 'REFUNDED') THEN
     UPDATE projects
     SET pledged_amount = GREATEST(0, pledged_amount - NEW.total_amount),
         backers_count = GREATEST(0, backers_count - 1)
     WHERE id = NEW.project_id;
-    IF NEW.tier_id IS NOT NULL AND NEW.status = 'CANCELLED' THEN
+    IF NEW.tier_id IS NOT NULL THEN
       UPDATE reward_tiers SET claimed_count = GREATEST(0, claimed_count - 1) WHERE id = NEW.tier_id;
     END IF;
   END IF;
@@ -11803,34 +11806,34 @@ INSERT INTO role_permissions (role_code, permission_code, scope) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO categories (id, parent_id, name, slug, description, image_url, color, sort_order, is_active, created_at) VALUES
-  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-19T00:03:07.944Z'),
-  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-19T00:03:07.944Z'),
-  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-19T00:03:07.944Z'),
-  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-19T00:03:07.944Z'),
-  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-19T00:03:07.944Z'),
-  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-19T00:03:07.944Z'),
-  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-19T00:03:07.945Z'),
-  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-19T00:03:07.945Z')
+  ('cat_art', NULL, 'Nghệ thuật', 'art', 'Hội hoạ, artbook, điêu khắc, nghệ thuật số', '/v3/categories/art.webp', '#EC4899', 0, 1, '2026-11-19T01:52:15.035Z'),
+  ('cat_comics', NULL, 'Truyện tranh', 'comics', 'Truyện tranh, webtoon, minh hoạ', '/v3/categories/comics.webp', '#F97316', 1, 1, '2026-11-19T01:52:15.035Z'),
+  ('cat_crafts', NULL, 'Thủ công mỹ nghệ', 'crafts', 'Gốm, mây tre, sơn mài và làng nghề', '/v3/categories/crafts.webp', '#D97706', 2, 1, '2026-11-19T01:52:15.035Z'),
+  ('cat_design', NULL, 'Thiết kế', 'design', 'Thiết kế sản phẩm, nội thất, đồ dùng', '/v3/categories/design.webp', '#8B5CF6', 3, 1, '2026-11-19T01:52:15.035Z'),
+  ('cat_fashion', NULL, 'Thời trang', 'fashion', 'Trang phục, giày dép, phụ kiện', '/v3/categories/fashion.webp', '#F43F5E', 4, 1, '2026-11-19T01:52:15.035Z'),
+  ('cat_film', NULL, 'Phim ảnh', 'film', 'Phim ngắn, tài liệu, hoạt hình', '/v3/categories/film.webp', '#0EA5E9', 5, 1, '2026-11-19T01:52:15.035Z'),
+  ('cat_games', NULL, 'Game', 'games', 'Board game, video game, thẻ bài', '/v3/categories/games.webp', '#10B981', 6, 1, '2026-11-19T01:52:15.035Z'),
+  ('cat_tech', NULL, 'Công nghệ', 'tech', 'Thiết bị thông minh, phần cứng, AI', '/v3/categories/tech.webp', '#6366F1', 7, 1, '2026-11-19T01:52:15.035Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (id, email, username, password_hash, display_name, avatar_url, bio, country_code, province, status, locked_reason, email_verified_at, last_login_at, created_at, updated_at) VALUES
-  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$/nH1VFhQIVtqJhdvJjFDaen6446HMIc4ZiXEdEYEvHpo4YdO5NVse', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T16:38:59.691Z', '2026-11-17T19:22:39.797Z', '2025-10-20T16:38:59.691Z', '2025-10-20T16:38:59.691Z'),
-  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$nMTGdEfNimvqJQEh5unql.YS2FjI1mSIQJNyfQ91j1Nnk/vt06dcS', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-28T04:27:08.981Z', '2026-11-16T17:40:25.808Z', '2025-12-28T04:27:08.981Z', '2025-12-28T04:27:08.981Z'),
-  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$z0JYa/uEnORrCTEe7Z7CyeX/ENy3UHIc8xmrWAMaecJdvIbn5.dUa', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T16:15:11.198Z', '2026-11-18T02:33:20.448Z', '2025-11-24T16:15:11.198Z', '2025-11-24T16:15:11.198Z'),
-  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$MvduiZwTarSEhSt7UFxppOHq95M8AIZNl2HHa40QcFxTIX48uytJa', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-21T22:57:29.985Z', '2026-11-17T04:01:53.919Z', '2025-12-21T22:57:29.985Z', '2025-12-21T22:57:29.985Z')
+  ('usr_admin', 'phuocthinh2248@gmail.com', 'phuocthinh2248', '$2a$10$R6Rz4pzdSyRGCLcQWhsCvOVExYXyWbsBJQSVCHhR0oPTlx.imPJ8O', 'Võ Phước Thịnh', NULL, 'Quản trị hệ thống & kiểm duyệt chất lượng dự án trên FundViet.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-10-20T18:28:06.782Z', '2026-11-17T21:11:46.888Z', '2025-10-20T18:28:06.782Z', '2025-10-20T18:28:06.782Z'),
+  ('usr_giahuy', 'ctv000001@gmail.com', 'ctv000001', '$2a$10$0D7BrJGWiLc8.uQvWmHqiOJsq3LNX.Pu06WeUt7N/tyvopJDbdkzm', 'Trần Gia Huy', NULL, 'Điều phối cộng đồng, biên tập bản tin tiến độ & hỗ trợ người ủng hộ.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-12-28T06:16:16.072Z', '2026-11-16T19:29:32.899Z', '2025-12-28T06:16:16.072Z', '2025-12-28T06:16:16.072Z'),
+  ('usr_linh', 'nguyennhutthanh813@gmail.com', 'nguyennhutthanh813', '$2a$10$hGJ4hGiU5cSfDXiLvY1E5eKZHFOApPe1krWxwQO5inhfo.NxFzE62', 'Nguyễn Nhựt Thanh', NULL, 'Kỹ sư phần cứng & thiết kế sản phẩm công nghiệp — sáng lập ORBIT Lab.', 'VN', 'TP. Hồ Chí Minh', 'ACTIVE', NULL, '2025-11-24T18:04:18.289Z', '2026-11-18T04:22:27.539Z', '2025-11-24T18:04:18.289Z', '2025-11-24T18:04:18.289Z'),
+  ('usr_minhanh', 'user000001@gmail.com', 'user000001', '$2a$10$khrXhT3Ucc6rTA0cdzCkruon8Tr3GFcQalBuwHqAj1vYJ8r/SoPEO', 'Lê Minh Anh', NULL, 'Quan tâm thiết bị công nghệ Việt, đồ thủ công thiết kế và các dự án sáng tạo độc lập.', 'VN', 'Hà Nội', 'ACTIVE', NULL, '2025-12-22T00:46:37.076Z', '2026-11-17T05:51:01.010Z', '2025-12-22T00:46:37.076Z', '2025-12-22T00:46:37.076Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_settings (user_id, notify_new_project, notify_project_update, notify_comment_reply, notify_message, hide_backed_projects, theme, updated_at) VALUES
-  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.081Z'),
-  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.233Z'),
-  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.146Z'),
-  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-19T00:03:08.389Z')
+  ('usr_admin', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.142Z'),
+  ('usr_giahuy', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.269Z'),
+  ('usr_linh', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.208Z'),
+  ('usr_minhanh', 1, 1, 1, 1, 0, 'system', '2026-11-19T01:52:15.325Z')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_code, scope, granted_by, granted_at) VALUES
-  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T16:38:59.691Z'),
-  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-28T04:27:08.981Z'),
-  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T16:15:11.198Z'),
-  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-21T22:57:29.985Z')
+  ('usr_admin', 'ADMIN', 'SYSTEM', NULL, '2025-10-20T18:28:06.782Z'),
+  ('usr_giahuy', 'MEMBER', 'SYSTEM', NULL, '2025-12-28T06:16:16.072Z'),
+  ('usr_linh', 'MEMBER', 'SYSTEM', NULL, '2025-11-24T18:04:18.289Z'),
+  ('usr_minhanh', 'MEMBER', 'SYSTEM', NULL, '2025-12-22T00:46:37.076Z')
 ON CONFLICT DO NOTHING;
 

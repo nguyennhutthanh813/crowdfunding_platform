@@ -3,11 +3,17 @@ import { hashPassword, verifyPassword } from "../../auth/password.js";
 import {
   hashToken,
   signAccessToken,
+  signPasswordResetChallenge,
   signRefreshToken,
   signTwoFactorChallenge,
+  signTwoFactorSetupToken,
+  verifyPasswordResetChallenge,
   verifyRefreshToken,
   verifyTwoFactorChallenge,
+  verifyTwoFactorSetupToken,
 } from "../../auth/jwt.js";
+import { env } from "../../config/env.js";
+import { ensureEphemeralUserHydrated } from "../../middlewares/auth.middleware.js";
 import {
   buildOtpAuthUrl,
   generateBackupCodes,
@@ -49,7 +55,12 @@ async function issueSessionTokens(
   if (viewer.status !== "ACTIVE") throw new DomainError("Tài khoản đã bị khoá.", "FORBIDDEN");
 
   const sessionId = newId();
-  const refresh = signRefreshToken(viewer.id, sessionId);
+  const refresh = signRefreshToken(viewer.id, sessionId, {
+    email: viewer.email,
+    username: viewer.username,
+    displayName: viewer.displayName,
+    roles: viewer.systemRoles,
+  });
   const now = nowIso();
 
   await tx(db, async () => {
@@ -71,6 +82,7 @@ async function issueSessionTokens(
     sid: sessionId,
     email: viewer.email,
     username: viewer.username,
+    displayName: viewer.displayName,
     roles: viewer.systemRoles,
   });
 
@@ -278,37 +290,69 @@ export async function refreshAuthTokens(db: DbClient, refreshToken: string): Pro
 
   const now = nowIso();
   const currentHash = hashToken(refreshToken);
-  const sess = await one<{ id: string; user_id: string }>(
+  const sess = await one<{ id: string; user_id: string; refresh_token_hash: string; revoked_at: string | null; expires_at: string }>(
     db,
-    `SELECT id, user_id FROM sessions
-     WHERE id = ? AND user_id = ? AND refresh_token_hash = ? AND revoked_at IS NULL AND expires_at > ?`,
+    `SELECT id, user_id, refresh_token_hash, revoked_at, expires_at FROM sessions WHERE id = ? AND user_id = ?`,
     payload.sid,
     payload.sub,
-    currentHash,
-    now,
   );
-  if (!sess) throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
 
-  const viewer = await loadViewer(db, sess.user_id);
+  if (sess) {
+    if (sess.revoked_at || sess.expires_at <= now || sess.refresh_token_hash !== currentHash) {
+      throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
+    }
+  } else if (!(env.isVercel && db.engine === "sqlite")) {
+    throw new DomainError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi.", "UNAUTHORIZED");
+  }
+
+  if (payload.email && payload.username) {
+    await ensureEphemeralUserHydrated(db, {
+      sub: payload.sub,
+      email: payload.email,
+      username: payload.username,
+      displayName: payload.displayName,
+      roles: payload.roles ?? ["MEMBER"],
+    });
+  }
+
+  const viewer = await loadViewer(db, payload.sub);
   if (!viewer || viewer.status !== "ACTIVE") {
     throw new DomainError("Tài khoản không còn hoạt động.", "FORBIDDEN");
   }
 
-  const nextRefresh = signRefreshToken(viewer.id, sess.id);
-  await run(
-    db,
-    `UPDATE sessions SET refresh_token_hash = ?, expires_at = ?, last_seen_at = ? WHERE id = ?`,
-    nextRefresh.tokenHash,
-    nextRefresh.expiresAt,
-    now,
-    sess.id,
-  );
+  const nextRefresh = signRefreshToken(viewer.id, payload.sid, {
+    email: viewer.email,
+    username: viewer.username,
+    displayName: viewer.displayName,
+    roles: viewer.systemRoles,
+  });
+
+  if (sess) {
+    await run(
+      db,
+      `UPDATE sessions SET refresh_token_hash = ?, expires_at = ?, last_seen_at = ? WHERE id = ?`,
+      nextRefresh.tokenHash,
+      nextRefresh.expiresAt,
+      now,
+      sess.id,
+    );
+  } else {
+    await insert(db, "sessions", {
+      id: payload.sid,
+      user_id: viewer.id,
+      refresh_token_hash: nextRefresh.tokenHash,
+      expires_at: nextRefresh.expiresAt,
+      last_seen_at: now,
+      created_at: now,
+    });
+  }
 
   const accessToken = signAccessToken({
     sub: viewer.id,
-    sid: sess.id,
+    sid: payload.sid,
     email: viewer.email,
     username: viewer.username,
+    displayName: viewer.displayName,
     roles: viewer.systemRoles,
   });
 
@@ -331,7 +375,10 @@ export async function logoutSession(db: DbClient, sessionId: string | null, refr
 
 // ───────────────────────── QUÊN MẬT KHẨU & ĐẶT LẠI MẬT KHẨU QUA EMAIL OTP ─────────────────────────
 
-export async function requestPasswordResetOtp(db: DbClient, emailRaw: string): Promise<{ sent: boolean; message: string }> {
+export async function requestPasswordResetOtp(
+  db: DbClient,
+  emailRaw: string,
+): Promise<{ sent: boolean; message: string; resetToken?: string }> {
   const email = emailRaw.trim().toLowerCase();
   if (!email || !email.includes("@")) {
     throw new DomainError("Vui lòng nhập địa chỉ email hợp lệ.");
@@ -352,6 +399,7 @@ export async function requestPasswordResetOtp(db: DbClient, emailRaw: string): P
   }
 
   const otp = generateSixDigitOtp();
+  const otpHash = hashOtpCode(user.email, "PASSWORD_RESET", otp);
   const now = nowIso();
   const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
 
@@ -367,7 +415,7 @@ export async function requestPasswordResetOtp(db: DbClient, emailRaw: string): P
       user_id: user.id,
       email: user.email,
       purpose: "PASSWORD_RESET",
-      code_hash: hashOtpCode(user.email, "PASSWORD_RESET", otp),
+      code_hash: otpHash,
       expires_at: expiresAt,
       created_at: now,
     });
@@ -378,19 +426,22 @@ export async function requestPasswordResetOtp(db: DbClient, emailRaw: string): P
     throw new DomainError("Không thể kết nối dịch vụ gửi email lúc này. Vui lòng kiểm tra cấu hình SMTP.");
   }
 
+  const resetToken = signPasswordResetChallenge(user.id, user.email, otpHash);
   return {
     sent: true,
+    resetToken,
     message: `Mã xác thực 6 chữ số đã được gửi tới ${user.email}. Vui lòng kiểm tra hộp thư đến (hoặc mục Thư rác).`,
   };
 }
 
 export async function resetPasswordWithOtp(
   db: DbClient,
-  input: { email?: string; otp?: string; newPassword?: string },
+  input: { email?: string; otp?: string; newPassword?: string; resetToken?: string },
 ): Promise<{ message: string }> {
   const email = String(input.email ?? "").trim().toLowerCase();
   const otp = String(input.otp ?? "").replace(/\s+/g, "");
   const newPassword = String(input.newPassword ?? "");
+  const resetToken = String(input.resetToken ?? "").trim();
 
   if (!email || !/^\d{6}$/.test(otp)) {
     throw new DomainError("Vui lòng nhập đúng địa chỉ email và mã OTP 6 chữ số.");
@@ -400,6 +451,7 @@ export async function resetPasswordWithOtp(
   }
 
   const now = nowIso();
+  const expectedHash = hashOtpCode(email, "PASSWORD_RESET", otp);
   const record = await one<{
     id: string;
     user_id: string | null;
@@ -415,24 +467,33 @@ export async function resetPasswordWithOtp(
     email,
   );
 
-  if (!record || record.expires_at <= now) {
+  if (record && record.expires_at > now) {
+    if (record.attempts >= 5) {
+      throw new DomainError("Bạn đã nhập sai mã OTP quá 5 lần. Vui lòng yêu cầu gửi mã mới.");
+    }
+    if (expectedHash !== record.code_hash) {
+      await run(db, `UPDATE auth_otp_codes SET attempts = attempts + 1 WHERE id = ?`, record.id);
+      throw new DomainError("Mã xác thực OTP không chính xác.");
+    }
+  } else if (env.isVercel && db.engine === "sqlite" && resetToken) {
+    const signed = verifyPasswordResetChallenge(resetToken);
+    if (!signed || signed.email.toLowerCase() !== email) {
+      throw new DomainError("Mã OTP không tồn tại hoặc đã hết hạn (15 phút). Vui lòng yêu cầu mã mới.");
+    }
+    if (signed.otpHash !== expectedHash) {
+      throw new DomainError("Mã xác thực OTP không chính xác.");
+    }
+  } else {
     throw new DomainError("Mã OTP không tồn tại hoặc đã hết hạn (15 phút). Vui lòng yêu cầu mã mới.");
-  }
-  if (record.attempts >= 5) {
-    throw new DomainError("Bạn đã nhập sai mã OTP quá 5 lần. Vui lòng yêu cầu gửi mã mới.");
-  }
-
-  const expectedHash = hashOtpCode(email, "PASSWORD_RESET", otp);
-  if (expectedHash !== record.code_hash) {
-    await run(db, `UPDATE auth_otp_codes SET attempts = attempts + 1 WHERE id = ?`, record.id);
-    throw new DomainError("Mã xác thực OTP không chính xác.");
   }
 
   const user = await one<{ id: string }>(db, `SELECT id FROM users WHERE LOWER(email) = LOWER(?)`, email);
   if (!user) throw new DomainError("Không tìm thấy tài khoản.", "NOT_FOUND");
 
   await tx(db, async () => {
-    await run(db, `UPDATE auth_otp_codes SET consumed_at = ? WHERE id = ?`, now, record.id);
+    if (record) {
+      await run(db, `UPDATE auth_otp_codes SET consumed_at = ? WHERE id = ?`, now, record.id);
+    }
     await run(
       db,
       `UPDATE users SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, ?), updated_at = ? WHERE id = ?`,
@@ -441,7 +502,6 @@ export async function resetPasswordWithOtp(
       now,
       user.id,
     );
-    // Thu hồi toàn bộ phiên đăng nhập cũ để bảo vệ tài khoản
     await run(db, `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`, now, user.id);
     await audit(db, user.id, "user.password_reset", "user", user.id, "Đặt lại mật khẩu qua Email OTP");
   });
@@ -533,10 +593,12 @@ export async function getTwoFactorStatus(db: DbClient, userId: string) {
     `SELECT COUNT(*) AS c FROM user_backup_codes WHERE user_id = ? AND used_at IS NULL`,
     userId,
   );
+  const count = Number(remaining?.c ?? 0);
   return {
     enabled: Number(tf?.is_enabled ?? 0) === 1,
     verifiedAt: tf?.verified_at ?? null,
-    remainingBackupCodes: Number(remaining?.c ?? 0),
+    remainingBackupCodes: count,
+    backupCodesRemaining: count,
   };
 }
 
@@ -556,6 +618,7 @@ export async function setupTwoFactor(db: DbClient, userId: string) {
   const secret = generateTotpSecret();
   const otpauthUrl = buildOtpAuthUrl(user.email, secret);
   const qrCodeDataUrl = await generateQrCodeDataUrl(otpauthUrl);
+  const setupToken = signTwoFactorSetupToken(user.id, secret);
   const now = nowIso();
 
   await tx(db, async () => {
@@ -570,18 +633,33 @@ export async function setupTwoFactor(db: DbClient, userId: string) {
   });
 
   return {
-    secret, // Chuỗi Base32 viết hoa chuẩn (dán trực tiếp vào https://2fa.live hoặc Google Authenticator)
+    secret,
+    setupToken,
     otpauthUrl,
     qrCodeDataUrl,
   };
 }
 
-export async function enableTwoFactor(db: DbClient, userId: string, codeRaw: string) {
-  const tf = await one<{ secret_base32: string; is_enabled: number }>(
+export async function enableTwoFactor(db: DbClient, userId: string, codeRaw: string, setupToken?: string) {
+  let tf = await one<{ secret_base32: string; is_enabled: number }>(
     db,
     `SELECT secret_base32, is_enabled FROM user_two_factor WHERE user_id = ?`,
     userId,
   );
+  if (!tf && setupToken && env.isVercel && db.engine === "sqlite") {
+    const signed = verifyTwoFactorSetupToken(setupToken);
+    if (signed && signed.userId === userId) {
+      const now = nowIso();
+      await insert(db, "user_two_factor", {
+        user_id: userId,
+        secret_base32: signed.secret,
+        is_enabled: 0,
+        created_at: now,
+        updated_at: now,
+      });
+      tf = { secret_base32: signed.secret, is_enabled: 0 };
+    }
+  }
   if (!tf) {
     throw new DomainError("Vui lòng khởi tạo khoá 2FA trước khi xác nhận.");
   }

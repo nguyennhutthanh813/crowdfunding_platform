@@ -3,7 +3,6 @@
  * cùng hệ sinh thái chiến dịch tiếng Việt thực tế ở đầy đủ các giai đoạn vòng đời.
  */
 import type { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
 import { ROLES, PERMISSIONS, ROLE_PERMISSIONS } from "./catalog.js";
 import { hashPassword, hashFastCommunityPassword } from "../auth/password.js";
 import { analyzeComment } from "../services/ai/comments.js";
@@ -31,6 +30,9 @@ type Cell = string | number | null;
 export function seedDatabase(db: DatabaseSync, nowDate = new Date()) {
   const NOW = nowDate.getTime();
   const rand = mulberry32(20261118);
+  const idRand = mulberry32(99002026);
+  const hex4 = () => Math.floor(idRand() * 0x10000).toString(16).padStart(4, "0");
+  const randomUUID = () => `${hex4()}${hex4()}-${hex4()}-4${hex4().slice(1)}-8${hex4().slice(1)}-${hex4()}${hex4()}${hex4()}`;
   const pick = <T,>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
   const between = (a: number, b: number) => a + rand() * (b - a);
   const int = (a: number, b: number) => Math.floor(between(a, b + 1));

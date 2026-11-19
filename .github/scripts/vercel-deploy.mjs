@@ -98,7 +98,11 @@ async function ensureProject(token, scopeId, name, framework) {
   }
 }
 
-async function getProductionDomain(token, scopeId, projectIdOrName, fallbackSlug) {
+async function getProductionDomain(token, scopeId, project, fallbackSlug) {
+  const projectIdOrName = typeof project === "object" && project?.id ? project.id : project;
+  const prodAlias = typeof project === "object" ? project?.targets?.production?.alias?.[0] : null;
+  if (prodAlias) return `https://${prodAlias}`;
+
   const qs = teamQuery(scopeId);
   try {
     const { domains } = await vercelApi(token, `/v9/projects/${encodeURIComponent(projectIdOrName)}/domains${qs}`);
@@ -182,10 +186,7 @@ function stageAppDirectory(srcDir, kind) {
         return false;
       }
       if (norm.endsWith("/.env") || norm.endsWith("/.env.local")) return false;
-      if (
-        kind === "backend" &&
-        (norm.includes("/backend/public") || norm.includes("/backend/.data") || norm.includes("/backend/scripts"))
-      ) {
+      if (kind === "backend" && norm.includes("/backend/scripts")) {
         return false;
       }
       return true;
@@ -366,14 +367,20 @@ async function main() {
   ]);
 
   let backendDeployUrl = "";
-  let backendProdDomain = await getProductionDomain(token, scopeId, beProject.id, beProject.name);
+  let backendProdDomain = await getProductionDomain(token, scopeId, beProject, beProject.name);
+  let frontendProdDomain = await getProductionDomain(token, scopeId, feProject, feProject.name);
+
+  await upsertProjectEnvs(token, scopeId, beProject.id, [
+    { key: "FRONTEND_URL", value: frontendProdDomain, secret: false },
+    { key: "BACKEND_PUBLIC_URL", value: backendProdDomain, secret: false },
+  ]);
 
   if (targets.backend) {
     console.log(`\n▶ [1/2] Đang build & deploy Backend (${beProject.name})...`);
     const stagedBe = stageAppDirectory(resolve(ROOT, "backend"), "backend");
     try {
       backendDeployUrl = runVercelCli(stagedBe, scopeId, beProject.id, token, isProd);
-      backendProdDomain = await getProductionDomain(token, scopeId, beProject.id, beProject.name);
+      backendProdDomain = await getProductionDomain(token, scopeId, beProject, beProject.name);
       console.log(`✓ Backend đã triển khai: ${isProd ? backendProdDomain : backendDeployUrl}`);
     } finally {
       rmSync(stagedBe, { recursive: true, force: true });
@@ -395,7 +402,6 @@ async function main() {
   ]);
 
   let frontendDeployUrl = "";
-  let frontendProdDomain = await getProductionDomain(token, scopeId, feProject.id, feProject.name);
 
   if (targets.frontend) {
     console.log(`\n▶ [2/2] Đang build & deploy Frontend (${feProject.name})...`);
@@ -407,7 +413,7 @@ async function main() {
         "utf8",
       );
       frontendDeployUrl = runVercelCli(stagedFe, scopeId, feProject.id, token, isProd);
-      frontendProdDomain = await getProductionDomain(token, scopeId, feProject.id, feProject.name);
+      frontendProdDomain = await getProductionDomain(token, scopeId, feProject, feProject.name);
       console.log(`✓ Frontend đã triển khai: ${isProd ? frontendProdDomain : frontendDeployUrl}`);
     } finally {
       rmSync(stagedFe, { recursive: true, force: true });

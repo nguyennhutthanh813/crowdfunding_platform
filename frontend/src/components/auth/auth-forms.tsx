@@ -169,8 +169,10 @@ export function ForgotPasswordForm() {
   const inStep2 = Boolean(reqState?.ok || resetState?.email || step2Override);
 
   if (inStep2) {
+    const activeResetToken = resetState?.resetToken || reqState?.resetToken || "";
     return (
       <form action={resetAction} className="space-y-4">
+        <input type="hidden" name="resetToken" value={activeResetToken} />
         {reqState?.message && <SuccessNote text={reqState.message} />}
 
         <Field label="Email tài khoản" required>
