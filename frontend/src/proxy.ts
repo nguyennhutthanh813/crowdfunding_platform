@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const ACCESS_COOKIE = "fv_access";
 const REFRESH_COOKIE = "fv_refresh";
-const TWO_FACTOR_VAULT_COOKIE = "fv_2fa_vault";
 
 const rawBackendBase =
   process.env.BACKEND_URL ||
@@ -37,13 +36,9 @@ export async function proxy(req: NextRequest) {
   }
 
   try {
-    const vault = req.cookies.get(TWO_FACTOR_VAULT_COOKIE)?.value;
-    const reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    if (vault) reqHeaders["X-FV-2FA-Vault"] = vault;
-
     const res = await fetch(`${BACKEND_BASE}/api/v1/auth/refresh`, {
       method: "POST",
-      headers: reqHeaders,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken: refresh }),
       signal: AbortSignal.timeout(8_000),
     });

@@ -114,14 +114,13 @@ async function main() {
     // Dán mã có khoảng trắng kiểu "123 456" từ 2fa.live
     const otpCode1 = generateTotpCode(setup2fa.data.secret);
     const spacedOtp = `${otpCode1.slice(0, 3)} ${otpCode1.slice(3)}`;
-    const enable2fa = await req<{ ok: boolean; backupCodes: string[]; twoFactorVault?: string }>("/auth/2fa/enable", {
+    const enable2fa = await req<{ ok: boolean; backupCodes: string[] }>("/auth/2fa/enable", {
       method: "POST",
       token: tokens["Người dùng"],
       body: { code: spacedOtp, setupToken: setup2fa.data.setupToken },
     });
     assert.equal(enable2fa.status, 200);
     assert.equal(enable2fa.data.backupCodes.length, 8);
-    assert.ok(enable2fa.data.twoFactorVault?.startsWith("v1."), "Phải sinh khoá mã hoá AES-256-GCM twoFactorVault");
 
     const dbUserAfterEnable = await one<{ two_factor_enabled: number; two_factor_verified_at: string | null }>(
       getDb(),

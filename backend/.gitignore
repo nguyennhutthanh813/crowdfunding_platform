@@ -5,9 +5,9 @@ dist/
 .env.*
 !.env.example
 
-# SQLite sample DB (.data/fundviet.sqlite tracked; ignore runtime WAL/SHM)
-.data/*
-!.data/fundviet.sqlite
+# Bỏ qua toàn bộ thư mục dữ liệu cục bộ tạm (.data/) — hệ thống chạy trực tiếp trên Supabase PostgreSQL
+.data/
+*.sqlite
 *.sqlite-wal
 *.sqlite-shm
 *.sqlite-journal

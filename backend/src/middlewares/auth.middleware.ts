@@ -10,7 +10,6 @@ declare global {
     interface Request {
       viewer: Viewer | null;
       sessionId: string | null;
-      twoFactorVaultHeader: string | undefined;
     }
   }
 }
@@ -19,8 +18,6 @@ declare global {
 export async function attachViewerMiddleware(req: Request, _res: Response, next: NextFunction) {
   req.viewer = null;
   req.sessionId = null;
-  req.twoFactorVaultHeader =
-    typeof req.headers["x-fv-2fa-vault"] === "string" ? req.headers["x-fv-2fa-vault"].trim() : undefined;
 
   try {
     const authHeader = req.headers.authorization;

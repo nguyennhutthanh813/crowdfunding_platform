@@ -1,3 +1,5 @@
+import { existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
 import { env, isPostgresConfigured } from "../src/config/env.js";
@@ -58,8 +60,9 @@ const TOPOLOGICAL_TABLES = [
 ];
 
 async function main() {
-  const sqliteFile = join(process.cwd(), ".data", "fundviet.sqlite");
-  const sqlite = openSqliteDatabase(sqliteFile, { seed: true });
+  // Sinh dữ liệu mẫu tạm trong thư mục hệ thống rồi xoá ngay sau khi đổ xong lên Supabase
+  const tempSeedFile = join(tmpdir(), `fundviet-seed-sync-${Date.now()}.sqlite`);
+  const sqlite = openSqliteDatabase(tempSeedFile, { reset: true, seed: true });
 
   const pool = new pg.Pool({
     connectionString: env.databaseUrl,
@@ -111,6 +114,9 @@ async function main() {
     client.release();
     await pool.end();
     sqlite.close();
+    for (const f of [tempSeedFile, `${tempSeedFile}-wal`, `${tempSeedFile}-shm`]) {
+      if (existsSync(f)) rmSync(f, { force: true });
+    }
   }
 }
 
