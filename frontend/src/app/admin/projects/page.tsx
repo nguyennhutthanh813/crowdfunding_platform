@@ -5,6 +5,7 @@ import { adminProjectsBundle } from "@/server/queries/admin";
 import { buildQueryHref } from "@/components/admin/admin-helpers";
 import { RestoreProjectButton, TakedownProjectButton } from "@/components/admin/project-moderation-dialogs";
 import { SafeImage } from "@/components/admin/safe-image";
+import { PaginationBar } from "@/components/ui/pagination";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { EmptyState, PageHeader } from "@/components/ui/layout-bits";
@@ -28,8 +29,9 @@ export default async function AdminProjectsPage({
   const q = firstParam(sp.q).trim();
   const status = firstParam(sp.status).trim();
   const category = firstParam(sp.category).trim();
+  const page = Number(firstParam(sp.page)) || 1;
 
-  const { rows, counts, categories } = await adminProjectsBundle({ q, status, category });
+  const { rows, counts, categories, total, page: curPage, pages } = await adminProjectsBundle({ q, status, category, page });
   const totalAll = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
@@ -235,6 +237,15 @@ export default async function AdminProjectsPage({
               </tbody>
             </table>
           </div>
+
+          <PaginationBar
+            basePath="/admin/projects"
+            page={curPage}
+            pages={pages}
+            total={total}
+            params={{ q, status, category }}
+            itemLabel="dự án"
+          />
         </>
       )}
     </div>

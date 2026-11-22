@@ -6,15 +6,17 @@ import { AdminOnlyNotice } from "@/components/me/admin-only-notice";
 import { PledgeCard } from "@/components/me/pledge-card";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui/layout-bits";
+import { PaginationBar } from "@/components/ui/pagination";
 import { LinkTabs } from "@/components/ui/tabs";
 import { formatCompactVnd } from "@/lib/utils";
 
 export const metadata = { title: "Lịch sử góp vốn" };
 
 const VALID_FILTERS = new Set(["AUTHORIZED", "CAPTURED", "VOIDED", "CANCELLED"]);
+const BACKED_PAGE_SIZE = 10;
 
 export default async function MyBackedPage(props: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }) {
   const v = await requireViewer("/me/backed");
   if (!hasSystemPerm(v, "pledge.history.view")) {
@@ -27,6 +29,9 @@ export default async function MyBackedPage(props: {
 
   const pledges = await myPledges();
   const filtered = active === "all" ? pledges : pledges.filter((p) => p.status === active);
+  const pages = Math.max(1, Math.ceil(filtered.length / BACKED_PAGE_SIZE));
+  const curPage = Math.max(1, Math.min(Math.floor(Number(sp.page) || 1), pages));
+  const paged = filtered.slice((curPage - 1) * BACKED_PAGE_SIZE, curPage * BACKED_PAGE_SIZE);
 
   const countBy = (st: string) => pledges.filter((p) => p.status === st).length;
   const activeTotal = pledges
@@ -92,9 +97,17 @@ export default async function MyBackedPage(props: {
         />
       ) : (
         <div className="space-y-4">
-          {filtered.map((p) => (
+          {paged.map((p) => (
             <PledgeCard key={p.id} p={p} />
           ))}
+          <PaginationBar
+            basePath="/me/backed"
+            page={curPage}
+            pages={pages}
+            total={filtered.length}
+            params={active === "all" ? {} : { status: active }}
+            itemLabel="lượt góp vốn"
+          />
         </div>
       )}
     </div>

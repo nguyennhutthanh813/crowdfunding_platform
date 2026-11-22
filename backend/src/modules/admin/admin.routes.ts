@@ -94,7 +94,8 @@ adminRouter.get("/projects", requireSystemPermMiddleware("admin.project.takedown
     const q = typeof req.query.q === "string" && req.query.q.trim() ? req.query.q.trim() : undefined;
     const status = typeof req.query.status === "string" && req.query.status.trim() ? req.query.status.trim() : undefined;
     const category = typeof req.query.category === "string" && req.query.category.trim() ? req.query.category.trim() : undefined;
-    const [data, categories] = await Promise.all([adminProjects({ q, status, category }), categoryOptions()]);
+    const page = Number(req.query.page) || 1;
+    const [data, categories] = await Promise.all([adminProjects({ q, status, category, page }), categoryOptions()]);
     res.json({ ok: true, ...data, categories });
   } catch (e) {
     res.status(500).json({ ok: false, error: humanizeError(e) });
@@ -175,7 +176,8 @@ adminRouter.get("/reports", requireSystemPermMiddleware("admin.report.handle"), 
   try {
     const raw = String(req.query.status ?? "OPEN").toUpperCase();
     const status = ["OPEN", "RESOLVED", "DISMISSED"].includes(raw) ? raw : "OPEN";
-    const data = await adminReports(status);
+    const page = Number(req.query.page) || 1;
+    const data = await adminReports(status, page);
     res.json({ ok: true, ...data });
   } catch (e) {
     res.status(500).json({ ok: false, error: humanizeError(e) });

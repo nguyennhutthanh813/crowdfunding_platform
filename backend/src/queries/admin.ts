@@ -430,7 +430,7 @@ export async function reviewDetail(slug: string) {
 }
 
 /* ═══════════════════════ 3. Dự án ═══════════════════════ */
-export async function adminProjects(f: { q?: string; status?: string; category?: string }) {
+export async function adminProjects(f: { q?: string; status?: string; category?: string; page?: number }) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const args: Cell[] = [];
@@ -446,6 +446,10 @@ export async function adminProjects(f: { q?: string; status?: string; category?:
     where.push(`c.slug = ?`);
     args.push(f.category);
   }
+  const fromJoin = `FROM projects p JOIN users u ON u.id = p.creator_id JOIN categories c ON c.id = p.category_id`;
+  const total = n((await one<{ c: number }>(db, `SELECT COUNT(*) AS c ${fromJoin} WHERE ${where.join(" AND ")}`, ...args))?.c);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.max(1, Math.min(f.page ?? 1, pages));
   const rows = await all<{
     id: string;
     slug: string;
@@ -468,13 +472,22 @@ export async function adminProjects(f: { q?: string; status?: string; category?:
             u.display_name AS creator, u.username AS creator_username, c.name AS category, c.color,
             (SELECT COUNT(*) FROM reports r LEFT JOIN comments cm ON cm.id = r.comment_id
               WHERE r.status = 'OPEN' AND (r.project_id = p.id OR cm.project_id = p.id)) AS open_reports
-     FROM projects p JOIN users u ON u.id = p.creator_id JOIN categories c ON c.id = p.category_id
+     ${fromJoin}
      WHERE ${where.join(" AND ")}
-     ORDER BY CASE p.status WHEN 'SUSPENDED' THEN 0 WHEN 'LIVE' THEN 1 WHEN 'SCHEDULED' THEN 2 ELSE 3 END, open_reports DESC, p.updated_at DESC LIMIT 200`,
+     ORDER BY CASE p.status WHEN 'SUSPENDED' THEN 0 WHEN 'LIVE' THEN 1 WHEN 'SCHEDULED' THEN 2 ELSE 3 END, open_reports DESC, p.updated_at DESC
+     LIMIT ? OFFSET ?`,
     ...args,
+    PAGE_SIZE,
+    (page - 1) * PAGE_SIZE,
   );
   const counts = await all<{ status: string; c: number }>(db, `SELECT status, COUNT(*) AS c FROM projects GROUP BY status`);
-  return { rows, counts: Object.fromEntries(counts.map((r) => [r.status, n(r.c)])) as Record<string, number> };
+  return {
+    rows,
+    counts: Object.fromEntries(counts.map((r) => [r.status, n(r.c)])) as Record<string, number>,
+    total,
+    page,
+    pages,
+  };
 }
 
 export async function categoryOptions() {
@@ -647,8 +660,11 @@ export async function adminUserDetail(userId: string) {
 export type AdminUserDetail = NonNullable<Awaited<ReturnType<typeof adminUserDetail>>>;
 
 /* ═══════════════════════ 5. Báo cáo vi phạm ═══════════════════════ */
-export async function adminReports(status: string) {
+export async function adminReports(status: string, pageIn = 1) {
   const db = getDb();
+  const total = n((await one<{ c: number }>(db, `SELECT COUNT(*) AS c FROM reports WHERE status = ?`, status))?.c);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.max(1, Math.min(pageIn, pages));
   const rows = await all<{
     id: string;
     target_type: string;
@@ -688,12 +704,15 @@ export async function adminReports(status: string) {
      LEFT JOIN comments c ON c.id = r.comment_id LEFT JOIN users ca ON ca.id = c.author_id
      LEFT JOIN projects p ON p.id = COALESCE(r.project_id, c.project_id)
      LEFT JOIN users tu ON tu.id = r.user_id
-     WHERE r.status = ? ORDER BY ${status === "OPEN" ? "r.created_at ASC" : "r.handled_at DESC"} LIMIT 100`,
+     WHERE r.status = ? ORDER BY ${status === "OPEN" ? "r.created_at ASC" : "r.handled_at DESC"}
+     LIMIT ? OFFSET ?`,
     status,
+    PAGE_SIZE,
+    (page - 1) * PAGE_SIZE,
   );
   const countRows = await all<{ status: string; c: number }>(db, `SELECT status, COUNT(*) AS c FROM reports GROUP BY status`);
   const counts = Object.fromEntries(countRows.map((r) => [r.status, n(r.c)])) as Record<string, number>;
-  return { rows, counts };
+  return { rows, counts, total, page, pages };
 }
 
 export type AdminReportRow = Awaited<ReturnType<typeof adminReports>>["rows"][number];

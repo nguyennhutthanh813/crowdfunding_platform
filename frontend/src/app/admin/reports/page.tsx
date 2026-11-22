@@ -6,6 +6,7 @@ import { hasSystemPerm } from "@/server/rbac/rbac";
 import { adminReports, REPORT_REASON } from "@/server/queries/admin";
 import { REPORT_STATUS_META, REPORT_TARGET_META, serverNow } from "@/components/admin/admin-helpers";
 import { ReportHandleForm } from "@/components/admin/report-handle-form";
+import { PaginationBar } from "@/components/ui/pagination";
 import { EmptyState, PageHeader } from "@/components/ui/layout-bits";
 import { Badge, ProjectStatusBadge } from "@/components/ui/primitives";
 import { LinkTabs } from "@/components/ui/tabs";
@@ -24,8 +25,9 @@ export default async function AdminReportsPage({
   const sp = await searchParams;
   const rawTab = firstParam(sp.tab).toUpperCase();
   const status = ["OPEN", "RESOLVED", "DISMISSED"].includes(rawTab) ? rawTab : "OPEN";
+  const page = Number(firstParam(sp.page)) || 1;
 
-  const { rows, counts } = await adminReports(status);
+  const { rows, counts, total, page: curPage, pages } = await adminReports(status, page);
   const now = serverNow();
 
   const canModerateComment = hasSystemPerm(viewer, "admin.comment.moderate");
@@ -193,6 +195,15 @@ export default async function AdminReportsPage({
               </article>
             );
           })}
+
+          <PaginationBar
+            basePath="/admin/reports"
+            page={curPage}
+            pages={pages}
+            total={total}
+            params={{ tab: status }}
+            itemLabel="báo cáo"
+          />
         </div>
       )}
     </div>

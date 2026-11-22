@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
-import { ChevronLeft, ChevronRight, Plus, Rocket } from "lucide-react";
+import { Plus, Rocket } from "lucide-react";
 import { getViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
 import { listCategories, listPublicProjects, type SortKey } from "@/server/queries/projects";
@@ -9,9 +8,9 @@ import { ProjectCard } from "@/components/project/project-card";
 import { Reveal } from "@/components/fx/motion";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/ui/layout-bits";
+import { PaginationBar } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/primitives";
 import { ExploreFilters } from "@/components/public/explore-filters";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -118,49 +117,15 @@ export default async function ExplorePage(props: {
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <nav aria-label="Phân trang" className="flex flex-wrap items-center justify-center gap-1.5 pt-4">
-              <Link
-                href={pageHref(Math.max(1, page - 1))}
-                aria-disabled={page <= 1}
-                className={cn(
-                  "inline-flex h-10 items-center gap-1 rounded-xl border border-line bg-surface px-3 text-sm font-semibold transition",
-                  page <= 1 ? "pointer-events-none opacity-45" : "hover:border-violet-400/50 hover:bg-surface-2",
-                )}
-              >
-                <ChevronLeft className="size-4" /> Trước
-              </Link>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <Link
-                  key={n}
-                  href={pageHref(n)}
-                  aria-current={n === page ? "page" : undefined}
-                  className={cn(
-                    "grid size-10 place-items-center rounded-xl text-sm font-bold tabular-nums transition",
-                    n === page
-                      ? "bg-brand-gradient text-white shadow-[0_6px_16px_-6px_rgba(109,74,255,0.75)]"
-                      : "border border-line bg-surface text-muted hover:border-violet-400/50 hover:text-fg",
-                  )}
-                >
-                  {n}
-                </Link>
-              ))}
-
-              <Link
-                href={pageHref(Math.min(totalPages, page + 1))}
-                aria-disabled={page >= totalPages}
-                className={cn(
-                  "inline-flex h-10 items-center gap-1 rounded-xl border border-line bg-surface px-3 text-sm font-semibold transition",
-                  page >= totalPages
-                    ? "pointer-events-none opacity-45"
-                    : "hover:border-violet-400/50 hover:bg-surface-2",
-                )}
-              >
-                Sau <ChevronRight className="size-4" />
-              </Link>
-            </nav>
-          )}
+          <PaginationBar
+            basePath="/explore"
+            page={page}
+            pages={totalPages}
+            total={total}
+            params={{}}
+            hrefFor={pageHref}
+            itemLabel="dự án"
+          />
         </>
       )}
     </div>

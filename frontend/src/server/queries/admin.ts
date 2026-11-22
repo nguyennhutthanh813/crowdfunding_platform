@@ -329,11 +329,12 @@ export async function reviewDetail(slug: string) {
   return res.detail ?? null;
 }
 
-export async function adminProjectsBundle(f: { q?: string; status?: string; category?: string }) {
+export async function adminProjectsBundle(f: { q?: string; status?: string; category?: string; page?: number }) {
   const qs = new URLSearchParams();
   if (f.q) qs.set("q", f.q);
   if (f.status) qs.set("status", f.status);
   if (f.category) qs.set("category", f.category);
+  if (f.page) qs.set("page", String(f.page));
   const res = await apiGet<{
     ok?: boolean;
     rows?: {
@@ -355,11 +356,17 @@ export async function adminProjectsBundle(f: { q?: string; status?: string; cate
     }[];
     counts?: Record<string, number>;
     categories?: { id: string; slug: string; name: string }[];
+    total?: number;
+    page?: number;
+    pages?: number;
   }>(`/admin/projects?${qs.toString()}`);
   return {
     rows: res.rows ?? [],
     counts: res.counts ?? {},
     categories: res.categories ?? [],
+    total: res.total ?? 0,
+    page: res.page ?? 1,
+    pages: res.pages ?? 1,
   };
 }
 
@@ -389,13 +396,21 @@ export async function adminUsersBundle(f: { q?: string; status?: string; role?: 
   };
 }
 
-export async function adminReports(status: string) {
-  const res = await apiGet<{ ok?: boolean; rows?: AdminReportRow[]; counts?: Record<string, number> }>(
-    `/admin/reports?status=${encodeURIComponent(status)}`,
-  );
+export async function adminReports(status: string, page = 1) {
+  const res = await apiGet<{
+    ok?: boolean;
+    rows?: AdminReportRow[];
+    counts?: Record<string, number>;
+    total?: number;
+    page?: number;
+    pages?: number;
+  }>(`/admin/reports?status=${encodeURIComponent(status)}&page=${page}`);
   return {
     rows: res.rows ?? [],
     counts: res.counts ?? {},
+    total: res.total ?? 0,
+    page: res.page ?? 1,
+    pages: res.pages ?? 1,
   };
 }
 
