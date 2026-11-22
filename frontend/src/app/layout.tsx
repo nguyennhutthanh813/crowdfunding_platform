@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { Toaster } from "sonner";
@@ -5,6 +6,7 @@ import { getNavContext } from "@/server/queries/nav";
 import { NavBar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { SiteFooter } from "@/components/layout/footer";
+import { RouteProgress } from "@/components/layout/route-progress";
 import "./globals.css";
 
 const font = Be_Vietnam_Pro({ subsets: ["latin", "vietnamese"], weight: ["400", "500", "600", "700", "800", "900"], variable: "--font-be-vietnam", display: "swap" });
@@ -28,6 +30,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-dvh font-sans">
+        <Suspense fallback={null}>
+          <RouteProgress />
+        </Suspense>
         <NavBar ctx={ctx} />
         <main className="min-h-[70vh]">{children}</main>
         <SiteFooter />
