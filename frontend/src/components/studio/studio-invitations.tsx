@@ -93,7 +93,7 @@ function InvitationDecisionActions({ inv }: { inv: StudioInvitationItem }) {
   };
 
   return (
-    <div className="flex items-center justify-end gap-2 border-t border-line pt-2.5">
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-2.5">
       <Button
         type="button"
         variant="outline"
@@ -132,11 +132,11 @@ export function StudioInvitationsPanel({ invitations }: { invitations: StudioInv
   return (
     <section className="card space-y-3 border-sky-500/30 bg-gradient-to-br from-sky-500/8 via-surface to-violet-500/5 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-gradient text-white shadow">
             <MailCheck className="size-4" />
           </span>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-bold sm:text-base">Lời mời làm Cộng tác viên đang chờ ({invitations.length})</h2>
             <p className="text-xs text-muted">Nhận lời để mở ngay không gian Studio dự án — không cần rời trang.</p>
           </div>
@@ -144,15 +144,15 @@ export function StudioInvitationsPanel({ invitations }: { invitations: StudioInv
         <CollaboratorRoleInfoButton />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {invitations.map((inv) => {
           const left = timeLeft(inv.expires_at);
           return (
             <div
               key={inv.id}
-              className="flex flex-col justify-between gap-3 rounded-2xl border border-line bg-surface p-3.5 shadow-sm"
+              className="flex min-w-0 flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-line bg-surface p-3.5 shadow-sm"
             >
-              <div className="flex gap-3">
+              <div className="flex min-w-0 gap-3">
                 <Link
                   href={`/p/${inv.slug}`}
                   className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-line bg-surface-2"
@@ -172,7 +172,7 @@ export function StudioInvitationsPanel({ invitations }: { invitations: StudioInv
                   <Link href={`/p/${inv.slug}`} className="line-clamp-1 block text-sm font-bold hover:text-violet-600">
                     {inv.title}
                   </Link>
-                  <div className="flex items-center gap-1.5 text-xs text-muted">
+                  <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
                     <SafeAvatar name={inv.inviter} src={inv.inviter_avatar} size={18} />
                     <span className="truncate">
                       <b className="text-fg">{inv.inviter}</b> (@{inv.inviter_username}) mời bạn
@@ -182,7 +182,7 @@ export function StudioInvitationsPanel({ invitations }: { invitations: StudioInv
               </div>
 
               {inv.message && (
-                <p className="rounded-xl bg-surface-2/70 px-3 py-1.5 text-xs italic text-muted">“{inv.message}”</p>
+                <p className="break-words rounded-xl bg-surface-2/70 px-3 py-1.5 text-xs italic text-muted">“{inv.message}”</p>
               )}
 
               <InvitationDecisionActions inv={inv} />

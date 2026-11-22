@@ -230,7 +230,7 @@ export async function reviewProject(db: DbClient, adminId: string, projectId: st
           await notify(db, {
             userId: f.follower_id,
             type: "NEW_PROJECT_FROM_FOLLOWED",
-            title: "Creator bạn theo dõi vừa mở dự án mới",
+            title: "Chủ dự án bạn theo dõi vừa mở dự án mới",
             body: p.title,
             link: `/p/${p.slug}`,
             projectId: p.id,

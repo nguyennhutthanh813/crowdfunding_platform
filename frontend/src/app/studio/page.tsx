@@ -63,7 +63,7 @@ export default async function StudioDashboardPage() {
       ) : (
         <>
           {/* Summary KPIs */}
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
               label="Dự án tham gia"
               value={<CountUp value={allProjects.length} />}
@@ -116,9 +116,9 @@ export default async function StudioDashboardPage() {
                     </ButtonLink>
                   </div>
                 ) : (
-                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {mine.map((p, i) => (
-                      <Reveal key={p.id} delay={(i % 3) * 0.05}>
+                      <Reveal key={p.id} delay={(i % 3) * 0.05} className="min-w-0">
                         <StudioProjectCard card={p} />
                       </Reveal>
                     ))}
@@ -138,9 +138,9 @@ export default async function StudioDashboardPage() {
                     }
                     description="Bạn hỗ trợ soạn câu hỏi thường gặp, nháp bản tin, phản hồi bình luận AI và theo dõi thống kê."
                   />
-                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {collab.map((p, i) => (
-                      <Reveal key={p.id} delay={(i % 3) * 0.05}>
+                      <Reveal key={p.id} delay={(i % 3) * 0.05} className="min-w-0">
                         <StudioProjectCard card={p} />
                       </Reveal>
                     ))}
@@ -234,10 +234,10 @@ function StudioProjectCard({ card: p }: { card: StudioCard }) {
           </Link>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2.5 text-xs">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isDraft ? (
                 <ButtonLink href={`/studio/${p.slug}/setup`} size="xs">
-                  Tiếp tục Wizard
+                  Tiếp tục thiết lập
                 </ButtonLink>
               ) : (
                 <ButtonLink href={`/studio/${p.slug}`} size="xs" variant="secondary">

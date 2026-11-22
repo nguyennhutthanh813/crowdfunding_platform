@@ -327,7 +327,7 @@ export async function recommendations(
         RECO_WEIGHTS.urgency * parts.urgency;
     const reasons: string[] = [];
     if (parts.affinity >= 0.34) reasons.push(`Bạn thích ${project.category_name}`);
-    if (parts.followed) reasons.push("Creator bạn theo dõi");
+    if (parts.followed) reasons.push("Chủ dự án bạn theo dõi");
     if (parts.momentum >= 0.5) reasons.push("Đang lên nhanh");
     if (parts.urgency) reasons.push("Sắp kết thúc");
     if (project.status === "SCHEDULED") reasons.push("Sắp mở — lưu để được báo");
