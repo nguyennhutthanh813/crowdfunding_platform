@@ -10,7 +10,6 @@ import {
   Pencil,
   Plus,
   ShieldCheck,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import {
@@ -38,10 +37,10 @@ import { COUNTRY_NAMES, cn } from "@/lib/utils";
 
 const AVATAR_PRESETS = [
   { label: "Mặc định", url: "" },
-  { label: "Backer", url: "/v3/roles/backer.webp" },
-  { label: "Creator", url: "/v3/roles/creator.webp" },
-  { label: "Collab", url: "/v3/roles/collaborator.webp" },
-  { label: "AI Orb", url: "/v3/brand/ai-orb.webp" },
+  { label: "Người ủng hộ", url: "/v3/roles/backer.webp" },
+  { label: "Chủ dự án", url: "/v3/roles/creator.webp" },
+  { label: "Cộng tác viên", url: "/v3/roles/collaborator.webp" },
+  { label: "Trợ lý AI", url: "/v3/brand/ai-orb.webp" },
 ];
 
 const VN_PROVINCES = [
@@ -119,13 +118,13 @@ export function ProfileSettingsForm({
 
         <Field
           label="Đường dẫn ảnh đại diện (tuỳ chọn)"
-          hint="Tải ảnh trực tiếp lên Cloudinary bằng nút phía trên hoặc chọn mẫu có sẵn."
+          hint="Tải ảnh trực tiếp từ thiết bị bằng nút phía trên hoặc chọn mẫu có sẵn."
         >
           <Input
             name="avatar_url"
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://res.cloudinary.com/..."
+            placeholder="https://... (liên kết ảnh đại diện)"
           />
         </Field>
 
@@ -289,20 +288,20 @@ export function PreferencesSettingsForm({
           <Toggle
             name="notify_new_project"
             defaultChecked={Boolean(settings.notify_new_project)}
-            label="Dự án mới từ creator đang theo dõi"
-            description="Nhận thông báo khi creator bạn follow mở chiến dịch mới."
+            label="Dự án mới từ chủ dự án đang theo dõi"
+            description="Nhận thông báo khi chủ dự án bạn theo dõi mở chiến dịch mới."
           />
           <Toggle
             name="notify_project_update"
             defaultChecked={Boolean(settings.notify_project_update)}
             label="Bản tin tiến độ dự án"
-            description="Thông báo khi dự án bạn góp vốn hoặc đã lưu đăng Update mới."
+            description="Thông báo khi dự án bạn góp vốn hoặc đã lưu đăng bản tin mới."
           />
           <Toggle
             name="notify_comment_reply"
             defaultChecked={Boolean(settings.notify_comment_reply)}
             label="Trả lời bình luận"
-            description="Thông báo khi Creator hoặc cộng đồng trả lời bình luận của bạn."
+            description="Thông báo khi chủ dự án hoặc cộng đồng trả lời bình luận của bạn."
           />
           <Toggle
             name="notify_message"
@@ -519,9 +518,9 @@ export function CardsSection({ cards }: { cards: CardItem[] }) {
       <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-4 text-xs">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
         <div className="space-y-1">
-          <div className="font-bold text-fg">Bảo mật thẻ thanh toán chuẩn Token hoá</div>
+          <div className="font-bold text-fg">Bảo mật thẻ thanh toán an toàn</div>
           <p className="text-muted">
-            Hệ thống không lưu số thẻ đầy đủ — chỉ lưu khoá đại diện (token) và 4 số cuối. Khi góp vốn, thẻ chỉ uỷ quyền giữ chỗ và chỉ thanh toán khi dự án đạt mục tiêu.
+            Hệ thống không lưu số thẻ đầy đủ — chỉ lưu mã bảo mật đại diện và 4 số cuối. Khi góp vốn, thẻ chỉ uỷ quyền giữ chỗ và chỉ thanh toán khi dự án đạt mục tiêu.
           </p>
         </div>
       </div>
@@ -586,25 +585,6 @@ export function CardsSection({ cards }: { cards: CardItem[] }) {
             <CreditCard className="size-4 text-violet-500" />
             <h3 className="text-base font-bold">Liên kết thẻ mới</h3>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { label: "Thẻ thử Visa", num: "4242 4242 4242 4242" },
-              { label: "Mastercard", num: "5555 5555 5555 4444" },
-              { label: "JCB", num: "3528 0000 0000 0007" },
-            ].map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => {
-                  setCardNumber(preset.num);
-                  if (!holderName) setHolderName("LE MINH ANH");
-                }}
-                className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
-              >
-                <Sparkles className="size-3 text-violet-500" /> {preset.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <ActionForm
@@ -617,12 +597,12 @@ export function CardsSection({ cards }: { cards: CardItem[] }) {
           className="space-y-4"
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Số thẻ" required hint="Kiểm tra chuẩn Luhn · tự nhận diện VISA / MC / JCB / NAPAS">
+            <Field label="Số thẻ" required hint="Hỗ trợ thẻ VISA / MasterCard / JCB / NAPAS">
               <Input
                 name="cardNumber"
                 value={cardNumber}
                 onChange={(e) => setCardNumber(e.target.value)}
-                placeholder="4242 4242 4242 4242"
+                placeholder="Nhập số thẻ thanh toán"
                 required
               />
             </Field>

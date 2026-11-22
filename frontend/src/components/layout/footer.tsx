@@ -8,7 +8,7 @@ export function SiteFooter() {
         <div className="space-y-3 md:col-span-2">
           <Logo />
           <p className="max-w-sm text-sm text-muted">
-            Nền tảng gọi vốn cộng đồng tích hợp AI cho người Việt. Cơ chế All-or-Nothing minh bạch: người ủng hộ chỉ bị trừ tiền khi chiến dịch đạt mục tiêu.
+            Nền tảng gọi vốn cộng đồng cho người Việt. Cơ chế minh bạch: người ủng hộ chỉ bị trừ tiền khi chiến dịch đạt mục tiêu.
           </p>
         </div>
         <div>

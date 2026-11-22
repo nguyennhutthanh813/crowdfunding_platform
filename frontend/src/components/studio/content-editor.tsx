@@ -257,7 +257,7 @@ function SectionFormBody({
                 name="media_url"
                 value={mediaUrl}
                 onChange={(e) => setMediaUrl(e.target.value)}
-                placeholder={kind === "IMAGE" ? "https://res.cloudinary.com/... hoặc /v3/projects/..." : "https://www.youtube.com/watch?v=..."}
+                placeholder={kind === "IMAGE" ? "Dán đường dẫn ảnh (https://...) hoặc tải lên" : "https://www.youtube.com/watch?v=..."}
                 className="min-w-[200px] flex-1"
                 required
               />

@@ -65,10 +65,10 @@ export function TeamPanel({
       {/* Invite Collaborator */}
       <div className="card p-5 sm:p-6">
         <h3 className="flex items-center gap-2 text-lg font-bold">
-          <MailPlus className="size-5 text-sky-500" /> Mời Collaborator hỗ trợ vận hành
+          <MailPlus className="size-5 text-sky-500" /> Mời cộng tác viên hỗ trợ vận hành
         </h3>
         <p className="mt-1 text-sm text-muted">
-          Collaborator giúp trả lời bình luận, quản lý FAQ, soạn nháp Update và xem thống kê — không chạm tới tiền, địa chỉ backer hay xoá dự án.
+          Cộng tác viên giúp trả lời bình luận, quản lý hỏi đáp, soạn nháp bản tin và xem thống kê — không chạm tới tiền, địa chỉ người ủng hộ hay xoá dự án.
         </p>
 
         <ActionForm action={inviteCollaboratorAction} resetOnSuccess className="mt-4 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -189,10 +189,10 @@ export function TeamPanel({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h4 className="flex items-center gap-2 text-base font-bold">
-              <ShieldCheck className="size-5 text-emerald-500" /> Ma trận phân quyền Creator &amp; Collaborator
+              <ShieldCheck className="size-5 text-emerald-500" /> Ma trận phân quyền Chủ dự án &amp; Cộng tác viên
             </h4>
             <p className="mt-0.5 text-xs text-muted">
-              Đọc trực tiếp từ bảng phân quyền RBAC của hệ thống (collaborator bị chặn cả ở giao diện lẫn Server Action &amp; Trigger).
+              Phạm vi quyền hạn giữa Chủ dự án và Cộng tác viên được áp dụng đồng bộ trên toàn hệ thống.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -207,8 +207,8 @@ export function TeamPanel({
               <tr>
                 <th className="py-2.5 pr-4">Phân hệ</th>
                 <th className="py-2.5 pr-4">Quyền hạn</th>
-                <th className="px-3 py-2.5 text-center">Creator</th>
-                <th className="px-3 py-2.5 text-center">Collaborator</th>
+                <th className="px-3 py-2.5 text-center">Chủ dự án</th>
+                <th className="px-3 py-2.5 text-center">Cộng tác viên</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -217,7 +217,6 @@ export function TeamPanel({
                   <td className="py-2.5 pr-4 text-xs font-semibold text-muted">{p.module}</td>
                   <td className="py-2.5 pr-4">
                     <div className="font-medium">{p.name}</div>
-                    <div className="font-mono text-[11px] text-muted">{p.code}</div>
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     {creatorSet.has(p.code) ? (

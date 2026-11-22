@@ -40,7 +40,7 @@ export function RoleBadge({ role, className }: { role: string; className?: strin
   if (!m) return null;
   return (
     <span
-      className={cn("inline-flex items-center rounded-md px-1.5 py-px text-[10px] font-bold tracking-wider text-white", className)}
+      className={cn("inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 py-px text-[10px] font-bold tracking-wider text-white", className)}
       style={{ background: m.color }}
     >
       {m.short}

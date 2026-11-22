@@ -231,7 +231,7 @@ export default async function StudioProjectPage(props: {
               </h3>
               {canSeeBackerNames ? (
                 <Link href={`/studio/${project.slug}?tab=backers`} className="text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400">
-                  Danh sách backer →
+                  Danh sách người ủng hộ →
                 </Link>
               ) : (
                 <Link href={`/studio/${project.slug}?tab=comments`} className="text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400">

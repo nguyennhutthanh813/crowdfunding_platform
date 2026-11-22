@@ -15,6 +15,7 @@ import {
   Undo2,
 } from "lucide-react";
 import type { StudioProject } from "@/server/queries/studio";
+import { PROJECT_STATUS } from "@/lib/status";
 import {
   cancelProjectAction,
   deleteDraftAction,
@@ -125,7 +126,7 @@ export function SettingsPanel({
       {/* Schedule & Preview */}
       <div className="card p-5 sm:p-6">
         <h3 className="flex items-center gap-2 text-lg font-bold">
-          <CalendarClock className="size-5 text-sky-500" /> Lịch bắt đầu &amp; Trang xem trước (Preview)
+          <CalendarClock className="size-5 text-sky-500" /> Lịch bắt đầu &amp; Trang xem trước
         </h3>
         <p className="mt-1 text-sm text-muted">
           Đặt ngày dự kiến mở chiến dịch (giờ Việt Nam) và bật/tắt trang xem trước công khai khi dự án ở trạng thái Sắp mở.
@@ -147,7 +148,7 @@ export function SettingsPanel({
                 />
               </Field>
               <div className="rounded-xl bg-surface-2/50 p-3.5 text-xs text-muted">
-                <div>Trạng thái hiện tại: <b className="text-fg">{project.status}</b></div>
+                <div>Trạng thái hiện tại: <b className="text-fg">{PROJECT_STATUS[project.status]?.label ?? project.status}</b></div>
                 <div className="mt-1">Mở hiện tại: <b className="text-fg">{formatDate(project.start_at, true)}</b></div>
                 <div className="mt-1">Kết thúc dự kiến: <b className="text-fg">{formatDate(project.end_at, true)}</b></div>
               </div>
@@ -156,13 +157,13 @@ export function SettingsPanel({
             <Toggle
               name="is_preview_public"
               defaultChecked={project.is_preview_public === 1}
-              label="Cho phép cộng đồng xem trước khi Sắp mở (SCHEDULED)"
-              description="Khi bật, mọi người truy cập được trang /p/[slug] để xem nội dung và nhấn Lưu dự án."
+              label="Cho phép cộng đồng xem trước khi sắp mở"
+              description="Khi bật, mọi người truy cập được trang dự án để xem nội dung và nhấn Lưu dự án."
             />
 
             <div className="flex justify-end">
               <SubmitButton variant="secondary" size="sm" pendingText="Đang lưu…">
-                Lưu lịch &amp; cài đặt preview
+                Lưu lịch &amp; cài đặt xem trước
               </SubmitButton>
             </div>
           </ActionForm>
@@ -176,7 +177,7 @@ export function SettingsPanel({
 
       {/* Completed Display (FR08) */}
       <div className="card p-5 sm:p-6">
-        <h3 className="text-lg font-bold">Hiển thị khi dự án Hoàn thành (Completed)</h3>
+        <h3 className="text-lg font-bold">Hiển thị khi dự án hoàn thành</h3>
         <p className="mt-1 text-sm text-muted">
           Khi dự án hoàn thành, thanh tiến trình gọi vốn sẽ ẩn và trang công khai hiển thị nội dung bạn chọn bên dưới.
         </p>
@@ -185,9 +186,9 @@ export function SettingsPanel({
           <input type="hidden" name="project_id" value={project.id} />
           <Field label="Chế độ hiển thị trang dự án đã hoàn thành">
             <Select name="completed_display" defaultValue={project.completed_display}>
-              <option value="SUMMARY">Tổng kết chiến dịch (số tiền, số backer, kết quả giao quà)</option>
-              <option value="UPDATES">Ưu tiên các bản tin Updates mới nhất</option>
-              <option value="THANK_YOU">Thư cảm ơn tuỳ chỉnh của Creator</option>
+              <option value="SUMMARY">Tổng kết chiến dịch (số tiền, số người ủng hộ, kết quả giao quà)</option>
+              <option value="UPDATES">Ưu tiên các bản tin cập nhật mới nhất</option>
+              <option value="THANK_YOU">Thư cảm ơn tuỳ chỉnh của chủ dự án</option>
             </Select>
           </Field>
           <Field label="Thông điệp cảm ơn / tổng kết gửi tới cộng đồng">
@@ -244,8 +245,8 @@ export function SettingsPanel({
                 <div key={h.id} className="rounded-xl border border-line bg-surface-2/30 p-3 text-xs">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold">
-                      {h.from_status ? `${h.from_status} → ` : ""}
-                      {h.to_status}
+                      {h.from_status ? `${PROJECT_STATUS[h.from_status]?.label ?? h.from_status} → ` : ""}
+                      {PROJECT_STATUS[h.to_status]?.label ?? h.to_status}
                     </span>
                     <span className="text-muted">{formatDate(h.created_at, true)}</span>
                   </div>

@@ -27,7 +27,7 @@ export function ConversationList({
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <div>
           <h2 className="text-sm font-bold">Hộp thư ({conversations.length})</h2>
-          <p className="text-[11px] text-muted">Trao đổi trực tiếp cùng Creator & Backer</p>
+          <p className="text-[11px] text-muted">Trao đổi trực tiếp cùng chủ dự án &amp; người ủng hộ</p>
         </div>
         <ButtonLink href="/me/messages/new" size="xs">
           <MessageSquarePlus className="size-3.5" /> Mới

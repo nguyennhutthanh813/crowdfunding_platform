@@ -130,7 +130,7 @@ export default async function MeOverviewPage(props: {
           {
             href: summary.creator_count + summary.collab_count > 0 ? "/studio" : "/studio/new",
             label: summary.creator_count + summary.collab_count > 0 ? "Mở Studio" : "Tạo dự án",
-            sub: summary.creator_count + summary.collab_count > 0 ? "Quản lý chiến dịch" : "Trở thành Creator",
+            sub: summary.creator_count + summary.collab_count > 0 ? "Quản lý chiến dịch" : "Khởi tạo dự án",
             icon: Rocket,
             tone: "text-amber-500",
           },
@@ -197,7 +197,7 @@ export default async function MeOverviewPage(props: {
                 <Sparkles className="size-5 text-amber-500" /> Gợi ý dành riêng cho bạn
               </span>
             }
-            description={recos.coldStart ? "Các dự án đang thịnh hành trên FundViet." : "Dựa trên thể loại bạn thích và creator bạn theo dõi."}
+            description={recos.coldStart ? "Các dự án đang thịnh hành trên FundViet." : "Dựa trên thể loại bạn thích và chủ dự án bạn theo dõi."}
             action={
               <div className="flex gap-1">
                 <ButtonLink href="/me/activity" variant="ghost" size="xs">

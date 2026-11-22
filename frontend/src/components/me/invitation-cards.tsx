@@ -20,7 +20,7 @@ export function InvitationCards({ invitations }: { invitations: InvitationRow[] 
             <MailCheck className="size-4" />
           </span>
           <div>
-            <h2 className="text-base font-bold tracking-tight sm:text-lg">Lời mời làm Collaborator</h2>
+            <h2 className="text-base font-bold tracking-tight sm:text-lg">Lời mời làm cộng tác viên</h2>
             <p className="text-xs text-muted">Khi đồng ý, bạn sẽ nhận quyền hỗ trợ vận hành dự án trong Studio.</p>
           </div>
         </div>

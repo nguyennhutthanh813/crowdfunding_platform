@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ScrollText } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
 import { auditList } from "@/server/queries/admin";
-import { AUDIT_PREFIX_META, auditTone, buildQueryHref, serverNow } from "@/components/admin/admin-helpers";
+import { AUDIT_PREFIX_META, auditTone, buildQueryHref, formatAuditAction, serverNow } from "@/components/admin/admin-helpers";
 import { PaginationBar } from "@/components/admin/pagination-bar";
 import { EmptyState, PageHeader } from "@/components/ui/layout-bits";
 import { Badge } from "@/components/ui/primitives";
@@ -29,7 +29,7 @@ export default async function AdminAuditPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Truy vết quản trị · Audit Logs"
+        eyebrow="Truy vết quản trị"
         title="Nhật ký hệ thống"
         description="Ghi nhận đầy đủ mọi thao tác duyệt/gỡ dự án, khoá người dùng, xử lý báo cáo, thay đổi thể loại và chạy bộ lập lịch."
       />
@@ -65,7 +65,7 @@ export default async function AdminAuditPage({
                   : "border-line bg-surface text-muted hover:border-violet-400/50 hover:text-fg",
               )}
             >
-              <span>{meta ? `${meta.label} (${item.prefix}*)` : item.prefix}</span>
+              <span>{meta ? meta.label : item.prefix}</span>
               <span className={cn("rounded-full px-1.5 text-[10px] tabular-nums", active ? "bg-white/25" : "bg-surface-2")}>
                 {item.count}
               </span>
@@ -83,7 +83,7 @@ export default async function AdminAuditPage({
             {data.rows.map((r) => (
               <div key={r.id} className="card space-y-2 p-4 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <Badge tone={auditTone(r.action)}>{r.action}</Badge>
+                  <Badge tone={auditTone(r.action)}>{formatAuditAction(r.action)}</Badge>
                   <span className="text-muted">{timeAgo(r.created_at, now)}</span>
                 </div>
                 <div className="font-semibold">
@@ -119,7 +119,7 @@ export default async function AdminAuditPage({
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={auditTone(r.action)}>
-                        <ScrollText className="size-3" /> {r.action}
+                        <ScrollText className="size-3" /> {formatAuditAction(r.action)}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">

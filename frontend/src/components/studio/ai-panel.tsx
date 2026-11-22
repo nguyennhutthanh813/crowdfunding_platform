@@ -60,7 +60,7 @@ export function AiPanel({
           <p className="mt-1 text-xs text-muted">
             {prediction?.createdAt
               ? `Cập nhật ${formatDate(prediction.createdAt, true)}${prediction.requestedByName ? ` · bởi ${prediction.requestedByName}` : ""}`
-              : "Tính toán trực tiếp từ cấu hình hiện tại của chiến dịch (fv-logit-1.0)"}
+              : "Tính toán trực tiếp từ cấu hình hiện tại của chiến dịch"}
           </p>
         </div>
 

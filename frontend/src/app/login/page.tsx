@@ -32,19 +32,19 @@ export default async function LoginPage(props: {
         <div className="mt-4 space-y-4">
           <h2 className="text-xl font-bold">Bảo mật tài khoản & Thanh toán Ký quỹ</h2>
           <p className="text-sm text-violet-200/85">
-            FundViet bảo vệ mọi giao dịch góp vốn qua VNPAY Escrow và quyền quản trị chiến dịch bằng phiên JWT kết hợp xác thực hai lớp.
+            FundViet bảo vệ mọi giao dịch góp vốn qua VNPAY và quyền quản trị chiến dịch bằng xác thực hai lớp.
           </p>
           <div className="grid gap-3 pt-1">
             {[
               {
                 icon: ShieldCheck,
-                title: "Xác thực 2 lớp (2FA TOTP)",
+                title: "Xác thực 2 lớp (2FA)",
                 desc: "Tương thích Google Authenticator và 2fa.live kèm 8 mã dự phòng khôi phục.",
               },
               {
                 icon: Lock,
-                title: "VNPAY Escrow · All-or-Nothing",
-                desc: "Khoản ủng hộ được ký quỹ an toàn qua VNPAY (HMAC-SHA512), chỉ giải ngân khi chiến dịch đạt 100% mục tiêu.",
+                title: "VNPAY Ký quỹ · Đạt mục tiêu mới thu tiền",
+                desc: "Khoản ủng hộ được giữ chỗ an toàn qua VNPAY, chỉ thu tiền khi chiến dịch đạt 100% mục tiêu.",
               },
               {
                 icon: KeyRound,

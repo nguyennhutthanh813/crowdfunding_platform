@@ -3,7 +3,7 @@ import { Bell, Settings, Shield } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, RoleBadge } from "@/components/ui/primitives";
 
-export function AdminOnlyNotice({ area = "khu vực Backer" }: { area?: string }) {
+export function AdminOnlyNotice({ area = "khu vực cá nhân" }: { area?: string }) {
   return (
     <Card className="relative overflow-hidden p-6 sm:p-8">
       <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-rose-500/15 blur-3xl" />
@@ -21,7 +21,7 @@ export function AdminOnlyNotice({ area = "khu vực Backer" }: { area?: string }
           </h2>
           <p className="text-sm text-muted">
             Theo phân quyền nền tảng, Quản trị viên giám sát dự án, người dùng và giao dịch nhưng không tham gia góp vốn,
-            lưu dự án hay nhắn tin như Backer. Bạn vẫn có thể xem thông báo và cài đặt tài khoản tại đây.
+            lưu dự án hay nhắn tin như thành viên. Bạn vẫn có thể xem thông báo và cài đặt tài khoản tại đây.
           </p>
           <div className="flex flex-wrap justify-center gap-2 pt-1 sm:justify-start">
             <ButtonLink href="/admin" size="sm">

@@ -76,13 +76,13 @@ export function UpdatesPanel({
               minLength={10}
               rows={4}
               required
-              placeholder="Chia sẻ tiến độ thực tế, hình ảnh hoặc thông tin backer cần lưu ý…"
+              placeholder="Chia sẻ tiến độ thực tế, hình ảnh hoặc thông tin người ủng hộ cần lưu ý…"
             />
           </Field>
 
           <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
             <input type="checkbox" name="backers_only" className="size-4 accent-violet-600" />
-            Chỉ hiển thị cho backer đã góp vốn
+            Chỉ hiển thị cho người ủng hộ đã góp vốn
           </label>
 
           {!canPublish && (
@@ -113,7 +113,7 @@ export function UpdatesPanel({
       {updates.length === 0 ? (
         <EmptyState
           compact
-          title="Chưa có Update nào"
+          title="Chưa có bản tin nào"
           description="Hãy soạn bản tin đầu tiên để giữ nhiệt với người ủng hộ."
         />
       ) : (
@@ -136,7 +136,7 @@ export function UpdatesPanel({
                           </>
                         )}
                       </Badge>
-                      {u.backers_only === 1 && <Badge tone="violet">Chỉ dành cho Backer</Badge>}
+                      {u.backers_only === 1 && <Badge tone="violet">Chỉ dành cho người ủng hộ</Badge>}
                       <span className="inline-flex items-center gap-1.5 text-xs text-muted">
                         Tác giả: <b className="text-fg">{u.author_name}</b>
                         {u.author_role && <RoleBadge role={u.author_role} />}
@@ -168,14 +168,14 @@ export function UpdatesPanel({
                         </ActionForm>
                       ) : (
                         <Button variant="outline" size="xs" disabled title={LOCK_REASON["update.publish"]}>
-                          <Lock className="size-3.5" /> Chờ Creator đăng
+                          <Lock className="size-3.5" /> Chờ chủ dự án đăng
                         </Button>
                       ))}
 
                     {(isDraft || canPublish) && (
                       <ActionForm
                         action={deleteUpdateDraftAction}
-                        confirm={isDraft ? "Xoá bản nháp Update này?" : "Xoá bản tin Update đã đăng này?"}
+                        confirm={isDraft ? "Xoá bản nháp bản tin này?" : "Xoá bản tin đã đăng này?"}
                       >
                         <input type="hidden" name="project_id" value={projectId} />
                         <input type="hidden" name="update_id" value={u.id} />
@@ -197,7 +197,7 @@ export function UpdatesPanel({
       <Dialog
         open={Boolean(editing)}
         onClose={() => setEditing(null)}
-        title="Chỉnh sửa Update"
+        title="Chỉnh sửa bản tin"
         wide
       >
         {editing && (
@@ -219,7 +219,7 @@ export function UpdatesPanel({
             </Field>
             <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
               <input type="checkbox" name="backers_only" defaultChecked={editing.backers_only === 1} className="size-4 accent-violet-600" />
-              Chỉ hiển thị cho backer đã góp vốn
+              Chỉ hiển thị cho người ủng hộ đã góp vốn
             </label>
 
             <div className="flex justify-end gap-2">

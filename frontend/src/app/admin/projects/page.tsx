@@ -37,7 +37,7 @@ export default async function AdminProjectsPage({
       <PageHeader
         eyebrow="Giám sát dự án"
         title="Quản lý dự án toàn nền tảng"
-        description="Theo dõi trạng thái, số báo cáo vi phạm và tạm gỡ / khôi phục dự án. Quản trị viên không chỉnh sửa nội dung thay Creator."
+        description="Theo dõi trạng thái, số báo cáo vi phạm và tạm gỡ / khôi phục dự án. Quản trị viên không chỉnh sửa nội dung thay chủ dự án."
       />
 
       {/* Bộ lọc trạng thái */}
@@ -72,7 +72,7 @@ export default async function AdminProjectsPage({
         {status && <input type="hidden" name="status" value={status} />}
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-          <Input name="q" defaultValue={q} placeholder="Tìm theo tên dự án, slug hoặc Creator..." className="pl-10" />
+          <Input name="q" defaultValue={q} placeholder="Tìm theo tên dự án hoặc chủ dự án..." className="pl-10" />
         </div>
         <Select name="category" defaultValue={category}>
           <option value="">Tất cả thể loại</option>
@@ -164,7 +164,7 @@ export default async function AdminProjectsPage({
               <thead className="border-b border-line bg-surface-2/60 text-xs font-bold uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-4 py-3">Dự án</th>
-                  <th className="px-4 py-3">Creator</th>
+                  <th className="px-4 py-3">Chủ dự án</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Góp vốn</th>
                   <th className="px-4 py-3">Thời hạn</th>
@@ -214,7 +214,7 @@ export default async function AdminProjectsPage({
                           {formatCompactVnd(p.pledged_amount)} ({pct}%)
                         </div>
                         <div className="text-muted">
-                          Mục tiêu {formatCompactVnd(p.goal_amount)} · {p.backers_count} backer
+                          Mục tiêu {formatCompactVnd(p.goal_amount)} · {p.backers_count} người ủng hộ
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-muted">

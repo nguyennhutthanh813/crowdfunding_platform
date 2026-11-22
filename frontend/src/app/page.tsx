@@ -57,7 +57,7 @@ export default async function HomePage() {
               <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4">
                 {[
                   { k: "Đã được góp", v: <CountUp value={stats.raised} format="compact" />, s: "VND" },
-                  { k: "Người ủng hộ", v: <CountUp value={stats.backers} />, s: "backer" },
+                  { k: "Người ủng hộ", v: <CountUp value={stats.backers} />, s: "lượt tham gia" },
                   { k: "Tỉ lệ thành công", v: <CountUp value={successRate} format="percent" />, s: `${stats.success} dự án` },
                 ].map((x) => (
                   <div key={x.k} className="rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur">
@@ -134,14 +134,14 @@ export default async function HomePage() {
         <section id="how" className="scroll-mt-24">
           <div className="card relative overflow-hidden p-6 sm:p-10">
             <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-violet-500/15 blur-3xl" />
-            <SectionTitle title="Cách hoạt động: All-or-Nothing" description="Minh bạch cho cả người góp vốn lẫn người tạo dự án." />
+            <SectionTitle title="Cách hoạt động: Đạt mục tiêu mới thu tiền" description="Minh bạch cho cả người góp vốn lẫn người tạo dự án." />
             <ol className="relative grid gap-6 md:grid-cols-4">
               <div className="absolute left-0 right-0 top-7 hidden h-0.5 bg-gradient-to-r from-violet-500 via-sky-500 to-emerald-500 md:block" />
               {[
-                { icon: HandCoins, t: "Chọn mức quà", d: "Chọn pledge (hoặc góp không nhận quà), thêm add-on, nhập địa chỉ giao trong nước." },
+                { icon: HandCoins, t: "Chọn mức quà", d: "Chọn mức ủng hộ (hoặc góp không nhận quà), thêm quà kèm, nhập địa chỉ giao trong nước." },
                 { icon: CreditCard, t: "Giữ chỗ, chưa trừ tiền", d: "Nhập thẻ — hệ thống chỉ giữ chỗ. Bạn có thể đổi / huỷ trước khi chiến dịch kết thúc." },
                 { icon: ShieldCheck, t: "Chốt khi hết hạn", d: "Đạt mục tiêu → trừ tiền tự động. Không đạt → giải phóng, không ai mất tiền." },
-                { icon: BadgeCheck, t: "Nhận quà & cập nhật", d: "Creator đăng Update tiến độ, giao quà và cập nhật mã vận đơn cho bạn." },
+                { icon: BadgeCheck, t: "Nhận quà & cập nhật", d: "Chủ dự án đăng cập nhật tiến độ, giao quà và cập nhật mã vận đơn cho bạn." },
               ].map((s, i) => (
                 <Reveal key={s.t} delay={i * 0.1} className="relative">
                   <div className="relative z-10 grid size-14 place-items-center rounded-2xl bg-brand-gradient text-white shadow-[0_10px_30px_-10px_rgba(109,74,255,0.8)]"><s.icon className="size-6" /></div>

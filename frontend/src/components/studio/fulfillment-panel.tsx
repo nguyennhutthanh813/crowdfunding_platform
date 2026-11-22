@@ -42,7 +42,7 @@ export function FulfillmentPanel({
     return (
       <EmptyState
         title="Chưa tới giai đoạn giao quà"
-        description="Khi chiến dịch kết thúc thành công (đạt mục tiêu và đã trừ tiền backer), bạn có thể tạo danh sách giao hàng và cập nhật mã vận đơn tại đây."
+        description="Khi chiến dịch kết thúc thành công (đạt mục tiêu và đã thu tiền người ủng hộ), bạn có thể tạo danh sách giao hàng và cập nhật mã vận đơn tại đây."
       />
     );
   }
@@ -122,7 +122,7 @@ export function FulfillmentPanel({
       {/* Bulk Ship Actions */}
       {status === "FULFILLING" && (stats.prep > 0 || stats.shipped > 0) && (
         <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm font-semibold">Cập nhật nhanh hàng loạt &amp; thông báo backer:</div>
+          <div className="text-sm font-semibold">Cập nhật nhanh hàng loạt &amp; thông báo người ủng hộ:</div>
           <div className="flex flex-wrap gap-2">
             {stats.prep > 0 && (
               <ActionForm action={bulkShipAction} className="flex flex-wrap items-center gap-2">

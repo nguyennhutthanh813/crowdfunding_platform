@@ -23,7 +23,7 @@ import { SafeAvatar } from "./safe-media";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 
 const TYPE_META: Record<string, { label: string; tone: "violet" | "emerald" | "amber" | "sky" | "neutral"; icon: typeof Bell }> = {
-  PLEDGE_RECEIVED: { label: "Pledge mới", tone: "emerald", icon: HandCoins },
+  PLEDGE_RECEIVED: { label: "Ủng hộ mới", tone: "emerald", icon: HandCoins },
   PLEDGE_CONFIRMED: { label: "Góp vốn", tone: "emerald", icon: HandCoins },
   PROJECT_UPDATE: { label: "Bản tin", tone: "violet", icon: Newspaper },
   PROJECT_LAUNCHED: { label: "Mở bán", tone: "sky", icon: Rocket },

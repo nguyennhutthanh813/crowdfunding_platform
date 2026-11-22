@@ -86,7 +86,7 @@ export function ExploreFilters({
               <Input
                 value={queryText}
                 onChange={(e) => setQueryText(e.target.value)}
-                placeholder="Tìm tên dự án, ý tưởng hoặc creator…"
+                placeholder="Tìm tên dự án, ý tưởng hoặc chủ dự án…"
                 aria-label="Tìm kiếm dự án"
                 className="pl-10 pr-9"
               />

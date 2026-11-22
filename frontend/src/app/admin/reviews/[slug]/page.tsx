@@ -258,7 +258,7 @@ export default async function AdminReviewDetailPage({
 
             {addOns.length > 0 && (
               <div className="space-y-2 border-t border-line pt-4">
-                <h3 className="text-sm font-bold">Add-on mua kèm</h3>
+                <h3 className="text-sm font-bold">Quà kèm tuỳ chọn</h3>
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   {addOns.map((a) => (
                     <div key={a.id} className="flex items-center justify-between rounded-xl border border-line px-3.5 py-2.5 text-xs">
@@ -377,7 +377,7 @@ export default async function AdminReviewDetailPage({
             </div>
 
             {!prediction ? (
-              <p className="text-xs text-muted">Creator chưa chạy mô hình dự đoán AI cho dự án này.</p>
+              <p className="text-xs text-muted">Chủ dự án chưa chạy mô hình phân tích AI cho dự án này.</p>
             ) : (
               <>
                 <div className="flex flex-col items-center py-1">
@@ -414,14 +414,14 @@ export default async function AdminReviewDetailPage({
           <section className="card space-y-4 p-5">
             <div className="flex items-center gap-2">
               <UserCheck className="size-4 text-emerald-500" />
-              <h3 className="font-bold">Hồ sơ Creator</h3>
+              <h3 className="font-bold">Hồ sơ chủ dự án</h3>
             </div>
             <div className="flex items-center gap-3">
               <SafeAvatar name={creator.display_name} src={creator.avatar_url} size={42} />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate font-bold">{creator.display_name}</span>
-                  <Badge tone={creator.status === "LOCKED" ? "rose" : "emerald"}>{creator.status}</Badge>
+                  <Badge tone={creator.status === "LOCKED" ? "rose" : "emerald"}>{creator.status === "LOCKED" ? "Đã khoá" : "Hoạt động"}</Badge>
                 </div>
                 <div className="truncate text-xs text-muted">
                   @{creator.username} · {creator.email}

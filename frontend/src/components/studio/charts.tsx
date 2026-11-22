@@ -70,7 +70,7 @@ export function StudioOverviewCharts({ daily, goalAmount }: { daily: DailyStatPo
           <p className="mt-1 text-sm text-muted">Chưa có dữ liệu thống kê theo ngày — biểu đồ sẽ xuất hiện khi chiến dịch nhận lượt xem hoặc góp vốn.</p>
         </div>
         <div className="card p-5">
-          <h3 className="font-bold">Số tiền & backer mới mỗi ngày</h3>
+          <h3 className="font-bold">Số tiền &amp; người ủng hộ mới mỗi ngày</h3>
           <p className="mt-1 text-sm text-muted">Dữ liệu theo ngày (múi giờ Việt Nam) tự động cập nhật khi có giao dịch mới.</p>
         </div>
       </div>
@@ -127,14 +127,14 @@ export function StudioOverviewCharts({ daily, goalAmount }: { daily: DailyStatPo
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-bold">Biến động theo từng ngày</h3>
-            <p className="text-xs text-muted">Số tiền mới &amp; số backer mới hằng ngày</p>
+            <p className="text-xs text-muted">Số tiền mới &amp; số người ủng hộ mới hằng ngày</p>
           </div>
           <div className="flex items-center gap-3 text-xs font-semibold">
             <span className="inline-flex items-center gap-1.5 text-violet-600 dark:text-violet-300">
               <span className="size-2.5 rounded-sm bg-[#7C5CFF]" /> Số tiền
             </span>
             <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-300">
-              <span className="size-2.5 rounded-sm bg-[#10B981]" /> Backer mới
+              <span className="size-2.5 rounded-sm bg-[#10B981]" /> Người ủng hộ mới
             </span>
           </div>
         </div>
@@ -158,7 +158,7 @@ export function StudioOverviewCharts({ daily, goalAmount }: { daily: DailyStatPo
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   formatter={(value, name) =>
-                    name === "pledged_amount" ? [formatVnd(Number(value ?? 0)), "Tiền góp trong ngày"] : [`${value ?? 0} người`, "Backer mới"]
+                    name === "pledged_amount" ? [formatVnd(Number(value ?? 0)), "Tiền góp trong ngày"] : [`${value ?? 0} người`, "Người ủng hộ mới"]
                   }
                   labelFormatter={(label) => `Ngày ${label}`}
                 />

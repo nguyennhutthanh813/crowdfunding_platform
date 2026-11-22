@@ -67,7 +67,7 @@ export default async function VnpayReturnPage(props: {
             <Badge tone={ok ? "emerald" : "rose"}>Mã phản hồi VNPAY: {data.responseCode ?? "99"}</Badge>
             <Badge tone={data.signatureValid ? "sky" : "rose"}>
               <ShieldCheck className="size-3" />
-              {data.signatureValid ? "Chữ ký HMAC-SHA512 hợp lệ" : "Chữ ký không hợp lệ"}
+              {data.signatureValid ? "Xác thực giao dịch hợp lệ" : "Giao dịch chưa được xác thực"}
             </Badge>
           </div>
 
@@ -93,11 +93,11 @@ export default async function VnpayReturnPage(props: {
             </div>
           )}
           <div className="flex justify-between gap-3">
-            <dt className="text-muted">Mã tham chiếu (vnp_TxnRef)</dt>
+            <dt className="text-muted">Mã tham chiếu giao dịch</dt>
             <dd className="font-mono font-semibold">{data.txnRef || "—"}</dd>
           </div>
           <div className="flex justify-between gap-3">
-            <dt className="text-muted">Mã giao dịch VNPAY (vnp_TransactionNo)</dt>
+            <dt className="text-muted">Mã giao dịch VNPAY</dt>
             <dd className="font-mono font-semibold">{data.transactionNo && data.transactionNo !== "0" ? data.transactionNo : "—"}</dd>
           </div>
           <div className="flex justify-between gap-3">

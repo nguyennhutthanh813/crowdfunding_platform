@@ -86,7 +86,7 @@ export default async function MyBackedPage(props: {
 
       {filtered.length === 0 ? (
         <EmptyState
-          title={active === "all" ? "Bạn chưa góp vốn dự án nào" : "Không có pledge nào ở trạng thái này"}
+          title={active === "all" ? "Bạn chưa góp vốn dự án nào" : "Không có khoản góp vốn nào ở trạng thái này"}
           description="Khi bạn góp vốn cho một dự án, thông tin gói quà và trạng thái thanh toán sẽ hiển thị tại đây."
           action={<ButtonLink href="/explore">Khám phá dự án ngay</ButtonLink>}
         />

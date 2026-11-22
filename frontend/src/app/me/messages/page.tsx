@@ -23,7 +23,7 @@ export default async function MessagesInboxPage() {
       <PageHeader
         eyebrow="Hộp thư"
         title="Tin nhắn nội bộ"
-        description="Trao đổi trực tiếp với Creator, Collaborator hoặc Backer về dự án và phần quà."
+        description="Trao đổi trực tiếp với Chủ dự án, Cộng tác viên hoặc Người ủng hộ về dự án và phần quà."
         actions={
           <ButtonLink href="/me/messages/new" size="sm">
             <MessageSquarePlus className="size-4" /> Tin nhắn mới
@@ -34,7 +34,7 @@ export default async function MessagesInboxPage() {
       {conversations.length === 0 ? (
         <EmptyState
           title="Hộp thư trống"
-          description="Bạn chưa có cuộc trò chuyện nào. Hãy nhắn tin trực tiếp tới Creator trên trang dự án hoặc bắt đầu hội thoại mới."
+          description="Bạn chưa có cuộc trò chuyện nào. Hãy nhắn tin trực tiếp tới Chủ dự án trên trang dự án hoặc bắt đầu hội thoại mới."
           action={
             <ButtonLink href="/me/messages/new">
               <MessageSquarePlus className="size-4" /> Gửi tin nhắn mới

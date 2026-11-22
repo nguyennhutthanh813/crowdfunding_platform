@@ -16,9 +16,9 @@ export default async function AdminSchedulerPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tự động hoá All-or-Nothing"
+        eyebrow="Tự động hoá theo lịch"
         title="Bộ lập lịch chiến dịch"
-        description="Tự động mở dự án đã hẹn lịch và chốt thanh toán (CAPTURE khi đạt mục tiêu / VOID khi không đạt) ngay khi chiến dịch hết hạn."
+        description="Tự động mở dự án đã hẹn lịch và chốt thanh toán (thu tiền khi đạt mục tiêu hoặc hoàn hạn mức khi không đạt) khi chiến dịch hết hạn."
         actions={<RunSchedulerButton />}
       />
 
@@ -30,25 +30,24 @@ export default async function AdminSchedulerPage() {
             <Cpu className="size-5" />
           </div>
           <div className="space-y-2 text-sm">
-            <h2 className="font-bold">Cơ chế vận hành tự động &amp; Idempotent</h2>
+            <h2 className="font-bold">Quy trình xử lý tự động theo lịch</h2>
             <div className="grid gap-3 text-xs text-muted sm:grid-cols-3">
               <div className="rounded-xl border border-line bg-surface-2/60 p-3">
                 <div className="font-bold text-fg">1. Mở chiến dịch đúng hẹn</div>
                 <p className="mt-1">
-                  Các dự án <code>SCHEDULED</code> có <code>start_at ≤ hiện tại</code> tự chuyển sang <code>LIVE</code> và báo người theo dõi.
+                  Các dự án <b>Sắp mở</b> đến giờ hẹn sẽ tự chuyển sang <b>Đang gọi vốn</b> và thông báo cho người theo dõi.
                 </p>
               </div>
               <div className="rounded-xl border border-line bg-surface-2/60 p-3">
-                <div className="font-bold text-fg">2. Chốt All-or-Nothing</div>
+                <div className="font-bold text-fg">2. Chốt kết quả gọi vốn</div>
                 <p className="mt-1">
-                  Khi <code>LIVE</code> quá <code>end_at</code>: đạt mục tiêu → <code>SUCCESS</code> + <code>CAPTURE</code>; chưa đạt →{" "}
-                  <code>FAILED</code> + <code>VOID</code>.
+                  Khi hết hạn: đạt mục tiêu sẽ chuyển sang <b>Thành công</b> và <b>thu tiền</b>; chưa đạt sẽ <b>hoàn lại hạn mức giữ chỗ</b>.
                 </p>
               </div>
               <div className="rounded-xl border border-line bg-surface-2/60 p-3">
                 <div className="font-bold text-fg">3. An toàn chống trừ trùng</div>
                 <p className="mt-1">
-                  Khoá <code>idempotency_key = pledge_id:ACTION</code> đảm bảo chạy lại nhiều lần không bao giờ trừ tiền trùng.
+                  Mỗi giao dịch có mã chống trùng lặp riêng để đảm bảo chạy lại nhiều lần không bao giờ thu tiền hai lần.
                 </p>
               </div>
             </div>
@@ -64,7 +63,7 @@ export default async function AdminSchedulerPage() {
               <CalendarClock className="size-5 text-sky-500" />
               <h3 className="font-bold">Sắp mở gọi vốn ({data.toOpen.length})</h3>
             </div>
-            <Badge tone="sky">SCHEDULED</Badge>
+            <Badge tone="sky">Sắp mở</Badge>
           </div>
           {data.toOpen.length === 0 ? (
             <p className="text-sm text-muted">Hiện chưa có dự án nào đang chờ mở lịch.</p>
@@ -94,12 +93,12 @@ export default async function AdminSchedulerPage() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Timer className="size-5 text-rose-500" />
-              <h3 className="font-bold">LIVE sắp kết thúc ({data.toClose.length})</h3>
+              <h3 className="font-bold">Đang gọi vốn sắp kết thúc ({data.toClose.length})</h3>
             </div>
             <Badge tone="emerald">Top 5 gần nhất</Badge>
           </div>
           {data.toClose.length === 0 ? (
-            <p className="text-sm text-muted">Không có chiến dịch LIVE nào đang chờ kết thúc.</p>
+            <p className="text-sm text-muted">Không có chiến dịch nào đang chờ kết thúc.</p>
           ) : (
             <div className="space-y-2.5">
               {data.toClose.map((p) => {
@@ -121,7 +120,7 @@ export default async function AdminSchedulerPage() {
                         Giữ chỗ <b className="text-fg">{formatCompactVnd(p.held)}</b> / {formatCompactVnd(p.goal_amount)} ({pct}%)
                       </span>
                       <span className={willPass ? "font-semibold text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
-                        {willPass ? "Đủ mục tiêu → CAPTURE" : "Chưa đủ → VOID"}
+                        {willPass ? "Đủ mục tiêu → Thu tiền" : "Chưa đủ → Hoàn hạn mức"}
                       </span>
                     </div>
                   </Link>
@@ -142,7 +141,7 @@ export default async function AdminSchedulerPage() {
             <div>
               <h3 className="font-bold">Tất toán chiến dịch thủ công</h3>
               <p className="text-xs text-muted">
-                Chốt sớm một chiến dịch đang gọi vốn để đối soát và thực thi CAPTURE (đạt mục tiêu) hoặc VOID (không đạt).
+                Chốt sớm một chiến dịch đang gọi vốn để đối soát thu tiền (đạt mục tiêu) hoặc giải phóng hạn mức (không đạt).
               </p>
             </div>
           </div>
@@ -152,7 +151,7 @@ export default async function AdminSchedulerPage() {
         <ManualSettleForm liveProjects={data.live} />
       </section>
 
-      {/* Lịch sử chạy scheduler_runs */}
+      {/* Lịch sử chạy lập lịch */}
       <section className="space-y-4">
         <SectionTitle
           title={
@@ -160,7 +159,7 @@ export default async function AdminSchedulerPage() {
               <History className="size-5 text-violet-500" /> Lịch sử chạy bộ lập lịch
             </span>
           }
-          description="20 lần chạy gần nhất (tự động AUTO hoặc thủ công MANUAL)."
+          description="20 lần chạy gần nhất (tự động theo lịch hoặc kích hoạt thủ công)."
         />
 
         {data.runs.length === 0 ? (
@@ -174,7 +173,9 @@ export default async function AdminSchedulerPage() {
                 return (
                   <div key={run.id} className="card space-y-2 p-4 text-xs">
                     <div className="flex items-center justify-between gap-2">
-                      <Badge tone={run.trigger_source === "MANUAL" ? "violet" : "neutral"}>{run.trigger_source}</Badge>
+                      <Badge tone={run.trigger_source === "MANUAL" ? "violet" : "neutral"}>
+                        {run.trigger_source === "MANUAL" ? "Thủ công" : "Tự động"}
+                      </Badge>
                       <span className="text-muted">
                         {formatDate(run.started_at, true)} ({ms}ms)
                       </span>
@@ -183,8 +184,8 @@ export default async function AdminSchedulerPage() {
                       <span>Mở: {run.opened_count}</span>
                       <span>· Thành công: {run.success_count}</span>
                       <span>· Thất bại: {run.failed_count}</span>
-                      <span className="text-emerald-600 dark:text-emerald-400">· Capture: {run.captured_count}</span>
-                      <span>· Void: {run.voided_count}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">· Thu tiền: {run.captured_count}</span>
+                      <span>· Giải phóng: {run.voided_count}</span>
                     </div>
                     <div className="text-muted">
                       {run.actor ? `Bởi ${run.actor}` : "Chạy tự động"} {run.note ? `· ${run.note}` : ""}
@@ -204,7 +205,7 @@ export default async function AdminSchedulerPage() {
                     <th className="px-4 py-3">Người kích hoạt</th>
                     <th className="px-4 py-3 text-center">Mở</th>
                     <th className="px-4 py-3 text-center">Đạt / Hụt</th>
-                    <th className="px-4 py-3 text-center">Capture / Void</th>
+                    <th className="px-4 py-3 text-center">Thu tiền / Giải phóng</th>
                     <th className="px-4 py-3">Ghi chú</th>
                   </tr>
                 </thead>
@@ -219,7 +220,7 @@ export default async function AdminSchedulerPage() {
                         </td>
                         <td className="px-4 py-3">
                           <Badge tone={run.trigger_source === "MANUAL" ? "violet" : "neutral"}>
-                            <Clock className="size-3" /> {run.trigger_source}
+                            <Clock className="size-3" /> {run.trigger_source === "MANUAL" ? "Thủ công" : "Tự động"}
                           </Badge>
                         </td>
                         <td className="px-4 py-3">

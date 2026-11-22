@@ -112,9 +112,9 @@ export default async function ProjectDetailPage(props: {
   const tabs: TabItem[] = [
     { key: "campaign", label: "Chiến dịch" },
     { key: "rewards", label: "Phần quà", count: counts.tiers },
-    { key: "creator", label: "Creator" },
-    { key: "faq", label: "FAQ", count: counts.faqs },
-    { key: "updates", label: "Updates", count: counts.updates },
+    { key: "creator", label: "Chủ dự án" },
+    { key: "faq", label: "Hỏi đáp", count: counts.faqs },
+    { key: "updates", label: "Cập nhật", count: counts.updates },
     { key: "comments", label: "Bình luận", count: counts.comments },
     { key: "community", label: "Cộng đồng", count: counts.backers },
   ];
@@ -213,7 +213,7 @@ export default async function ProjectDetailPage(props: {
       <div className="flex items-start gap-2 rounded-xl bg-surface-2/60 px-3 py-2.5 text-xs text-muted">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-500" />
         <span>
-          <b className="text-fg">All-or-Nothing:</b> Chỉ trừ tiền khi chiến dịch đạt 100% mục tiêu trước{" "}
+          <b className="text-fg">Chỉ thu tiền khi đạt mục tiêu:</b> Bạn chỉ bị trừ tiền nếu chiến dịch đạt 100% mục tiêu trước{" "}
           {formatDate(project.end_at, true)}.
         </span>
       </div>
@@ -274,7 +274,7 @@ export default async function ProjectDetailPage(props: {
             <div className="flex items-center gap-3 text-sm">
               <RoleBadge role={ctx.role!} />
               <span>
-                Bạn là <b>{ctx.role === "CREATOR" ? "Creator" : "Collaborator"}</b> của dự án này.
+                Bạn là <b>{ctx.role === "CREATOR" ? "Chủ dự án" : "Cộng tác viên"}</b> của dự án này.
               </span>
             </div>
             <ButtonLink href={`/studio/${project.slug}`} variant="secondary" size="sm">
@@ -380,7 +380,7 @@ export default async function ProjectDetailPage(props: {
           {tab === "campaign" && (
             <div className="space-y-6">
               {sections.length === 0 ? (
-                <EmptyState compact title="Chưa có nội dung chiến dịch" description="Creator đang hoàn thiện phần mô tả." />
+                <EmptyState compact title="Chưa có nội dung chiến dịch" description="Chủ dự án đang hoàn thiện phần mô tả." />
               ) : (
                 sections.map((sec) => (
                   <article key={sec.id} className="card space-y-3 p-5 sm:p-6">
@@ -584,7 +584,7 @@ export default async function ProjectDetailPage(props: {
                 <div className="card space-y-3 p-5">
                   <div className="flex items-center gap-2">
                     <Package className="size-5 text-violet-500" />
-                    <h2 className="text-lg font-extrabold">Add-on mua kèm</h2>
+                    <h2 className="text-lg font-extrabold">Quà kèm tuỳ chọn</h2>
                   </div>
                   <p className="text-sm text-muted">
                     Có thể chọn mua thêm ở Bước 2 khi bạn chọn mức quà tương thích.
@@ -688,7 +688,7 @@ export default async function ProjectDetailPage(props: {
                 <EmptyState
                   compact
                   title="Chưa có câu hỏi thường gặp"
-                  description="Bạn có thể đặt câu hỏi ở tab Bình luận hoặc nhắn tin trực tiếp cho Creator."
+                  description="Bạn có thể đặt câu hỏi ở tab Bình luận hoặc nhắn tin trực tiếp cho chủ dự án."
                 />
               ) : (
                 faqs.map((f, i) => (
@@ -710,7 +710,7 @@ export default async function ProjectDetailPage(props: {
                 <EmptyState
                   compact
                   title="Chưa có bản tin cập nhật nào"
-                  description="Lưu dự án hoặc quay lại sau để theo dõi tiến độ từ Creator."
+                  description="Lưu dự án hoặc quay lại sau để theo dõi tiến độ từ chủ dự án."
                 />
               ) : (
                 updates.map((u) => {

@@ -63,7 +63,7 @@ export function BackersTable({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm theo mã pledge, tên backer, mức quà, tỉnh thành…"
+            placeholder="Tìm theo mã góp vốn, tên người ủng hộ, mức quà, tỉnh thành…"
             className="pl-10"
           />
         </div>
@@ -81,7 +81,7 @@ export function BackersTable({
       {filtered.length === 0 ? (
         <EmptyState
           compact
-          title="Không có backer nào phù hợp"
+          title="Không có người ủng hộ nào phù hợp"
           description={backers.length === 0 ? "Chiến dịch chưa có người góp vốn nào." : "Thử thay đổi từ khoá hoặc bộ lọc trạng thái."}
         />
       ) : (
@@ -134,8 +134,8 @@ export function BackersTable({
                 <thead className="border-b border-line bg-surface-2/60 text-xs uppercase text-muted">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Mã &amp; Ngày</th>
-                    <th className="px-4 py-3 font-semibold">Backer</th>
-                    <th className="px-4 py-3 font-semibold">Mức quà &amp; Add-on</th>
+                    <th className="px-4 py-3 font-semibold">Người ủng hộ</th>
+                    <th className="px-4 py-3 font-semibold">Mức quà &amp; Quà kèm</th>
                     <th className="px-4 py-3 font-semibold">Số tiền</th>
                     <th className="px-4 py-3 font-semibold">Trạng thái</th>
                     <th className="px-4 py-3 font-semibold">Giao hàng</th>

@@ -43,8 +43,8 @@ export function FaqPanel({ projectId, faqs }: { projectId: string; faqs: FaqRow[
       {faqs.length === 0 ? (
         <EmptyState
           compact
-          title="Chưa có FAQ nào"
-          description="Dự án có 3–5 FAQ thường tạo độ tin cậy cao hơn với backer mới."
+          title="Chưa có câu hỏi thường gặp nào"
+          description="Dự án có 3–5 câu hỏi thường gặp giúp tạo độ tin cậy cao hơn với người ủng hộ mới."
         />
       ) : (
         <div className="space-y-3">
@@ -52,7 +52,7 @@ export function FaqPanel({ projectId, faqs }: { projectId: string; faqs: FaqRow[
             <div key={f.id} className="card p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-violet-600 dark:text-violet-400">FAQ #{idx + 1}</div>
+                  <div className="text-xs font-bold text-violet-600 dark:text-violet-400">Câu hỏi #{idx + 1}</div>
                   <h4 className="mt-0.5 text-base font-bold">{f.question}</h4>
                   <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted">{f.answer}</p>
                   <div className="mt-2.5 text-[11px] text-muted">

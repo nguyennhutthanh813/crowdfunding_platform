@@ -235,7 +235,7 @@ export function WizardShell({
             </div>
 
             <Field
-              label="Mô tả ngắn (blurb)"
+              label="Mô tả ngắn"
               required
               hint={`Tối thiểu 20 ký tự để gửi duyệt · Hiện tại: ${blurb.trim().length}/200`}
             >
@@ -257,11 +257,11 @@ export function WizardShell({
                   Tải ảnh bìa từ máy tính hoặc chọn mẫu 3D ({COVER_GALLERY.length} mẫu)
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
-                  <ImageUploadButton folder="projects" label="Tải ảnh lên Cloudinary" onUploaded={setCoverUrl} />
+                  <ImageUploadButton folder="projects" label="Tải ảnh lên" onUploaded={setCoverUrl} />
                   <Input
                     value={coverUrl}
                     onChange={(e) => setCoverUrl(e.target.value)}
-                    placeholder="https://res.cloudinary.com/..."
+                    placeholder="Dán đường dẫn ảnh bìa (https://...)"
                     className="h-9 sm:w-64"
                   />
                 </div>
@@ -320,7 +320,7 @@ export function WizardShell({
               <div className="space-y-2 p-4">
                 <h3 className="line-clamp-2 font-bold leading-snug">{title || "Tên dự án của bạn sẽ hiển thị ở đây"}</h3>
                 <p className="line-clamp-2 text-sm text-muted">
-                  {blurb || "Mô tả ngắn gọn giúp backer hiểu ngay ý tưởng của bạn."}
+                  {blurb || "Mô tả ngắn gọn giúp người ủng hộ hiểu ngay ý tưởng của bạn."}
                 </p>
                 <div className="pt-2 text-xs text-muted">
                   Mục tiêu dự kiến: <b className="text-fg">{formatCompactVnd(goalAmount)}</b> · {durationDays} ngày
@@ -370,7 +370,7 @@ export function WizardShell({
           <div>
             <h2 className="text-lg font-bold">Bước 4: Mục tiêu gọi vốn, thời lượng &amp; lịch mở</h2>
             <p className="text-sm text-muted">
-              All-or-Nothing: chỉ trừ tiền khi đạt 100% mục tiêu. Mục tiêu và thời lượng sẽ khoá sau khi gửi duyệt.
+              Chỉ thu tiền khi dự án đạt 100% mục tiêu. Mục tiêu và thời lượng sẽ khoá sau khi gửi duyệt.
             </p>
           </div>
 
@@ -440,8 +440,8 @@ export function WizardShell({
           <Toggle
             name="is_preview_public"
             defaultChecked={project.is_preview_public === 1}
-            label="Mở trang xem trước (Preview) công khai"
-            description="Khi dự án ở trạng thái Sắp mở (SCHEDULED), mọi người có thể xem nội dung và nhấn Lưu dự án để nhận thông báo ngày mở."
+            label="Mở trang xem trước công khai"
+            description="Khi dự án ở trạng thái sắp mở, mọi người có thể xem nội dung và nhấn Lưu dự án để nhận thông báo ngày mở."
           />
 
           <div className="flex items-center justify-between pt-2">

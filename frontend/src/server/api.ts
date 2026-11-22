@@ -162,7 +162,7 @@ export async function apiFetch<T = Record<string, unknown>>(
   if (!res) {
     return {
       status: 503,
-      data: { ok: false, error: "Không thể kết nối tới máy chủ Backend API. Vui lòng kiểm tra kết nối hoặc thử lại." } as unknown as T,
+      data: { ok: false, error: "Hệ thống đang tạm gián đoạn kết nối. Vui lòng kiểm tra mạng hoặc thử lại." } as unknown as T,
     };
   }
 

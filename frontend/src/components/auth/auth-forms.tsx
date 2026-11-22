@@ -211,7 +211,7 @@ export function RegisterForm({ next }: { next?: string }) {
       <Field
         label="Mật khẩu"
         error={fe.password}
-        hint="Tối thiểu 8 ký tự. Sau khi đăng ký bạn có thể bật thêm bảo mật 2FA TOTP."
+        hint="Tối thiểu 8 ký tự. Sau khi đăng ký bạn có thể bật thêm bảo mật 2FA."
         required
       >
         <div className="relative">
@@ -281,7 +281,7 @@ export function ForgotPasswordForm() {
             inputMode="numeric"
             value={otpVal}
             onChange={(e) => setOtpVal(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="123456"
+            placeholder="Nhập mã 6 số"
             className="text-center font-mono text-lg tracking-[0.35em]"
             autoFocus
             required

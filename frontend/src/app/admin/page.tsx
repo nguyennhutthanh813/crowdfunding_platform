@@ -36,7 +36,7 @@ export default async function AdminDashboardPage() {
       <PageHeader
         eyebrow="Thống kê toàn hệ thống"
         title="Tổng quan vận hành FundViet"
-        description="Theo dõi dòng tiền giữ chỗ / thu tiền All-or-Nothing, hàng chờ kiểm duyệt và các cảnh báo cần xử lý ngay."
+        description="Theo dõi dòng tiền giữ chỗ và thu tiền khi đạt mục tiêu, hàng chờ kiểm duyệt và các cảnh báo cần xử lý ngay."
         actions={
           <div className="flex flex-wrap gap-2">
             {kpis.pending > 0 && (
@@ -56,18 +56,18 @@ export default async function AdminDashboardPage() {
         <Reveal delay={0}>
           <StatCard
             tone="sky"
-            label="Đang giữ chỗ (AUTHORIZED)"
+            label="Đang giữ chỗ"
             value={<CountUp value={kpis.held} format="compact" />}
-            sub={`${kpis.heldCount} pledge · ${formatVnd(kpis.held)}`}
+            sub={`${kpis.heldCount} lượt góp · ${formatVnd(kpis.held)}`}
             icon={<Wallet className="size-5" />}
           />
         </Reveal>
         <Reveal delay={0.05}>
           <StatCard
             tone="emerald"
-            label="Đã thu tiền (CAPTURED)"
+            label="Đã thu tiền"
             value={<CountUp value={kpis.captured} format="compact" />}
-            sub={`${kpis.capturedCount} pledge · ${formatVnd(kpis.captured)}`}
+            sub={`${kpis.capturedCount} lượt góp · ${formatVnd(kpis.captured)}`}
             icon={<Landmark className="size-5" />}
           />
         </Reveal>
@@ -78,7 +78,7 @@ export default async function AdminDashboardPage() {
             value={
               <span className="flex items-baseline gap-2">
                 <CountUp value={kpis.live} />
-                <span className="text-sm font-semibold text-muted">LIVE</span>
+                <span className="text-sm font-semibold text-muted">đang gọi vốn</span>
               </span>
             }
             sub={`Thành công ${kpis.successRate}% (${kpis.succeeded}/${kpis.ended} đã chốt)`}
@@ -90,7 +90,7 @@ export default async function AdminDashboardPage() {
             tone="rose"
             label="Người dùng & Kiểm duyệt"
             value={<CountUp value={kpis.users} />}
-            sub={`${kpis.activeBackers} backer hoạt động 7 ngày · ${kpis.locked} đã khoá`}
+            sub={`${kpis.activeBackers} người ủng hộ hoạt động 7 ngày · ${kpis.locked} đã khoá`}
             icon={<Users className="size-5" />}
           />
         </Reveal>

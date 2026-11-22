@@ -36,11 +36,36 @@ export const REVIEW_DECISION_META: Record<string, { label: string; tone: Tone }>
 };
 
 export const TX_KIND_META: Record<string, { label: string; tone: Tone; hint: string }> = {
-  AUTHORIZE: { label: "Giữ chỗ", tone: "sky", hint: "Giữ hạn mức khi backer góp vốn (chưa trừ tiền)" },
+  AUTHORIZE: { label: "Giữ chỗ", tone: "sky", hint: "Giữ hạn mức khi người ủng hộ góp vốn (chưa trừ tiền)" },
   CAPTURE: { label: "Thu tiền", tone: "emerald", hint: "Trừ tiền khi chiến dịch đạt mục tiêu" },
-  VOID: { label: "Giải phóng", tone: "neutral", hint: "Huỷ giữ chỗ khi backer huỷ hoặc dự án không đạt" },
+  VOID: { label: "Giải phóng", tone: "neutral", hint: "Huỷ giữ chỗ khi người ủng hộ huỷ hoặc dự án không đạt" },
   REFUND: { label: "Hoàn tiền", tone: "amber", hint: "Hoàn tiền sau khi đã thu" },
 };
+
+export const AUDIT_ACTION_META: Record<string, string> = {
+  "project.approve": "Duyệt dự án",
+  "project.reject": "Từ chối dự án",
+  "project.request_changes": "Yêu cầu sửa dự án",
+  "project.suspend": "Tạm gỡ dự án",
+  "project.restore": "Khôi phục dự án",
+  "project.settle": "Chốt chiến dịch",
+  "project.submit": "Gửi duyệt dự án",
+  "user.lock": "Khoá tài khoản",
+  "user.unlock": "Mở khoá tài khoản",
+  "report.handle": "Xử lý báo cáo",
+  "category.create": "Tạo thể loại",
+  "category.update": "Sửa thể loại",
+  "category.toggle": "Ẩn / hiện thể loại",
+  "scheduler.run": "Chạy bộ lập lịch",
+  "comment.moderate": "Ẩn bình luận",
+  "comment.delete": "Xoá bình luận",
+  "pledge.refund": "Hoàn tiền góp vốn",
+  "pledge.resolve_failed": "Xử lý thu lỗi",
+};
+
+export function formatAuditAction(action: string): string {
+  return AUDIT_ACTION_META[action] ?? action;
+}
 
 export const TX_STATUS_META: Record<string, { label: string; tone: Tone }> = {
   SUCCEEDED: { label: "Thành công", tone: "emerald" },
@@ -60,12 +85,12 @@ export const REPORT_STATUS_META: Record<string, { label: string; tone: Tone }> =
 };
 
 export const AUDIT_PREFIX_META: Record<string, { label: string; tone: Tone }> = {
-  "project.": { label: "Dự án", tone: "violet" },
-  "user.": { label: "Người dùng", tone: "amber" },
-  "report.": { label: "Báo cáo", tone: "rose" },
-  "category.": { label: "Thể loại", tone: "sky" },
+  "project.": { label: "Thao tác dự án", tone: "violet" },
+  "user.": { label: "Thao tác tài khoản", tone: "amber" },
+  "report.": { label: "Thao tác báo cáo", tone: "rose" },
+  "category.": { label: "Thao tác thể loại", tone: "sky" },
   "scheduler.": { label: "Bộ lập lịch", tone: "emerald" },
-  "comment.": { label: "Bình luận", tone: "slate" },
+  "comment.": { label: "Thao tác bình luận", tone: "slate" },
 };
 
 export function auditTone(action: string): Tone {

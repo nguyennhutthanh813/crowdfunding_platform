@@ -118,7 +118,7 @@ export function PledgeCard({ p }: { p: MyPledge }) {
             </Link>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
               <span>
-                Creator:{" "}
+                Chủ dự án:{" "}
                 <Link href={`/u/${p.creator_username}`} className="font-medium text-fg hover:underline">
                   {p.creator_name}
                 </Link>
@@ -317,15 +317,15 @@ export function PledgeCard({ p }: { p: MyPledge }) {
           {p.changeable && (
             <>
               <ButtonLink href={`/p/${p.slug}/back?change=1`} variant="outline" size="sm">
-                <Pencil className="size-3.5" /> Đổi pledge
+                <Pencil className="size-3.5" /> Đổi mức góp
               </ButtonLink>
               <ActionForm
                 action={cancelMyPledgeAction}
-                confirm={`Bạn chắc chắn muốn huỷ pledge ${p.code} cho "${p.title}"? Khoản giữ chỗ sẽ được giải phóng ngay.`}
+                confirm={`Bạn chắc chắn muốn huỷ khoản góp ${p.code} cho "${p.title}"? Khoản giữ chỗ sẽ được giải phóng ngay.`}
               >
                 <input type="hidden" name="pledgeId" value={p.id} />
                 <SubmitButton variant="danger" size="sm" pendingText="Đang huỷ…">
-                  Huỷ pledge
+                  Huỷ góp vốn
                 </SubmitButton>
               </ActionForm>
             </>

@@ -30,7 +30,7 @@ const OPTIONS: {
   {
     key: "CHANGES_REQUESTED",
     label: "Yêu cầu chỉnh sửa",
-    desc: "Trả về bản nháp kèm góp ý cho Creator",
+    desc: "Trả về bản nháp kèm góp ý cho Chủ dự án",
     icon: MessageSquareWarning,
     ring: "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     btnVariant: "secondary",
@@ -50,7 +50,7 @@ const OPTIONS: {
 const QUICK_NOTES = [
   "Đủ thông tin, phần quà và kế hoạch rủi ro hợp lệ.",
   "Vui lòng bổ sung thông số kỹ thuật và ảnh thực tế của sản phẩm.",
-  "Cần làm rõ tiến độ sản xuất và chính sách bảo hành cho backer.",
+  "Cần làm rõ tiến độ sản xuất và chính sách bảo hành cho người ủng hộ.",
   "Nội dung có dấu hiệu vi phạm chính sách hoặc từ khoá cấm.",
 ];
 
@@ -86,8 +86,8 @@ export function ReviewDecisionForm({
         <h3 className="text-base font-bold">Quyết định kiểm duyệt</h3>
         <p className="mt-0.5 text-xs text-muted">
           {willSchedule
-            ? `Creator đã hẹn ngày mở ${formatDate(desiredStart, true)} — duyệt sẽ chuyển sang SCHEDULED.`
-            : "Creator chưa đặt lịch tương lai — duyệt sẽ mở LIVE ngay lập tức."}
+            ? `Chủ dự án đã hẹn ngày mở ${formatDate(desiredStart, true)} — duyệt sẽ chuyển sang Sắp mở.`
+            : "Chủ dự án chưa đặt lịch tương lai — duyệt sẽ mở gọi vốn ngay lập tức."}
         </p>
       </div>
 
@@ -127,10 +127,10 @@ export function ReviewDecisionForm({
             </div>
 
             <Field
-              label={decision === "APPROVED" ? "Ghi chú duyệt (tuỳ chọn)" : "Lý do / góp ý cho Creator"}
+              label={decision === "APPROVED" ? "Ghi chú duyệt (tuỳ chọn)" : "Lý do / góp ý cho Chủ dự án"}
               required={decision !== "APPROVED"}
               error={state?.fieldErrors?.note}
-              hint={decision === "APPROVED" ? "Ghi chú sẽ lưu vào lịch sử duyệt." : "Bắt buộc ít nhất 5 ký tự để Creator biết cần sửa gì."}
+              hint={decision === "APPROVED" ? "Ghi chú sẽ lưu vào lịch sử duyệt." : "Bắt buộc ít nhất 5 ký tự để Chủ dự án biết cần sửa gì."}
             >
               <Textarea
                 name="note"

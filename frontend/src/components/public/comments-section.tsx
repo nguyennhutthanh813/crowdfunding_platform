@@ -60,7 +60,7 @@ export function CommentsSection({
           <div>
             <h3 className="font-bold">Tham gia thảo luận cùng cộng đồng</h3>
             <p className="mt-1 text-sm text-muted">
-              Đăng nhập để đặt câu hỏi, góp ý cho Creator hoặc thả tim bình luận hữu ích.
+              Đăng nhập để đặt câu hỏi, góp ý cho chủ dự án hoặc thả tim bình luận hữu ích.
             </p>
           </div>
           <ButtonLink href={`/login?next=${encodeURIComponent(`/p/${slug}?tab=comments`)}`} size="sm">

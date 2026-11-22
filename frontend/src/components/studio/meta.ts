@@ -2,23 +2,23 @@
 
 /** Lý do hiển thị khi một thao tác bị khoá vì thiếu quyền dự án. */
 export const LOCK_REASON: Record<string, string> = {
-  "project.edit": "Chỉ Creator mới sửa được nội dung, mục tiêu và thời hạn.",
-  "reward.manage": "Chỉ Creator mới quản lý được mức quà & add-on.",
-  "project.submit": "Chỉ Creator mới gửi duyệt được dự án.",
-  "project.schedule": "Chỉ Creator mới đặt lịch mở và bật trang xem trước.",
-  "project.cancel": "Chỉ Creator mới huỷ / xoá được dự án.",
-  "project.completion": "Chỉ Creator mới chọn nội dung hiển thị khi hoàn thành.",
-  "update.publish": "Chỉ Creator mới đăng được Update công khai — bạn có thể soạn nháp để Creator duyệt.",
-  "update.draft": "Bạn không có quyền soạn Update.",
-  "faq.manage": "Bạn không có quyền quản lý FAQ.",
+  "project.edit": "Chỉ Chủ dự án mới sửa được nội dung, mục tiêu và thời hạn.",
+  "reward.manage": "Chỉ Chủ dự án mới quản lý được mức quà & quà kèm.",
+  "project.submit": "Chỉ Chủ dự án mới gửi duyệt được dự án.",
+  "project.schedule": "Chỉ Chủ dự án mới đặt lịch mở và bật trang xem trước.",
+  "project.cancel": "Chỉ Chủ dự án mới huỷ / xoá được dự án.",
+  "project.completion": "Chỉ Chủ dự án mới chọn nội dung hiển thị khi hoàn thành.",
+  "update.publish": "Chỉ Chủ dự án mới đăng được bản cập nhật công khai — bạn có thể soạn nháp để Chủ dự án duyệt.",
+  "update.draft": "Bạn không có quyền soạn bản cập nhật.",
+  "faq.manage": "Bạn không có quyền quản lý hỏi đáp.",
   "comment.reply": "Bạn không có quyền trả lời bình luận.",
   "comment.moderate": "Bạn không có quyền ẩn bình luận.",
-  "insight.view": "Bạn không có quyền xem bình luận AI đã lọc.",
+  "insight.view": "Bạn không có quyền xem phân loại góp ý.",
   "stats.view": "Bạn không có quyền xem thống kê.",
-  "ai.run": "Chỉ Creator mới chạy lại dự đoán AI — bạn đang xem bản gần nhất.",
-  "backer.view": "Chỉ Creator mới xem được danh sách backer và địa chỉ giao hàng.",
-  "fulfillment.manage": "Chỉ Creator mới cập nhật giao quà.",
-  "member.manage": "Chỉ Creator mới mời hoặc gỡ Collaborator.",
+  "ai.run": "Chỉ Chủ dự án mới chạy lại đánh giá sẵn sàng — bạn đang xem bản gần nhất.",
+  "backer.view": "Chỉ Chủ dự án mới xem được danh sách người ủng hộ và địa chỉ giao hàng.",
+  "fulfillment.manage": "Chỉ Chủ dự án mới cập nhật giao quà.",
+  "member.manage": "Chỉ Chủ dự án mới mời hoặc gỡ Cộng tác viên.",
 };
 
 export type StudioTabKey = "overview" | "content" | "rewards" | "updates" | "faq" | "comments" | "backers" | "fulfillment" | "team" | "settings";
@@ -27,10 +27,10 @@ export const STUDIO_TABS: { key: StudioTabKey; label: string; perm: string }[] =
   { key: "overview", label: "Tổng quan", perm: "stats.view" },
   { key: "content", label: "Nội dung", perm: "project.edit" },
   { key: "rewards", label: "Phần quà", perm: "reward.manage" },
-  { key: "updates", label: "Updates", perm: "update.draft" },
-  { key: "faq", label: "FAQ", perm: "faq.manage" },
+  { key: "updates", label: "Cập nhật", perm: "update.draft" },
+  { key: "faq", label: "Hỏi đáp", perm: "faq.manage" },
   { key: "comments", label: "Bình luận", perm: "insight.view" },
-  { key: "backers", label: "Backer", perm: "backer.view" },
+  { key: "backers", label: "Người ủng hộ", perm: "backer.view" },
   { key: "fulfillment", label: "Giao quà", perm: "fulfillment.manage" },
   { key: "team", label: "Nhóm", perm: "member.manage" },
   { key: "settings", label: "Cài đặt & lịch", perm: "project.schedule" },
@@ -65,9 +65,9 @@ export const COVER_GALLERY = [
 export const WIZARD_STEPS = [
   { n: 1, label: "Cơ bản", hint: "Tên, thể loại, ảnh bìa" },
   { n: 2, label: "Nội dung", hint: "Câu chuyện & rủi ro" },
-  { n: 3, label: "Phần quà", hint: "Mức quà & add-on" },
+  { n: 3, label: "Phần quà", hint: "Mức quà & quà kèm" },
   { n: 4, label: "Mục tiêu & lịch", hint: "Số tiền, thời lượng" },
-  { n: 5, label: "Xem lại", hint: "AI dự đoán & gửi duyệt" },
+  { n: 5, label: "Xem lại", hint: "Đánh giá & gửi duyệt" },
 ] as const;
 
 export const COMMENT_FILTERS = [

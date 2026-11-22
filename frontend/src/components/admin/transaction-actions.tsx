@@ -4,11 +4,12 @@ import { useState } from "react";
 import { CheckCircle2, Eye, RotateCcw, XCircle } from "lucide-react";
 import type { AdminTransactionRow } from "@/server/queries/admin";
 import { refundPledgeAction, resolveFailedCaptureAction } from "@/server/actions/admin";
+import { TX_KIND_META } from "@/components/admin/admin-helpers";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Textarea } from "@/components/ui/form";
-import { Badge, PledgeStatusBadge } from "@/components/ui/primitives";
+import { PledgeStatusBadge } from "@/components/ui/primitives";
 import { formatDate, formatVnd } from "@/lib/utils";
 
 const REFUND_PRESETS = [
@@ -51,13 +52,13 @@ export function TransactionRowActions({ row }: { row: AdminTransactionRow }) {
         open={inspectOpen}
         onClose={() => setInspectOpen(false)}
         title={`Chi tiết đối soát giao dịch · ${row.code}`}
-        description="Thông tin bút toán tài chính và tham chiếu cổng thanh toán VNPAY / Token."
+        description="Thông tin bút toán tài chính và tham chiếu cổng thanh toán VNPAY / thẻ đã lưu."
       >
         <div className="space-y-3.5 text-xs">
           <div className="grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface-2/60 p-3.5">
             <div>
               <span className="text-muted">Cổng thanh toán</span>
-              <div className="mt-0.5 font-extrabold">{row.provider}</div>
+              <div className="mt-0.5 font-extrabold">{row.provider === "VNPAY" ? "VNPAY" : "Thẻ đã lưu"}</div>
             </div>
             <div>
               <span className="text-muted">Số tiền bút toán</span>
@@ -67,10 +68,10 @@ export function TransactionRowActions({ row }: { row: AdminTransactionRow }) {
             </div>
             <div>
               <span className="text-muted">Loại nghiệp vụ</span>
-              <div className="mt-0.5 font-bold">{row.kind}</div>
+              <div className="mt-0.5 font-bold">{TX_KIND_META[row.kind]?.label ?? row.kind}</div>
             </div>
             <div>
-              <span className="text-muted">Trạng thái Pledge</span>
+              <span className="text-muted">Trạng thái góp vốn</span>
               <div className="mt-0.5">
                 <PledgeStatusBadge status={row.pledge_status} />
               </div>
@@ -79,11 +80,11 @@ export function TransactionRowActions({ row }: { row: AdminTransactionRow }) {
 
           <dl className="space-y-2 rounded-xl border border-line p-3.5">
             <div className="flex justify-between gap-2">
-              <dt className="text-muted">Mã giao dịch cổng (provider_ref)</dt>
+              <dt className="text-muted">Mã giao dịch cổng</dt>
               <dd className="font-mono font-bold">{row.provider_ref || "—"}</dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-muted">Mã tham chiếu VNPAY (vnp_TxnRef)</dt>
+              <dt className="text-muted">Mã tham chiếu VNPAY</dt>
               <dd className="font-mono font-bold">{row.vnp_txn_ref || "—"}</dd>
             </div>
             <div className="flex justify-between gap-2">
@@ -93,7 +94,7 @@ export function TransactionRowActions({ row }: { row: AdminTransactionRow }) {
               </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-muted">Khoá chống trùng (idempotency_key)</dt>
+              <dt className="text-muted">Mã chống trùng</dt>
               <dd className="truncate font-mono text-[11px]">{row.idempotency_key}</dd>
             </div>
             <div className="flex justify-between gap-2">
@@ -131,7 +132,7 @@ export function TransactionRowActions({ row }: { row: AdminTransactionRow }) {
         >
           <input type="hidden" name="pledgeId" value={row.pledge_id} />
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
-            Hệ thống sẽ tạo bút toán <b>REFUND</b> qua cổng VNPAY, chuyển trạng thái pledge sang <b>Đã hoàn tiền</b>, cập nhật lại tổng tiền dự án và gửi thông báo cho cả Backer lẫn Creator.
+            Hệ thống sẽ tạo giao dịch <b>Hoàn tiền</b> qua cổng VNPAY, chuyển trạng thái góp vốn sang <b>Đã hoàn tiền</b>, cập nhật lại tổng tiền dự án và gửi thông báo cho cả người ủng hộ lẫn chủ dự án.
           </div>
           <Field label="Lý do hoàn tiền đối soát" required hint="Bắt buộc tối thiểu 5 ký tự để lưu nhật ký kiểm toán.">
             <Textarea
@@ -167,17 +168,17 @@ export function TransactionRowActions({ row }: { row: AdminTransactionRow }) {
         </ActionForm>
       </Dialog>
 
-      {/* Hộp thoại xử lý khoản thu lỗi CAPTURE_FAILED */}
+      {/* Hộp thoại xử lý khoản thu lỗi */}
       <Dialog
         open={resolveOpen}
         onClose={() => setResolveOpen(false)}
         title={`Xử lý khoản thu lỗi · ${row.code}`}
-        description={`Khoản góp vốn ${formatVnd(row.amount)} của ${row.backer} đang ở trạng thái CAPTURE_FAILED.`}
+        description={`Khoản góp vốn ${formatVnd(row.amount)} của ${row.backer} đang ở trạng thái Trừ tiền lỗi.`}
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-xl border border-line bg-surface-2/60 p-3 text-xs">
             <span>Trạng thái hiện tại:</span>
-            <Badge tone="rose">CAPTURE_FAILED</Badge>
+            <PledgeStatusBadge status={row.pledge_status} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -195,7 +196,7 @@ export function TransactionRowActions({ row }: { row: AdminTransactionRow }) {
               <input type="hidden" name="op" value="VOID" />
               <input type="hidden" name="note" value="Giải phóng khoản giữ chỗ do quá hạn thanh toán lại" />
               <SubmitButton variant="danger" size="sm" className="w-full" pendingText="Đang giải phóng…">
-                <XCircle className="size-4" /> Giải phóng (VOID)
+                <XCircle className="size-4" /> Giải phóng giữ chỗ
               </SubmitButton>
             </ActionForm>
           </div>

@@ -55,14 +55,14 @@ export function ContentTab({
           </Field>
         </div>
 
-        <Field label="Mô tả ngắn (blurb)" required>
+        <Field label="Mô tả ngắn" required>
           <Textarea name="blurb" defaultValue={project.blurb} maxLength={200} rows={2} required />
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Ảnh bìa dự án">
             <div className="flex flex-wrap gap-2">
-              <Input value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." className="min-w-[180px] flex-1" />
+              <Input value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="Dán đường dẫn ảnh bìa (https://...)" className="min-w-[180px] flex-1" />
               <ImageUploadButton folder="projects" label="Tải ảnh bìa" onUploaded={setCoverUrl} className="h-11 px-3" />
               <button
                 type="button"

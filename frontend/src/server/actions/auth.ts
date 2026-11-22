@@ -280,7 +280,7 @@ export async function enableTwoFactorAction(_: FormState, form: FormData): Promi
   return {
     ok: true,
     backupCodes: data.backupCodes ?? [],
-    message: data.message ?? "Đã bật bảo mật 2 lớp (2FA) và lưu vào CSDL người dùng!",
+    message: data.message ?? "Đã bật bảo mật 2 lớp (2FA) thành công.",
   };
 }
 

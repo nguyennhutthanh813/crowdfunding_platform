@@ -64,9 +64,9 @@ export default async function AdminUsersPage({
         <Select name="role" defaultValue={role}>
           <option value="">Mọi vai trò</option>
           <option value="ADMIN">Quản trị viên</option>
-          <option value="CREATOR">Creator</option>
-          <option value="COLLABORATOR">Collaborator</option>
-          <option value="BACKER">Backer đã góp</option>
+          <option value="CREATOR">Chủ dự án</option>
+          <option value="COLLABORATOR">Cộng tác viên</option>
+          <option value="BACKER">Người ủng hộ đã góp</option>
         </Select>
         <div className="flex gap-2">
           <Button type="submit" variant="primary" size="md" className="flex-1 sm:flex-none">
@@ -109,7 +109,7 @@ export default async function AdminUsersPage({
                       </div>
                     </div>
                     <Badge tone={u.status === "LOCKED" ? "rose" : "emerald"} dot>
-                      {u.status === "LOCKED" ? "Khoá" : "Active"}
+                      {u.status === "LOCKED" ? "Khoá" : "Hoạt động"}
                     </Badge>
                   </div>
 

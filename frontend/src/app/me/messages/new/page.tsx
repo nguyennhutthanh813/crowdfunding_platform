@@ -52,7 +52,7 @@ export default async function NewMessagePage(props: {
   for (const s of meta.suggestions) {
     if (seen.has(s.username)) continue;
     seen.add(s.username);
-    quickContacts.push({ username: s.username, display_name: s.display_name, avatar_url: s.avatar_url, hint: "Creator" });
+    quickContacts.push({ username: s.username, display_name: s.display_name, avatar_url: s.avatar_url, hint: "Chủ dự án" });
   }
 
   return (

@@ -38,7 +38,7 @@ export function RewardsEditor({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="flex items-center gap-2 text-lg font-bold">
-                <Gift className="size-5 text-violet-500" /> Các mức quà (Reward Tiers)
+                <Gift className="size-5 text-violet-500" /> Các mức quà
               </h3>
               <Badge tone={activeTiers >= 1 ? "emerald" : "amber"}>{activeTiers} gói đang bật</Badge>
             </div>
@@ -111,7 +111,7 @@ export function RewardsEditor({
                     </span>
                     {t.add_on_ids.length > 0 && (
                       <span className="rounded-lg bg-violet-500/10 px-2 py-1 text-violet-700 dark:text-violet-300">
-                        {t.add_on_ids.length} add-on kèm theo
+                        {t.add_on_ids.length} quà kèm tuỳ chọn
                       </span>
                     )}
                   </div>
@@ -137,7 +137,7 @@ export function RewardsEditor({
                       disabled={t.pledge_count > 0}
                       className="text-rose-500 hover:bg-rose-500/10"
                     >
-                      <Trash2 className="size-3.5" /> {t.pledge_count > 0 ? "Đã có pledge" : "Xoá"}
+                      <Trash2 className="size-3.5" /> {t.pledge_count > 0 ? "Đã có người chọn" : "Xoá"}
                     </SubmitButton>
                   </ActionForm>
                 </div>
@@ -152,20 +152,20 @@ export function RewardsEditor({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="flex items-center gap-2 text-lg font-bold">
-              <PackagePlus className="size-5 text-emerald-500" /> Add-on mua kèm
+              <PackagePlus className="size-5 text-emerald-500" /> Quà kèm tuỳ chọn
             </h3>
             <p className="mt-1 text-sm text-muted">
-              Sản phẩm bổ sung cho phép backer mua thêm sau khi chọn một mức quà vật lý hoặc tương thích.
+              Sản phẩm bổ sung cho phép người ủng hộ mua thêm sau khi chọn một mức quà vật lý hoặc tương thích.
             </p>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setAddOnModal({ open: true, editing: null })}>
-            <Plus className="size-4" /> Thêm add-on
+            <Plus className="size-4" /> Thêm quà kèm
           </Button>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {addOns.length === 0 ? (
-            <p className="text-sm text-muted sm:col-span-2 lg:col-span-3">Chưa có add-on nào (tuỳ chọn).</p>
+            <p className="text-sm text-muted sm:col-span-2 lg:col-span-3">Chưa có quà kèm nào (tuỳ chọn).</p>
           ) : (
             addOns.map((a) => (
               <div
@@ -195,7 +195,7 @@ export function RewardsEditor({
                   <Button variant="ghost" size="xs" onClick={() => setAddOnModal({ open: true, editing: a })}>
                     <Pencil className="size-3.5" /> Sửa
                   </Button>
-                  <ActionForm action={deleteAddOnAction} confirm="Xoá add-on này?">
+                  <ActionForm action={deleteAddOnAction} confirm="Xoá quà kèm này?">
                     <input type="hidden" name="project_id" value={projectId} />
                     <input type="hidden" name="add_on_id" value={a.id} />
                     <SubmitButton variant="ghost" size="xs" className="text-rose-500 hover:bg-rose-500/10">
@@ -231,7 +231,7 @@ export function RewardsEditor({
       <Dialog
         open={addOnModal.open}
         onClose={() => setAddOnModal({ open: false, editing: null })}
-        title={addOnModal.editing ? "Chỉnh sửa add-on" : "Thêm add-on mới"}
+        title={addOnModal.editing ? "Chỉnh sửa quà kèm" : "Thêm quà kèm mới"}
       >
         {addOnModal.open && (
           <AddOnFormBody
@@ -282,7 +282,7 @@ function TierFormBody({
         <Field
           label="Số tiền (VND)"
           required
-          hint={priceLocked ? "Đã có backer chọn nên giá được khoá" : "Tối thiểu 10.000đ"}
+          hint={priceLocked ? "Đã có người ủng hộ chọn nên giá được khoá" : "Tối thiểu 10.000đ"}
         >
           {priceLocked && <input type="hidden" name="amount" value={initial?.amount} />}
           <Input
@@ -298,7 +298,7 @@ function TierFormBody({
       </div>
 
       <Field label="Mô tả quyền lợi">
-        <Textarea name="description" defaultValue={initial?.description ?? ""} rows={2} placeholder="Mô tả ngắn những gì backer nhận được…" />
+        <Textarea name="description" defaultValue={initial?.description ?? ""} rows={2} placeholder="Mô tả ngắn những gì người ủng hộ nhận được…" />
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -388,7 +388,7 @@ function TierFormBody({
 
       {addOns.length > 0 && (
         <div className="space-y-2">
-          <span className="block text-sm font-semibold">Add-on được phép mua kèm với mức quà này</span>
+          <span className="block text-sm font-semibold">Quà kèm được phép chọn cùng mức quà này</span>
           <div className="grid gap-2 sm:grid-cols-2">
             {addOns.map((a) => (
               <label key={a.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line px-3 py-2 text-sm hover:bg-surface-2">
@@ -434,7 +434,7 @@ function AddOnFormBody({
       {initial && <input type="hidden" name="add_on_id" value={initial.id} />}
       <input type="hidden" name="sync_tiers" value="1" />
 
-      <Field label="Tên add-on" required>
+      <Field label="Tên quà kèm" required>
         <Input name="title" defaultValue={initial?.title ?? ""} placeholder="Ví dụ: Dây đeo thay thế, Túi chống sốc" required />
       </Field>
 
@@ -484,7 +484,7 @@ function AddOnFormBody({
         <Button type="button" variant="ghost" onClick={onDone}>
           Huỷ
         </Button>
-        <SubmitButton pendingText="Đang lưu…">{initial ? "Lưu add-on" : "Thêm add-on"}</SubmitButton>
+        <SubmitButton pendingText="Đang lưu…">{initial ? "Lưu quà kèm" : "Thêm quà kèm"}</SubmitButton>
       </div>
     </ActionForm>
   );

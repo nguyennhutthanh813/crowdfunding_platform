@@ -26,7 +26,7 @@ export default async function AdminReviewsPage() {
       {queue.length === 0 ? (
         <EmptyState
           title="Hàng chờ duyệt đang trống"
-          description="Tất cả dự án gửi duyệt đã được xử lý. Khi Creator gửi dự án mới, dự án sẽ xuất hiện tại đây."
+          description="Tất cả dự án gửi duyệt đã được xử lý. Khi chủ dự án gửi dự án mới, dự án sẽ xuất hiện tại đây."
           action={
             <ButtonLink href="/admin/projects" variant="outline" size="sm">
               Xem danh sách dự án
@@ -57,11 +57,11 @@ export default async function AdminReviewsPage() {
                       </Badge>
                       <Badge tone={item.requiredOk ? "emerald" : "rose"}>
                         {item.requiredOk ? <CheckCircle2 className="size-3" /> : <ShieldAlert className="size-3" />}
-                        Checklist {item.passed}/{item.total}
+                        Đạt {item.passed}/{item.total} tiêu chí
                       </Badge>
                       {aiPct !== null && (
                         <Badge tone={aiPct >= 66 ? "emerald" : aiPct >= 40 ? "amber" : "rose"}>
-                          <Brain className="size-3" /> AI {aiPct}%
+                          <Brain className="size-3" /> Sẵn sàng {aiPct}%
                         </Badge>
                       )}
                       {item.start_at && (
@@ -78,7 +78,7 @@ export default async function AdminReviewsPage() {
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                       <span>
-                        Creator: <b className="text-fg">{item.creator}</b> (@{item.creator_username})
+                        Chủ dự án: <b className="text-fg">{item.creator}</b> (@{item.creator_username})
                       </span>
                       <span>
                         Mục tiêu: <b className="text-fg">{formatVnd(item.goal_amount)}</b>

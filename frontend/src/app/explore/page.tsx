@@ -75,7 +75,7 @@ export default async function ExplorePage(props: {
       <PageHeader
         eyebrow="KHÁM PHÁ DỰ ÁN"
         title="Tìm ý tưởng Việt đáng ủng hộ"
-        description="Lọc theo thể loại, trạng thái chiến dịch hoặc từ khoá. Áp dụng cơ chế All-or-Nothing — không đạt mục tiêu, không mất tiền."
+        description="Lọc theo thể loại, trạng thái chiến dịch hoặc từ khoá. Chỉ thu tiền khi dự án đạt mục tiêu đề ra."
         actions={
           canCreate && (
             <ButtonLink href={viewer ? "/studio/new" : "/register?next=/studio/new"} size="sm">

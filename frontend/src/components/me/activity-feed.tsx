@@ -27,7 +27,7 @@ const KIND_META: Record<
   UPDATE: { label: "Bản tin tiến độ", tone: "violet", icon: Newspaper },
   STATUS: { label: "Trạng thái dự án", tone: "sky", icon: Flag },
   PLEDGE: { label: "Góp vốn", tone: "emerald", icon: HandCoins },
-  PLEDGE_CANCEL: { label: "Huỷ pledge", tone: "neutral", icon: RotateCcw },
+  PLEDGE_CANCEL: { label: "Huỷ góp vốn", tone: "neutral", icon: RotateCcw },
   COMMENT: { label: "Bình luận", tone: "amber", icon: MessageSquare },
 };
 
@@ -121,7 +121,7 @@ export function ActivityFeedList({ items }: { items: ActivityItem[] }) {
                       {(item.kind === "PLEDGE" || item.kind === "PLEDGE_CANCEL") && (
                         <div className="flex flex-wrap items-center gap-2 text-sm">
                           <Link href={item.link} className="font-bold hover:underline">
-                            {item.kind === "PLEDGE" ? "Đã tạo pledge" : "Đã huỷ pledge"}{" "}
+                            {item.kind === "PLEDGE" ? "Đã góp vốn" : "Đã huỷ khoản góp"}{" "}
                             <span className="font-mono text-xs">{item.title}</span>
                           </Link>
                           {item.meta && (

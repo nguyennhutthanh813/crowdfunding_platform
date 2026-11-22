@@ -43,7 +43,7 @@ export function WelcomeBanner({ name }: { name: string }) {
             Chào mừng {name} đến với FundViet!
           </h2>
           <p className="text-sm text-violet-100/80">
-            Bạn có thể khám phá dự án sáng tạo, lưu dự án yêu thích, góp vốn an toàn với cơ chế All-or-Nothing hoặc tạo dự án đầu tiên.
+            Bạn có thể khám phá dự án sáng tạo, lưu dự án yêu thích, góp vốn an toàn (chỉ thu tiền khi đạt mục tiêu) hoặc tạo dự án đầu tiên.
           </p>
           <div className="flex flex-wrap justify-center gap-2 pt-1 sm:justify-start">
             <ButtonLink href="/explore" size="sm">

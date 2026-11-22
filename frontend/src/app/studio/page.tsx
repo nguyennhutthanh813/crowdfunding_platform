@@ -35,7 +35,7 @@ export default async function StudioDashboardPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6">
       <PageHeader
-        eyebrow="Creator & Collaborator Studio"
+        eyebrow="Studio quản lý dự án"
         title="Không gian quản lý dự án"
         description="Theo dõi tiến độ chiến dịch, phân tích AI, trả lời cộng đồng và điều phối giao quà ở cùng một nơi."
         actions={
@@ -54,7 +54,7 @@ export default async function StudioDashboardPage() {
                 <BellRing className="size-5" />
               </span>
               <div>
-                <h2 className="font-bold">Bạn có {invitations.length} lời mời làm Collaborator</h2>
+                <h2 className="font-bold">Bạn có {invitations.length} lời mời làm cộng tác viên</h2>
                 <ul className="mt-1 space-y-1 text-sm text-muted">
                   {invitations.map((inv) => (
                     <li key={inv.id}>
@@ -65,8 +65,8 @@ export default async function StudioDashboardPage() {
                 </ul>
               </div>
             </div>
-            <ButtonLink href="/me?tab=invitations" variant="primary" size="sm" className="shrink-0">
-              Xem &amp; phản hồi tại /me <ArrowRight className="size-4" />
+            <ButtonLink href="/me#invitations" variant="primary" size="sm" className="shrink-0">
+              Xem &amp; phản hồi lời mời <ArrowRight className="size-4" />
             </ButtonLink>
           </div>
         </div>
@@ -104,7 +104,7 @@ export default async function StudioDashboardPage() {
             <StatCard
               label="Tổng lượt ủng hộ"
               value={<CountUp value={totalBackers} />}
-              sub="Trên các dự án bạn là Creator"
+              sub="Trên các dự án bạn là chủ dự án"
               icon={<Users className="size-5" />}
               tone="amber"
             />
@@ -157,7 +157,7 @@ export default async function StudioDashboardPage() {
                     Dự án tham gia cộng tác <RoleBadge role="COLLABORATOR" />
                   </span>
                 }
-                description="Bạn hỗ trợ soạn FAQ, nháp Update, phản hồi bình luận AI và theo dõi thống kê."
+                description="Bạn hỗ trợ soạn câu hỏi thường gặp, nháp bản tin, phản hồi bình luận AI và theo dõi thống kê."
               />
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {collab.map((p, i) => (

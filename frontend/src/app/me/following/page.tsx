@@ -11,7 +11,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageHeader, SectionTitle } from "@/components/ui/layout-bits";
 import { Badge, Card, RoleBadge } from "@/components/ui/primitives";
 
-export const metadata = { title: "Creator đang theo dõi" };
+export const metadata = { title: "Chủ dự án đang theo dõi" };
 
 export default async function MyFollowingPage() {
   const v = await requireViewer("/me/following");
@@ -25,8 +25,8 @@ export default async function MyFollowingPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Khám phá"
-        title="Creator đang theo dõi"
-        description="Nhận thông báo mỗi khi những creator bạn yêu thích mở chiến dịch mới."
+        title="Chủ dự án đang theo dõi"
+        description="Nhận thông báo mỗi khi những chủ dự án bạn yêu thích mở chiến dịch mới."
         actions={
           <ButtonLink href="/explore" variant="outline" size="sm">
             Khám phá dự án
@@ -36,9 +36,9 @@ export default async function MyFollowingPage() {
 
       {followed.length === 0 ? (
         <EmptyState
-          title="Bạn chưa theo dõi creator nào"
-          description="Hãy nhấn Theo dõi trên trang dự án hoặc chọn một vài creator gợi ý bên dưới."
-          action={<ButtonLink href="/explore">Tìm creator</ButtonLink>}
+          title="Bạn chưa theo dõi chủ dự án nào"
+          description="Hãy nhấn Theo dõi trên trang dự án hoặc chọn một vài chủ dự án gợi ý bên dưới."
+          action={<ButtonLink href="/explore">Tìm chủ dự án</ButtonLink>}
         />
       ) : (
         <div className="space-y-4">
@@ -82,7 +82,7 @@ export default async function MyFollowingPage() {
                     <ProjectCard p={c.latest} saved={saved.has(c.latest.id)} />
                   ) : (
                     <div className="rounded-2xl border border-dashed border-line bg-surface-2/40 p-6 text-center text-xs text-muted">
-                      Creator chưa có dự án công khai mới.
+                      Chủ dự án chưa có dự án công khai mới.
                     </div>
                   )}
                 </div>
@@ -97,7 +97,7 @@ export default async function MyFollowingPage() {
           <SectionTitle
             title={
               <span className="flex items-center gap-2">
-                <Sparkles className="size-5 text-violet-500" /> Gợi ý creator phù hợp với bạn
+                <Sparkles className="size-5 text-violet-500" /> Gợi ý chủ dự án phù hợp với bạn
               </span>
             }
             description="Dựa trên thể loại dự án bạn đã góp hoặc đã lưu."
@@ -125,7 +125,7 @@ export default async function MyFollowingPage() {
                   {s.affinity > 0 && <Badge tone="violet">Cùng thể loại bạn thích</Badge>}
                   {s.live_count > 0 && <Badge tone="emerald">{s.live_count} đang chạy</Badge>}
                   <span className="inline-flex items-center gap-1 text-muted">
-                    <Users className="size-3" /> {s.follower_count} fan · {s.backers} backer
+                    <Users className="size-3" /> {s.follower_count} theo dõi · {s.backers} người ủng hộ
                   </span>
                 </div>
               </Card>

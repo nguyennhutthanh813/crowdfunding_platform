@@ -80,9 +80,9 @@ export default async function BackProjectPage(props: {
       </div>
 
       <PageHeader
-        eyebrow="GÓP VỐN · ALL-OR-NOTHING"
+        eyebrow="ỦNG HỘ DỰ ÁN · ĐẠT MỤC TIÊU MỚI THU TIỀN"
         title={existing ? "Đổi mức góp vốn" : `Ủng hộ ${project.title}`}
-        description="Chọn mức quà, add-on, địa chỉ nhận hàng tại Việt Nam và thẻ giữ chỗ. Không trừ tiền nếu dự án không đạt mục tiêu."
+        description="Chọn mức quà, quà kèm, địa chỉ nhận hàng tại Việt Nam và phương thức thanh toán. Chỉ thu tiền khi dự án đạt 100% mục tiêu."
       />
 
       <PledgeStepper

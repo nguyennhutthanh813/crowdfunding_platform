@@ -43,9 +43,7 @@ export function ImageUploadButton({
         return;
       }
       onUploaded(res.url);
-      toast.success(
-        res.provider === "cloudinary" ? "Đã tải ảnh lên Cloudinary thành công!" : "Đã tải ảnh lên máy chủ thành công!",
-      );
+      toast.success("Đã tải ảnh lên thành công!");
     } catch {
       toast.error("Có lỗi khi tải ảnh lên, vui lòng thử lại.");
     } finally {

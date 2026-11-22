@@ -157,7 +157,7 @@ export function CategoryManager({
         open={editing !== null}
         onClose={() => setEditing(null)}
         title={editing === "NEW" ? "Thêm thể loại mới" : editing ? `Chỉnh sửa thể loại: ${editing.name}` : ""}
-        description="Thể loại hiển thị trên trang chủ, bộ lọc khám phá và khi Creator tạo dự án."
+        description="Thể loại hiển thị trên trang chủ, bộ lọc khám phá và khi Chủ dự án tạo dự án."
       >
         <ActionForm action={saveCategoryAction} onSuccess={() => setEditing(null)} className="space-y-4">
           {(state) => (
@@ -237,7 +237,7 @@ export function CategoryManager({
                 </Field>
               </div>
 
-              <Field label="Ảnh 3D minh hoạ" hint="Tải ảnh lên Cloudinary, chọn nhanh bộ ảnh có sẵn hoặc nhập đường dẫn.">
+              <Field label="Ảnh 3D minh hoạ" hint="Tải ảnh từ thiết bị, chọn nhanh bộ ảnh có sẵn hoặc nhập đường dẫn.">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <ImageUploadButton folder="categories" label="Tải ảnh thể loại lên" onUploaded={setImageUrl} />

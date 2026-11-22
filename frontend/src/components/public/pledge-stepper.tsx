@@ -328,9 +328,9 @@ export function PledgeStepper({
       {/* Thanh tiến trình 3 bước */}
       <ol className="grid grid-cols-3 gap-2 sm:gap-3">
         {[
-          { n: 1 as const, label: "Chọn mức quà", icon: Gift },
-          { n: 2 as const, label: "Add-on & địa chỉ", icon: Package },
-          { n: 3 as const, label: "Thanh toán", icon: CreditCard },
+          { n: 1 as const, label: "Chọn mức quà", shortLabel: "Chọn quà", icon: Gift },
+          { n: 2 as const, label: "Quà kèm & địa chỉ", shortLabel: "Địa chỉ", icon: Package },
+          { n: 3 as const, label: "Thanh toán", shortLabel: "Thanh toán", icon: CreditCard },
         ].map((s) => {
           const active = step === s.n;
           const done = step > s.n;
@@ -521,7 +521,7 @@ export function PledgeStepper({
 
                     <div className="mt-3 flex flex-wrap items-center gap-4 pl-8 text-xs text-muted">
                       <span>Giao dự kiến: <b className="text-fg">{t.estimated_delivery}</b></span>
-                      {t.addOnIds.length > 0 && <span>Có {t.addOnIds.length} add-on mua kèm</span>}
+                      {t.addOnIds.length > 0 && <span>Có {t.addOnIds.length} quà kèm tuỳ chọn</span>}
                     </div>
 
                     {active && (
@@ -566,7 +566,7 @@ export function PledgeStepper({
 
               <div className="flex justify-end">
                 <Button type="button" size="lg" onClick={goStep2} className="w-full sm:w-auto">
-                  Tiếp tục: Add-on & giao hàng <ArrowRight className="size-4" />
+                  Tiếp tục: Quà kèm &amp; giao hàng <ArrowRight className="size-4" />
                 </Button>
               </div>
             </div>
@@ -574,15 +574,15 @@ export function PledgeStepper({
 
           {step === 2 && (
             <div className="space-y-5">
-              {/* Add-on mua kèm */}
+              {/* Quà tặng mua kèm */}
               <div className="card space-y-4 p-4 sm:p-5">
                 <div>
-                  <h2 className="text-base font-bold sm:text-lg">Add-on mua kèm (tuỳ chọn)</h2>
+                  <h2 className="text-base font-bold sm:text-lg">Quà tặng mua kèm (tuỳ chọn)</h2>
                   <p className="text-sm text-muted">
                     {!selectedTier
-                      ? "Góp không nhận quà không kèm add-on. Bạn có thể quay lại Bước 1 để chọn mức quà."
+                      ? "Góp không nhận quà không kèm quà tặng bổ sung. Bạn có thể quay lại Bước 1 để chọn mức quà."
                       : compatibleAddOns.length === 0
-                        ? "Mức quà bạn chọn không có add-on mua kèm."
+                        ? "Mức quà bạn chọn không có quà tặng mua kèm."
                         : "Chọn thêm phụ kiện hoặc sản phẩm bổ sung cho mức quà đã chọn."}
                   </p>
                 </div>
@@ -644,7 +644,7 @@ export function PledgeStepper({
                     </h2>
                     <p className="text-sm text-muted">
                       {shipsPhysical
-                        ? "Chỉ giao nội bộ Việt Nam. Ảnh chụp địa chỉ sẽ được lưu kèm pledge."
+                        ? "Chỉ giao nội bộ Việt Nam. Địa chỉ nhận hàng sẽ được lưu kèm lượt góp vốn."
                         : "Mức bạn chọn là quà số hoặc không nhận quà — không cần địa chỉ giao hàng."}
                     </p>
                   </div>
@@ -798,7 +798,7 @@ export function PledgeStepper({
               <input type="hidden" name="note" value={note} />
               <input type="hidden" name="replaceExisting" value={existingPledge ? "1" : "0"} />
 
-              {/* Lựa chọn cổng thanh toán VNPAY hoặc Thẻ Token hoá */}
+              {/* Lựa chọn cổng thanh toán VNPAY hoặc Thẻ đã lưu */}
               <div className="card space-y-4 p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -806,11 +806,11 @@ export function PledgeStepper({
                       <CreditCard className="size-4 text-violet-500" /> Chọn kênh thanh toán ký quỹ
                     </h2>
                     <p className="text-xs text-muted">
-                      Hỗ trợ cổng VNPAY chuẩn chữ ký số HMAC-SHA512 hoặc thẻ lưu sẵn Token hoá.
+                      Hỗ trợ thanh toán bảo mật qua VNPAY hoặc thẻ đã lưu sẵn trên tài khoản.
                     </p>
                   </div>
                   <Badge tone="emerald">
-                    <Lock className="size-3" /> Chuẩn bảo mật PCI-DSS &amp; SHA-512
+                    <Lock className="size-3" /> Thanh toán bảo mật
                   </Badge>
                 </div>
 
@@ -830,7 +830,7 @@ export function PledgeStepper({
                         <span className="rounded-md bg-gradient-to-r from-red-600 to-blue-700 px-2 py-0.5 text-[11px] font-black tracking-wider text-white">
                           VNPAY
                         </span>
-                        Cổng VNPAY Sandbox
+                        Cổng thanh toán VNPAY
                       </span>
                       <Badge tone="sky">Khuyên dùng</Badge>
                     </div>
@@ -851,7 +851,7 @@ export function PledgeStepper({
                   >
                     <div className="flex w-full items-center justify-between gap-2">
                       <span className="font-extrabold">Thẻ lưu sẵn (1 chạm)</span>
-                      <Badge tone="violet">Token hoá</Badge>
+                      <Badge tone="violet">Nhanh chóng</Badge>
                     </div>
                     <p className="text-xs text-muted">
                       Uỷ quyền giữ chỗ trực tiếp bằng thẻ VISA / MasterCard / JCB / NAPAS đã liên kết trong tài khoản.
@@ -900,7 +900,7 @@ export function PledgeStepper({
                         <div className="text-xs font-bold text-fg">Chọn ngân hàng nội địa:</div>
                         <div className="flex flex-wrap gap-2">
                           {[
-                            { code: "NCB", label: "NCB (Thẻ test chuẩn)" },
+                            { code: "NCB", label: "NCB" },
                             { code: "VCB", label: "Vietcombank" },
                             { code: "TCB", label: "Techcombank" },
                             { code: "MBB", label: "MB Bank" },
@@ -927,7 +927,7 @@ export function PledgeStepper({
                     )}
 
                     <div className="rounded-xl border border-line bg-surface p-3 text-xs text-muted">
-                      Khi bấm tiếp tục, hệ thống sẽ khởi tạo đơn ký quỹ có chữ ký số <b>HMAC-SHA512</b> và chuyển bạn sang giao diện <b>Cổng thanh toán VNPAY Sandbox</b> để xác nhận OTP / mã QR.
+                      Khi bấm tiếp tục, hệ thống sẽ khởi tạo đơn giữ chỗ và chuyển bạn sang giao diện <b>Cổng thanh toán VNPAY</b> để xác nhận thanh toán.
                     </div>
                   </div>
                 )}
@@ -989,40 +989,12 @@ export function PledgeStepper({
 
                 {paymentGateway === "CARD" && cardMode === "new" && (
                   <div className="space-y-4 rounded-2xl border border-line bg-surface-2/40 p-4">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="text-muted">Điền nhanh thẻ thử:</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCardNumber("4242 4242 4242 4242");
-                          setExpMonth(12);
-                          setExpYear(2029);
-                          setHolderName(viewerName.toUpperCase());
-                        }}
-                        className="rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 font-mono font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
-                      >
-                        4242 4242 4242 4242 (Hợp lệ)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCardNumber("4000 0000 0000 0002");
-                          setExpMonth(12);
-                          setExpYear(2029);
-                          setHolderName(viewerName.toUpperCase());
-                        }}
-                        className="rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 py-1 font-mono font-semibold text-rose-700 transition hover:bg-rose-500/20 dark:text-rose-300"
-                      >
-                        4000 0000 0000 0002 (Thử từ chối)
-                      </button>
-                    </div>
-
                     <Field label="Số thẻ" required>
                       <div className="relative">
                         <Input
                           value={cardNumber}
                           onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                          placeholder="4242 4242 4242 4242"
+                          placeholder="Nhập số thẻ thanh toán"
                           inputMode="numeric"
                           className="pr-24 font-mono"
                         />
@@ -1036,15 +1008,15 @@ export function PledgeStepper({
                         <div className="mt-1.5 flex items-center gap-1.5 text-xs">
                           {isDeclinedTestCard ? (
                             <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                              <AlertCircle className="size-3.5" /> Thẻ thử mô phỏng bị ngân hàng từ chối.
+                              <AlertCircle className="size-3.5" /> Thẻ bị ngân hàng từ chối.
                             </span>
                           ) : isCardLuhnValid ? (
                             <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                              <CheckCircle2 className="size-3.5" /> Số thẻ hợp lệ (Luhn OK).
+                              <CheckCircle2 className="size-3.5" /> Số thẻ hợp lệ.
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                              <AlertCircle className="size-3.5" /> Số thẻ chưa đúng chuẩn Luhn.
+                              <AlertCircle className="size-3.5" /> Số thẻ chưa hợp lệ, vui lòng kiểm tra lại.
                             </span>
                           )}
                         </div>
@@ -1094,12 +1066,12 @@ export function PledgeStepper({
                   <span className="text-sm">
                     <span className="block font-bold">Ủng hộ ẩn danh</span>
                     <span className="mt-0.5 block text-xs text-muted">
-                      Tên bạn sẽ hiển thị là “Một người ủng hộ” trên bảng công khai (Creator vẫn thấy thông tin giao quà nếu có).
+                      Tên bạn sẽ hiển thị là “Một người ủng hộ” trên bảng công khai (chủ dự án vẫn thấy thông tin giao quà nếu có).
                     </span>
                   </span>
                 </label>
 
-                <Field label="Lời nhắn gửi tới Creator (tuỳ chọn)" hint={`${note.length}/300 ký tự`}>
+                <Field label="Lời nhắn gửi tới chủ dự án (tuỳ chọn)" hint={`${note.length}/300 ký tự`}>
                   <Textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value.slice(0, 300))}
@@ -1110,12 +1082,12 @@ export function PledgeStepper({
                 </Field>
               </div>
 
-              {/* Giải thích All-or-Nothing */}
+              {/* Nguyên tắc đạt mục tiêu mới thu tiền */}
               <div className="card flex items-start gap-3 border-emerald-500/30 bg-emerald-500/8 p-4 text-sm">
                 <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <div>
                   <div className="font-bold text-emerald-700 dark:text-emerald-300">
-                    Chưa trừ tiền ngay — Cơ chế All-or-Nothing
+                    Chưa trừ tiền ngay — Đạt mục tiêu mới thu tiền
                   </div>
                   <p className="mt-1 text-muted">
                     Khoản <b className="text-fg">{formatVnd(totalAmount)}</b> chỉ được <b>giữ chỗ</b>. Hệ thống chỉ thu tiền nếu dự án đạt mục tiêu <b className="text-fg">{formatVnd(project.goal_amount)}</b> trước <b className="text-fg">{formatDate(project.end_at, true)}</b>. Bạn có thể đổi hoặc huỷ bất kỳ lúc nào trước khi kết thúc.
@@ -1204,7 +1176,7 @@ export function PledgeStepper({
           </div>
 
           <div className="rounded-xl bg-surface-2 px-3 py-2.5 text-xs text-muted">
-            Trạng thái ban đầu: <b className="text-fg">Đang giữ chỗ (AUTHORIZED)</b> — chưa trừ tiền thẻ hôm nay.
+            Trạng thái ban đầu: <b className="text-fg">Đang giữ chỗ</b> — chưa trừ tiền thẻ hôm nay.
           </div>
         </aside>
       </div>

@@ -58,7 +58,7 @@ export function TakedownProjectButton({
                   Dự án này đang có {openReports} báo cáo mở cần ưu tiên xác minh.
                 </div>
               )}
-              <Field label="Lý do tạm gỡ" required error={state?.fieldErrors?.reason} hint="Bắt buộc ít nhất 5 ký tự. Creator sẽ nhận thông báo lý do này.">
+              <Field label="Lý do tạm gỡ" required error={state?.fieldErrors?.reason} hint="Bắt buộc ít nhất 5 ký tự. Chủ dự án sẽ nhận thông báo lý do này.">
                 <Textarea
                   name="reason"
                   value={reason}
@@ -125,10 +125,10 @@ export function RestoreProjectButton({
         <ActionForm action={restoreProjectAction} onSuccess={() => setOpen(false)} className="space-y-4">
           <input type="hidden" name="projectId" value={projectId} />
           <div className="rounded-xl border border-line bg-surface-2 p-3 text-xs text-muted">
-            Hệ thống tự chuyển về <b>Sắp mở</b> hoặc <b>Đang gọi vốn</b> nếu còn hạn ({formatDate(endAt, true)}). Nếu chiến dịch đã hết hạn trong thời gian bị gỡ, hệ thống sẽ chốt <b>Không đạt (FAILED)</b> và giải phóng toàn bộ tiền giữ chỗ.
+            Hệ thống tự chuyển về <b>Sắp mở</b> hoặc <b>Đang gọi vốn</b> nếu còn hạn ({formatDate(endAt, true)}). Nếu chiến dịch đã hết hạn trong thời gian bị gỡ, hệ thống sẽ chốt <b>Không đạt</b> và giải phóng toàn bộ tiền giữ chỗ.
           </div>
           <Field label="Ghi chú khôi phục (tuỳ chọn)">
-            <Textarea name="note" placeholder="Ví dụ: Creator đã bổ sung chứng từ bản quyền hợp lệ." className="min-h-20" />
+            <Textarea name="note" placeholder="Ví dụ: Chủ dự án đã bổ sung chứng từ bản quyền hợp lệ." className="min-h-20" />
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>

@@ -35,7 +35,7 @@ export function ManualSettleForm({ liveProjects }: { liveProjects: LiveScheduled
   if (liveProjects.length === 0) {
     return (
       <div className="rounded-xl border border-line bg-surface-2 p-4 text-sm text-muted">
-        Hiện không còn dự án nào đang ở trạng thái Đang gọi vốn (LIVE).
+        Hiện không còn dự án nào đang gọi vốn.
       </div>
     );
   }
@@ -48,14 +48,14 @@ export function ManualSettleForm({ liveProjects }: { liveProjects: LiveScheduled
       action={settleLiveProjectNowAction}
       confirm={
         chosen
-          ? `Xác nhận tất toán sớm chiến dịch “${chosen.title}” (${willSucceed ? "thu tiền CAPTURE" : "giải phóng VOID"})?`
+          ? `Xác nhận tất toán sớm chiến dịch “${chosen.title}” (${willSucceed ? "thu tiền đạt mục tiêu" : "giải phóng hạn mức"})?`
           : undefined
       }
       className="space-y-4"
     >
       <Field
         label="Chọn chiến dịch đang chạy để tất toán thủ công"
-        hint="Dùng khi Quản trị viên cần chốt sớm một chiến dịch theo quy trình đối soát All-or-Nothing."
+        hint="Dùng khi Quản trị viên cần chốt sớm một chiến dịch theo quy trình đối soát đạt mục tiêu mới thu tiền."
       >
         <Select name="projectId" value={chosen?.id ?? ""} onChange={(e) => setSelectedId(e.target.value)}>
           {liveProjects.map((p) => (
@@ -76,7 +76,7 @@ export function ManualSettleForm({ liveProjects }: { liveProjects: LiveScheduled
             <div className="text-xs text-muted">{chosen.backers} khoản góp vốn đang ở trạng thái giữ chỗ</div>
           </div>
           <Badge tone={willSucceed ? "emerald" : "amber"} dot>
-            {willSucceed ? "Đạt mục tiêu → thu tiền (CAPTURE)" : "Chưa đạt → giải phóng (VOID)"}
+            {willSucceed ? "Đạt mục tiêu → Thu tiền" : "Chưa đạt → Hoàn hạn mức"}
           </Badge>
         </div>
       )}

@@ -119,7 +119,7 @@ function EmailVerificationCard({ email }: { email: string }) {
                 inputMode="numeric"
                 value={otpVal}
                 onChange={(e) => setOtpVal(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="123456"
+                placeholder="Nhập mã 6 số"
                 className="font-mono tracking-[0.3em]"
                 required
               />
@@ -251,17 +251,17 @@ function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFact
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-violet-600 dark:text-violet-400" />
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-bold">Xác thực hai lớp (2FA TOTP)</h3>
+              <h3 className="text-base font-bold">Bảo mật hai lớp (2FA)</h3>
               {localEnabled ? (
                 <Badge tone="emerald" dot>
-                  Đang bật bảo vệ (Đã lưu CSDL)
+                  Đang bật bảo vệ
                 </Badge>
               ) : (
                 <Badge tone="slate">Chưa kích hoạt</Badge>
               )}
             </div>
             <p className="mt-0.5 text-xs text-muted">
-              Tương thích chuẩn RFC 6238 với <b>Google Authenticator</b>, Authy hoặc dán trực tiếp chuỗi mã vào{" "}
+              Hỗ trợ <b>Google Authenticator</b>, Authy hoặc lấy mã xác thực 6 số mỗi 30 giây qua{" "}
               <a
                 href="https://2fa.live"
                 target="_blank"
@@ -345,7 +345,7 @@ function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFact
           <div className="space-y-4">
             <div className="space-y-1.5">
               <div className="text-xs font-bold text-fg">
-                Hoặc sao chép chuỗi khoá Base32 bên dưới dán vào 2fa.live / ứng dụng xác thực:
+                Hoặc sao chép khoá thiết lập thủ công bên dưới vào ứng dụng xác thực / 2fa.live:
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <code className="select-all rounded-xl border border-line bg-surface px-3 py-2 font-mono text-sm font-bold tracking-wider text-violet-700 dark:text-violet-300">
@@ -380,7 +380,7 @@ function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFact
               <input type="hidden" name="setupToken" value={setupData.setupToken ?? ""} />
               <Field
                 label="Bước xác nhận: Nhập mã OTP 6 chữ số vừa sinh ra"
-                hint="Bạn có thể dán trực tiếp mã 6 số từ 2fa.live hoặc Google Authenticator. Sau khi xác nhận, hệ thống lưu vào CSDL và cấp 8 mã dự phòng."
+                hint="Bạn có thể dán trực tiếp mã 6 số từ 2fa.live hoặc Google Authenticator. Sau khi xác nhận, hệ thống sẽ bật bảo mật cho tài khoản và cấp 8 mã dự phòng."
                 required
               >
                 <div className="flex flex-col gap-2.5 sm:flex-row">
@@ -390,7 +390,7 @@ function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFact
                     autoComplete="one-time-code"
                     value={otpInput}
                     onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="123456"
+                    placeholder="Nhập mã 6 số"
                     className="font-mono text-base tracking-[0.3em] sm:max-w-[200px]"
                     required
                   />
@@ -471,7 +471,7 @@ function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFact
               inputMode="numeric"
               value={regenOtpInput}
               onChange={(e) => setRegenOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="123456"
+              placeholder="Nhập mã 6 số"
               className="text-center font-mono tracking-[0.3em]"
               required
             />
@@ -500,7 +500,7 @@ function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFact
             <Input name="currentPassword" type="password" autoComplete="current-password" required />
           </Field>
           <Field label="Mã OTP 6 chữ số hoặc mã dự phòng" required>
-            <Input name="code" placeholder="123456 hoặc ABCD-EFGH" className="font-mono tracking-widest" required />
+            <Input name="code" placeholder="Nhập mã 6 số hoặc mã dự phòng" className="font-mono tracking-widest" required />
           </Field>
           {disableError && <p className="text-xs text-rose-600">{disableError}</p>}
           <div className="flex justify-end gap-2">
@@ -517,6 +517,31 @@ function TwoFactorCard({ email, twoFactor }: { email: string; twoFactor: TwoFact
   );
 }
 
+function formatSessionAgent(ua?: string | null): string {
+  if (!ua) return "Trình duyệt web";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /Chrome\//.test(ua)
+      ? "Chrome"
+      : /Firefox\//.test(ua)
+        ? "Firefox"
+        : /Safari\//.test(ua)
+          ? "Safari"
+          : "Trình duyệt";
+  const os = /Windows/.test(ua)
+    ? "Windows"
+    : /iPhone|iPad/.test(ua)
+      ? "iOS"
+      : /Mac OS X|Macintosh/.test(ua)
+        ? "macOS"
+        : /Android/.test(ua)
+          ? "Android"
+          : /Linux/.test(ua)
+            ? "Linux"
+            : "Thiết bị";
+  return `${browser} · ${os}`;
+}
+
 function ActiveSessionsCard({ sessions }: { sessions: ActiveSessionInfo[] }) {
   const router = useRouter();
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -526,7 +551,7 @@ function ActiveSessionsCard({ sessions }: { sessions: ActiveSessionInfo[] }) {
   return (
     <Card className="space-y-4 p-5 sm:p-6">
       <div>
-        <h3 className="text-base font-bold">Thiết bị & Phiên đăng nhập JWT đang hoạt động</h3>
+        <h3 className="text-base font-bold">Thiết bị đang đăng nhập</h3>
         <p className="text-xs text-muted">
           Kiểm soát các trình duyệt đang đăng nhập vào tài khoản của bạn và thu hồi từ xa bất cứ lúc nào.
         </p>
@@ -542,7 +567,7 @@ function ActiveSessionsCard({ sessions }: { sessions: ActiveSessionInfo[] }) {
               <div className="min-w-0 space-y-0.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="max-w-md truncate font-semibold text-fg">
-                    {s.userAgent ? s.userAgent.slice(0, 72) : "Trình duyệt web"}
+                    {formatSessionAgent(s.userAgent)}
                   </span>
                   {s.isCurrent && <Badge tone="violet">Thiết bị hiện tại</Badge>}
                 </div>

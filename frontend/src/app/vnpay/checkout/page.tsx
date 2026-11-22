@@ -5,7 +5,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/layout-bits";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Cổng thanh toán VNPAY Sandbox" };
+export const metadata: Metadata = { title: "Cổng thanh toán VNPAY" };
 
 export default async function VnpayCheckoutPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

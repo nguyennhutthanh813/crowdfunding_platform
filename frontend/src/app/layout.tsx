@@ -12,7 +12,7 @@ const font = Be_Vietnam_Pro({ subsets: ["latin", "vietnamese"], weight: ["400", 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: { default: "FundViet — Gọi vốn cộng đồng cho ý tưởng Việt", template: "%s · FundViet" },
-  description: "Nền tảng gọi vốn cộng đồng tích hợp AI: dự đoán khả năng thành công, lọc góp ý cộng đồng, cơ chế All-or-Nothing an toàn.",
+  description: "Nền tảng gọi vốn cộng đồng cho người Việt: bảo vệ người ủng hộ an toàn, chỉ thu tiền khi chiến dịch đạt mục tiêu.",
 };
 export const viewport: Viewport = {
   themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f7f6fb" }, { media: "(prefers-color-scheme: dark)", color: "#0b0918" }],

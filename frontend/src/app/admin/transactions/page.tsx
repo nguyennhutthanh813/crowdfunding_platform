@@ -49,35 +49,35 @@ export default async function AdminTransactionsPage({
       <PageHeader
         eyebrow="Quản trị tài chính & Đối soát VNPAY"
         title="Sổ giao dịch & Đối soát thanh toán"
-        description="Quản lý toàn bộ giao dịch ký quỹ (AUTHORIZE), quyết toán (CAPTURE), giải phóng (VOID), hoàn tiền VNPAY (REFUND) và xử lý các khoản thu lỗi."
+        description="Quản lý toàn bộ giao dịch giữ chỗ, thu tiền khi đạt mục tiêu, giải phóng hạn mức, hoàn tiền VNPAY và xử lý các khoản thu lỗi."
       />
 
       {/* Tổng hợp 4 loại giao dịch */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           tone="sky"
-          label="Ký quỹ giữ chỗ (AUTHORIZE)"
+          label="Ký quỹ giữ chỗ"
           value={<CountUp value={totalsByKind.AUTHORIZE.amount} format="compact" />}
           sub={`${totalsByKind.AUTHORIZE.count} giao dịch · ${formatVnd(totalsByKind.AUTHORIZE.amount)}`}
           icon={<CreditCard className="size-5" />}
         />
         <StatCard
           tone="emerald"
-          label="Đã quyết toán (CAPTURE)"
+          label="Đã thu tiền"
           value={<CountUp value={totalsByKind.CAPTURE.amount} format="compact" />}
           sub={`${totalsByKind.CAPTURE.count} giao dịch${totalsByKind.CAPTURE.failed ? ` (${totalsByKind.CAPTURE.failed} lỗi chờ xử lý)` : ""}`}
           icon={<ArrowDownLeft className="size-5" />}
         />
         <StatCard
           tone="violet"
-          label="Giải phóng (VOID)"
+          label="Đã giải phóng hạn mức"
           value={<CountUp value={totalsByKind.VOID.amount} format="compact" />}
           sub={`${totalsByKind.VOID.count} giao dịch · ${formatVnd(totalsByKind.VOID.amount)}`}
           icon={<ArrowUpRight className="size-5" />}
         />
         <StatCard
           tone="amber"
-          label="Hoàn tiền VNPAY (REFUND)"
+          label="Hoàn tiền VNPAY"
           value={<CountUp value={totalsByKind.REFUND.amount} format="compact" />}
           sub={`${totalsByKind.REFUND.count} giao dịch · ${formatVnd(totalsByKind.REFUND.amount)}`}
           icon={<RotateCcw className="size-5" />}
@@ -92,14 +92,14 @@ export default async function AdminTransactionsPage({
             <Input
               name="q"
               defaultValue={q}
-              placeholder="Tìm mã FV-..., mã VNP..., tên hoặc @username Backer..."
+              placeholder="Tìm mã góp vốn, mã giao dịch, tên hoặc @username người ủng hộ..."
               className="pl-10"
             />
           </div>
           <Select name="provider" defaultValue={provider} aria-label="Cổng thanh toán">
             <option value="">Mọi cổng thanh toán</option>
             <option value="VNPAY">Cổng VNPAY</option>
-            <option value="FUNDVIET_PAY">Thẻ Token hoá (FundViet Pay)</option>
+            <option value="FUNDVIET_PAY">Thẻ đã lưu (FundViet Pay)</option>
           </Select>
           <Select name="project" defaultValue={project} aria-label="Dự án">
             <option value="">Tất cả dự án</option>
@@ -114,10 +114,10 @@ export default async function AdminTransactionsPage({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[160px_160px_155px_155px_auto]">
           <Select name="kind" defaultValue={kind} aria-label="Loại giao dịch">
             <option value="">Mọi nghiệp vụ</option>
-            <option value="AUTHORIZE">AUTHORIZE (Ký quỹ)</option>
-            <option value="CAPTURE">CAPTURE (Thu tiền)</option>
-            <option value="VOID">VOID (Giải phóng)</option>
-            <option value="REFUND">REFUND (Hoàn tiền)</option>
+            <option value="AUTHORIZE">Giữ chỗ</option>
+            <option value="CAPTURE">Thu tiền</option>
+            <option value="VOID">Giải phóng</option>
+            <option value="REFUND">Hoàn tiền</option>
           </Select>
           <Select name="status" defaultValue={status} aria-label="Trạng thái">
             <option value="">Mọi kết quả</option>
@@ -153,7 +153,9 @@ export default async function AdminTransactionsPage({
                 <div key={r.id} className="card space-y-2.5 p-4 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge tone={r.provider === "VNPAY" ? "sky" : "slate"}>{r.provider}</Badge>
+                      <Badge tone={r.provider === "VNPAY" ? "sky" : "slate"}>
+                        {r.provider === "VNPAY" ? "VNPAY" : "Thẻ đã lưu"}
+                      </Badge>
                       <Badge tone={km.tone}>{km.label}</Badge>
                       <Badge tone={sm.tone}>{sm.label}</Badge>
                     </div>
@@ -185,7 +187,7 @@ export default async function AdminTransactionsPage({
                 <tr>
                   <th className="px-4 py-3">Thời gian</th>
                   <th className="px-4 py-3">Cổng &amp; Nghiệp vụ</th>
-                  <th className="px-4 py-3">Mã pledge &amp; Backer</th>
+                  <th className="px-4 py-3">Mã góp vốn &amp; Người ủng hộ</th>
                   <th className="px-4 py-3">Dự án</th>
                   <th className="px-4 py-3 text-right">Số tiền</th>
                   <th className="px-4 py-3">Tham chiếu cổng</th>
@@ -202,10 +204,10 @@ export default async function AdminTransactionsPage({
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge tone={r.provider === "VNPAY" ? "sky" : "slate"}>
-                            {r.provider === "VNPAY" ? `VNPAY${r.bank_code ? ` · ${r.bank_code}` : ""}` : "TOKEN"}
+                            {r.provider === "VNPAY" ? `VNPAY${r.bank_code ? ` · ${r.bank_code}` : ""}` : "Thẻ đã lưu"}
                           </Badge>
                           <span title={km.hint}>
-                            <Badge tone={km.tone}>{r.kind}</Badge>
+                            <Badge tone={km.tone}>{km.label}</Badge>
                           </span>
                           <Badge tone={sm.tone}>{sm.label}</Badge>
                         </div>
@@ -256,32 +258,43 @@ export default async function AdminTransactionsPage({
         </>
       )}
 
-      {/* Nhật ký phiên cổng thanh toán VNPAY Sandbox */}
+      {/* Nhật ký phiên cổng thanh toán VNPAY */}
       {vnpayOrders.length > 0 && (
         <section className="space-y-4">
           <SectionTitle
             title={
               <span className="flex items-center gap-2">
-                <QrCode className="size-5 text-sky-500" /> Nhật ký phiên cổng VNPAY Sandbox gần đây
+                <QrCode className="size-5 text-sky-500" /> Nhật ký giao dịch cổng VNPAY gần đây
               </span>
             }
-            description="Theo dõi trực tiếp các phiên khởi tạo URL thanh toán VNPAY, mã phản hồi ngân hàng và đối soát chữ ký số HMAC-SHA512."
+            description="Theo dõi các phiên thanh toán VNPAY, mã phản hồi ngân hàng và đối soát trạng thái hoàn tất."
           />
 
           <div className="card overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="border-b border-line bg-surface-2/60 font-bold uppercase tracking-wider text-muted">
                 <tr>
-                  <th className="px-4 py-2.5">Mã VNPAY (vnp_TxnRef)</th>
-                  <th className="px-4 py-2.5">Backer &amp; Dự án</th>
-                  <th className="px-4 py-2.5">Ngân hàng / Thẻ</th>
+                  <th className="px-4 py-2.5">Mã giao dịch VNPAY</th>
+                  <th className="px-4 py-2.5">Người ủng hộ &amp; Dự án</th>
+                  <th className="px-4 py-2.5">Ngân hàng / Kênh</th>
                   <th className="px-4 py-2.5 text-right">Số tiền</th>
                   <th className="px-4 py-2.5">Trạng thái cổng</th>
                   <th className="px-4 py-2.5">Thời gian</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {vnpayOrders.slice(0, 12).map((vo) => (
+                {vnpayOrders.slice(0, 12).map((vo) => {
+                  const statusLabel =
+                    vo.status === "PAID"
+                      ? "Đã thanh toán"
+                      : vo.status === "PENDING"
+                        ? "Chờ xác nhận"
+                        : vo.status === "CANCELLED"
+                          ? "Đã huỷ"
+                          : "Thất bại";
+                  const channelLabel =
+                    vo.pay_channel === "VNPAYQR" ? "Quét QR" : vo.pay_channel === "VNBANK" ? "ATM nội địa" : "Thẻ quốc tế";
+                  return (
                   <tr key={vo.id} className="hover:bg-surface-2/40">
                     <td className="px-4 py-2.5 font-mono font-bold">
                       <div>{vo.txn_ref}</div>
@@ -297,7 +310,7 @@ export default async function AdminTransactionsPage({
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="font-bold">
-                        {vo.bank_code} ({vo.pay_channel})
+                        {vo.bank_code} ({channelLabel})
                       </div>
                       {vo.card_mask && <div className="font-mono text-[11px] text-muted">{vo.card_mask}</div>}
                     </td>
@@ -317,7 +330,7 @@ export default async function AdminTransactionsPage({
                                   : "rose"
                           }
                         >
-                          {vo.status}
+                          {statusLabel}
                         </Badge>
                         {vo.vnp_response_code && (
                           <span className="font-mono text-[11px] text-muted">Mã {vo.vnp_response_code}</span>
@@ -328,7 +341,8 @@ export default async function AdminTransactionsPage({
                       {formatDate(vo.paid_at ?? vo.created_at, true)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -386,10 +400,10 @@ export default async function AdminTransactionsPage({
                 <th className="px-4 py-3">Dự án</th>
                 <th className="px-4 py-3">Trạng thái</th>
                 <th className="px-4 py-3 text-right">Mục tiêu</th>
-                <th className="px-4 py-3 text-right">Đang giữ (AUTH)</th>
-                <th className="px-4 py-3 text-right">Đã thu (CAP)</th>
-                <th className="px-4 py-3 text-right">Hoàn tiền (REF)</th>
-                <th className="px-4 py-3 text-right">Giải phóng (VOID)</th>
+                <th className="px-4 py-3 text-right">Đang giữ</th>
+                <th className="px-4 py-3 text-right">Đã thu</th>
+                <th className="px-4 py-3 text-right">Hoàn tiền</th>
+                <th className="px-4 py-3 text-right">Giải phóng</th>
                 <th className="px-4 py-3 text-right">Lỗi / Huỷ</th>
               </tr>
             </thead>

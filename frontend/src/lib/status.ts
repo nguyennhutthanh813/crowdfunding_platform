@@ -7,11 +7,11 @@ export const PROJECT_STATUS: Record<string, { label: string; tone: Tone; hint: s
   REJECTED: { label: "Bị từ chối", tone: "rose", hint: "Cần chỉnh sửa theo góp ý rồi gửi lại" },
   SCHEDULED: { label: "Sắp mở", tone: "sky", hint: "Đã duyệt, đang ở chế độ xem trước" },
   LIVE: { label: "Đang gọi vốn", tone: "emerald", hint: "Đang nhận góp vốn" },
-  SUCCESS: { label: "Thành công", tone: "violet", hint: "Đạt mục tiêu, đã trừ tiền backer" },
+  SUCCESS: { label: "Thành công", tone: "violet", hint: "Đạt mục tiêu, đã trừ tiền người ủng hộ" },
   FAILED: { label: "Không đạt", tone: "neutral", hint: "Không đạt mục tiêu, không ai bị trừ tiền" },
-  FULFILLING: { label: "Đang giao quà", tone: "violet", hint: "Creator đang sản xuất & giao quà" },
+  FULFILLING: { label: "Đang giao quà", tone: "violet", hint: "Chủ dự án đang sản xuất & giao quà" },
   COMPLETED: { label: "Hoàn thành", tone: "violet", hint: "Đã giao toàn bộ quà" },
-  CANCELLED: { label: "Đã huỷ", tone: "neutral", hint: "Creator đã huỷ dự án" },
+  CANCELLED: { label: "Đã huỷ", tone: "neutral", hint: "Chủ dự án đã huỷ dự án" },
   SUSPENDED: { label: "Tạm gỡ", tone: "rose", hint: "Quản trị viên tạm gỡ để xác minh" },
 };
 
@@ -20,7 +20,7 @@ export const PLEDGE_STATUS: Record<string, { label: string; tone: Tone; hint: st
   CAPTURED: { label: "Đã thanh toán", tone: "emerald", hint: "Dự án thành công, đã trừ tiền" },
   CAPTURE_FAILED: { label: "Trừ tiền lỗi", tone: "rose", hint: "Thẻ bị từ chối khi chốt, cần cập nhật thẻ" },
   VOIDED: { label: "Không trừ tiền", tone: "neutral", hint: "Dự án không đạt mục tiêu, khoản giữ chỗ đã giải phóng" },
-  CANCELLED: { label: "Đã huỷ", tone: "neutral", hint: "Bạn đã huỷ pledge" },
+  CANCELLED: { label: "Đã huỷ", tone: "neutral", hint: "Bạn đã huỷ khoản góp vốn" },
   REFUNDED: { label: "Đã hoàn tiền", tone: "amber", hint: "Đã hoàn tiền" },
 };
 
@@ -31,11 +31,11 @@ export const SHIPMENT_STATUS: Record<string, { label: string; tone: Tone }> = {
 };
 
 export const ROLE_META: Record<string, { label: string; short: string; tone: Tone; color: string }> = {
-  CREATOR: { label: "Creator", short: "CREATOR", tone: "amber", color: "#F59E0B" },
-  COLLABORATOR: { label: "Collaborator", short: "COLLAB", tone: "sky", color: "#0EA5E9" },
-  BACKER: { label: "Backer", short: "BACKER", tone: "emerald", color: "#10B981" },
-  ADMIN: { label: "Quản trị viên", short: "ADMIN", tone: "rose", color: "#F43F5E" },
-  MEMBER: { label: "Thành viên", short: "MEMBER", tone: "emerald", color: "#10B981" },
+  CREATOR: { label: "Chủ dự án", short: "Chủ dự án", tone: "amber", color: "#F59E0B" },
+  COLLABORATOR: { label: "Cộng tác viên", short: "Cộng tác viên", tone: "sky", color: "#0EA5E9" },
+  BACKER: { label: "Người ủng hộ", short: "Người ủng hộ", tone: "emerald", color: "#10B981" },
+  ADMIN: { label: "Quản trị viên", short: "Quản trị viên", tone: "rose", color: "#F43F5E" },
+  MEMBER: { label: "Thành viên", short: "Thành viên", tone: "emerald", color: "#10B981" },
 };
 
 export const TONE_CLASSES: Record<Tone, string> = {

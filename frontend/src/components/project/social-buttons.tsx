@@ -65,7 +65,7 @@ export function FollowButton({ userId, following, size = "sm", className }: { us
             if (r.needLogin) router.push(`/login?next=${encodeURIComponent(location.pathname)}`);
             return;
           }
-          if (r.on) { burstAt(clientX, clientY, "#7C5CFF"); toast.success("Đã theo dõi — bạn sẽ nhận thông báo khi creator ra dự án mới"); }
+          if (r.on) { burstAt(clientX, clientY, "#7C5CFF"); toast.success("Đã theo dõi — bạn sẽ nhận thông báo khi chủ dự án ra dự án mới"); }
           router.refresh();
         });
       }}

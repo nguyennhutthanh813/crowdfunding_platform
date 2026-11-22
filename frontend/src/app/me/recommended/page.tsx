@@ -24,7 +24,7 @@ export default async function MyRecommendedPage() {
       <PageHeader
         eyebrow="Gợi ý thông minh"
         title="Đề xuất dành cho bạn"
-        description="Hệ thống tính điểm minh bạch dựa trên thể loại bạn yêu thích, creator bạn theo dõi và xu hướng cộng đồng."
+        description="Hệ thống gợi ý dựa trên thể loại bạn yêu thích, chủ dự án bạn theo dõi và xu hướng cộng đồng."
       />
 
       {/* Affinity summary & transparent formula */}
@@ -53,7 +53,7 @@ export default async function MyRecommendedPage() {
             <p className="text-xs text-muted">
               {coldStart
                 ? "Bạn chưa có lịch sử góp vốn hay lưu dự án, nên danh sách ưu tiên các dự án tăng trưởng nhanh và được nhiều người ủng hộ."
-                : "Trọng số gợi ý: 45% sở thích thể loại · 20% creator đang theo dõi · 20% đà tăng 7 ngày · 10% độ phổ biến · 5% sắp kết thúc."}
+                : "Dựa trên: 45% sở thích thể loại · 20% chủ dự án đang theo dõi · 20% đà tăng 7 ngày · 10% độ phổ biến · 5% sắp kết thúc."}
             </p>
           </div>
         </div>

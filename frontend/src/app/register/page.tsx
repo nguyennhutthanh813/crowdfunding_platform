@@ -19,7 +19,7 @@ export default async function RegisterPage(props: {
           <h2 className="text-xl font-bold">Quyền lợi thành viên FundViet</h2>
           <ul className="space-y-3 text-sm text-violet-100/85">
             {[
-              "Góp vốn an toàn theo cơ chế All-or-Nothing — chỉ trừ tiền khi dự án đạt mục tiêu",
+              "Góp vốn an toàn — chỉ trừ tiền khi dự án đạt mục tiêu",
               "Lưu chiến dịch yêu thích, theo dõi nhà sáng tạo và nhận đề xuất cá nhân hoá",
               "Khởi tạo chiến dịch gọi vốn tích hợp AI phân tích & tối ưu trước khi gửi duyệt",
               "Bảo vệ tài khoản với xác thực 2 lớp (Google Authenticator / 2fa.live)",
