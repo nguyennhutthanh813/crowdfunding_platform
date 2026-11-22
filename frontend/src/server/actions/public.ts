@@ -28,15 +28,22 @@ export async function recordProjectViewAction(projectId: string) {
   }
 }
 
+function resolveSlug(res: { slug?: string }, form: FormData): string {
+  const raw = res.slug ?? form.get("slug");
+  return typeof raw === "string" ? raw : "";
+}
+
 export async function addCommentAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const res = await apiPost<ActionResult & { slug?: string }>("/comments", formToPayload(form));
-  if (res.ok && res.slug) revalidatePath(`/p/${res.slug}`);
+  const slug = resolveSlug(res, form);
+  if (res.ok && slug) revalidatePath(`/p/${slug}`);
   return res;
 }
 
 export async function editCommentAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const res = await apiPatch<ActionResult & { slug?: string }>("/comments", formToPayload(form));
-  if (res.ok && res.slug) revalidatePath(`/p/${res.slug}`);
+  const slug = resolveSlug(res, form);
+  if (res.ok && slug) revalidatePath(`/p/${slug}`);
   return res;
 }
 

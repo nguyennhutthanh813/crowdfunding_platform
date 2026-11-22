@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCheck, Play } from "lucide-react";
-import { runSchedulerNowAction, settleLiveProjectNowAction } from "@/server/actions/admin";
+import { CheckCheck, Mail, Play } from "lucide-react";
+import { flushEmailOutboxAction, runSchedulerNowAction, settleLiveProjectNowAction } from "@/server/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Field, Select } from "@/components/ui/form";
 import { Badge } from "@/components/ui/primitives";
@@ -23,6 +23,16 @@ export function RunSchedulerButton() {
     <ActionForm action={runSchedulerNowAction}>
       <SubmitButton variant="primary" size="md" pendingText="Đang quét chiến dịch...">
         <Play className="size-4" /> Chạy bộ lập lịch ngay
+      </SubmitButton>
+    </ActionForm>
+  );
+}
+
+export function FlushEmailOutboxButton() {
+  return (
+    <ActionForm action={flushEmailOutboxAction}>
+      <SubmitButton variant="outline" size="sm" pendingText="Đang gửi…">
+        <Mail className="size-4" /> Gửi ngay hàng đợi
       </SubmitButton>
     </ActionForm>
   );

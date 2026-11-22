@@ -566,3 +566,41 @@ export async function auditList(f: { prefix?: string; page?: number; limit?: num
     prefixes: res.prefixes ?? [],
   };
 }
+
+export interface EmailOutboxStatus {
+  smtpConfigured: boolean;
+  stats: {
+    PENDING: number;
+    SENDING: number;
+    SENT: number;
+    SKIPPED: number;
+    FAILED: number;
+  };
+  recentFailures: {
+    id: string;
+    last_error: string | null;
+    attempts: number;
+    created_at: string;
+    title: string;
+  }[];
+}
+
+export async function emailOutboxStatus(): Promise<EmailOutboxStatus | null> {
+  try {
+    const res = await apiGet<{ ok?: boolean } & Partial<EmailOutboxStatus>>("/api/v1/admin/email-outbox");
+    if (!res?.ok || !res.stats) return null;
+    return {
+      smtpConfigured: Boolean(res.smtpConfigured),
+      stats: {
+        PENDING: Number(res.stats.PENDING ?? 0),
+        SENDING: Number(res.stats.SENDING ?? 0),
+        SENT: Number(res.stats.SENT ?? 0),
+        SKIPPED: Number(res.stats.SKIPPED ?? 0),
+        FAILED: Number(res.stats.FAILED ?? 0),
+      },
+      recentFailures: res.recentFailures ?? [],
+    };
+  } catch {
+    return null;
+  }
+}

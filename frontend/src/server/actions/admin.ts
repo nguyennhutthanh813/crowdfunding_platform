@@ -81,3 +81,8 @@ export async function runSchedulerNowAction(_p: ActionResult, _form: FormData): 
 export async function settleLiveProjectNowAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runAdminPost("/admin/scheduler/settle-project", form, ["/", "/explore"]);
 }
+
+export async function flushEmailOutboxAction(_p: ActionResult, _form: FormData): Promise<ActionResult> {
+  void _form;
+  return runAdminPost("/api/v1/admin/email-outbox/flush");
+}

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { CalendarClock, Clock, Cpu, Flame, History, ShieldCheck, Timer } from "lucide-react";
+import { CalendarClock, Clock, Cpu, Flame, History, Mail, ShieldCheck, Timer } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
-import { schedulerOverview } from "@/server/queries/admin";
-import { ManualSettleForm, RunSchedulerButton } from "@/components/admin/scheduler-controls";
+import { emailOutboxStatus, schedulerOverview } from "@/server/queries/admin";
+import { FlushEmailOutboxButton, ManualSettleForm, RunSchedulerButton } from "@/components/admin/scheduler-controls";
 import { EmptyState, PageHeader, SectionTitle } from "@/components/ui/layout-bits";
 import { Badge } from "@/components/ui/primitives";
 import { formatCompactVnd, formatDate, percentOf, timeAgo, timeLeft } from "@/lib/utils";
@@ -11,7 +11,7 @@ export const metadata = { title: "Bộ lập lịch" };
 
 export default async function AdminSchedulerPage() {
   await requireSystemPerm("admin.scheduler.run", "/admin/scheduler");
-  const data = await schedulerOverview();
+  const [data, outbox] = await Promise.all([schedulerOverview(), emailOutboxStatus()]);
 
   return (
     <div className="space-y-6">
@@ -149,6 +149,73 @@ export default async function AdminSchedulerPage() {
         </div>
 
         <ManualSettleForm liveProjects={data.live} />
+      </section>
+
+      {/* Hàng đợi email thông báo */}
+      <section className="card space-y-4 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-9 place-items-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-300">
+              <Mail className="size-5" />
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-bold">Hàng đợi email thông báo</h3>
+                {outbox && (
+                  <Badge tone={outbox.smtpConfigured ? "emerald" : "amber"} dot>
+                    {outbox.smtpConfigured ? "Đã cấu hình" : "Chưa cấu hình SMTP – email sẽ được bỏ qua"}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted">Theo dõi trạng thái gửi email thông báo tự động và xử lý lại các thư lỗi.</p>
+            </div>
+          </div>
+          <FlushEmailOutboxButton />
+        </div>
+
+        {!outbox ? (
+          <p className="text-sm text-muted">Hiện chưa tải được trạng thái hàng đợi email.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {[
+                { label: "Đang chờ", val: outbox.stats.PENDING, cls: "text-amber-600 dark:text-amber-400" },
+                { label: "Đang gửi", val: outbox.stats.SENDING, cls: "text-sky-600 dark:text-sky-400" },
+                { label: "Đã gửi", val: outbox.stats.SENT, cls: "text-emerald-600 dark:text-emerald-400" },
+                { label: "Đã bỏ qua", val: outbox.stats.SKIPPED, cls: "text-muted" },
+                { label: "Thất bại", val: outbox.stats.FAILED, cls: "text-rose-600 dark:text-rose-400" },
+              ].map((st) => (
+                <div key={st.label} className="rounded-xl border border-line bg-surface-2/60 p-3">
+                  <div className="text-xs text-muted">{st.label}</div>
+                  <div className={`mt-1 text-xl font-black tabular-nums ${st.cls}`}>{st.val}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2 border-t border-line pt-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-muted">
+                Email gửi thất bại gần đây ({outbox.recentFailures.length})
+              </div>
+              {outbox.recentFailures.length === 0 ? (
+                <p className="text-xs text-muted">Chưa có email gửi thất bại nào.</p>
+              ) : (
+                <div className="divide-y divide-line rounded-xl border border-line bg-surface-2/40">
+                  {outbox.recentFailures.map((f) => (
+                    <div key={f.id} className="flex flex-col gap-1 px-3.5 py-2.5 text-xs sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">{f.title}</div>
+                        <div className="truncate text-rose-600 dark:text-rose-400">{f.last_error || "Không rõ nguyên nhân lỗi"}</div>
+                      </div>
+                      <div className="shrink-0 text-muted">
+                        Thử {f.attempts} lần · {formatDate(f.created_at, true)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </section>
 
       {/* Lịch sử chạy lập lịch */}

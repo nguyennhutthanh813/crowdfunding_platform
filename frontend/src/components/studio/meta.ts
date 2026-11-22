@@ -24,12 +24,12 @@ export const LOCK_REASON: Record<string, string> = {
 export type StudioTabKey = "overview" | "content" | "rewards" | "updates" | "faq" | "comments" | "backers" | "fulfillment" | "team" | "settings";
 
 export const STUDIO_TABS: { key: StudioTabKey; label: string; perm: string }[] = [
-  { key: "overview", label: "Tổng quan", perm: "stats.view" },
+  { key: "overview", label: "Tổng quan", perm: "insight.view" },
   { key: "content", label: "Nội dung", perm: "project.edit" },
   { key: "rewards", label: "Phần quà", perm: "reward.manage" },
   { key: "updates", label: "Cập nhật", perm: "update.draft" },
   { key: "faq", label: "Hỏi đáp", perm: "faq.manage" },
-  { key: "comments", label: "Bình luận", perm: "insight.view" },
+  { key: "comments", label: "Bình luận", perm: "comment.reply" },
   { key: "backers", label: "Người ủng hộ", perm: "backer.view" },
   { key: "fulfillment", label: "Giao quà", perm: "fulfillment.manage" },
   { key: "team", label: "Nhóm", perm: "member.manage" },

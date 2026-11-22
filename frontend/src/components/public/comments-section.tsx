@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
 import { Eye, EyeOff, Heart, MessageCircle, Pencil, Reply, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { CommentVM } from "@/server/queries/public";
@@ -81,25 +82,15 @@ export function CommentsSection({
         <div className="card p-4 sm:p-5">
           <ActionForm action={addCommentAction} resetOnSuccess className="space-y-3">
             <input type="hidden" name="projectId" value={projectId} />
+            <input type="hidden" name="slug" value={slug} />
             <div className="flex items-start gap-3">
               <Avatar name={viewer.displayName} src={viewer.avatarUrl} size={38} className="mt-0.5" />
-              <div className="min-w-0 flex-1 space-y-2.5">
-                <Textarea
-                  name="body"
-                  maxLength={2000}
-                  placeholder="Đặt câu hỏi về sản phẩm, giao hàng hoặc gửi góp ý cho nhóm…"
-                  className="min-h-24"
-                  required
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-muted">
-                    Góp ý của bạn sẽ được AI phân loại để nhóm dự án phản hồi nhanh hơn.
-                  </span>
-                  <SubmitButton size="sm" pendingText="Đang gửi…">
-                    <Send className="size-4" /> Gửi bình luận
-                  </SubmitButton>
-                </div>
-              </div>
+              <CommentComposerFields
+                placeholder="Đặt câu hỏi về sản phẩm, giao hàng hoặc gửi góp ý cho nhóm…"
+                minHeightClass="min-h-24"
+                helperText="Góp ý của bạn sẽ được hệ thống chuyển đến đúng bộ phận phụ trách."
+                submitLabel={<><Send className="size-4" /> Gửi bình luận</>}
+              />
             </div>
           </ActionForm>
         </div>
@@ -168,6 +159,7 @@ export function CommentsSection({
                     className="space-y-2.5 rounded-2xl border border-violet-500/25 bg-surface-2/70 p-3.5"
                   >
                     <input type="hidden" name="projectId" value={projectId} />
+                    <input type="hidden" name="slug" value={slug} />
                     <input type="hidden" name="parentId" value={root.id} />
                     <div className="flex items-center justify-between text-xs text-muted">
                       <span>
@@ -181,22 +173,18 @@ export function CommentsSection({
                         Đóng
                       </button>
                     </div>
-                    <Textarea
-                      name="body"
-                      maxLength={2000}
+                    <CommentComposerFields
                       defaultValue={replyTarget.mention}
                       placeholder="Nhập nội dung phản hồi…"
-                      className="min-h-20"
-                      required
+                      minHeightClass="min-h-20"
+                      compact
+                      cancelAction={
+                        <Button type="button" variant="ghost" size="xs" onClick={() => setReplyTarget(null)}>
+                          Huỷ
+                        </Button>
+                      }
+                      submitLabel={<><Reply className="size-3.5" /> Gửi trả lời</>}
                     />
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="ghost" size="xs" onClick={() => setReplyTarget(null)}>
-                        Huỷ
-                      </Button>
-                      <SubmitButton size="xs" pendingText="Đang gửi…">
-                        <Reply className="size-3.5" /> Gửi trả lời
-                      </SubmitButton>
-                    </div>
                   </ActionForm>
                 </div>
               )}
@@ -462,5 +450,47 @@ function CommentLikeButton({
       <Heart className={cn("size-3.5 transition", opt.liked && "fill-current")} />
       <span className="tabular-nums">{opt.likes}</span>
     </button>
+  );
+}
+
+function CommentComposerFields({
+  defaultValue,
+  placeholder,
+  minHeightClass,
+  helperText,
+  submitLabel,
+  cancelAction,
+  compact,
+}: {
+  defaultValue?: string;
+  placeholder: string;
+  minHeightClass: string;
+  helperText?: string;
+  submitLabel: ReactNode;
+  cancelAction?: ReactNode;
+  compact?: boolean;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <div className="min-w-0 flex-1 space-y-2.5">
+      <Textarea
+        name="body"
+        defaultValue={defaultValue}
+        maxLength={2000}
+        placeholder={placeholder}
+        className={minHeightClass}
+        disabled={pending}
+        required
+      />
+      <div className={cn("flex flex-wrap items-center gap-2", helperText ? "justify-between" : "justify-end")}>
+        {helperText && <span className="text-xs text-muted">{helperText}</span>}
+        <div className="flex items-center gap-2">
+          {cancelAction}
+          <SubmitButton size={compact ? "xs" : "sm"} pendingText="Đang gửi…">
+            {submitLabel}
+          </SubmitButton>
+        </div>
+      </div>
+    </div>
   );
 }
