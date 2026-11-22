@@ -216,7 +216,7 @@ export default async function AdminReviewDetailPage({
           <section className="card space-y-4 p-5 sm:p-6">
             <div className="flex items-center gap-2">
               <Gift className="size-5 text-violet-500" />
-              <h2 className="text-lg font-extrabold">Mức quà ({tiers.length}) &amp; Add-on ({addOns.length})</h2>
+              <h2 className="text-lg font-extrabold">Mức quà ({tiers.length}) &amp; Quà kèm ({addOns.length})</h2>
             </div>
 
             {tiers.length === 0 ? (
@@ -434,7 +434,7 @@ export default async function AdminReviewDetailPage({
 
             {pastProjects.length > 0 && (
               <div className="space-y-2 border-t border-line pt-3">
-                <div className="text-xs font-bold text-muted">Dự án khác của Creator ({pastProjects.length})</div>
+                <div className="text-xs font-bold text-muted">Dự án khác của chủ dự án ({pastProjects.length})</div>
                 {pastProjects.map((pp) => (
                   <Link
                     key={pp.slug}

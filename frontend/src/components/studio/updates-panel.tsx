@@ -58,7 +58,7 @@ export function UpdatesPanel({
           </div>
           {!canPublish && (
             <Badge tone="sky" className="gap-1">
-              <Lock className="size-3" /> Collaborator soạn nháp
+              <Lock className="size-3" /> Cộng tác viên soạn nháp
             </Badge>
           )}
         </div>

@@ -102,7 +102,7 @@ export default async function StudioProjectPage(props: {
         <span className="grid size-14 place-items-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-300">
           <Lock className="size-7" />
         </span>
-        <h2 className="text-xl font-bold">Mục “{requestedMeta.label}” được giới hạn cho Creator</h2>
+        <h2 className="text-xl font-bold">Mục “{requestedMeta.label}” được giới hạn cho Chủ dự án</h2>
         <p className="max-w-md text-sm text-muted">
           {LOCK_REASON[requestedMeta.perm] ?? "Bạn không có quyền truy cập mục này."}
         </p>

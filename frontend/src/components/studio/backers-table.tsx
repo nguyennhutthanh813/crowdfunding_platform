@@ -44,7 +44,7 @@ export function BackersTable({
       <div className="card flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-bold">
-            <Users className="size-5 text-violet-500" /> Danh sách Backer &amp; Địa chỉ giao hàng
+            <Users className="size-5 text-violet-500" /> Danh sách người ủng hộ &amp; Địa chỉ giao hàng
           </h3>
           <p className="mt-0.5 text-sm text-muted">
             Tổng {backers.length} lượt góp vốn · Tổng giá trị hiệu lực: <b className="text-fg">{formatVnd(activeTotal)}</b>
@@ -104,7 +104,7 @@ export function BackersTable({
 
                 <div className="rounded-xl bg-surface-2/60 p-2.5 text-xs">
                   <div className="font-semibold text-fg">{b.tier || "Góp không nhận quà"}</div>
-                  {b.add_ons && <div className="mt-0.5 text-muted">Add-on: {b.add_ons}</div>}
+                  {b.add_ons && <div className="mt-0.5 text-muted">Quà kèm: {b.add_ons}</div>}
                   <div className="mt-1 flex items-center justify-between border-t border-line pt-1.5">
                     <span className="text-muted">{formatDate(b.created_at, true)}</span>
                     <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
@@ -163,7 +163,7 @@ export function BackersTable({
                       </td>
                       <td className="max-w-xs px-4 py-3">
                         <div className="font-medium">{b.tier || "Không nhận quà"}</div>
-                        {b.add_ons && <div className="mt-0.5 text-xs text-muted">Add-on: {b.add_ons}</div>}
+                        {b.add_ons && <div className="mt-0.5 text-xs text-muted">Quà kèm: {b.add_ons}</div>}
                         {b.note && <div className="mt-1 text-xs italic text-muted">“{b.note}”</div>}
                       </td>
                       <td className="px-4 py-3">

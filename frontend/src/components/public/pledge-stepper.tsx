@@ -343,7 +343,7 @@ export function PledgeStepper({
                 }}
                 disabled={s.n > step}
                 className={cn(
-                  "flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-2xl border px-2 py-2 text-left transition sm:px-3 sm:py-2.5",
+                  "flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-2xl border px-2 py-2 text-left transition sm:gap-2 sm:px-3 sm:py-2.5",
                   active
                     ? "border-violet-500/60 bg-violet-500/10 text-fg shadow-sm"
                     : done
@@ -367,7 +367,7 @@ export function PledgeStepper({
                   <span className="block truncate text-[10px] font-bold uppercase tracking-wider text-muted">
                     Bước {s.n}
                   </span>
-                  <span className="block truncate text-xs font-bold sm:hidden">{s.shortLabel}</span>
+                  <span className="block truncate text-[11px] font-bold sm:hidden">{s.shortLabel}</span>
                   <span className="hidden truncate text-sm font-bold sm:block">{s.label}</span>
                 </span>
               </button>

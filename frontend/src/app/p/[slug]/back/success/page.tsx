@@ -121,7 +121,7 @@ export default async function PledgeSuccessPage(props: {
           {addOnLines.map((a) => (
             <div key={a.title} className="flex items-center justify-between gap-3">
               <dt className="text-muted">
-                Add-on: {a.quantity} × {a.title}
+                Quà kèm: {a.quantity} × {a.title}
               </dt>
               <dd className="font-semibold tabular-nums">{formatVnd(a.unit_price * a.quantity)}</dd>
             </div>
