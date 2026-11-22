@@ -720,6 +720,16 @@ function requireSuperAdmin(viewer: Viewer | null) {
   return auth;
 }
 
+function strArrayVal(body: Payload, key: string): string[] {
+  const v = body[key];
+  const raw = Array.isArray(v)
+    ? v.map((x) => String(x))
+    : typeof v === "string"
+      ? v.split(",")
+      : [];
+  return [...new Set(raw.map((s) => s.trim()).filter(Boolean))];
+}
+
 function parseSystemRoles(raw: unknown): string[] {
   const arr = Array.isArray(raw)
     ? raw.map((x) => String(x))
@@ -728,6 +738,96 @@ function parseSystemRoles(raw: unknown): string[] {
       : [];
   const valid = [...new Set(arr.map((s) => s.trim().toUpperCase()).filter((s) => SYSTEM_ROLE_ALLOWLIST.has(s)))];
   return valid.length > 0 ? valid : ["MEMBER"];
+}
+
+async function syncUserCollaboratorProjects(
+  db: DbClient,
+  adminId: string,
+  targetUserId: string,
+  desiredIds: string[],
+  hasAdminRole: boolean,
+  now: string,
+) {
+  const existingRows = await all<{ project_id: string; role_code: string; status: string }>(
+    db,
+    `SELECT project_id, role_code, status FROM project_members WHERE user_id = ?`,
+    targetUserId,
+  );
+  const activeCollabIds = new Set(
+    existingRows.filter((r) => r.role_code === "COLLABORATOR" && r.status === "ACTIVE").map((r) => r.project_id),
+  );
+  const creatorProjectIds = new Set(existingRows.filter((r) => r.role_code === "CREATOR").map((r) => r.project_id));
+  const removedCollabIds = new Set(
+    existingRows.filter((r) => r.role_code === "COLLABORATOR" && r.status === "REMOVED").map((r) => r.project_id),
+  );
+
+  const effectiveDesired = hasAdminRole ? [] : desiredIds.filter((pid) => !creatorProjectIds.has(pid));
+  const desiredSet = new Set(effectiveDesired);
+
+  const toRemove = [...activeCollabIds].filter((pid) => !desiredSet.has(pid));
+  const toAdd = effectiveDesired.filter((pid) => !activeCollabIds.has(pid));
+
+  for (const pid of toRemove) {
+    await run(
+      db,
+      `UPDATE project_members SET status = 'REMOVED', removed_at = ? WHERE project_id = ? AND user_id = ? AND role_code = 'COLLABORATOR'`,
+      now,
+      pid,
+      targetUserId,
+    );
+  }
+
+  for (const pid of toAdd) {
+    const proj = await one<{ id: string; slug: string; title: string; creator_id: string }>(
+      db,
+      `SELECT id, slug, title, creator_id FROM projects WHERE id = ?`,
+      pid,
+    );
+    if (!proj || proj.creator_id === targetUserId) continue;
+    if (removedCollabIds.has(pid)) {
+      await run(
+        db,
+        `UPDATE project_members SET status = 'ACTIVE', removed_at = NULL, invited_by = ?, joined_at = ? WHERE project_id = ? AND user_id = ? AND role_code = 'COLLABORATOR'`,
+        adminId,
+        now,
+        pid,
+        targetUserId,
+      );
+    } else {
+      await insert(db, "project_members", {
+        project_id: pid,
+        user_id: targetUserId,
+        role_code: "COLLABORATOR",
+        scope: "PROJECT",
+        status: "ACTIVE",
+        invited_by: adminId,
+        joined_at: now,
+        removed_at: null,
+      });
+    }
+    await notify(db, {
+      userId: targetUserId,
+      type: "INVITATION",
+      title: `Bạn được gán làm Cộng tác viên: ${proj.title}`,
+      body: "Quản trị viên đã thêm bạn vào nhóm vận hành dự án trong Studio.",
+      link: `/studio/${proj.slug}`,
+      actorId: adminId,
+      projectId: proj.id,
+    });
+    await notify(db, {
+      userId: proj.creator_id,
+      type: "SYSTEM",
+      title: `Dự án ${proj.title} có Cộng tác viên mới`,
+      body: "Quản trị viên vừa phân quyền Cộng tác viên cho dự án của bạn.",
+      link: `/studio/${proj.slug}?tab=team`,
+      actorId: adminId,
+      projectId: proj.id,
+    });
+  }
+
+  if (toAdd.length > 0 || toRemove.length > 0) {
+    await audit(db, adminId, "user.collab_sync", "user", targetUserId, `+${toAdd.length} / -${toRemove.length} dự án CTV`);
+  }
 }
 
 function validatePasswordRule(password: string): string | null {
@@ -781,6 +881,7 @@ export async function adminCreateUser(viewer: Viewer | null, bodyIn: Payload): P
   }
 
   const roles = parseSystemRoles(bodyIn.roles);
+  const collabProjectIds = strArrayVal(bodyIn, "collabProjectIds");
   const db = getDb();
   try {
     await tx(db, async () => {
@@ -812,6 +913,9 @@ export async function adminCreateUser(viewer: Viewer | null, bodyIn: Payload): P
           granted_at: now,
         });
       }
+      if (collabProjectIds.length > 0) {
+        await syncUserCollaboratorProjects(db, auth.viewer.id, id, collabProjectIds, roles.includes("ADMIN"), now);
+      }
       await audit(db, auth.viewer.id, "user.create", "user", id, `${email} (${roles.join(",")})`);
     });
     return { ok: true, message: `Đã tạo tài khoản ${displayName} (@${username}).` };
@@ -833,6 +937,8 @@ export async function adminUpdateUser(viewer: Viewer | null, bodyIn: Payload): P
   }
 
   const requestedRoles = parseSystemRoles(bodyIn.roles);
+  const shouldSyncCollab = strVal(bodyIn, "syncCollab") === "1";
+  const collabProjectIds = strArrayVal(bodyIn, "collabProjectIds");
   const db = getDb();
   try {
     const updatedName = await tx(db, async () => {
@@ -857,10 +963,8 @@ export async function adminUpdateUser(viewer: Viewer | null, bodyIn: Payload): P
         }
       }
 
-      const finalRoles =
-        requestedRoles.includes("ADMIN") && !requestedRoles.includes("MEMBER") && curRoles.length === 1 && curRoles[0] === "ADMIN"
-          ? ["ADMIN"]
-          : Array.from(new Set(["MEMBER", ...requestedRoles]));
+      const finalRoles = requestedRoles;
+      const hasAdminRole = finalRoles.includes("ADMIN");
 
       const now = nowIso();
       await run(
@@ -884,11 +988,14 @@ export async function adminUpdateUser(viewer: Viewer | null, bodyIn: Payload): P
           granted_at: now,
         });
       }
+      if (shouldSyncCollab || hasAdminRole) {
+        await syncUserCollaboratorProjects(db, auth.viewer.id, target.id, collabProjectIds, hasAdminRole, now);
+      }
       await notify(db, {
         userId: target.id,
         type: "SYSTEM",
         title: "Thông tin tài khoản của bạn đã được cập nhật",
-        body: `Quản trị viên đã cập nhật hồ sơ / quyền hạn (${finalRoles.join(", ")}).`,
+        body: `Quản trị viên đã cập nhật hồ sơ / quyền hạn (${hasAdminRole ? "Quản trị viên" : "Thành viên nền tảng"}).`,
         link: "/me/settings",
         actorId: auth.viewer.id,
       });
@@ -896,6 +1003,145 @@ export async function adminUpdateUser(viewer: Viewer | null, bodyIn: Payload): P
       return `${displayName} (@${username})`;
     });
     return { ok: true, message: `Đã cập nhật tài khoản ${updatedName}.` };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function adminAssignCollaborator(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireSuperAdmin(viewer);
+  if (!auth.ok) return { error: auth.error };
+
+  const userId = strVal(bodyIn, "userId");
+  const projectId = strVal(bodyIn, "projectId");
+  if (!userId || !projectId) return { error: "Vui lòng chọn đầy đủ người dùng và dự án." };
+
+  const db = getDb();
+  try {
+    const out = await tx(db, async () => {
+      const target = await one<{ id: string; display_name: string; status: string }>(
+        db,
+        `SELECT id, display_name, status FROM users WHERE id = ?`,
+        userId,
+      );
+      if (!target) throw new DomainError("Không tìm thấy tài khoản.", "NOT_FOUND");
+      const isAdmin = Boolean(await one(db, `SELECT 1 FROM user_roles WHERE user_id = ? AND role_code = 'ADMIN'`, target.id));
+      if (isAdmin) throw new DomainError("Không thể gán tài khoản Quản trị viên làm Cộng tác viên.");
+
+      const proj = await one<{ id: string; slug: string; title: string; creator_id: string }>(
+        db,
+        `SELECT id, slug, title, creator_id FROM projects WHERE id = ?`,
+        projectId,
+      );
+      if (!proj) throw new DomainError("Không tìm thấy dự án.", "NOT_FOUND");
+      if (proj.creator_id === target.id) {
+        throw new DomainError("Tài khoản này đã là Chủ dự án của chính dự án này.");
+      }
+
+      const existing = await one<{ role_code: string; status: string }>(
+        db,
+        `SELECT role_code, status FROM project_members WHERE project_id = ? AND user_id = ?`,
+        proj.id,
+        target.id,
+      );
+      if (existing?.status === "ACTIVE") {
+        throw new DomainError("Người dùng này đã là Cộng tác viên của dự án này.");
+      }
+
+      const now = nowIso();
+      if (existing) {
+        await run(
+          db,
+          `UPDATE project_members SET status = 'ACTIVE', removed_at = NULL, invited_by = ?, joined_at = ? WHERE project_id = ? AND user_id = ?`,
+          auth.viewer.id,
+          now,
+          proj.id,
+          target.id,
+        );
+      } else {
+        await insert(db, "project_members", {
+          project_id: proj.id,
+          user_id: target.id,
+          role_code: "COLLABORATOR",
+          scope: "PROJECT",
+          status: "ACTIVE",
+          invited_by: auth.viewer.id,
+          joined_at: now,
+          removed_at: null,
+        });
+      }
+
+      await notify(db, {
+        userId: target.id,
+        type: "INVITATION",
+        title: `Bạn được gán làm Cộng tác viên: ${proj.title}`,
+        body: "Quản trị viên đã thêm bạn vào nhóm vận hành dự án trong Studio.",
+        link: `/studio/${proj.slug}`,
+        actorId: auth.viewer.id,
+        projectId: proj.id,
+      });
+      await notify(db, {
+        userId: proj.creator_id,
+        type: "SYSTEM",
+        title: `Dự án ${proj.title} có Cộng tác viên mới`,
+        body: `Quản trị viên đã gán ${target.display_name} làm Cộng tác viên.`,
+        link: `/studio/${proj.slug}?tab=team`,
+        actorId: auth.viewer.id,
+        projectId: proj.id,
+      });
+      await audit(db, auth.viewer.id, "user.collab_assign", "user", target.id, `${proj.title} (${proj.slug})`);
+      return { name: target.display_name, projectTitle: proj.title };
+    });
+
+    return { ok: true, message: `Đã gán ${out.name} làm Cộng tác viên dự án “${out.projectTitle}”.` };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function adminRemoveCollaborator(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireSuperAdmin(viewer);
+  if (!auth.ok) return { error: auth.error };
+
+  const userId = strVal(bodyIn, "userId");
+  const projectId = strVal(bodyIn, "projectId");
+  if (!userId || !projectId) return { error: "Thiếu thông tin người dùng hoặc dự án." };
+
+  const db = getDb();
+  try {
+    const out = await tx(db, async () => {
+      const m = await one<{ role_code: string; status: string }>(
+        db,
+        `SELECT role_code, status FROM project_members WHERE project_id = ? AND user_id = ?`,
+        projectId,
+        userId,
+      );
+      if (!m || m.status !== "ACTIVE") throw new DomainError("Thành viên này không còn cộng tác trên dự án.", "NOT_FOUND");
+      if (m.role_code === "CREATOR") throw new DomainError("Không thể gỡ Chủ dự án khỏi dự án do họ sở hữu.");
+
+      const proj = await one<{ title: string }>(db, `SELECT title FROM projects WHERE id = ?`, projectId);
+      const target = await one<{ display_name: string }>(db, `SELECT display_name FROM users WHERE id = ?`, userId);
+
+      await run(
+        db,
+        `UPDATE project_members SET status = 'REMOVED', removed_at = ? WHERE project_id = ? AND user_id = ? AND role_code = 'COLLABORATOR'`,
+        nowIso(),
+        projectId,
+        userId,
+      );
+      await notify(db, {
+        userId,
+        type: "SYSTEM",
+        title: `Đã gỡ quyền Cộng tác viên: ${proj?.title ?? "Dự án"}`,
+        body: "Quản trị viên đã thu hồi quyền Cộng tác viên của bạn trên dự án này.",
+        actorId: auth.viewer.id,
+        projectId,
+      });
+      await audit(db, auth.viewer.id, "user.collab_remove", "user", userId, proj?.title ?? projectId);
+      return { name: target?.display_name ?? "Thành viên", title: proj?.title ?? "dự án" };
+    });
+
+    return { ok: true, message: `Đã gỡ quyền Cộng tác viên của ${out.name} khỏi “${out.title}”.` };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -967,15 +1213,16 @@ export async function adminDeleteUser(viewer: Viewer | null, bodyIn: Payload): P
         throw new DomainError(`Vui lòng nhập chính xác “${target.username}” để xác nhận xoá.`);
       }
 
-      const [hasPledge, hasProject, hasMember] = await Promise.all([
+      const [hasPledge, hasProject, hasActiveMember] = await Promise.all([
         one(db, `SELECT 1 FROM pledges WHERE backer_id = ? LIMIT 1`, target.id),
         one(db, `SELECT 1 FROM projects WHERE creator_id = ? LIMIT 1`, target.id),
-        one(db, `SELECT 1 FROM project_members WHERE user_id = ? LIMIT 1`, target.id),
+        one(db, `SELECT 1 FROM project_members WHERE user_id = ? AND status = 'ACTIVE' LIMIT 1`, target.id),
       ]);
-      if (hasPledge || hasProject || hasMember) {
-        throw new DomainError("Tài khoản đã có dữ liệu góp vốn/dự án — hãy khoá tài khoản thay vì xoá.", "CONFLICT");
+      if (hasPledge || hasProject || hasActiveMember) {
+        throw new DomainError("Tài khoản đã có dữ liệu góp vốn/dự án đang hoạt động — hãy khoá tài khoản thay vì xoá.", "CONFLICT");
       }
 
+      await run(db, `DELETE FROM project_members WHERE user_id = ? AND status = 'REMOVED'`, target.id);
       await run(db, `DELETE FROM users WHERE id = ?`, target.id);
       await audit(db, auth.viewer.id, "user.delete", "user", target.id, `Xoá tài khoản ${target.display_name} (@${target.username})`);
       return `${target.display_name} (@${target.username})`;

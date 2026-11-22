@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/components/ui/action-form";
-import { apiPost, formToPayload } from "../api";
+import type { AdminReviewDetail, AdminUserDetail } from "../queries/admin";
+import { apiGet, apiPost, formToPayload } from "../api";
 
 function revalidateAdminPaths(...extra: string[]) {
   revalidatePath("/admin", "layout");
@@ -63,6 +64,40 @@ export async function adminSetUserPasswordAction(_p: ActionResult, form: FormDat
 
 export async function adminDeleteUserAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runAdminPost("/admin/users/delete", form);
+}
+
+export async function adminAssignCollaboratorAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/users/assign-collaborator", form, ["/studio"]);
+}
+
+export async function adminRemoveCollaboratorAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/users/remove-collaborator", form, ["/studio"]);
+}
+
+export async function fetchAdminUserDetailAction(
+  userId: string,
+): Promise<{ ok: boolean; detail?: AdminUserDetail; error?: string }> {
+  if (!userId) return { ok: false, error: "Thiếu mã người dùng." };
+  const res = await apiGet<{ ok?: boolean; detail?: AdminUserDetail; error?: string }>(
+    `/admin/users/${encodeURIComponent(userId)}`,
+  );
+  if (!res.ok || !res.detail) {
+    return { ok: false, error: res.error || "Không tải được hồ sơ người dùng." };
+  }
+  return { ok: true, detail: res.detail };
+}
+
+export async function fetchAdminReviewDetailAction(
+  slug: string,
+): Promise<{ ok: boolean; detail?: AdminReviewDetail; error?: string }> {
+  if (!slug) return { ok: false, error: "Thiếu đường dẫn dự án." };
+  const res = await apiGet<{ ok?: boolean; detail?: AdminReviewDetail; error?: string }>(
+    `/admin/reviews/${encodeURIComponent(slug)}`,
+  );
+  if (!res.ok || !res.detail) {
+    return { ok: false, error: res.error || "Không tải được chi tiết hồ sơ duyệt." };
+  }
+  return { ok: true, detail: res.detail };
 }
 
 export async function handleReportAction(_p: ActionResult, form: FormData): Promise<ActionResult> {

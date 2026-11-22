@@ -13,6 +13,7 @@ import {
   adminTransactions,
   adminUserDetail,
   adminUsers,
+  assignableProjectsForCollab,
   auditList,
   categoryOptions,
   projectMoneySummary,
@@ -22,8 +23,10 @@ import {
   schedulerOverview,
 } from "../../queries/admin.js";
 import {
+  adminAssignCollaborator,
   adminCreateUser,
   adminDeleteUser,
+  adminRemoveCollaborator,
   adminResetUserTwoFactor,
   adminSetUserPassword,
   adminUpdateUser,
@@ -119,11 +122,12 @@ adminRouter.get("/users", requireSystemPermMiddleware("admin.user.lock"), async 
     const role = typeof req.query.role === "string" && req.query.role.trim() ? req.query.role.trim() : undefined;
     const page = Number(req.query.page) || 1;
     const inspectId = typeof req.query.inspect === "string" && req.query.inspect.trim() ? req.query.inspect.trim() : undefined;
-    const [data, inspected] = await Promise.all([
+    const [data, inspected, assignableProjects] = await Promise.all([
       adminUsers({ q, status, role, page }),
       inspectId ? adminUserDetail(inspectId) : Promise.resolve(null),
+      assignableProjectsForCollab(),
     ]);
-    res.json({ ok: true, ...data, inspected });
+    res.json({ ok: true, ...data, inspected, assignableProjects });
   } catch (e) {
     res.status(500).json({ ok: false, error: humanizeError(e) });
   }
@@ -169,6 +173,16 @@ adminRouter.post("/users/set-password", async (req, res) => {
 
 adminRouter.post("/users/delete", async (req, res) => {
   const r = await adminDeleteUser(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/users/assign-collaborator", async (req, res) => {
+  const r = await adminAssignCollaborator(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/users/remove-collaborator", async (req, res) => {
+  const r = await adminRemoveCollaborator(req.viewer, req.body ?? {});
   res.status(r.error ? 400 : 200).json(r);
 });
 

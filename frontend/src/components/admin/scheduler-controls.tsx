@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCheck, Mail, Play } from "lucide-react";
+import { CheckCheck, Cpu, Flame, Mail, Play } from "lucide-react";
 import { flushEmailOutboxAction, runSchedulerNowAction, settleLiveProjectNowAction } from "@/server/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Field, Select } from "@/components/ui/form";
 import { Badge } from "@/components/ui/primitives";
 import { formatCompactVnd, formatVnd, percentOf } from "@/lib/utils";
@@ -38,7 +40,75 @@ export function FlushEmailOutboxButton() {
   );
 }
 
-export function ManualSettleForm({ liveProjects }: { liveProjects: LiveScheduledProject[] }) {
+export function SchedulerMechanismButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button type="button" variant="outline" size="md" onClick={() => setOpen(true)}>
+        <Cpu className="size-4 text-indigo-500" /> Cơ chế
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        size="lg"
+        title="Quy trình xử lý tự động theo lịch"
+        description="Bộ lập lịch chạy định kỳ để đảm bảo chiến dịch mở bán và chốt thanh toán đúng hạn, không trùng lặp."
+      >
+        <div className="grid gap-3 text-xs text-muted sm:grid-cols-3">
+          <div className="rounded-xl border border-line bg-surface-2/60 p-3.5">
+            <div className="font-bold text-fg">1. Mở chiến dịch đúng hẹn</div>
+            <p className="mt-1 leading-relaxed">
+              Các dự án <b>Sắp mở</b> đến giờ hẹn sẽ tự chuyển sang <b>Đang gọi vốn</b> và gửi thông báo cho người theo dõi.
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-2/60 p-3.5">
+            <div className="font-bold text-fg">2. Chốt kết quả gọi vốn</div>
+            <p className="mt-1 leading-relaxed">
+              Khi hết hạn: đạt mục tiêu sẽ chuyển sang <b>Thành công</b> và <b>thu tiền</b>; chưa đạt sẽ <b>hoàn lại hạn mức giữ chỗ</b>.
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-2/60 p-3.5">
+            <div className="font-bold text-fg">3. An toàn chống trừ trùng</div>
+            <p className="mt-1 leading-relaxed">
+              Mỗi giao dịch có mã chống trùng lặp riêng để đảm bảo chạy lại nhiều lần không bao giờ thu tiền hai lần.
+            </p>
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
+export function ManualSettleModalButton({ liveProjects }: { liveProjects: LiveScheduledProject[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button type="button" variant="gold" size="md" onClick={() => setOpen(true)}>
+        <Flame className="size-4" /> Tất toán thủ công ({liveProjects.length})
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        size="lg"
+        title="Tất toán chiến dịch thủ công"
+        description="Chốt sớm một chiến dịch đang gọi vốn để đối soát thu tiền (đạt mục tiêu) hoặc giải phóng hạn mức (không đạt)."
+      >
+        <ManualSettleForm liveProjects={liveProjects} onSuccess={() => setOpen(false)} />
+      </Dialog>
+    </>
+  );
+}
+
+export function ManualSettleForm({
+  liveProjects,
+  onSuccess,
+}: {
+  liveProjects: LiveScheduledProject[];
+  onSuccess?: () => void;
+}) {
   const [selectedId, setSelectedId] = useState(liveProjects[0]?.id ?? "");
   const chosen = liveProjects.find((p) => p.id === selectedId) ?? liveProjects[0];
 
@@ -56,6 +126,7 @@ export function ManualSettleForm({ liveProjects }: { liveProjects: LiveScheduled
   return (
     <ActionForm
       action={settleLiveProjectNowAction}
+      onSuccess={onSuccess}
       confirm={
         chosen
           ? `Xác nhận tất toán sớm chiến dịch “${chosen.title}” (${willSucceed ? "thu tiền đạt mục tiêu" : "giải phóng hạn mức"})?`

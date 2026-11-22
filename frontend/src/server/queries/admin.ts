@@ -24,6 +24,15 @@ export interface PredictionFactor {
   detail: string;
 }
 
+export interface AssignableProject {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  creator_id: string;
+  creator_name: string;
+}
+
 export interface AdminUserRow {
   id: string;
   username: string;
@@ -39,6 +48,7 @@ export interface AdminUserRow {
   created_at: string;
   last_login_at: string | null;
   roles: string[];
+  collab_project_ids: string[];
   creator_count: number;
   collab_count: number;
   pledge_count: number;
@@ -65,7 +75,17 @@ export interface AdminUserDetail {
     bio: string;
   };
   roles: string[];
-  projects: { slug: string; title: string; status: string; role_code: string; pledged_amount: number; goal_amount: number }[];
+  projects: { project_id: string; slug: string; title: string; status: string; role_code: string; pledged_amount: number; goal_amount: number }[];
+  pendingInvitations: {
+    id: string;
+    project_id: string;
+    project_slug: string;
+    project_title: string;
+    project_status: string;
+    inviter_name: string;
+    expires_at: string;
+    created_at: string;
+  }[];
   pledgeSummary: { status: string; c: number; total: number }[];
   recentPledges: { code: string; total_amount: number; status: string; created_at: string; title: string; slug: string }[];
   reportsAgainst: { id: string; reason: string; detail: string; status: string; created_at: string; reporter: string; kind: string }[];
@@ -329,6 +349,8 @@ export async function reviewDetail(slug: string) {
   return res.detail ?? null;
 }
 
+export type AdminReviewDetail = NonNullable<Awaited<ReturnType<typeof reviewDetail>>>;
+
 export async function adminProjectsBundle(f: { q?: string; status?: string; category?: string; page?: number }) {
   const qs = new URLSearchParams();
   if (f.q) qs.set("q", f.q);
@@ -383,16 +405,18 @@ export async function adminUsersBundle(f: { q?: string; status?: string; role?: 
     total?: number;
     page?: number;
     pages?: number;
-    stats?: { total: number; locked: number; admins: number };
+    stats?: { total: number; locked: number; admins: number; creators: number; collaborators: number };
     inspected?: AdminUserDetail | null;
+    assignableProjects?: AssignableProject[];
   }>(`/admin/users?${qs.toString()}`);
   return {
-    rows: res.rows ?? [],
+    rows: (res.rows ?? []).map((r) => ({ ...r, collab_project_ids: r.collab_project_ids ?? [] })),
     total: res.total ?? 0,
     page: res.page ?? 1,
     pages: res.pages ?? 1,
-    stats: res.stats ?? { total: 0, locked: 0, admins: 0 },
+    stats: res.stats ?? { total: 0, locked: 0, admins: 0, creators: 0, collaborators: 0 },
     inspected: res.inspected ?? null,
+    assignableProjects: res.assignableProjects ?? [],
   };
 }
 

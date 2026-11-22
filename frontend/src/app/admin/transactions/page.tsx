@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ArrowDownLeft, ArrowUpRight, CreditCard, QrCode, RotateCcw, Search, ShieldCheck } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
 import { adminTransactionsBundle } from "@/server/queries/admin";
@@ -10,6 +11,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { EmptyState, PageHeader, SectionTitle, StatCard } from "@/components/ui/layout-bits";
 import { Badge, PledgeStatusBadge, ProjectStatusBadge } from "@/components/ui/primitives";
+import { LinkTabs } from "@/components/ui/tabs";
 import { formatCompactVnd, formatDate, formatVnd } from "@/lib/utils";
 
 export const metadata = { title: "Quản trị giao dịch & VNPAY" };
@@ -23,6 +25,8 @@ export default async function AdminTransactionsPage({
 }) {
   await requireSystemPerm("admin.transaction.view", "/admin/transactions");
   const sp = await searchParams;
+  const rawTab = firstParam(sp.tab).trim().toLowerCase();
+  const activeTab = rawTab === "vnpay" || rawTab === "projects" ? rawTab : "ledger";
   const kind = firstParam(sp.kind).trim();
   const status = firstParam(sp.status).trim();
   const provider = firstParam(sp.provider).trim();
@@ -44,16 +48,22 @@ export default async function AdminTransactionsPage({
   });
   const { totalsByKind, vnpayOrders } = txData;
 
+  const tabs = [
+    { key: "ledger", label: "Sổ giao dịch", count: txData.total },
+    { key: "vnpay", label: "Phiên cổng VNPAY", count: vnpayOrders.length },
+    { key: "projects", label: "Đối soát theo dự án", count: summary.length },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Quản trị tài chính & Đối soát VNPAY"
         title="Sổ giao dịch & Đối soát thanh toán"
-        description="Quản lý toàn bộ giao dịch giữ chỗ, thu tiền khi đạt mục tiêu, giải phóng hạn mức, hoàn tiền VNPAY và xử lý các khoản thu lỗi."
+        description="Quản lý giao dịch giữ chỗ, thu tiền khi đạt mục tiêu, giải phóng hạn mức, hoàn tiền VNPAY và đối soát từng dự án."
       />
 
       {/* Tổng hợp 4 loại giao dịch */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           tone="sky"
           label="Ký quỹ giữ chỗ"
@@ -84,60 +94,67 @@ export default async function AdminTransactionsPage({
         />
       </div>
 
-      {/* Bộ lọc mở rộng */}
-      <form method="GET" action="/admin/transactions" className="card space-y-3 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative sm:col-span-2">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <Input
-              name="q"
-              defaultValue={q}
-              placeholder="Tìm mã góp vốn, mã giao dịch, tên hoặc @username người ủng hộ..."
-              className="pl-10"
-            />
-          </div>
-          <Select name="provider" defaultValue={provider} aria-label="Cổng thanh toán">
-            <option value="">Mọi cổng thanh toán</option>
-            <option value="VNPAY">Cổng VNPAY</option>
-            <option value="FUNDVIET_PAY">Thẻ đã lưu (FundViet Pay)</option>
-          </Select>
-          <Select name="project" defaultValue={project} aria-label="Dự án">
-            <option value="">Tất cả dự án</option>
-            {projectOptions.map((p) => (
-              <option key={p.slug} value={p.slug}>
-                {p.title}
-              </option>
-            ))}
-          </Select>
-        </div>
+      <Suspense fallback={<div className="h-10" />}>
+        <LinkTabs items={tabs} active={activeTab} id="admin-transactions-tabs" />
+      </Suspense>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[160px_160px_155px_155px_auto]">
-          <Select name="kind" defaultValue={kind} aria-label="Loại giao dịch">
-            <option value="">Mọi nghiệp vụ</option>
-            <option value="AUTHORIZE">Giữ chỗ</option>
-            <option value="CAPTURE">Thu tiền</option>
-            <option value="VOID">Giải phóng</option>
-            <option value="REFUND">Hoàn tiền</option>
-          </Select>
-          <Select name="status" defaultValue={status} aria-label="Trạng thái">
-            <option value="">Mọi kết quả</option>
-            <option value="SUCCEEDED">Thành công</option>
-            <option value="FAILED">Thất bại</option>
-          </Select>
-          <Input type="date" name="from" defaultValue={from} aria-label="Từ ngày" />
-          <Input type="date" name="to" defaultValue={to} aria-label="Đến ngày" />
-          <div className="flex justify-end gap-2">
-            <Button type="submit" variant="primary" size="md" className="flex-1 sm:flex-none">
-              Lọc dữ liệu
-            </Button>
-            {(kind || status || provider || q || project || from || to) && (
-              <ButtonLink href="/admin/transactions" variant="outline" size="md">
-                Xoá lọc
-              </ButtonLink>
-            )}
-          </div>
-        </div>
-      </form>
+      {activeTab === "ledger" && (
+        <>
+          {/* Bộ lọc mở rộng */}
+          <form method="GET" action="/admin/transactions" className="card space-y-3 p-4">
+            <input type="hidden" name="tab" value="ledger" />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="relative sm:col-span-2">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+                <Input
+                  name="q"
+                  defaultValue={q}
+                  placeholder="Tìm mã góp vốn, mã giao dịch, tên hoặc @username..."
+                  className="pl-10"
+                />
+              </div>
+              <Select name="provider" defaultValue={provider} aria-label="Cổng thanh toán">
+                <option value="">Mọi cổng thanh toán</option>
+                <option value="VNPAY">Cổng VNPAY</option>
+                <option value="FUNDVIET_PAY">Thẻ đã lưu (FundViet Pay)</option>
+              </Select>
+              <Select name="project" defaultValue={project} aria-label="Dự án">
+                <option value="">Tất cả dự án</option>
+                {projectOptions.map((p) => (
+                  <option key={p.slug} value={p.slug}>
+                    {p.title}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[160px_160px_155px_155px_auto]">
+              <Select name="kind" defaultValue={kind} aria-label="Loại giao dịch">
+                <option value="">Mọi nghiệp vụ</option>
+                <option value="AUTHORIZE">Giữ chỗ</option>
+                <option value="CAPTURE">Thu tiền</option>
+                <option value="VOID">Giải phóng</option>
+                <option value="REFUND">Hoàn tiền</option>
+              </Select>
+              <Select name="status" defaultValue={status} aria-label="Trạng thái">
+                <option value="">Mọi kết quả</option>
+                <option value="SUCCEEDED">Thành công</option>
+                <option value="FAILED">Thất bại</option>
+              </Select>
+              <Input type="date" name="from" defaultValue={from} aria-label="Từ ngày" />
+              <Input type="date" name="to" defaultValue={to} aria-label="Đến ngày" />
+              <div className="flex justify-end gap-2">
+                <Button type="submit" variant="primary" size="md" className="flex-1 sm:flex-none">
+                  Lọc dữ liệu
+                </Button>
+                {(kind || status || provider || q || project || from || to) && (
+                  <ButtonLink href="/admin/transactions?tab=ledger" variant="outline" size="md">
+                    Xoá lọc
+                  </ButtonLink>
+                )}
+              </div>
+            </div>
+          </form>
 
       {/* Danh sách giao dịch */}
       {txData.rows.length === 0 ? (
@@ -252,14 +269,19 @@ export default async function AdminTransactionsPage({
             page={txData.page}
             pages={txData.pages}
             total={txData.total}
-            params={{ kind, status, provider, q, project, from, to }}
+            params={{ tab: "ledger", kind, status, provider, q, project, from, to }}
             itemLabel="giao dịch"
           />
         </>
       )}
+        </>
+      )}
 
       {/* Nhật ký phiên cổng thanh toán VNPAY */}
-      {vnpayOrders.length > 0 && (
+      {activeTab === "vnpay" && (
+        vnpayOrders.length === 0 ? (
+          <EmptyState title="Chưa có phiên cổng VNPAY nào" description="Các phiên thanh toán qua cổng VNPAY sẽ xuất hiện tại đây." />
+        ) : (
         <section className="space-y-4">
           <SectionTitle
             title={
@@ -283,7 +305,7 @@ export default async function AdminTransactionsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {vnpayOrders.slice(0, 12).map((vo) => {
+                {vnpayOrders.map((vo) => {
                   const statusLabel =
                     vo.status === "PAID"
                       ? "Đã thanh toán"
@@ -347,9 +369,11 @@ export default async function AdminTransactionsPage({
             </table>
           </div>
         </section>
+        )
       )}
 
       {/* Tổng hợp tiền theo dự án */}
+      {activeTab === "projects" && (
       <section className="space-y-4">
         <SectionTitle
           title={
@@ -437,6 +461,7 @@ export default async function AdminTransactionsPage({
           </table>
         </div>
       </section>
+      )}
     </div>
   );
 }

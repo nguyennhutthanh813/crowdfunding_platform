@@ -22,12 +22,16 @@ export function Select({ className, children, ...props }: ComponentProps<"select
 
 export function Field({ label, hint, error, children, className, required }: { label: string; hint?: ReactNode; error?: string; children: ReactNode; className?: string; required?: boolean }) {
   return (
-    <label className={cn("block space-y-1.5", className)}>
-      <span className="text-sm font-semibold text-fg">
+    <label className={cn("block space-y-1.5 text-left", className)}>
+      <span className="block text-sm font-semibold text-fg">
         {label} {required && <span className="text-rose-500">*</span>}
       </span>
       {children}
-      {error ? <span className="block text-xs font-medium text-rose-500">{error}</span> : hint ? <span className="block text-xs text-muted">{hint}</span> : null}
+      {error ? (
+        <span className="block whitespace-normal text-xs font-medium text-rose-500">{error}</span>
+      ) : hint ? (
+        <span className="block whitespace-normal text-xs text-muted">{hint}</span>
+      ) : null}
     </label>
   );
 }

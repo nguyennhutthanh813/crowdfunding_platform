@@ -3,6 +3,7 @@ import { ArrowRight, Brain, CalendarClock, CheckCircle2, Clock, History, ShieldA
 import { requireSystemPerm } from "@/server/auth/session";
 import { reviewQueue } from "@/server/queries/admin";
 import { formatWaiting, REVIEW_DECISION_META } from "@/components/admin/admin-helpers";
+import { QuickReviewModalButton } from "@/components/admin/quick-review-modal";
 import { SafeImage } from "@/components/admin/safe-image";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageHeader, SectionTitle } from "@/components/ui/layout-bits";
@@ -90,9 +91,10 @@ export default async function AdminReviewsPage() {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center justify-end">
-                    <ButtonLink href={`/admin/reviews/${item.slug}`} variant="primary" size="sm">
-                      Xem &amp; duyệt <ArrowRight className="size-4" />
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <QuickReviewModalButton slug={item.slug} title={item.title} />
+                    <ButtonLink href={`/admin/reviews/${item.slug}`} variant="outline" size="sm">
+                      Xem đầy đủ <ArrowRight className="size-4" />
                     </ButtonLink>
                   </div>
                 </div>

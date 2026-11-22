@@ -1,16 +1,14 @@
-import Link from "next/link";
 import { Suspense } from "react";
-import { CheckCircle2, ExternalLink, MessageSquare, ShieldAlert, User } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
 import { adminReports, REPORT_REASON } from "@/server/queries/admin";
 import { REPORT_STATUS_META, REPORT_TARGET_META, serverNow } from "@/components/admin/admin-helpers";
-import { ReportHandleForm } from "@/components/admin/report-handle-form";
+import { ReportDetailModalButton } from "@/components/admin/report-handle-form";
 import { PaginationBar } from "@/components/ui/pagination";
 import { EmptyState, PageHeader } from "@/components/ui/layout-bits";
-import { Badge, ProjectStatusBadge } from "@/components/ui/primitives";
+import { Badge } from "@/components/ui/primitives";
 import { LinkTabs } from "@/components/ui/tabs";
-import { formatDate, timeAgo } from "@/lib/utils";
+import { timeAgo } from "@/lib/utils";
 
 export const metadata = { title: "Báo cáo vi phạm" };
 
@@ -41,11 +39,11 @@ export default async function AdminReportsPage({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Kiểm duyệt cộng đồng"
         title="Báo cáo vi phạm"
-        description="Xem nội dung bị báo cáo (dự án, bình luận, người dùng) và xử lý kèm chế tài nếu có vi phạm."
+        description="Danh sách gọn các phản ánh vi phạm; bấm Xem & Xử lý để xem đầy đủ chi tiết và quyết định trong hộp thoại."
       />
 
       <Suspense fallback={<div className="h-10" />}>
@@ -58,143 +56,120 @@ export default async function AdminReportsPage({
           description="Mọi phản ánh từ cộng đồng sẽ được xếp theo thứ tự thời gian tại đây."
         />
       ) : (
-        <div className="space-y-4">
-          {rows.map((r) => {
-            const targetMeta = REPORT_TARGET_META[r.target_type] ?? { label: r.target_type, tone: "neutral" as const };
-            const statusMeta = REPORT_STATUS_META[r.status] ?? { label: r.status, tone: "neutral" as const };
-            return (
-              <article key={r.id} className="card space-y-4 p-4 sm:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={targetMeta.tone}>{targetMeta.label}</Badge>
-                    <Badge tone="rose" dot>
-                      {REPORT_REASON[r.reason] ?? r.reason}
-                    </Badge>
-                    <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
+        <>
+          {/* Mobile cards gọn */}
+          <div className="space-y-2.5 lg:hidden">
+            {rows.map((r) => {
+              const targetMeta = REPORT_TARGET_META[r.target_type] ?? { label: r.target_type, tone: "neutral" as const };
+              const statusMeta = REPORT_STATUS_META[r.status] ?? { label: r.status, tone: "neutral" as const };
+              const reasonLabel = REPORT_REASON[r.reason] ?? r.reason;
+              const targetTitle =
+                r.target_type === "PROJECT"
+                  ? r.project_title ?? "Dự án"
+                  : r.target_type === "COMMENT"
+                    ? `Bình luận của ${r.comment_author ?? "Thành viên"}`
+                    : `${r.user_name ?? "Tài khoản"} (@${r.user_username ?? ""})`;
+              return (
+                <div key={r.id} className="card space-y-2.5 p-3.5 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge tone={targetMeta.tone}>{targetMeta.label}</Badge>
+                      <Badge tone="rose" dot>{reasonLabel}</Badge>
+                    </div>
+                    <span className="text-[11px] text-muted">{timeAgo(r.created_at, now)}</span>
                   </div>
-                  <div className="text-xs text-muted" title={formatDate(r.created_at, true)}>
-                    Gửi bởi <b>{r.reporter}</b> (@{r.reporter_username}) · {timeAgo(r.created_at, now)}
+                  <div className="font-bold text-fg">{targetTitle}</div>
+                  {r.detail && <p className="line-clamp-2 text-muted">{r.detail}</p>}
+                  <div className="flex items-center justify-between border-t border-line pt-2.5">
+                    <span className="text-muted">Bởi @{r.reporter_username}</span>
+                    <ReportDetailModalButton
+                      report={r}
+                      reasonLabel={reasonLabel}
+                      targetMeta={targetMeta}
+                      statusMeta={statusMeta}
+                      nowMs={now}
+                      viewerId={viewer.id}
+                      canModerateComment={canModerateComment}
+                      canTakedown={canTakedown}
+                      canLockUser={canLockUser}
+                    />
                   </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Chi tiết người báo cáo nêu */}
-                {r.detail && (
-                  <div className="rounded-xl border border-line bg-surface-2/50 p-3 text-sm">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted">Nội dung báo cáo: </span>
-                    <span className="text-fg">{r.detail}</span>
-                  </div>
-                )}
-
-                {/* Xem trước đối tượng bị báo cáo */}
-                <div className="rounded-xl border border-line bg-surface p-3.5 text-sm">
-                  {r.target_type === "PROJECT" && (
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="min-w-0 space-y-1">
-                        <div className="text-xs font-semibold text-muted">Dự án bị báo cáo</div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold">{r.project_title ?? "Dự án"}</span>
-                          {r.project_status && <ProjectStatusBadge status={r.project_status} />}
+          {/* Desktop table gọn */}
+          <div className="card hidden overflow-x-auto lg:block">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-line bg-surface-2/60 text-xs font-bold uppercase tracking-wider text-muted">
+                <tr>
+                  <th className="px-4 py-3">Đối tượng bị báo cáo</th>
+                  <th className="px-4 py-3">Lý do &amp; Nội dung</th>
+                  <th className="px-4 py-3">Người báo cáo</th>
+                  <th className="px-4 py-3">Trạng thái</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {rows.map((r) => {
+                  const targetMeta = REPORT_TARGET_META[r.target_type] ?? { label: r.target_type, tone: "neutral" as const };
+                  const statusMeta = REPORT_STATUS_META[r.status] ?? { label: r.status, tone: "neutral" as const };
+                  const reasonLabel = REPORT_REASON[r.reason] ?? r.reason;
+                  const targetTitle =
+                    r.target_type === "PROJECT"
+                      ? r.project_title ?? "Dự án"
+                      : r.target_type === "COMMENT"
+                        ? `Bình luận của ${r.comment_author ?? "Thành viên"}`
+                        : `${r.user_name ?? "Tài khoản"} (@${r.user_username ?? ""})`;
+                  const subContext =
+                    r.target_type === "COMMENT" && r.comment_body
+                      ? `“${r.comment_body}”`
+                      : r.project_title && r.target_type !== "PROJECT"
+                        ? r.project_title
+                        : "";
+                  return (
+                    <tr key={r.id} className="transition hover:bg-surface-2/40">
+                      <td className="max-w-[260px] px-4 py-3">
+                        <div className="mb-1">
+                          <Badge tone={targetMeta.tone}>{targetMeta.label}</Badge>
                         </div>
-                      </div>
-                      {r.project_slug && (
-                        <div className="flex gap-2">
-                          <Link
-                            href={`/p/${r.project_slug}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1 text-xs font-semibold hover:border-violet-400/60"
-                          >
-                            Xem dự án <ExternalLink className="size-3" />
-                          </Link>
-                          <Link
-                            href={`/admin/projects?q=${encodeURIComponent(r.project_slug)}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1 text-xs font-semibold hover:border-rose-400/60"
-                          >
-                            Quản lý
-                          </Link>
+                        <div className="truncate font-bold">{targetTitle}</div>
+                        {subContext && <div className="truncate text-xs text-muted">{subContext}</div>}
+                      </td>
+                      <td className="max-w-[300px] px-4 py-3">
+                        <Badge tone="rose" dot>{reasonLabel}</Badge>
+                        {r.detail && <div className="mt-1 truncate text-xs text-muted">{r.detail}</div>}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted">
+                        <div className="font-semibold text-fg">{r.reporter}</div>
+                        <div>
+                          @{r.reporter_username} · {timeAgo(r.created_at, now)}
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {r.target_type === "COMMENT" && (
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-                        <span className="flex items-center gap-1.5 font-semibold">
-                          <MessageSquare className="size-3.5" /> Bình luận của{" "}
-                          <b className="text-fg">{r.comment_author ?? "Người dùng"}</b>
-                          {r.project_title && (
-                            <>
-                              {" "}
-                              trên{" "}
-                              <Link href={`/p/${r.project_slug}`} className="text-violet-600 hover:underline dark:text-violet-400">
-                                {r.project_title}
-                              </Link>
-                            </>
-                          )}
-                        </span>
-                        {r.comment_status && (
-                          <Badge tone={r.comment_status === "VISIBLE" ? "sky" : "neutral"}>
-                            Trạng thái bình luận: {r.comment_status}
-                          </Badge>
-                        )}
-                      </div>
-                      <blockquote className="rounded-lg bg-surface-2 px-3 py-2 text-sm italic text-fg/90">
-                        “{r.comment_body ?? "(Bình luận không còn nội dung)"}”
-                      </blockquote>
-                    </div>
-                  )}
-
-                  {r.target_type === "USER" && (
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <User className="size-4 text-muted" />
-                        <span className="font-bold">{r.user_name}</span>
-                        <span className="text-xs text-muted">@{r.user_username}</span>
-                        {r.user_status && (
-                          <Badge tone={r.user_status === "LOCKED" ? "rose" : "emerald"}>{r.user_status}</Badge>
-                        )}
-                        {r.user_is_admin === 1 && (
-                          <Badge tone="rose">
-                            <ShieldAlert className="size-3" /> ADMIN
-                          </Badge>
-                        )}
-                      </div>
-                      {r.user_username && (
-                        <Link
-                          href={`/admin/users?q=${encodeURIComponent(r.user_username)}`}
-                          className="text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
-                        >
-                          Xem trong Quản lý người dùng →
-                        </Link>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Khối xử lý / kết quả */}
-                {r.status === "OPEN" ? (
-                  <ReportHandleForm
-                    report={r}
-                    viewerId={viewer.id}
-                    canModerateComment={canModerateComment}
-                    canTakedown={canTakedown}
-                    canLockUser={canLockUser}
-                  />
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-2/60 px-3.5 py-2.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="size-4 text-emerald-500" />
-                      <span>
-                        <b>Kết quả:</b> {r.resolution || "Đã xử lý"}
-                      </span>
-                    </div>
-                    <span className="text-muted">
-                      Xử lý bởi <b>{r.handler ?? "Admin"}</b> · {formatDate(r.handled_at, true)}
-                    </span>
-                  </div>
-                )}
-              </article>
-            );
-          })}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
+                        {r.handler && <div className="mt-1 text-[11px] text-muted">{r.handler}</div>}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        <ReportDetailModalButton
+                          report={r}
+                          reasonLabel={reasonLabel}
+                          targetMeta={targetMeta}
+                          statusMeta={statusMeta}
+                          nowMs={now}
+                          viewerId={viewer.id}
+                          canModerateComment={canModerateComment}
+                          canTakedown={canTakedown}
+                          canLockUser={canLockUser}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           <PaginationBar
             basePath="/admin/reports"
@@ -204,7 +179,7 @@ export default async function AdminReportsPage({
             params={{ tab: status }}
             itemLabel="báo cáo"
           />
-        </div>
+        </>
       )}
     </div>
   );

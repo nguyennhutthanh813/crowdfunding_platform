@@ -511,11 +511,17 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     args.push(f.status);
   }
   if (f.role === "ADMIN") where.push(`EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role_code = 'ADMIN')`);
-  if (f.role === "CREATOR") where.push(`EXISTS (SELECT 1 FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'CREATOR')`);
+  if (f.role === "CREATOR") where.push(`EXISTS (SELECT 1 FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'CREATOR' AND m.status = 'ACTIVE')`);
   if (f.role === "COLLABORATOR") {
     where.push(`EXISTS (SELECT 1 FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'COLLABORATOR' AND m.status = 'ACTIVE')`);
   }
   if (f.role === "BACKER") where.push(`EXISTS (SELECT 1 FROM pledges pl WHERE pl.backer_id = u.id)`);
+  if (f.role === "MEMBER_ONLY") {
+    where.push(
+      `NOT EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role_code = 'ADMIN')
+       AND NOT EXISTS (SELECT 1 FROM project_members m WHERE m.user_id = u.id AND m.status = 'ACTIVE')`,
+    );
+  }
 
   const total = n((await one<{ c: number }>(db, `SELECT COUNT(*) AS c FROM users u WHERE ${where.join(" AND ")}`, ...args))?.c);
   const page = Math.max(1, Math.min(f.page ?? 1, Math.max(1, Math.ceil(total / PAGE_SIZE))));
@@ -534,6 +540,7 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     created_at: string;
     last_login_at: string | null;
     roles: string | null;
+    collab_project_ids: string | null;
     creator_count: number;
     collab_count: number;
     pledge_count: number;
@@ -544,7 +551,8 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     `SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.province, u.bio, u.status, u.locked_reason,
             u.two_factor_enabled, u.email_verified_at, u.created_at, u.last_login_at,
             (SELECT GROUP_CONCAT(role_code) FROM user_roles r WHERE r.user_id = u.id) AS roles,
-            (SELECT COUNT(*) FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'CREATOR') AS creator_count,
+            (SELECT GROUP_CONCAT(m.project_id) FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'COLLABORATOR' AND m.status = 'ACTIVE') AS collab_project_ids,
+            (SELECT COUNT(*) FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'CREATOR' AND m.status = 'ACTIVE') AS creator_count,
             (SELECT COUNT(*) FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'COLLABORATOR' AND m.status = 'ACTIVE') AS collab_count,
             (SELECT COUNT(*) FROM pledges pl WHERE pl.backer_id = u.id AND pl.status <> 'CANCELLED') AS pledge_count,
             (SELECT COALESCE(SUM(total_amount), 0) FROM pledges pl WHERE pl.backer_id = u.id AND pl.status NOT IN ('CANCELLED','VOIDED','REFUNDED')) AS pledge_total,
@@ -558,20 +566,51 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     PAGE_SIZE,
     (page - 1) * PAGE_SIZE,
   );
-  const stats = (await one<{ total: number; locked: number; admins: number }>(
+  const stats = (await one<{ total: number; locked: number; admins: number; creators: number; collaborators: number }>(
     db,
     `SELECT COUNT(*) AS total,
             COALESCE(SUM(CASE WHEN status = 'LOCKED' THEN 1 ELSE 0 END), 0) AS locked,
-            (SELECT COUNT(*) FROM user_roles WHERE role_code = 'ADMIN') AS admins
+            (SELECT COUNT(*) FROM user_roles WHERE role_code = 'ADMIN') AS admins,
+            (SELECT COUNT(DISTINCT user_id) FROM project_members WHERE role_code = 'CREATOR' AND status = 'ACTIVE') AS creators,
+            (SELECT COUNT(DISTINCT user_id) FROM project_members WHERE role_code = 'COLLABORATOR' AND status = 'ACTIVE') AS collaborators
      FROM users`,
   ))!;
   return {
-    rows: rows.map((r) => ({ ...r, roles: (r.roles ?? "").split(",").filter(Boolean) })),
+    rows: rows.map((r) => ({
+      ...r,
+      roles: (r.roles ?? "").split(",").filter(Boolean),
+      collab_project_ids: (r.collab_project_ids ?? "").split(",").filter(Boolean),
+    })),
     total,
     page,
     pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    stats: { total: n(stats.total), locked: n(stats.locked), admins: n(stats.admins) },
+    stats: {
+      total: n(stats.total),
+      locked: n(stats.locked),
+      admins: n(stats.admins),
+      creators: n(stats.creators),
+      collaborators: n(stats.collaborators),
+    },
   };
+}
+
+export async function assignableProjectsForCollab() {
+  return all<{
+    id: string;
+    slug: string;
+    title: string;
+    status: string;
+    creator_id: string;
+    creator_name: string;
+  }>(
+    getDb(),
+    `SELECT p.id, p.slug, p.title, p.status, p.creator_id, u.display_name AS creator_name
+     FROM projects p
+     JOIN users u ON u.id = p.creator_id
+     WHERE p.status <> 'CANCELLED'
+     ORDER BY CASE p.status WHEN 'LIVE' THEN 0 WHEN 'DRAFT' THEN 1 WHEN 'PENDING_REVIEW' THEN 2 WHEN 'SCHEDULED' THEN 3 ELSE 4 END, p.updated_at DESC
+     LIMIT 100`,
+  );
 }
 
 export type AdminUserRow = Awaited<ReturnType<typeof adminUsers>>["rows"][number];
@@ -606,6 +645,7 @@ export async function adminUserDetail(userId: string) {
   const roleRows = await all<{ role_code: string }>(db, `SELECT role_code FROM user_roles WHERE user_id = ?`, userId);
   const roles = roleRows.map((r) => r.role_code);
   const projects = await all<{
+    project_id: string;
     slug: string;
     title: string;
     status: string;
@@ -614,9 +654,32 @@ export async function adminUserDetail(userId: string) {
     goal_amount: number;
   }>(
     db,
-    `SELECT p.slug, p.title, p.status, m.role_code, p.pledged_amount, p.goal_amount FROM project_members m JOIN projects p ON p.id = m.project_id
+    `SELECT p.id AS project_id, p.slug, p.title, p.status, m.role_code, p.pledged_amount, p.goal_amount FROM project_members m JOIN projects p ON p.id = m.project_id
      WHERE m.user_id = ? AND m.status = 'ACTIVE' ORDER BY CASE WHEN m.role_code = 'CREATOR' THEN 1 ELSE 0 END DESC, p.created_at DESC`,
     userId,
+  );
+  const pendingInvitations = await all<{
+    id: string;
+    project_id: string;
+    project_slug: string;
+    project_title: string;
+    project_status: string;
+    inviter_name: string;
+    expires_at: string;
+    created_at: string;
+  }>(
+    db,
+    `SELECT i.id, p.id AS project_id, p.slug AS project_slug, p.title AS project_title, p.status AS project_status,
+            iu.display_name AS inviter_name, i.expires_at, i.created_at
+     FROM project_invitations i
+     JOIN projects p ON p.id = i.project_id
+     JOIN users iu ON iu.id = i.invited_by
+     WHERE (i.invitee_id = ? OR LOWER(i.email) = LOWER(?))
+       AND i.status = 'PENDING' AND i.expires_at > ?
+     ORDER BY i.created_at DESC`,
+    userId,
+    u.email,
+    new Date().toISOString(),
   );
   const pledgeSummaryRows = await all<{ status: string; c: number; total: number }>(
     db,
@@ -654,7 +717,7 @@ export async function adminUserDetail(userId: string) {
     userId,
   );
   const comments = n((await one<{ c: number }>(db, `SELECT COUNT(*) AS c FROM comments WHERE author_id = ?`, userId))?.c);
-  return { user: u, roles, projects, pledgeSummary, recentPledges, reportsAgainst, comments };
+  return { user: u, roles, projects, pendingInvitations, pledgeSummary, recentPledges, reportsAgainst, comments };
 }
 
 export type AdminUserDetail = NonNullable<Awaited<ReturnType<typeof adminUserDetail>>>;

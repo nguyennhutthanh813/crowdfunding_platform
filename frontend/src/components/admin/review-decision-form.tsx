@@ -60,12 +60,14 @@ export function ReviewDecisionForm({
   willSchedule,
   desiredStart,
   requiredOk,
+  onSuccess,
 }: {
   projectId: string;
   status: string;
   willSchedule: boolean;
   desiredStart: string | null;
   requiredOk: boolean;
+  onSuccess?: () => void;
 }) {
   const [decision, setDecision] = useState<Decision>("APPROVED");
   const [note, setNote] = useState("");
@@ -97,7 +99,7 @@ export function ReviewDecisionForm({
         </div>
       )}
 
-      <ActionForm action={decideReviewAction} className="space-y-4">
+      <ActionForm action={decideReviewAction} onSuccess={onSuccess} className="space-y-4">
         {(state) => (
           <>
             <input type="hidden" name="projectId" value={projectId} />

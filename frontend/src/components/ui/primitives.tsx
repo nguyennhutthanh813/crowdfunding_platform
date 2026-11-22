@@ -9,8 +9,8 @@ export function Card({ className, ...props }: ComponentProps<"div">) {
 
 export function Badge({ tone = "neutral", className, children, dot }: { tone?: Tone; className?: string; children: ReactNode; dot?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset", TONE_CLASSES[tone], className)}>
-      {dot && <span className="size-1.5 rounded-full bg-current" />}
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset", TONE_CLASSES[tone], className)}>
+      {dot && <span className="size-1.5 shrink-0 rounded-full bg-current" />}
       {children}
     </span>
   );
@@ -19,7 +19,7 @@ export function Badge({ tone = "neutral", className, children, dot }: { tone?: T
 export function ProjectStatusBadge({ status, className }: { status: string; className?: string }) {
   const m = PROJECT_STATUS[status] ?? { label: status, tone: "neutral" as Tone, hint: "" };
   return (
-    <span title={m.hint}>
+    <span title={m.hint} className="inline-flex shrink-0">
       <Badge tone={m.tone} dot className={className}>{m.label}</Badge>
     </span>
   );
@@ -28,7 +28,7 @@ export function ProjectStatusBadge({ status, className }: { status: string; clas
 export function PledgeStatusBadge({ status }: { status: string }) {
   const m = PLEDGE_STATUS[status] ?? { label: status, tone: "neutral" as Tone, hint: "" };
   return (
-    <span title={m.hint}>
+    <span title={m.hint} className="inline-flex shrink-0">
       <Badge tone={m.tone} dot>{m.label}</Badge>
     </span>
   );
