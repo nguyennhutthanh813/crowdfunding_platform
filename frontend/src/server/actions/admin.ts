@@ -49,6 +49,22 @@ export async function adminResetUserTwoFactorAction(_p: ActionResult, form: Form
   return runAdminPost("/admin/users/reset-2fa", form);
 }
 
+export async function adminCreateUserAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/users/create", form);
+}
+
+export async function adminUpdateUserAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/users/update", form);
+}
+
+export async function adminSetUserPasswordAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/users/set-password", form);
+}
+
+export async function adminDeleteUserAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runAdminPost("/admin/users/delete", form);
+}
+
 export async function handleReportAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runAdminPost("/admin/reports/handle", form, ["/", "/explore"]);
 }

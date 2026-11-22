@@ -22,7 +22,11 @@ import {
   schedulerOverview,
 } from "../../queries/admin.js";
 import {
+  adminCreateUser,
+  adminDeleteUser,
   adminResetUserTwoFactor,
+  adminSetUserPassword,
+  adminUpdateUser,
   decideReview,
   deleteCategory,
   handleReport,
@@ -144,6 +148,26 @@ adminRouter.post("/users/lock", async (req, res) => {
 
 adminRouter.post("/users/reset-2fa", async (req, res) => {
   const r = await adminResetUserTwoFactor(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/users/create", async (req, res) => {
+  const r = await adminCreateUser(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/users/update", async (req, res) => {
+  const r = await adminUpdateUser(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/users/set-password", async (req, res) => {
+  const r = await adminSetUserPassword(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+adminRouter.post("/users/delete", async (req, res) => {
+  const r = await adminDeleteUser(req.viewer, req.body ?? {});
   res.status(r.error ? 400 : 200).json(r);
 });
 

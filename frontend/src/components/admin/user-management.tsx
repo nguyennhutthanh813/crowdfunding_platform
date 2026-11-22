@@ -3,13 +3,20 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { KeyRound, Lock, ShieldAlert, ShieldCheck, Unlock } from "lucide-react";
+import { KeyRound, Lock, Pencil, RefreshCw, ShieldAlert, ShieldCheck, Trash2, Unlock, UserPlus } from "lucide-react";
 import type { AdminUserDetail } from "@/server/queries/admin";
-import { adminResetUserTwoFactorAction, toggleUserLockAction } from "@/server/actions/admin";
+import {
+  adminCreateUserAction,
+  adminDeleteUserAction,
+  adminResetUserTwoFactorAction,
+  adminSetUserPasswordAction,
+  adminUpdateUserAction,
+  toggleUserLockAction,
+} from "@/server/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Textarea } from "@/components/ui/form";
+import { Field, Input, Textarea } from "@/components/ui/form";
 import { Badge, PledgeStatusBadge, ProjectStatusBadge, RoleBadge } from "@/components/ui/primitives";
 import { COUNTRY_NAMES, flagOf, formatCompactVnd, formatDate, formatVnd } from "@/lib/utils";
 import { SafeAvatar } from "./safe-image";
@@ -208,6 +215,8 @@ export function UserDetailDialog({
 }) {
   const router = useRouter();
   const close = () => router.push(closeHref, { scroll: false });
+  const isSelf = Boolean(detail && detail.user.id === viewerId);
+  const isTargetAdmin = Boolean(detail && detail.roles.includes("ADMIN"));
 
   return (
     <Dialog
@@ -382,26 +391,427 @@ export function UserDetailDialog({
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {Number(detail.user.two_factor_enabled ?? 0) === 1 && detail.user.id !== viewerId && (
+              <EditUserButton user={detail.user} roles={detail.roles} viewerId={viewerId} size="sm" label="Chỉnh sửa" />
+              <SetPasswordButton
+                userId={detail.user.id}
+                displayName={detail.user.display_name}
+                username={detail.user.username}
+                viewerId={viewerId}
+                size="sm"
+              />
+              {Number(detail.user.two_factor_enabled ?? 0) === 1 && !isSelf && (
                 <UserReset2FaButton
                   userId={detail.user.id}
                   displayName={detail.user.display_name}
                   username={detail.user.username}
                 />
               )}
-              <UserLockButton
+              {!isSelf && !isTargetAdmin && (
+                <UserLockButton
+                  userId={detail.user.id}
+                  displayName={detail.user.display_name}
+                  username={detail.user.username}
+                  status={detail.user.status}
+                  roles={detail.roles}
+                  viewerId={viewerId}
+                  size="sm"
+                />
+              )}
+              <DeleteUserButton
                 userId={detail.user.id}
                 displayName={detail.user.display_name}
                 username={detail.user.username}
-                status={detail.user.status}
                 roles={detail.roles}
                 viewerId={viewerId}
                 size="sm"
+                onDeleted={close}
               />
             </div>
           </div>
         </div>
       )}
     </Dialog>
+  );
+}
+
+function generateRandomPassword(length = 12): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghjkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const pool = upper + lower + digits;
+  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+  const chars = [pick(upper), pick(lower), pick(digits)];
+  while (chars.length < length) chars.push(pick(pool));
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
+
+function SystemRoleCheckboxes({
+  defaultRoles,
+  lockAdminChecked,
+}: {
+  defaultRoles: string[];
+  lockAdminChecked?: boolean;
+}) {
+  const hasMember = defaultRoles.includes("MEMBER") || defaultRoles.length === 0;
+  const hasAdmin = defaultRoles.includes("ADMIN");
+  return (
+    <div className="space-y-2">
+      <span className="block text-sm font-semibold text-fg">Vai trò hệ thống</span>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-surface-2/50 px-3 py-2 text-xs font-medium">
+          <input type="checkbox" name="roles" value="MEMBER" defaultChecked={hasMember} className="size-4 accent-violet-600" />
+          <span>Thành viên (góp vốn / tạo dự án)</span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-surface-2/50 px-3 py-2 text-xs font-medium">
+          {lockAdminChecked && hasAdmin && <input type="hidden" name="roles" value="ADMIN" />}
+          <input
+            type="checkbox"
+            name={lockAdminChecked ? undefined : "roles"}
+            value="ADMIN"
+            defaultChecked={hasAdmin}
+            disabled={lockAdminChecked && hasAdmin}
+            className="size-4 accent-rose-600"
+          />
+          <span>Quản trị viên hệ thống</span>
+        </label>
+      </div>
+      {lockAdminChecked && hasAdmin && (
+        <p className="text-[11px] text-muted">Không thể tự gỡ quyền Quản trị viên của chính mình.</p>
+      )}
+    </div>
+  );
+}
+
+function PasswordGeneratorField({
+  label,
+  placeholder,
+  value,
+  onChange,
+  error,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (next: string) => void;
+  error?: string;
+}) {
+  return (
+    <Field
+      label={label}
+      required
+      error={error}
+      hint="Tối thiểu 8 ký tự, gồm ít nhất 1 chữ cái và 1 chữ số."
+    >
+      <div className="flex gap-2">
+        <Input
+          name="password"
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          minLength={8}
+          required
+          className="font-mono"
+        />
+        <Button type="button" variant="outline" size="md" className="shrink-0" onClick={() => onChange(generateRandomPassword())}>
+          <RefreshCw className="size-3.5" /> Tạo ngẫu nhiên
+        </Button>
+      </div>
+    </Field>
+  );
+}
+
+export function CreateUserButton() {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+
+  return (
+    <>
+      <Button type="button" variant="primary" size="sm" onClick={() => setOpen(true)}>
+        <UserPlus className="size-4" /> Tạo tài khoản
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Tạo tài khoản mới"
+        description="Tạo nhanh tài khoản người dùng hoặc quản trị viên mới (được xác thực email sẵn)."
+      >
+        <ActionForm
+          action={adminCreateUserAction}
+          resetOnSuccess
+          onSuccess={() => {
+            setOpen(false);
+            setPassword("");
+          }}
+          className="space-y-4"
+        >
+          {(state) => (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Email" required error={state?.fieldErrors?.email}>
+                  <Input name="email" type="email" placeholder="ten@domain.vn" required />
+                </Field>
+                <Field label="Tên đăng nhập" required error={state?.fieldErrors?.username}>
+                  <Input name="username" placeholder="nguyen.van.a" minLength={3} maxLength={30} required />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Tên hiển thị" required error={state?.fieldErrors?.display_name}>
+                  <Input name="display_name" placeholder="Nguyễn Văn A" minLength={2} maxLength={60} required />
+                </Field>
+                <Field label="Tỉnh / Thành phố">
+                  <Input name="province" placeholder="TP. Hồ Chí Minh" maxLength={80} />
+                </Field>
+              </div>
+
+              <PasswordGeneratorField
+                label="Mật khẩu"
+                placeholder="Nhập mật khẩu hoặc tạo ngẫu nhiên"
+                value={password}
+                onChange={setPassword}
+                error={state?.fieldErrors?.password}
+              />
+
+              <SystemRoleCheckboxes defaultRoles={["MEMBER"]} />
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                  Huỷ
+                </Button>
+                <SubmitButton variant="primary" size="sm" pendingText="Đang tạo…">
+                  Tạo tài khoản
+                </SubmitButton>
+              </div>
+            </>
+          )}
+        </ActionForm>
+      </Dialog>
+    </>
+  );
+}
+
+export function EditUserButton({
+  user,
+  roles,
+  viewerId,
+  size = "xs",
+  label = "Sửa",
+}: {
+  user: {
+    id: string;
+    email: string;
+    username: string;
+    display_name: string;
+    province?: string | null;
+    bio?: string;
+  };
+  roles: string[];
+  viewerId: string;
+  size?: "xs" | "sm";
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const isSelf = user.id === viewerId;
+
+  return (
+    <>
+      <Button type="button" variant="outline" size={size} onClick={() => setOpen(true)}>
+        <Pencil className="size-3.5" /> {label}
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={`Chỉnh sửa: ${user.display_name}`}
+        description={`Cập nhật thông tin hồ sơ và vai trò của @${user.username}.`}
+      >
+        <ActionForm
+          key={`${user.id}-${open ? "1" : "0"}`}
+          action={adminUpdateUserAction}
+          onSuccess={() => setOpen(false)}
+          className="space-y-4"
+        >
+          {(state) => (
+            <>
+              <input type="hidden" name="userId" value={user.id} />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Tên hiển thị" required error={state?.fieldErrors?.display_name}>
+                  <Input name="display_name" defaultValue={user.display_name} minLength={2} maxLength={60} required />
+                </Field>
+                <Field label="Tên đăng nhập" required error={state?.fieldErrors?.username}>
+                  <Input name="username" defaultValue={user.username} minLength={3} maxLength={30} required />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Email" required error={state?.fieldErrors?.email}>
+                  <Input name="email" type="email" defaultValue={user.email} required />
+                </Field>
+                <Field label="Tỉnh / Thành phố">
+                  <Input name="province" defaultValue={user.province ?? ""} maxLength={80} placeholder="Chưa cập nhật" />
+                </Field>
+              </div>
+
+              <Field label="Giới thiệu ngắn" error={state?.fieldErrors?.bio}>
+                <Textarea name="bio" defaultValue={user.bio ?? ""} rows={3} maxLength={500} className="min-h-20" />
+              </Field>
+
+              <SystemRoleCheckboxes defaultRoles={roles} lockAdminChecked={isSelf} />
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                  Huỷ
+                </Button>
+                <SubmitButton variant="primary" size="sm" pendingText="Đang lưu…">
+                  Lưu thay đổi
+                </SubmitButton>
+              </div>
+            </>
+          )}
+        </ActionForm>
+      </Dialog>
+    </>
+  );
+}
+
+export function SetPasswordButton({
+  userId,
+  displayName,
+  username,
+  viewerId,
+  size = "sm",
+}: {
+  userId: string;
+  displayName: string;
+  username: string;
+  viewerId: string;
+  size?: "xs" | "sm";
+}) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  if (userId === viewerId) return null;
+
+  return (
+    <>
+      <Button type="button" variant="outline" size={size} onClick={() => setOpen(true)}>
+        <KeyRound className="size-3.5" /> Đặt mật khẩu
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Đặt lại mật khẩu tài khoản"
+        description={`Đặt mật khẩu mới cho ${displayName} (@${username}). Toàn bộ phiên đăng nhập cũ sẽ bị đăng xuất.`}
+      >
+        <ActionForm
+          action={adminSetUserPasswordAction}
+          onSuccess={() => {
+            setOpen(false);
+            setPassword("");
+          }}
+          className="space-y-4"
+        >
+          {(state) => (
+            <>
+              <input type="hidden" name="userId" value={userId} />
+              <PasswordGeneratorField
+                label="Mật khẩu mới"
+                placeholder="Nhập mật khẩu mới"
+                value={password}
+                onChange={setPassword}
+                error={state?.fieldErrors?.password}
+              />
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                  Huỷ
+                </Button>
+                <SubmitButton variant="primary" size="sm" pendingText="Đang cập nhật…">
+                  Cập nhật mật khẩu
+                </SubmitButton>
+              </div>
+            </>
+          )}
+        </ActionForm>
+      </Dialog>
+    </>
+  );
+}
+
+export function DeleteUserButton({
+  userId,
+  displayName,
+  username,
+  roles,
+  viewerId,
+  onDeleted,
+  size = "sm",
+}: {
+  userId: string;
+  displayName: string;
+  username: string;
+  roles: string[];
+  viewerId: string;
+  onDeleted?: () => void;
+  size?: "xs" | "sm";
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  if (userId === viewerId || roles.includes("ADMIN")) return null;
+
+  return (
+    <>
+      <Button type="button" variant="danger" size={size} onClick={() => setOpen(true)}>
+        <Trash2 className="size-3.5" /> Xoá
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Xoá vĩnh viễn tài khoản"
+        description={`Thao tác này không thể hoàn tác. Chỉ xoá được tài khoản ${displayName} (@${username}) nếu chưa từng góp vốn hoặc tạo/tham gia dự án.`}
+      >
+        <ActionForm
+          action={adminDeleteUserAction}
+          onSuccess={() => {
+            setOpen(false);
+            setConfirmText("");
+            onDeleted?.();
+          }}
+          className="space-y-4"
+        >
+          <input type="hidden" name="userId" value={userId} />
+          <Field
+            label={`Nhập chính xác "${username}" để xác nhận xoá`}
+            required
+          >
+            <Input
+              name="confirm"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={username}
+              className="font-mono"
+              required
+            />
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Huỷ
+            </Button>
+            <SubmitButton variant="danger" size="sm" disabled={confirmText !== username} pendingText="Đang xoá…">
+              Xác nhận xoá tài khoản
+            </SubmitButton>
+          </div>
+        </ActionForm>
+      </Dialog>
+    </>
   );
 }

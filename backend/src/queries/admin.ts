@@ -512,6 +512,8 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     display_name: string;
     email: string;
     avatar_url: string | null;
+    province: string | null;
+    bio: string;
     status: string;
     locked_reason: string | null;
     two_factor_enabled: number;
@@ -526,7 +528,7 @@ export async function adminUsers(f: { q?: string; status?: string; role?: string
     reports_against: number;
   }>(
     db,
-    `SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.status, u.locked_reason,
+    `SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.province, u.bio, u.status, u.locked_reason,
             u.two_factor_enabled, u.email_verified_at, u.created_at, u.last_login_at,
             (SELECT GROUP_CONCAT(role_code) FROM user_roles r WHERE r.user_id = u.id) AS roles,
             (SELECT COUNT(*) FROM project_members m WHERE m.user_id = u.id AND m.role_code = 'CREATOR') AS creator_count,

@@ -5,7 +5,7 @@ import { adminUsersBundle, REPORT_REASON } from "@/server/queries/admin";
 import { buildQueryHref } from "@/components/admin/admin-helpers";
 import { PaginationBar } from "@/components/admin/pagination-bar";
 import { SafeAvatar } from "@/components/admin/safe-image";
-import { UserDetailDialog, UserLockButton } from "@/components/admin/user-management";
+import { CreateUserButton, EditUserButton, UserDetailDialog, UserLockButton } from "@/components/admin/user-management";
 import { CountUp } from "@/components/fx/motion";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
@@ -40,7 +40,8 @@ export default async function AdminUsersPage({
       <PageHeader
         eyebrow="Tài khoản & An toàn"
         title="Quản lý người dùng"
-        description="Tra cứu hồ sơ hoạt động, khoá tài khoản vi phạm (tự động huỷ phiên đăng nhập) và mở khoá khi cần."
+        description="Tra cứu hồ sơ, tạo tài khoản, chỉnh sửa thông tin, phân quyền và quản lý trạng thái tài khoản."
+        actions={<CreateUserButton />}
       />
 
       {/* Thống kê nhanh */}
@@ -136,13 +137,16 @@ export default async function AdminUsersPage({
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-                    <Link
-                      href={detailHref}
-                      scroll={false}
-                      className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2.5 text-xs font-semibold hover:border-violet-400/60"
-                    >
-                      <Eye className="size-3.5" /> Chi tiết
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                      <Link
+                        href={detailHref}
+                        scroll={false}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2.5 text-xs font-semibold hover:border-violet-400/60"
+                      >
+                        <Eye className="size-3.5" /> Chi tiết
+                      </Link>
+                      <EditUserButton user={u} roles={u.roles} viewerId={viewer.id} size="xs" />
+                    </div>
                     <UserLockButton
                       userId={u.id}
                       displayName={u.display_name}
@@ -231,6 +235,7 @@ export default async function AdminUsersPage({
                           >
                             <Eye className="size-3.5" /> Chi tiết
                           </Link>
+                          <EditUserButton user={u} roles={u.roles} viewerId={viewer.id} size="xs" />
                           <UserLockButton
                             userId={u.id}
                             displayName={u.display_name}

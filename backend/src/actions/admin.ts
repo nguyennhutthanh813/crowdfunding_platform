@@ -1,5 +1,6 @@
+import { hashPassword } from "../auth/password.js";
 import { getDb } from "../db/index.js";
-import { audit, DomainError, humanizeError, insert, newId, notify, nowIso, one, run, tx } from "../db/helpers.js";
+import { all, audit, DomainError, humanizeError, insert, newId, notify, nowIso, one, run, tx, type DbClient } from "../db/helpers.js";
 import { hasSystemPerm, type Viewer } from "../rbac/rbac.js";
 import { restoreProject, reviewProject, suspendProject, type ReviewDecision } from "../services/lifecycle.js";
 import { runScheduler } from "../services/scheduler.js";
@@ -700,6 +701,286 @@ export async function settleLiveProjectNow(viewer: Viewer | null, bodyIn: Payloa
         ? `Chiến dịch “${out.title}” đã tất toán THÀNH CÔNG — thu tiền ${out.res.captured} khoản góp vốn!`
         : `Chiến dịch “${out.title}” đã tất toán KHÔNG ĐẠT — giải phóng ${out.res.voided} khoản giữ chỗ (không trừ tiền).`,
     };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+/* ═══════════════════════ Quản lý tài khoản đầy đủ (Super Admin) ═══════════════════════ */
+const USER_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const USER_NAME_RE = /^[a-zA-Z0-9_.]{3,30}$/;
+const SYSTEM_ROLE_ALLOWLIST = new Set(["MEMBER", "ADMIN"]);
+
+function requireSuperAdmin(viewer: Viewer | null) {
+  const auth = requireAdminPerm(viewer, "admin.user.lock");
+  if (!auth.ok) return auth;
+  if (!auth.viewer.systemRoles.includes("ADMIN")) {
+    return { ok: false as const, error: "Thao tác này yêu cầu quyền Quản trị viên hệ thống (ADMIN)." };
+  }
+  return auth;
+}
+
+function parseSystemRoles(raw: unknown): string[] {
+  const arr = Array.isArray(raw)
+    ? raw.map((x) => String(x))
+    : typeof raw === "string"
+      ? raw.split(",")
+      : [];
+  const valid = [...new Set(arr.map((s) => s.trim().toUpperCase()).filter((s) => SYSTEM_ROLE_ALLOWLIST.has(s)))];
+  return valid.length > 0 ? valid : ["MEMBER"];
+}
+
+function validatePasswordRule(password: string): string | null {
+  if (password.length < 8) return "Mật khẩu phải có ít nhất 8 ký tự.";
+  if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) return "Mật khẩu phải chứa ít nhất 1 chữ cái và 1 chữ số.";
+  return null;
+}
+
+function validateUserProfileInput(bodyIn: Payload, opts?: { includeBio?: boolean }) {
+  const email = strVal(bodyIn, "email").toLowerCase();
+  const username = strVal(bodyIn, "username").toLowerCase();
+  const displayName = strVal(bodyIn, "display_name");
+  const province = strVal(bodyIn, "province").slice(0, 80) || null;
+  const bio = opts?.includeBio ? strVal(bodyIn, "bio") : "";
+  const fieldErrors: Record<string, string> = {};
+
+  if (!USER_EMAIL_RE.test(email)) fieldErrors.email = "Email không hợp lệ.";
+  if (!USER_NAME_RE.test(username)) fieldErrors.username = "Tên đăng nhập 3–30 ký tự (chữ, số, _ hoặc .).";
+  if (displayName.length < 2 || displayName.length > 60) fieldErrors.display_name = "Tên hiển thị phải từ 2 đến 60 ký tự.";
+  if (opts?.includeBio && bio.length > 500) fieldErrors.bio = "Giới thiệu tối đa 500 ký tự.";
+
+  return { email, username, displayName, province, bio, fieldErrors };
+}
+
+async function ensureUniqueIdentity(db: DbClient, email: string, username: string, excludeUserId?: string) {
+  const dupEmail = await one<{ id: string }>(
+    db,
+    excludeUserId ? `SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?` : `SELECT id FROM users WHERE LOWER(email) = LOWER(?)`,
+    ...(excludeUserId ? [email, excludeUserId] : [email]),
+  );
+  if (dupEmail) throw new DomainError("Email này đã được tài khoản khác sử dụng.", "CONFLICT");
+
+  const dupUsername = await one<{ id: string }>(
+    db,
+    excludeUserId ? `SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id <> ?` : `SELECT id FROM users WHERE LOWER(username) = LOWER(?)`,
+    ...(excludeUserId ? [username, excludeUserId] : [username]),
+  );
+  if (dupUsername) throw new DomainError("Tên đăng nhập này đã được tài khoản khác sử dụng.", "CONFLICT");
+}
+
+export async function adminCreateUser(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireSuperAdmin(viewer);
+  if (!auth.ok) return { error: auth.error };
+
+  const { email, username, displayName, province, fieldErrors } = validateUserProfileInput(bodyIn);
+  const password = typeof bodyIn.password === "string" ? bodyIn.password : "";
+  const pwErr = validatePasswordRule(password);
+  if (pwErr) fieldErrors.password = pwErr;
+  if (Object.keys(fieldErrors).length > 0) {
+    return { error: "Vui lòng kiểm tra lại thông tin tài khoản.", fieldErrors };
+  }
+
+  const roles = parseSystemRoles(bodyIn.roles);
+  const db = getDb();
+  try {
+    await tx(db, async () => {
+      await ensureUniqueIdentity(db, email, username);
+      const id = newId();
+      const now = nowIso();
+      await insert(db, "users", {
+        id,
+        email,
+        username,
+        password_hash: hashPassword(password),
+        display_name: displayName,
+        province,
+        bio: "",
+        country_code: "VN",
+        status: "ACTIVE",
+        locked_reason: null,
+        email_verified_at: now,
+        created_at: now,
+        updated_at: now,
+      });
+      await insert(db, "user_settings", { user_id: id, updated_at: now });
+      for (const roleCode of roles) {
+        await insert(db, "user_roles", {
+          user_id: id,
+          role_code: roleCode,
+          scope: "SYSTEM",
+          granted_by: auth.viewer.id,
+          granted_at: now,
+        });
+      }
+      await audit(db, auth.viewer.id, "user.create", "user", id, `${email} (${roles.join(",")})`);
+    });
+    return { ok: true, message: `Đã tạo tài khoản ${displayName} (@${username}).` };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function adminUpdateUser(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireSuperAdmin(viewer);
+  if (!auth.ok) return { error: auth.error };
+
+  const userId = strVal(bodyIn, "userId");
+  if (!userId) return { error: "Thiếu mã người dùng." };
+
+  const { email, username, displayName, province, bio, fieldErrors } = validateUserProfileInput(bodyIn, { includeBio: true });
+  if (Object.keys(fieldErrors).length > 0) {
+    return { error: "Vui lòng kiểm tra lại thông tin cập nhật.", fieldErrors };
+  }
+
+  const requestedRoles = parseSystemRoles(bodyIn.roles);
+  const db = getDb();
+  try {
+    const updatedName = await tx(db, async () => {
+      const target = await one<{ id: string; display_name: string }>(db, `SELECT id, display_name FROM users WHERE id = ?`, userId);
+      if (!target) throw new DomainError("Không tìm thấy tài khoản.", "NOT_FOUND");
+
+      await ensureUniqueIdentity(db, email, username, target.id);
+      const curRoleRows = await all<{ role_code: string }>(db, `SELECT role_code FROM user_roles WHERE user_id = ?`, target.id);
+      const curRoles = curRoleRows.map((r) => r.role_code);
+
+      if (target.id === auth.viewer.id && !requestedRoles.includes("ADMIN")) {
+        throw new DomainError("Không thể tự gỡ quyền Quản trị viên của chính mình.", "FORBIDDEN");
+      }
+      if (curRoles.includes("ADMIN") && !requestedRoles.includes("ADMIN")) {
+        const otherAdmins = await one<{ c: number }>(
+          db,
+          `SELECT COUNT(*) AS c FROM user_roles WHERE role_code = 'ADMIN' AND user_id <> ?`,
+          target.id,
+        );
+        if (Number(otherAdmins?.c ?? 0) === 0) {
+          throw new DomainError("Hệ thống phải có ít nhất một Quản trị viên.", "FORBIDDEN");
+        }
+      }
+
+      const finalRoles =
+        requestedRoles.includes("ADMIN") && !requestedRoles.includes("MEMBER") && curRoles.length === 1 && curRoles[0] === "ADMIN"
+          ? ["ADMIN"]
+          : Array.from(new Set(["MEMBER", ...requestedRoles]));
+
+      const now = nowIso();
+      await run(
+        db,
+        `UPDATE users SET email = ?, username = ?, display_name = ?, province = ?, bio = ?, updated_at = ? WHERE id = ?`,
+        email,
+        username,
+        displayName,
+        province,
+        bio,
+        now,
+        target.id,
+      );
+      await run(db, `DELETE FROM user_roles WHERE user_id = ?`, target.id);
+      for (const roleCode of finalRoles) {
+        await insert(db, "user_roles", {
+          user_id: target.id,
+          role_code: roleCode,
+          scope: "SYSTEM",
+          granted_by: auth.viewer.id,
+          granted_at: now,
+        });
+      }
+      await notify(db, {
+        userId: target.id,
+        type: "SYSTEM",
+        title: "Thông tin tài khoản của bạn đã được cập nhật",
+        body: `Quản trị viên đã cập nhật hồ sơ / quyền hạn (${finalRoles.join(", ")}).`,
+        link: "/me/settings",
+        actorId: auth.viewer.id,
+      });
+      await audit(db, auth.viewer.id, "user.update", "user", target.id, `${email} · vai trò: ${finalRoles.join(",")}`);
+      return `${displayName} (@${username})`;
+    });
+    return { ok: true, message: `Đã cập nhật tài khoản ${updatedName}.` };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function adminSetUserPassword(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireSuperAdmin(viewer);
+  if (!auth.ok) return { error: auth.error };
+
+  const userId = strVal(bodyIn, "userId");
+  const password = typeof bodyIn.password === "string" ? bodyIn.password : "";
+  if (!userId) return { error: "Thiếu mã người dùng." };
+  if (userId === auth.viewer.id) {
+    return { error: "Không thể đặt lại mật khẩu chính mình tại đây — vui lòng đổi trong Cài đặt tài khoản." };
+  }
+  const pwErr = validatePasswordRule(password);
+  if (pwErr) return { error: pwErr, fieldErrors: { password: pwErr } };
+
+  const db = getDb();
+  try {
+    const label = await tx(db, async () => {
+      const target = await one<{ id: string; display_name: string; username: string }>(
+        db,
+        `SELECT id, display_name, username FROM users WHERE id = ?`,
+        userId,
+      );
+      if (!target) throw new DomainError("Không tìm thấy tài khoản.", "NOT_FOUND");
+      const now = nowIso();
+      await run(db, `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`, hashPassword(password), now, target.id);
+      await run(db, `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`, now, target.id);
+      await notify(db, {
+        userId: target.id,
+        type: "SYSTEM",
+        title: "Mật khẩu tài khoản đã được đặt lại",
+        body: "Quản trị viên đã đặt lại mật khẩu và đăng xuất các phiên cũ. Vui lòng đăng nhập lại với mật khẩu mới.",
+        actorId: auth.viewer.id,
+      });
+      await audit(db, auth.viewer.id, "user.password_reset", "user", target.id, `Đặt lại mật khẩu cho @${target.username}`);
+      return `${target.display_name} (@${target.username})`;
+    });
+    return { ok: true, message: `Đã đặt lại mật khẩu cho ${label}.` };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function adminDeleteUser(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  const auth = requireSuperAdmin(viewer);
+  if (!auth.ok) return { error: auth.error };
+
+  const userId = strVal(bodyIn, "userId");
+  const confirm = strVal(bodyIn, "confirm");
+  if (!userId) return { error: "Thiếu mã người dùng." };
+  if (userId === auth.viewer.id) return { error: "Không thể tự xoá tài khoản của chính mình." };
+
+  const db = getDb();
+  try {
+    const label = await tx(db, async () => {
+      const target = await one<{ id: string; username: string; display_name: string }>(
+        db,
+        `SELECT id, username, display_name FROM users WHERE id = ?`,
+        userId,
+      );
+      if (!target) throw new DomainError("Không tìm thấy tài khoản.", "NOT_FOUND");
+      const isTargetAdmin = Boolean(await one(db, `SELECT 1 FROM user_roles WHERE user_id = ? AND role_code = 'ADMIN'`, target.id));
+      if (isTargetAdmin) throw new DomainError("Không thể xoá tài khoản Quản trị viên.", "FORBIDDEN");
+
+      if (confirm !== target.username) {
+        throw new DomainError(`Vui lòng nhập chính xác “${target.username}” để xác nhận xoá.`);
+      }
+
+      const [hasPledge, hasProject, hasMember] = await Promise.all([
+        one(db, `SELECT 1 FROM pledges WHERE backer_id = ? LIMIT 1`, target.id),
+        one(db, `SELECT 1 FROM projects WHERE creator_id = ? LIMIT 1`, target.id),
+        one(db, `SELECT 1 FROM project_members WHERE user_id = ? LIMIT 1`, target.id),
+      ]);
+      if (hasPledge || hasProject || hasMember) {
+        throw new DomainError("Tài khoản đã có dữ liệu góp vốn/dự án — hãy khoá tài khoản thay vì xoá.", "CONFLICT");
+      }
+
+      await run(db, `DELETE FROM users WHERE id = ?`, target.id);
+      await audit(db, auth.viewer.id, "user.delete", "user", target.id, `Xoá tài khoản ${target.display_name} (@${target.username})`);
+      return `${target.display_name} (@${target.username})`;
+    });
+    return { ok: true, message: `Đã xoá vĩnh viễn tài khoản ${label}.` };
   } catch (e) {
     return { error: humanizeError(e) };
   }

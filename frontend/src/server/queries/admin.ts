@@ -30,6 +30,8 @@ export interface AdminUserRow {
   display_name: string;
   email: string;
   avatar_url: string | null;
+  province?: string | null;
+  bio?: string;
   status: string;
   locked_reason: string | null;
   two_factor_enabled?: number;
