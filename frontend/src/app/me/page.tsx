@@ -41,79 +41,10 @@ export default async function MeOverviewPage(props: {
   const { summary, invitations, waiting, notifications: notifs, recos, saved } = await meOverviewBundle();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {isWelcome && <WelcomeBanner name={summary.display_name} />}
 
       <InvitationCards invitations={invitations} />
-
-      {/* Waiting AUTHORIZED pledges strip */}
-      <section className="space-y-3">
-        <SectionTitle
-          title={
-            <span className="flex items-center gap-2">
-              <Clock className="size-5 text-sky-500" /> Đang chờ kết quả gọi vốn
-            </span>
-          }
-          description="Các khoản giữ chỗ trên dự án đang chạy — tiền chỉ bị trừ khi đạt mục tiêu."
-          action={
-            <ButtonLink href="/me/backed" variant="ghost" size="xs">
-              Lịch sử góp vốn <ArrowRight className="size-3.5" />
-            </ButtonLink>
-          }
-        />
-
-        {waiting.length === 0 ? (
-          <Card className="flex flex-col items-center justify-between gap-4 p-5 text-center sm:flex-row sm:text-left">
-            <div className="space-y-1">
-              <div className="font-bold">Chưa có khoản góp vốn nào đang chờ kết quả</div>
-              <p className="text-sm text-muted">Khám phá các chiến dịch đang gọi vốn để ủng hộ ý tưởng bạn thích.</p>
-            </div>
-            <ButtonLink href="/explore" size="sm">
-              <Compass className="size-4" /> Khám phá dự án
-            </ButtonLink>
-          </Card>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {waiting.map((w) => {
-              const pct = percentOf(w.pledged_amount, w.goal_amount);
-              const left = timeLeft(w.end_at);
-              return (
-                <Card key={w.id} className="p-4 transition hover:border-violet-400/50">
-                  <div className="flex gap-3">
-                    <Link
-                      href={`/p/${w.slug}`}
-                      className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-line bg-surface-2"
-                    >
-                      {w.cover_url && <SafeImage src={w.cover_url} alt={w.title} fill sizes="96px" className="object-cover" />}
-                    </Link>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge tone="sky" dot>
-                          Đang giữ chỗ
-                        </Badge>
-                        <span className="text-[11px] font-medium text-muted">{left.label}</span>
-                      </div>
-                      <Link href={`/p/${w.slug}`} className="line-clamp-1 block text-sm font-bold hover:text-violet-600 dark:hover:text-violet-400">
-                        {w.title}
-                      </Link>
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate text-muted">{w.tier_title ?? "Góp không nhận quà"}</span>
-                        <span className="shrink-0 font-extrabold text-emerald-600 dark:text-emerald-400">
-                          {formatVnd(w.total_amount)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <FundingBar percent={pct} size="sm" className="flex-1" />
-                    <span className="text-xs font-bold tabular-nums text-muted">{pct}%</span>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </section>
 
       {/* Quick links */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -151,42 +82,113 @@ export default async function MeOverviewPage(props: {
         ))}
       </section>
 
-      {/* Recent notifications */}
-      <section className="space-y-3">
-        <SectionTitle
-          title={
-            <span className="flex items-center gap-2">
-              <Bell className="size-5 text-violet-500" /> Thông báo gần đây
-            </span>
-          }
-          action={
-            <ButtonLink href="/me/notifications" variant="ghost" size="xs">
-              Xem tất cả <ArrowRight className="size-3.5" />
-            </ButtonLink>
-          }
-        />
+      {/* Đang chờ kết quả & Thông báo gần đây trên 2 cột gọn */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <section className="space-y-3">
+          <SectionTitle
+            title={
+              <span className="flex items-center gap-2">
+                <Clock className="size-5 text-sky-500" /> Đang chờ kết quả gọi vốn
+              </span>
+            }
+            description="Tiền chỉ bị trừ khi đạt mục tiêu."
+            action={
+              <ButtonLink href="/me/backed" variant="ghost" size="xs">
+                Chi tiết <ArrowRight className="size-3.5" />
+              </ButtonLink>
+            }
+          />
 
-        {notifs.length === 0 ? (
-          <Card className="p-5 text-center text-sm text-muted">Chưa có thông báo mới.</Card>
-        ) : (
-          <Card className="divide-y divide-line overflow-hidden">
-            {notifs.map((n) => (
-              <Link
-                key={n.id}
-                href={n.link ?? "/me/notifications"}
-                className="flex items-start gap-3 px-4 py-3 transition hover:bg-surface-2/60"
-              >
-                <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.read_at ? "bg-transparent" : "bg-violet-600")} />
-                <div className="min-w-0 flex-1">
-                  <div className={cn("text-sm", n.read_at ? "font-medium" : "font-bold")}>{n.title}</div>
-                  {n.body && <div className="line-clamp-1 text-xs text-muted">{n.body}</div>}
-                </div>
-                <span className="shrink-0 text-[11px] text-muted">{timeAgo(n.created_at)}</span>
-              </Link>
-            ))}
-          </Card>
-        )}
-      </section>
+          {waiting.length === 0 ? (
+            <Card className="flex flex-col items-center justify-between gap-3 p-4 text-center sm:flex-row sm:text-left">
+              <div className="space-y-0.5">
+                <div className="text-sm font-bold">Chưa có khoản góp vốn nào đang chờ</div>
+                <p className="text-xs text-muted">Khám phá các chiến dịch đang gọi vốn để ủng hộ ý tưởng bạn thích.</p>
+              </div>
+              <ButtonLink href="/explore" size="xs" className="shrink-0">
+                <Compass className="size-3.5" /> Khám phá
+              </ButtonLink>
+            </Card>
+          ) : (
+            <div className="space-y-2.5">
+              {waiting.slice(0, 4).map((w) => {
+                const pct = percentOf(w.pledged_amount, w.goal_amount);
+                const left = timeLeft(w.end_at);
+                return (
+                  <Card key={w.id} className="p-3.5 transition hover:border-violet-400/50">
+                    <div className="flex gap-3">
+                      <Link
+                        href={`/p/${w.slug}`}
+                        className="relative h-14 w-20 shrink-0 overflow-hidden rounded-xl border border-line bg-surface-2"
+                      >
+                        {w.cover_url && <SafeImage src={w.cover_url} alt={w.title} fill sizes="80px" className="object-cover" />}
+                      </Link>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge tone="sky" dot>
+                            Đang giữ chỗ
+                          </Badge>
+                          <span className="text-[11px] font-medium text-muted">{left.label}</span>
+                        </div>
+                        <Link href={`/p/${w.slug}`} className="line-clamp-1 block text-sm font-bold hover:text-violet-600 dark:hover:text-violet-400">
+                          {w.title}
+                        </Link>
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate text-muted">{w.tier_title ?? "Góp không nhận quà"}</span>
+                          <span className="shrink-0 font-extrabold text-emerald-600 dark:text-emerald-400">
+                            {formatVnd(w.total_amount)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 flex items-center gap-2.5">
+                      <FundingBar percent={pct} size="sm" className="flex-1" />
+                      <span className="text-xs font-bold tabular-nums text-muted">{pct}%</span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <SectionTitle
+            title={
+              <span className="flex items-center gap-2">
+                <Bell className="size-5 text-violet-500" /> Thông báo gần đây
+              </span>
+            }
+            description="Cập nhật mới nhất về dự án & lời mời."
+            action={
+              <ButtonLink href="/me/notifications" variant="ghost" size="xs">
+                Xem tất cả <ArrowRight className="size-3.5" />
+              </ButtonLink>
+            }
+          />
+
+          {notifs.length === 0 ? (
+            <Card className="p-5 text-center text-sm text-muted">Chưa có thông báo mới.</Card>
+          ) : (
+            <Card className="divide-y divide-line overflow-hidden">
+              {notifs.slice(0, 5).map((n) => (
+                <Link
+                  key={n.id}
+                  href={n.link ?? "/me/notifications"}
+                  className="flex items-start gap-3 px-4 py-3 transition hover:bg-surface-2/60"
+                >
+                  <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.read_at ? "bg-transparent" : "bg-violet-600")} />
+                  <div className="min-w-0 flex-1">
+                    <div className={cn("line-clamp-1 text-sm", n.read_at ? "font-medium" : "font-bold")}>{n.title}</div>
+                    {n.body && <div className="line-clamp-1 text-xs text-muted">{n.body}</div>}
+                  </div>
+                  <span className="shrink-0 text-[11px] text-muted">{timeAgo(n.created_at)}</span>
+                </Link>
+              ))}
+            </Card>
+          )}
+        </section>
+      </div>
 
       {/* Top 3 recommendations */}
       {recos.items.length > 0 && (

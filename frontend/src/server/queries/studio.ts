@@ -198,12 +198,26 @@ export interface ShipmentRow {
   ship_province: string | null;
 }
 
+export interface StudioInvitationItem {
+  id: string;
+  title: string;
+  slug: string;
+  project_cover: string | null;
+  project_status: string;
+  inviter: string;
+  inviter_username: string;
+  inviter_avatar: string | null;
+  message: string;
+  expires_at: string;
+  created_at: string;
+}
+
 export async function getStudioIndexBundle() {
   const res = await apiGet<{
     ok?: boolean;
     mine?: StudioCard[];
     collab?: StudioCard[];
-    invitations?: { id: string; title: string; slug: string; inviter: string; message: string }[];
+    invitations?: StudioInvitationItem[];
   }>("/studio/projects");
   return {
     mine: res.mine ?? [],

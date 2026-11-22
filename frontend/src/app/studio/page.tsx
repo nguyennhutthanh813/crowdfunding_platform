@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, BellRing, Clock, FolderKanban, HandCoins, Plus, Rocket, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Clock, FolderKanban, HandCoins, Plus, Rocket, Sparkles, Users } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { getStudioIndexBundle, type StudioCard } from "@/server/queries/studio";
+import { LeaveProjectButton, StudioInvitationsPanel } from "@/components/studio/studio-invitations";
 import { ButtonLink } from "@/components/ui/button";
 import { FundingBar } from "@/components/ui/funding-bar";
 import { EmptyState, PageHeader, SectionTitle, StatCard } from "@/components/ui/layout-bits";
@@ -45,32 +46,8 @@ export default async function StudioDashboardPage() {
         }
       />
 
-      {/* Pending Invitations Banner */}
-      {invitations.length > 0 && (
-        <div className="card relative overflow-hidden border-violet-500/30 bg-gradient-to-r from-violet-500/12 via-sky-500/8 to-emerald-500/10 p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-gradient text-white shadow">
-                <BellRing className="size-5" />
-              </span>
-              <div>
-                <h2 className="font-bold">Bạn có {invitations.length} lời mời làm cộng tác viên</h2>
-                <ul className="mt-1 space-y-1 text-sm text-muted">
-                  {invitations.map((inv) => (
-                    <li key={inv.id}>
-                      <b className="text-fg">{inv.inviter}</b> mời bạn tham gia <b className="text-fg">{inv.title}</b>
-                      {inv.message ? ` — “${inv.message}”` : ""}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <ButtonLink href="/me#invitations" variant="primary" size="sm" className="shrink-0">
-              Xem &amp; phản hồi lời mời <ArrowRight className="size-4" />
-            </ButtonLink>
-          </div>
-        </div>
-      )}
+      {/* Lời mời Cộng tác viên trực tiếp ngay trong Studio */}
+      <StudioInvitationsPanel invitations={invitations} />
 
       {allProjects.length === 0 ? (
         <EmptyState
@@ -256,7 +233,7 @@ function StudioProjectCard({ card: p }: { card: StudioCard }) {
             )}
           </Link>
 
-          <div className="flex items-center justify-between gap-2 border-t border-line pt-2.5 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2.5 text-xs">
             <div className="flex items-center gap-2">
               {isDraft ? (
                 <ButtonLink href={`/studio/${p.slug}/setup`} size="xs">
@@ -271,6 +248,9 @@ function StudioProjectCard({ card: p }: { card: StudioCard }) {
                 <Link href={`/studio/${p.slug}`} className="font-semibold text-muted hover:text-fg">
                   Không gian quản lý
                 </Link>
+              )}
+              {p.role_code === "COLLABORATOR" && (
+                <LeaveProjectButton projectId={p.id} projectTitle={p.title} size="xs" redirectOnLeave={false} />
               )}
             </div>
             <Link href={`/p/${p.slug}`} className="font-semibold text-muted hover:text-violet-600 dark:hover:text-violet-400">

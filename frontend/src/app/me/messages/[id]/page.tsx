@@ -1,11 +1,9 @@
 import { notFound } from "next/navigation";
-import { MessageSquarePlus } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
-import { conversationThread, myConversations } from "@/server/queries/me";
+import { buildQuickContacts, conversationComposeMeta, conversationThread, myConversations } from "@/server/queries/me";
 import { AdminOnlyNotice } from "@/components/me/admin-only-notice";
-import { ConversationList, MarkReadOnMount, ThreadView } from "@/components/me/messages-ui";
-import { ButtonLink } from "@/components/ui/button";
+import { ConversationList, MarkReadOnMount, NewMessageModalButton, ThreadView } from "@/components/me/messages-ui";
 import { PageHeader } from "@/components/ui/layout-bits";
 
 export const metadata = { title: "Cuộc trò chuyện" };
@@ -19,30 +17,36 @@ export default async function MessageThreadPage(props: {
     return <AdminOnlyNotice area="Tin nhắn nội bộ" />;
   }
 
-  const [thread, conversations] = await Promise.all([conversationThread(id), myConversations()]);
+  const [thread, conversations, composeMeta] = await Promise.all([
+    conversationThread(id),
+    myConversations(),
+    conversationComposeMeta("", ""),
+  ]);
   if (!thread) notFound();
+  const quickContacts = buildQuickContacts(v.username, composeMeta);
 
   const hasUnread = thread.messages.some(
     (m) => m.sender_id !== v.id && (!thread.myLastReadAt || m.created_at > thread.myLastReadAt),
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <MarkReadOnMount conversationId={id} hasUnread={hasUnread} />
 
       <PageHeader
         eyebrow="Hộp thư"
         title="Tin nhắn nội bộ"
-        actions={
-          <ButtonLink href="/me/messages/new" size="sm">
-            <MessageSquarePlus className="size-4" /> Tin nhắn mới
-          </ButtonLink>
-        }
+        actions={<NewMessageModalButton quickContacts={quickContacts} size="sm" />}
       />
 
       <div className="grid gap-5 lg:grid-cols-[340px_1fr] lg:items-start">
         <div className="hidden lg:block">
-          <ConversationList conversations={conversations} viewerId={v.id} activeId={id} />
+          <ConversationList
+            conversations={conversations}
+            viewerId={v.id}
+            activeId={id}
+            quickContacts={quickContacts}
+          />
         </div>
         <ThreadView
           conv={thread.conv}

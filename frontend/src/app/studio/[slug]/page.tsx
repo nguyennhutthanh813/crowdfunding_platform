@@ -27,6 +27,7 @@ import { CountUp } from "@/components/fx/motion";
 import { cn, formatCompactVnd, formatDate, formatVnd, percentOf, timeAgo, timeLeft } from "@/lib/utils";
 import { LIFECYCLE_STEPS, LOCK_REASON, STUDIO_TABS, type StudioTabKey } from "@/components/studio/meta";
 import { StudioImage } from "@/components/studio/media";
+import { LeaveProjectButton } from "@/components/studio/studio-invitations";
 import { StudioOverviewCharts } from "@/components/studio/charts";
 import { AiPanel } from "@/components/studio/ai-panel";
 import { ContentTab } from "@/components/studio/content-tab";
@@ -330,6 +331,7 @@ export default async function StudioProjectPage(props: {
     contentEl = (
       <TeamPanel
         projectId={project.id}
+        projectSlug={project.slug}
         members={ws.team ?? []}
         invitations={ws.invitations ?? []}
         allPerms={allPerms}
@@ -350,14 +352,17 @@ export default async function StudioProjectPage(props: {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 overflow-x-clip px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl space-y-5 overflow-x-clip px-4 py-6 sm:px-6">
       {/* Studio Workspace Header */}
-      <div className="card min-w-0 space-y-5 p-5 sm:p-6">
+      <div className="card min-w-0 space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/studio" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg">
             <ArrowLeft className="size-4" /> Danh sách dự án Studio
           </Link>
           <div className="flex flex-wrap items-center gap-2">
+            {access.role === "COLLABORATOR" && (
+              <LeaveProjectButton projectId={project.id} projectTitle={project.title} size="sm" />
+            )}
             {permSet.has("project.edit") && ["DRAFT", "REJECTED"].includes(project.status) && (
               <ButtonLink href={`/studio/${project.slug}/setup`} size="sm">
                 <Rocket className="size-4" /> Mở Wizard 5 bước

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/components/ui/action-form";
-import { apiPost, formToPayload } from "../api";
+import { apiGet, apiPost, formToPayload } from "../api";
 
 function revalidateProject(slug?: string) {
   revalidatePath("/studio");
@@ -94,11 +94,35 @@ export async function runAiPredictionAction(_p: ActionResult, form: FormData): P
 export async function inviteCollaboratorAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runStudioPost("/studio/team/invite", form);
 }
+export async function resendInvitationAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runStudioPost("/studio/team/resend", form);
+}
 export async function revokeInvitationAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runStudioPost("/studio/team/revoke", form);
 }
 export async function removeCollaboratorAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runStudioPost("/studio/team/remove", form);
+}
+export async function leaveProjectAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  const res = await runStudioPost("/studio/team/leave", form);
+  if (res?.ok) revalidatePath("/me");
+  return res;
+}
+export async function searchInvitableUsersAction(
+  slug: string,
+  q: string,
+): Promise<{
+  ok: boolean;
+  users: { id: string; username: string; display_name: string; email: string; avatar_url: string | null }[];
+  error?: string;
+}> {
+  if (!slug) return { ok: false, users: [], error: "Thiếu thông tin dự án." };
+  const res = await apiGet<{
+    ok?: boolean;
+    users?: { id: string; username: string; display_name: string; email: string; avatar_url: string | null }[];
+    error?: string;
+  }>(`/studio/projects/${encodeURIComponent(slug)}/team/search?q=${encodeURIComponent(q)}`);
+  return { ok: Boolean(res.ok), users: res.users ?? [], error: res.error };
 }
 
 export async function saveFundingScheduleAction(_p: ActionResult, form: FormData): Promise<ActionResult> {

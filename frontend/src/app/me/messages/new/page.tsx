@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
-import { conversationComposeMeta } from "@/server/queries/me";
+import { buildQuickContacts, conversationComposeMeta } from "@/server/queries/me";
 import { AdminOnlyNotice } from "@/components/me/admin-only-notice";
 import { NewMessageForm } from "@/components/me/messages-ui";
 import { ButtonLink } from "@/components/ui/button";
@@ -35,25 +35,7 @@ export default async function NewMessagePage(props: {
   const rawProj = meta.targetProject;
   const projValid = rawProj ? { slug: rawProj.slug, title: rawProj.title, status: rawProj.status } : null;
 
-  // Build deduplicated quick contacts from followed creators, backed project creators, and suggestions
-  const seen = new Set<string>([v.username]);
-  const quickContacts: { username: string; display_name: string; avatar_url: string | null; hint: string }[] = [];
-
-  for (const c of meta.followed) {
-    if (seen.has(c.username)) continue;
-    seen.add(c.username);
-    quickContacts.push({ username: c.username, display_name: c.display_name, avatar_url: c.avatar_url, hint: "Đang theo dõi" });
-  }
-  for (const p of meta.pledges) {
-    if (seen.has(p.creator_username)) continue;
-    seen.add(p.creator_username);
-    quickContacts.push({ username: p.creator_username, display_name: p.creator_name, avatar_url: null, hint: p.title });
-  }
-  for (const s of meta.suggestions) {
-    if (seen.has(s.username)) continue;
-    seen.add(s.username);
-    quickContacts.push({ username: s.username, display_name: s.display_name, avatar_url: s.avatar_url, hint: "Chủ dự án" });
-  }
+  const quickContacts = buildQuickContacts(v.username, meta, 8);
 
   return (
     <div className="space-y-6">
@@ -87,7 +69,7 @@ export default async function NewMessagePage(props: {
             : null
         }
         prefillProject={projValid}
-        quickContacts={quickContacts.slice(0, 8)}
+        quickContacts={quickContacts}
       />
     </div>
   );

@@ -21,6 +21,28 @@ export const LOCK_REASON: Record<string, string> = {
   "member.manage": "Chỉ Chủ dự án mới mời hoặc gỡ Cộng tác viên.",
 };
 
+/** Nhãn tiếng Việt chuẩn 100% cho toàn bộ 18 mã quyền dự án (bất kể dữ liệu DB cũ). */
+export const PERMISSION_LABEL_VI: Record<string, { module: string; name: string }> = {
+  "project.view_private": { module: "Dự án", name: "Xem dự án khi chưa công khai (bản nháp, chờ duyệt)" },
+  "project.edit": { module: "Dự án", name: "Sửa nội dung chiến dịch, mục tiêu, thời hạn" },
+  "reward.manage": { module: "Dự án", name: "Tạo và chỉnh sửa gói phần quà, quà kèm" },
+  "project.submit": { module: "Dự án", name: "Gửi duyệt dự án" },
+  "project.schedule": { module: "Dự án", name: "Đặt ngày bắt đầu và bật trang xem trước" },
+  "project.cancel": { module: "Dự án", name: "Huỷ dự án của mình (trước khi khởi chạy)" },
+  "project.completion": { module: "Dự án", name: "Chọn nội dung hiển thị khi dự án hoàn thành" },
+  "faq.manage": { module: "Nội dung", name: "Soạn và quản lý câu hỏi thường gặp" },
+  "update.draft": { module: "Nội dung", name: "Soạn bản nháp cập nhật tiến độ" },
+  "update.publish": { module: "Nội dung", name: "Đăng công khai bản tin cập nhật" },
+  "comment.reply": { module: "Tương tác", name: "Trả lời bình luận với nhãn vai trò" },
+  "comment.moderate": { module: "Tương tác", name: "Ẩn / xoá bình luận vi phạm trong dự án" },
+  "insight.view": { module: "Thống kê AI", name: "Xem bình luận đã được AI phân loại" },
+  "stats.view": { module: "Thống kê AI", name: "Xem thống kê, biểu đồ và đánh giá AI" },
+  "ai.run": { module: "Thống kê AI", name: "Chạy đánh giá AI & nhận gợi ý điều chỉnh" },
+  "backer.view": { module: "Tài chính", name: "Xem danh sách người ủng hộ và địa chỉ giao hàng" },
+  "fulfillment.manage": { module: "Tài chính", name: "Cập nhật tiến độ giao quà" },
+  "member.manage": { module: "Nhóm", name: "Mời hoặc gỡ Cộng tác viên" },
+};
+
 export type StudioTabKey = "overview" | "content" | "rewards" | "updates" | "faq" | "comments" | "backers" | "fulfillment" | "team" | "settings";
 
 export const STUDIO_TABS: { key: StudioTabKey; label: string; perm: string }[] = [

@@ -24,7 +24,7 @@ export async function respondInvitation(viewer: Viewer | null, bodyIn: Payload):
   if (!auth.ok) return err(auth.error);
   const v = auth.viewer;
   if (!v.systemRoles.includes("MEMBER")) {
-    return err("Tài khoản Quản trị viên không tham gia làm Collaborator dự án.");
+    return err("Tài khoản Quản trị viên không tham gia làm Cộng tác viên dự án.");
   }
 
   const id = strVal(bodyIn, "id");
@@ -80,7 +80,7 @@ export async function respondInvitation(viewer: Viewer | null, bodyIn: Payload):
         );
         if (existingMember) {
           if (existingMember.role_code === "CREATOR") {
-            throw new DomainError("Bạn đã là Creator của dự án này.");
+            throw new DomainError("Bạn đã là Chủ dự án này.");
           }
           await run(
             db,
@@ -107,9 +107,9 @@ export async function respondInvitation(viewer: Viewer | null, bodyIn: Payload):
         await notify(db, {
           userId: inv.invited_by,
           type: "INVITATION",
-          title: `${v.displayName} đã nhận lời làm Collaborator`,
+          title: `${v.displayName} đã nhận lời làm Cộng tác viên`,
           body: `Dự án: ${inv.title}`,
-          link: `/studio/${inv.slug}`,
+          link: `/studio/${inv.slug}?tab=team`,
           actorId: v.id,
           projectId: inv.project_id,
         });
@@ -120,7 +120,7 @@ export async function respondInvitation(viewer: Viewer | null, bodyIn: Payload):
           type: "INVITATION",
           title: `${v.displayName} đã từ chối lời mời cộng tác`,
           body: `Dự án: ${inv.title}`,
-          link: `/studio/${inv.slug}`,
+          link: `/studio/${inv.slug}?tab=team`,
           actorId: v.id,
           projectId: inv.project_id,
         });
@@ -144,7 +144,7 @@ export async function respondInvitation(viewer: Viewer | null, bodyIn: Payload):
         ok: true,
         slug: res.slug,
         celebrate: true,
-        message: `Bạn đã trở thành Collaborator của "${res.title}"!`,
+        message: `Bạn đã trở thành Cộng tác viên của "${res.title}"!`,
         redirect: `/studio/${res.slug}`,
       };
     }

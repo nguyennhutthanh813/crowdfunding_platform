@@ -25,10 +25,47 @@ function ModeSubmit({
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" name="publish" value={value} disabled={pending} className={buttonClass(variant, "md")}>
+    <button type="submit" name="publish" value={value} disabled={pending} className={buttonClass(variant, "sm")}>
       {pending && <Loader2 className="size-4 animate-spin" />}
       {children}
     </button>
+  );
+}
+
+function UpdateFormFields({ defaults }: { defaults?: Pick<UpdateRow, "title" | "body" | "backers_only"> }) {
+  return (
+    <>
+      <Field label="Tiêu đề bản tin" required>
+        <Input
+          name="title"
+          defaultValue={defaults?.title ?? ""}
+          minLength={3}
+          required
+          placeholder="Ví dụ: Cập nhật tuần 3: Đã hoàn tất khuôn mẫu sản xuất!"
+        />
+      </Field>
+
+      <Field label="Nội dung chi tiết" required>
+        <Textarea
+          name="body"
+          defaultValue={defaults?.body ?? ""}
+          minLength={10}
+          rows={5}
+          required
+          placeholder="Chia sẻ tiến độ thực tế, hình ảnh hoặc thông tin người ủng hộ cần lưu ý…"
+        />
+      </Field>
+
+      <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
+        <input
+          type="checkbox"
+          name="backers_only"
+          defaultChecked={defaults?.backers_only === 1}
+          className="size-4 accent-violet-600"
+        />
+        Chỉ hiển thị cho người ủng hộ đã góp vốn
+      </label>
+    </>
   );
 }
 
@@ -41,72 +78,34 @@ export function UpdatesPanel({
   updates: UpdateRow[];
   canPublish: boolean;
 }) {
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<UpdateRow | null>(null);
+  const draftCount = updates.filter((u) => u.status === "DRAFT").length;
 
   return (
-    <div className="space-y-6">
-      {/* Composer */}
-      <div className="card p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="flex items-center gap-2 text-lg font-bold">
-              <Megaphone className="size-5 text-violet-500" /> Viết bản tin tiến độ (Update)
+    <div className="space-y-4">
+      {/* Compact Header Action Bar */}
+      <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="flex items-center gap-2 text-base font-bold sm:text-lg">
+              <Megaphone className="size-5 text-violet-500" /> Bản tin tiến độ ({updates.length})
             </h3>
-            <p className="mt-1 text-sm text-muted">
-              Cập nhật tiến độ sản xuất, cột mốc hoặc lời cảm ơn tới cộng đồng.
-            </p>
-          </div>
-          {!canPublish && (
-            <Badge tone="sky" className="gap-1">
-              <Lock className="size-3" /> Cộng tác viên soạn nháp
-            </Badge>
-          )}
-        </div>
-
-        <ActionForm action={saveUpdateAction} resetOnSuccess className="mt-4 space-y-4">
-          <input type="hidden" name="project_id" value={projectId} />
-
-          <Field label="Tiêu đề bản tin" required>
-            <Input name="title" minLength={3} required placeholder="Ví dụ: Cập nhật tuần 3: Đã hoàn tất khuôn mẫu sản xuất!" />
-          </Field>
-
-          <Field label="Nội dung chi tiết" required>
-            <Textarea
-              name="body"
-              minLength={10}
-              rows={4}
-              required
-              placeholder="Chia sẻ tiến độ thực tế, hình ảnh hoặc thông tin người ủng hộ cần lưu ý…"
-            />
-          </Field>
-
-          <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
-            <input type="checkbox" name="backers_only" className="size-4 accent-violet-600" />
-            Chỉ hiển thị cho người ủng hộ đã góp vốn
-          </label>
-
-          {!canPublish && (
-            <div className="flex items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-3.5 py-2.5 text-xs text-sky-700 dark:text-sky-300">
-              <Lock className="size-4 shrink-0" />
-              <span>{LOCK_REASON["update.publish"]}</span>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <ModeSubmit value="0" variant={canPublish ? "secondary" : "primary"}>
-              <Plus className="size-4" /> Lưu bản nháp
-            </ModeSubmit>
-            {canPublish ? (
-              <ModeSubmit value="1" variant="primary">
-                <Send className="size-4" /> Đăng công khai ngay
-              </ModeSubmit>
-            ) : (
-              <Button type="button" variant="outline" disabled title={LOCK_REASON["update.publish"]}>
-                <Lock className="size-4" /> Đăng công khai
-              </Button>
+            {draftCount > 0 && <Badge tone="amber">{draftCount} bản nháp chờ đăng</Badge>}
+            {!canPublish && (
+              <Badge tone="sky" className="gap-1">
+                <Lock className="size-3" /> Cộng tác viên soạn nháp
+              </Badge>
             )}
           </div>
-        </ActionForm>
+          <p className="mt-1 text-xs text-muted">
+            Cập nhật tiến độ sản xuất, cột mốc hoặc lời cảm ơn tới người ủng hộ ngay trên trang dự án.
+          </p>
+        </div>
+
+        <Button type="button" variant="primary" size="sm" onClick={() => setCreating(true)} className="shrink-0">
+          <Plus className="size-4" /> Viết bản tin mới
+        </Button>
       </div>
 
       {/* List */}
@@ -115,13 +114,18 @@ export function UpdatesPanel({
           compact
           title="Chưa có bản tin nào"
           description="Hãy soạn bản tin đầu tiên để giữ nhiệt với người ủng hộ."
+          action={
+            <Button type="button" size="sm" onClick={() => setCreating(true)}>
+              <Plus className="size-4" /> Viết bản tin đầu tiên
+            </Button>
+          }
         />
       ) : (
         <div className="space-y-3">
           {updates.map((u) => {
             const isDraft = u.status === "DRAFT";
             return (
-              <div key={u.id} className="card p-5">
+              <div key={u.id} className="card p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -187,19 +191,60 @@ export function UpdatesPanel({
                   </div>
                 </div>
 
-                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-fg/90">{u.body}</p>
+                <p className="mt-2.5 whitespace-pre-line text-sm leading-relaxed text-fg/90">{u.body}</p>
               </div>
             );
           })}
         </div>
       )}
 
+      {/* Modal viết bản tin mới */}
       <Dialog
-        open={Boolean(editing)}
-        onClose={() => setEditing(null)}
-        title="Chỉnh sửa bản tin"
-        wide
+        open={creating}
+        onClose={() => setCreating(false)}
+        size="lg"
+        title="Viết bản tin tiến độ mới"
+        description={
+          canPublish
+            ? "Bạn có thể lưu nháp để rà soát hoặc đăng công khai gửi thông báo tới toàn bộ người ủng hộ."
+            : "Bản tin sẽ được lưu dưới dạng nháp để Chủ dự án duyệt và đăng công khai."
+        }
       >
+        <ActionForm
+          key={creating ? "create-upd-open" : "create-upd-closed"}
+          action={saveUpdateAction}
+          resetOnSuccess
+          onSuccess={() => setCreating(false)}
+          className="space-y-4"
+        >
+          <input type="hidden" name="project_id" value={projectId} />
+          <UpdateFormFields />
+
+          {!canPublish && (
+            <div className="flex items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-3.5 py-2.5 text-xs text-sky-700 dark:text-sky-300">
+              <Lock className="size-4 shrink-0" />
+              <span>{LOCK_REASON["update.publish"]}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setCreating(false)}>
+              Huỷ
+            </Button>
+            <ModeSubmit value="0" variant={canPublish ? "secondary" : "primary"}>
+              <Plus className="size-4" /> Lưu bản nháp
+            </ModeSubmit>
+            {canPublish && (
+              <ModeSubmit value="1" variant="primary">
+                <Send className="size-4" /> Đăng công khai ngay
+              </ModeSubmit>
+            )}
+          </div>
+        </ActionForm>
+      </Dialog>
+
+      {/* Modal sửa bản tin */}
+      <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} size="lg" title="Chỉnh sửa bản tin">
         {editing && (
           <ActionForm
             key={editing.id}
@@ -210,23 +255,15 @@ export function UpdatesPanel({
             <input type="hidden" name="project_id" value={projectId} />
             <input type="hidden" name="update_id" value={editing.id} />
             <input type="hidden" name="publish" value="0" />
+            <UpdateFormFields defaults={editing} />
 
-            <Field label="Tiêu đề" required>
-              <Input name="title" defaultValue={editing.title} minLength={3} required />
-            </Field>
-            <Field label="Nội dung" required>
-              <Textarea name="body" defaultValue={editing.body} minLength={10} rows={6} required />
-            </Field>
-            <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
-              <input type="checkbox" name="backers_only" defaultChecked={editing.backers_only === 1} className="size-4 accent-violet-600" />
-              Chỉ hiển thị cho người ủng hộ đã góp vốn
-            </label>
-
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
+            <div className="flex justify-end gap-2 border-t border-line pt-3">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(null)}>
                 Huỷ
               </Button>
-              <SubmitButton pendingText="Đang lưu…">Lưu thay đổi</SubmitButton>
+              <SubmitButton size="sm" pendingText="Đang lưu…">
+                Lưu thay đổi
+              </SubmitButton>
             </div>
           </ActionForm>
         )}

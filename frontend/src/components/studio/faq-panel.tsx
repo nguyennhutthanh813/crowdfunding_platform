@@ -11,33 +11,52 @@ import { Field, Input, Textarea } from "@/components/ui/form";
 import { EmptyState } from "@/components/ui/layout-bits";
 import { timeAgo } from "@/lib/utils";
 
+function FaqFormFields({ defaults }: { defaults?: Pick<FaqRow, "question" | "answer"> }) {
+  return (
+    <>
+      <Field label="Câu hỏi" required>
+        <Input
+          name="question"
+          defaultValue={defaults?.question ?? ""}
+          minLength={5}
+          required
+          placeholder="Ví dụ: Sản phẩm được bảo hành bao lâu và đổi trả thế nào?"
+        />
+      </Field>
+      <Field label="Câu trả lời" required>
+        <Textarea
+          name="answer"
+          defaultValue={defaults?.answer ?? ""}
+          minLength={2}
+          rows={4}
+          required
+          placeholder="Nhập câu trả lời rõ ràng, ngắn gọn…"
+        />
+      </Field>
+    </>
+  );
+}
+
 export function FaqPanel({ projectId, faqs }: { projectId: string; faqs: FaqRow[] }) {
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<FaqRow | null>(null);
 
   return (
-    <div className="space-y-6">
-      <div className="card p-5 sm:p-6">
-        <h3 className="flex items-center gap-2 text-lg font-bold">
-          <HelpCircle className="size-5 text-violet-500" /> Thêm câu hỏi thường gặp (FAQ)
-        </h3>
-        <p className="mt-1 text-sm text-muted">
-          Trả lời trước thắc mắc về giao hàng, bảo hành, kích thước hoặc tiến độ để giảm câu hỏi lặp lại.
-        </p>
+    <div className="space-y-4">
+      {/* Compact Header Action Bar */}
+      <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-base font-bold sm:text-lg">
+            <HelpCircle className="size-5 text-violet-500" /> Câu hỏi thường gặp ({faqs.length})
+          </h3>
+          <p className="mt-1 text-xs text-muted">
+            Trả lời trước thắc mắc về giao hàng, bảo hành, kích thước hoặc tiến độ để giảm câu hỏi lặp lại.
+          </p>
+        </div>
 
-        <ActionForm action={saveFaqAction} resetOnSuccess className="mt-4 space-y-3">
-          <input type="hidden" name="project_id" value={projectId} />
-          <Field label="Câu hỏi" required>
-            <Input name="question" minLength={5} required placeholder="Ví dụ: Sản phẩm được bảo hành bao lâu và đổi trả thế nào?" />
-          </Field>
-          <Field label="Câu trả lời" required>
-            <Textarea name="answer" minLength={2} rows={3} required placeholder="Nhập câu trả lời rõ ràng, ngắn gọn…" />
-          </Field>
-          <div className="flex justify-end">
-            <SubmitButton size="sm" pendingText="Đang thêm…">
-              <Plus className="size-4" /> Thêm vào FAQ
-            </SubmitButton>
-          </div>
-        </ActionForm>
+        <Button type="button" variant="primary" size="sm" onClick={() => setCreating(true)} className="shrink-0">
+          <Plus className="size-4" /> Thêm câu hỏi
+        </Button>
       </div>
 
       {faqs.length === 0 ? (
@@ -45,6 +64,11 @@ export function FaqPanel({ projectId, faqs }: { projectId: string; faqs: FaqRow[
           compact
           title="Chưa có câu hỏi thường gặp nào"
           description="Dự án có 3–5 câu hỏi thường gặp giúp tạo độ tin cậy cao hơn với người ủng hộ mới."
+          action={
+            <Button type="button" size="sm" onClick={() => setCreating(true)}>
+              <Plus className="size-4" /> Thêm câu hỏi đầu tiên
+            </Button>
+          }
         />
       ) : (
         <div className="space-y-3">
@@ -81,7 +105,7 @@ export function FaqPanel({ projectId, faqs }: { projectId: string; faqs: FaqRow[
                   <Button variant="ghost" size="xs" onClick={() => setEditing(f)}>
                     <Pencil className="size-3.5" /> Sửa
                   </Button>
-                  <ActionForm action={deleteFaqAction} confirm="Xoá câu hỏi FAQ này?">
+                  <ActionForm action={deleteFaqAction} confirm="Xoá câu hỏi thường gặp này?">
                     <input type="hidden" name="project_id" value={projectId} />
                     <input type="hidden" name="faq_id" value={f.id} />
                     <SubmitButton variant="ghost" size="xs" className="text-rose-500 hover:bg-rose-500/10">
@@ -95,7 +119,36 @@ export function FaqPanel({ projectId, faqs }: { projectId: string; faqs: FaqRow[
         </div>
       )}
 
-      <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} title="Chỉnh sửa FAQ">
+      {/* Modal thêm câu hỏi */}
+      <Dialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        size="lg"
+        title="Thêm câu hỏi thường gặp"
+        description="Hiển thị công khai tại tab Hỏi đáp trên trang dự án để hỗ trợ người ủng hộ."
+      >
+        <ActionForm
+          key={creating ? "faq-create-open" : "faq-create-closed"}
+          action={saveFaqAction}
+          resetOnSuccess
+          onSuccess={() => setCreating(false)}
+          className="space-y-4"
+        >
+          <input type="hidden" name="project_id" value={projectId} />
+          <FaqFormFields />
+          <div className="flex justify-end gap-2 border-t border-line pt-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setCreating(false)}>
+              Huỷ
+            </Button>
+            <SubmitButton size="sm" pendingText="Đang thêm…">
+              <Plus className="size-4" /> Thêm câu hỏi
+            </SubmitButton>
+          </div>
+        </ActionForm>
+      </Dialog>
+
+      {/* Modal sửa câu hỏi */}
+      <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} size="lg" title="Chỉnh sửa câu hỏi thường gặp">
         {editing && (
           <ActionForm
             key={editing.id}
@@ -105,17 +158,14 @@ export function FaqPanel({ projectId, faqs }: { projectId: string; faqs: FaqRow[
           >
             <input type="hidden" name="project_id" value={projectId} />
             <input type="hidden" name="faq_id" value={editing.id} />
-            <Field label="Câu hỏi" required>
-              <Input name="question" defaultValue={editing.question} minLength={5} required />
-            </Field>
-            <Field label="Câu trả lời" required>
-              <Textarea name="answer" defaultValue={editing.answer} minLength={2} rows={4} required />
-            </Field>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
+            <FaqFormFields defaults={editing} />
+            <div className="flex justify-end gap-2 border-t border-line pt-3">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(null)}>
                 Huỷ
               </Button>
-              <SubmitButton pendingText="Đang lưu…">Lưu FAQ</SubmitButton>
+              <SubmitButton size="sm" pendingText="Đang lưu…">
+                Lưu thay đổi
+              </SubmitButton>
             </div>
           </ActionForm>
         )}

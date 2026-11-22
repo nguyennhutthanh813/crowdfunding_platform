@@ -591,8 +591,8 @@ export async function saveUpdate(viewer: Viewer | null, bodyIn: Payload): Promis
     const body = strVal(bodyIn, "body");
     const backersOnly = boolVal(bodyIn, "backers_only") ? 1 : 0;
 
-    if (title.length < 3) throw new DomainError("Tiêu đề Update phải có ít nhất 3 ký tự.");
-    if (body.length < 10) throw new DomainError("Nội dung Update phải có ít nhất 10 ký tự.");
+    if (title.length < 3) throw new DomainError("Tiêu đề bản tin phải có ít nhất 3 ký tự.");
+    if (body.length < 10) throw new DomainError("Nội dung bản tin phải có ít nhất 10 ký tự.");
 
     const now = nowIso();
     await tx(db, async () => {
@@ -664,7 +664,7 @@ export async function saveUpdate(viewer: Viewer | null, bodyIn: Payload): Promis
     return {
       ok: true,
       slug: p.slug,
-      message: wantPublish ? "Đã đăng Update công khai tới cộng đồng!" : "Đã lưu bản nháp Update.",
+      message: wantPublish ? "Đã đăng bản tin công khai tới cộng đồng!" : "Đã lưu bản nháp bản tin.",
       celebrate: wantPublish,
     };
   } catch (e) {
@@ -685,8 +685,8 @@ export async function publishUpdate(viewer: Viewer | null, bodyIn: Payload): Pro
         updateId,
         projectId,
       );
-      if (!cur) throw new DomainError("Không tìm thấy bản nháp Update.", "NOT_FOUND");
-      if (cur.status === "PUBLISHED") throw new DomainError("Update này đã được đăng trước đó.");
+      if (!cur) throw new DomainError("Không tìm thấy bản nháp bản tin.", "NOT_FOUND");
+      if (cur.status === "PUBLISHED") throw new DomainError("Bản tin này đã được đăng trước đó.");
       const now = nowIso();
       await run(
         db,
@@ -700,7 +700,7 @@ export async function publishUpdate(viewer: Viewer | null, bodyIn: Payload): Pro
       await notifyUpdatePublished(db, p, cur.title, v.id);
     });
 
-    return { ok: true, slug: p.slug, message: "Đã đăng Update công khai và gửi thông báo tới backer!", celebrate: true };
+    return { ok: true, slug: p.slug, message: "Đã đăng bản tin công khai và gửi thông báo tới người ủng hộ!", celebrate: true };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -712,12 +712,12 @@ export async function deleteUpdateDraft(viewer: Viewer | null, bodyIn: Payload):
     const { v, db, p } = await requireActor(viewer, projectId, "update.draft");
     const updateId = strVal(bodyIn, "update_id");
     const cur = await one<{ status: string }>(db, `SELECT status FROM project_updates WHERE id = ? AND project_id = ?`, updateId, projectId);
-    if (!cur) throw new DomainError("Không tìm thấy bản tin Update.", "NOT_FOUND");
+    if (!cur) throw new DomainError("Không tìm thấy bản tin cập nhật.", "NOT_FOUND");
     if (cur.status !== "DRAFT" && !(await canProject(db, v, projectId, "update.publish"))) {
-      throw new DomainError("Collaborator chỉ có thể xoá bản nháp Update. Chỉ Creator mới xoá được bản tin đã đăng.");
+      throw new DomainError("Cộng tác viên chỉ có thể xoá bản nháp. Chỉ Chủ dự án mới xoá được bản tin đã đăng.");
     }
     await run(db, `DELETE FROM project_updates WHERE id = ? AND project_id = ?`, updateId, projectId);
-    return { ok: true, slug: p.slug, message: cur.status === "DRAFT" ? "Đã xoá bản nháp Update." : "Đã xoá bản tin Update." };
+    return { ok: true, slug: p.slug, message: cur.status === "DRAFT" ? "Đã xoá bản nháp bản tin." : "Đã xoá bản tin cập nhật." };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -747,7 +747,7 @@ export async function saveFaq(viewer: Viewer | null, bodyIn: Payload): Promise<A
         faqId,
         projectId,
       );
-      if (res.changes === 0) throw new DomainError("Không tìm thấy câu hỏi FAQ.", "NOT_FOUND");
+      if (res.changes === 0) throw new DomainError("Không tìm thấy câu hỏi thường gặp.", "NOT_FOUND");
     } else {
       const maxOrderRow = await one<{ m: number | null }>(db, `SELECT MAX(sort_order) AS m FROM faqs WHERE project_id = ?`, projectId);
       const maxOrder = maxOrderRow?.m === null || maxOrderRow?.m === undefined ? -1 : Number(maxOrderRow.m);
@@ -762,7 +762,7 @@ export async function saveFaq(viewer: Viewer | null, bodyIn: Payload): Promise<A
       });
     }
 
-    return { ok: true, slug: p.slug, message: faqId ? "Đã cập nhật FAQ." : "Đã thêm câu hỏi FAQ mới." };
+    return { ok: true, slug: p.slug, message: faqId ? "Đã cập nhật câu hỏi thường gặp." : "Đã thêm câu hỏi thường gặp mới." };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -774,8 +774,8 @@ export async function deleteFaq(viewer: Viewer | null, bodyIn: Payload): Promise
     const { db, p } = await requireActor(viewer, projectId, "faq.manage");
     const faqId = strVal(bodyIn, "faq_id");
     const res = await run(db, `DELETE FROM faqs WHERE id = ? AND project_id = ?`, faqId, projectId);
-    if (res.changes === 0) throw new DomainError("Không tìm thấy câu hỏi FAQ.", "NOT_FOUND");
-    return { ok: true, slug: p.slug, message: "Đã xoá FAQ." };
+    if (res.changes === 0) throw new DomainError("Không tìm thấy câu hỏi thường gặp.", "NOT_FOUND");
+    return { ok: true, slug: p.slug, message: "Đã xoá câu hỏi thường gặp." };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -791,7 +791,7 @@ export async function moveFaq(viewer: Viewer | null, bodyIn: Payload): Promise<A
     await tx(db, async () => {
       const rows = await all<{ id: string }>(db, `SELECT id FROM faqs WHERE project_id = ? ORDER BY sort_order, created_at`, projectId);
       const idx = rows.findIndex((r) => r.id === faqId);
-      if (idx === -1) throw new DomainError("Không tìm thấy FAQ.", "NOT_FOUND");
+      if (idx === -1) throw new DomainError("Không tìm thấy câu hỏi thường gặp.", "NOT_FOUND");
       const targetIdx = dir === "up" ? idx - 1 : idx + 1;
       if (targetIdx < 0 || targetIdx >= rows.length) return;
       [rows[idx], rows[targetIdx]] = [rows[targetIdx], rows[idx]];
@@ -800,7 +800,7 @@ export async function moveFaq(viewer: Viewer | null, bodyIn: Payload): Promise<A
       }
     });
 
-    return { ok: true, slug: p.slug, message: "Đã đổi thứ tự FAQ." };
+    return { ok: true, slug: p.slug, message: "Đã đổi thứ tự câu hỏi." };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -948,8 +948,8 @@ export async function promoteCommentToFaq(viewer: Viewer | null, bodyIn: Payload
     const question = strVal(bodyIn, "question");
     const answer = strVal(bodyIn, "answer");
 
-    if (question.length < 5) throw new DomainError("Câu hỏi FAQ phải có ít nhất 5 ký tự.");
-    if (answer.length < 2) throw new DomainError("Câu trả lời FAQ phải có ít nhất 2 ký tự.");
+    if (question.length < 5) throw new DomainError("Câu hỏi phải có ít nhất 5 ký tự.");
+    if (answer.length < 2) throw new DomainError("Câu trả lời phải có ít nhất 2 ký tự.");
 
     await tx(db, async () => {
       const maxOrderRow = await one<{ m: number | null }>(db, `SELECT MAX(sort_order) AS m FROM faqs WHERE project_id = ?`, projectId);
@@ -975,7 +975,7 @@ export async function promoteCommentToFaq(viewer: Viewer | null, bodyIn: Payload
       }
     });
 
-    return { ok: true, slug: p.slug, message: "Đã đưa câu hỏi vào mục FAQ công khai!" };
+    return { ok: true, slug: p.slug, message: "Đã đưa câu hỏi vào mục hỏi đáp công khai!" };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -994,18 +994,55 @@ export async function runAiPrediction(viewer: Viewer | null, bodyIn: Payload): P
   }
 }
 
-/* ───────────────────────── 7. Nhóm Collaborator (member.manage) ───────────────────────── */
+/* ───────────────────────── 7. Nhóm Cộng tác viên (member.manage) ───────────────────────── */
+
+const INVITE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function inviteCollaborator(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
   try {
     const projectId = strVal(bodyIn, "project_id");
     const { v, db, p } = await requireActor(viewer, projectId, "member.manage");
-    const email = strVal(bodyIn, "email").toLowerCase();
+    const rawIdentifier = (strVal(bodyIn, "identifier") || strVal(bodyIn, "email")).trim();
+    const cleaned = rawIdentifier.replace(/^@+/, "").trim().toLowerCase();
     const message = strVal(bodyIn, "message").slice(0, 300);
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new DomainError("Email không hợp lệ.");
+    if (!cleaned) throw new DomainError("Vui lòng nhập email hoặc @tên_đăng_nhập của người cần mời.");
 
     const invitee = await tx(db, async () => {
+      let email = "";
+      let u: { id: string; display_name: string; email: string; status: string } | undefined;
+
+      if (cleaned.includes("@")) {
+        if (!INVITE_EMAIL_RE.test(cleaned)) throw new DomainError("Địa chỉ email không hợp lệ.");
+        email = cleaned;
+        u = await one<{ id: string; display_name: string; email: string; status: string }>(
+          db,
+          `SELECT id, display_name, email, status FROM users WHERE LOWER(email) = LOWER(?)`,
+          email,
+        );
+      } else {
+        u = await one<{ id: string; display_name: string; email: string; status: string }>(
+          db,
+          `SELECT id, display_name, email, status FROM users WHERE LOWER(username) = LOWER(?)`,
+          cleaned,
+        );
+        if (!u) {
+          throw new DomainError(
+            `Không tìm thấy tài khoản @${cleaned} — kiểm tra lại tên đăng nhập hoặc nhập địa chỉ email.`,
+            "NOT_FOUND",
+          );
+        }
+        email = u.email.toLowerCase();
+      }
+
+      if (u) {
+        if (u.id === v.id) throw new DomainError("Bạn không thể tự mời chính mình.");
+        if (u.status === "LOCKED") throw new DomainError("Tài khoản này đang bị khoá nên chưa thể nhận lời mời.");
+        if (await one(db, `SELECT 1 FROM user_roles WHERE user_id = ? AND role_code = 'ADMIN'`, u.id)) {
+          throw new DomainError("Không thể mời tài khoản Quản trị viên làm Cộng tác viên.");
+        }
+      }
+
       const existingMember = await one<{ role_code: string }>(
         db,
         `SELECT pm.role_code FROM project_members pm JOIN users u ON u.id = pm.user_id
@@ -1014,11 +1051,6 @@ export async function inviteCollaborator(viewer: Viewer | null, bodyIn: Payload)
         email,
       );
       if (existingMember) throw new DomainError("Người dùng này đã là thành viên của dự án.");
-
-      const u = await one<{ id: string; display_name: string }>(db, `SELECT id, display_name FROM users WHERE LOWER(email) = LOWER(?)`, email);
-      if (u && (await one(db, `SELECT 1 FROM user_roles WHERE user_id = ? AND role_code = 'ADMIN'`, u.id))) {
-        throw new DomainError("Không thể mời tài khoản Quản trị viên làm Collaborator.");
-      }
 
       const now = nowIso();
       await run(
@@ -1037,7 +1069,7 @@ export async function inviteCollaborator(viewer: Viewer | null, bodyIn: Payload)
         projectId,
         email,
       );
-      if (pending) throw new DomainError("Email này đã có lời mời đang chờ phản hồi.");
+      if (pending) throw new DomainError("Người dùng này đã có lời mời đang chờ phản hồi.");
 
       const token = randomBytes(24).toString("base64url");
       const expiresAt = new Date(Date.now() + 7 * DAY_MS).toISOString();
@@ -1059,22 +1091,140 @@ export async function inviteCollaborator(viewer: Viewer | null, bodyIn: Payload)
         await notify(db, {
           userId: u.id,
           type: "INVITATION",
-          title: `Lời mời làm Collaborator: ${p.title}`,
-          body: message || `${v.displayName} mời bạn đồng hành quản lý dự án.`,
-          link: "/me",
+          title: `Lời mời làm Cộng tác viên: ${p.title}`,
+          body: message || `${v.displayName} mời bạn đồng hành vận hành dự án.`,
+          link: "/studio",
           actorId: v.id,
           projectId,
         });
       }
       await audit(db, v.id, "member.invite", "project", projectId, email);
-      return u;
+      return { u, email };
     });
 
     return {
       ok: true,
       slug: p.slug,
-      message: invitee ? `Đã gửi lời mời tới ${invitee.display_name} (${email}).` : `Đã tạo lời mời 7 ngày cho ${email}.`,
+      message: invitee.u
+        ? `Đã gửi lời mời tới ${invitee.u.display_name} (${invitee.email}).`
+        : `Đã tạo lời mời 7 ngày cho ${invitee.email}.`,
     };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function resendInvitation(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  try {
+    const projectId = strVal(bodyIn, "project_id");
+    const { v, db, p } = await requireActor(viewer, projectId, "member.manage");
+    const invId = strVal(bodyIn, "invitation_id");
+    if (!invId) throw new DomainError("Thiếu mã lời mời.");
+
+    const result = await tx(db, async () => {
+      const inv = await one<{
+        id: string;
+        email: string;
+        invitee_id: string | null;
+        message: string;
+        status: string;
+      }>(
+        db,
+        `SELECT id, email, invitee_id, message, status FROM project_invitations WHERE id = ? AND project_id = ?`,
+        invId,
+        projectId,
+      );
+      if (!inv) throw new DomainError("Không tìm thấy lời mời.", "NOT_FOUND");
+      if (inv.status === "ACCEPTED") throw new DomainError("Lời mời này đã được chấp nhận trước đó.");
+
+      const u = inv.invitee_id
+        ? await one<{ id: string; display_name: string; email: string; status: string }>(
+            db,
+            `SELECT id, display_name, email, status FROM users WHERE id = ?`,
+            inv.invitee_id,
+          )
+        : await one<{ id: string; display_name: string; email: string; status: string }>(
+            db,
+            `SELECT id, display_name, email, status FROM users WHERE LOWER(email) = LOWER(?)`,
+            inv.email,
+          );
+
+      if (u) {
+        if (u.status === "LOCKED") throw new DomainError("Tài khoản này đang bị khoá.");
+        if (await one(db, `SELECT 1 FROM user_roles WHERE user_id = ? AND role_code = 'ADMIN'`, u.id)) {
+          throw new DomainError("Không thể mời Quản trị viên làm Cộng tác viên.");
+        }
+        const already = await one(
+          db,
+          `SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ? AND status = 'ACTIVE'`,
+          projectId,
+          u.id,
+        );
+        if (already) throw new DomainError("Người dùng này đã là thành viên của dự án.");
+      }
+
+      const now = nowIso();
+      const expiresAt = new Date(Date.now() + 7 * DAY_MS).toISOString();
+
+      if (inv.status === "PENDING") {
+        await run(
+          db,
+          `UPDATE project_invitations SET expires_at = ?, invited_by = ?, invitee_id = ? WHERE id = ? AND project_id = ?`,
+          expiresAt,
+          v.id,
+          u?.id ?? inv.invitee_id,
+          inv.id,
+          projectId,
+        );
+      } else {
+        await run(
+          db,
+          `UPDATE project_invitations SET status = 'EXPIRED', responded_at = ?
+           WHERE project_id = ? AND LOWER(email) = LOWER(?) AND status = 'PENDING' AND expires_at <= ?`,
+          now,
+          projectId,
+          inv.email,
+          now,
+        );
+        const otherPending = await one(
+          db,
+          `SELECT 1 FROM project_invitations WHERE project_id = ? AND LOWER(email) = LOWER(?) AND status = 'PENDING'`,
+          projectId,
+          inv.email,
+        );
+        if (otherPending) throw new DomainError("Email này đã có lời mời khác đang chờ phản hồi.");
+
+        await insert(db, "project_invitations", {
+          id: newId(),
+          project_id: projectId,
+          email: inv.email,
+          invitee_id: u?.id ?? null,
+          invited_by: v.id,
+          role_code: "COLLABORATOR",
+          message: inv.message,
+          status: "PENDING",
+          token: randomBytes(24).toString("base64url"),
+          expires_at: expiresAt,
+          responded_at: null,
+        });
+      }
+
+      if (u) {
+        await notify(db, {
+          userId: u.id,
+          type: "INVITATION",
+          title: `Nhắc lại lời mời Cộng tác viên: ${p.title}`,
+          body: inv.message || `${v.displayName} mời bạn đồng hành vận hành dự án.`,
+          link: "/studio",
+          actorId: v.id,
+          projectId,
+        });
+      }
+      await audit(db, v.id, "member.invite_resend", "project", projectId, inv.email);
+      return u?.display_name || inv.email;
+    });
+
+    return { ok: true, slug: p.slug, message: `Đã gửi lại lời mời tới ${result}.` };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -1113,7 +1263,7 @@ export async function removeCollaborator(viewer: Viewer | null, bodyIn: Payload)
         userId,
       );
       if (!m || m.status !== "ACTIVE") throw new DomainError("Thành viên không còn hoạt động.", "NOT_FOUND");
-      if (m.role_code === "CREATOR") throw new DomainError("Không thể gỡ Creator khỏi dự án.");
+      if (m.role_code === "CREATOR") throw new DomainError("Không thể gỡ Chủ dự án khỏi dự án.");
       await run(
         db,
         `UPDATE project_members SET status = 'REMOVED', removed_at = ? WHERE project_id = ? AND user_id = ? AND role_code = 'COLLABORATOR'`,
@@ -1124,7 +1274,64 @@ export async function removeCollaborator(viewer: Viewer | null, bodyIn: Payload)
       await audit(db, v.id, "member.remove", "project", projectId, userId);
     });
 
-    return { ok: true, slug: p.slug, message: "Đã gỡ Collaborator khỏi dự án." };
+    return { ok: true, slug: p.slug, message: "Đã gỡ Cộng tác viên khỏi dự án." };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function leaveProject(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  try {
+    if (!viewer) throw new DomainError("Vui lòng đăng nhập để tiếp tục.", "FORBIDDEN");
+    if (viewer.status !== "ACTIVE") throw new DomainError("Tài khoản đang bị khoá.", "FORBIDDEN");
+    const projectId = strVal(bodyIn, "project_id");
+    if (!projectId) throw new DomainError("Thiếu mã dự án.");
+    const db = getDb();
+    const p = await one<{ id: string; slug: string; title: string; creator_id: string }>(
+      db,
+      `SELECT id, slug, title, creator_id FROM projects WHERE id = ?`,
+      projectId,
+    );
+    if (!p) throw new DomainError("Không tìm thấy dự án.", "NOT_FOUND");
+
+    await tx(db, async () => {
+      const m = await one<{ role_code: string; status: string }>(
+        db,
+        `SELECT role_code, status FROM project_members WHERE project_id = ? AND user_id = ?`,
+        p.id,
+        viewer.id,
+      );
+      if (!m || m.status !== "ACTIVE") {
+        throw new DomainError("Bạn không còn là thành viên hoạt động của dự án này.", "NOT_FOUND");
+      }
+      if (m.role_code === "CREATOR") {
+        throw new DomainError("Chủ dự án không thể tự rời khỏi dự án do mình sở hữu.");
+      }
+      await run(
+        db,
+        `UPDATE project_members SET status = 'REMOVED', removed_at = ? WHERE project_id = ? AND user_id = ? AND role_code = 'COLLABORATOR'`,
+        nowIso(),
+        p.id,
+        viewer.id,
+      );
+      await notify(db, {
+        userId: p.creator_id,
+        type: "INVITATION",
+        title: `${viewer.displayName} đã rời khỏi nhóm dự án`,
+        body: `Đã ngừng tham gia làm Cộng tác viên trên “${p.title}”.`,
+        link: `/studio/${p.slug}?tab=team`,
+        actorId: viewer.id,
+        projectId: p.id,
+      });
+      await audit(db, viewer.id, "member.leave", "project", p.id, viewer.username);
+    });
+
+    return {
+      ok: true,
+      slug: p.slug,
+      redirect: "/studio",
+      message: `Bạn đã rời khỏi vai trò Cộng tác viên của dự án “${p.title}”.`,
+    };
   } catch (e) {
     return { error: humanizeError(e) };
   }

@@ -1,26 +1,141 @@
 "use client";
 
-import { useEffect, useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MessageSquarePlus, RefreshCw, Send } from "lucide-react";
-import type { ConversationRow } from "@/server/queries/me";
+import type { ConversationRow, QuickContactItem } from "@/server/queries/me";
 import { markConversationReadAction, sendMessageAction, startConversationAction } from "@/server/actions/me";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/form";
 import { Badge, Card, ProjectStatusBadge, RoleBadge } from "@/components/ui/primitives";
 import { SafeAvatar, SafeImage } from "./safe-media";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 
+export function NewMessageModalButton({
+  quickContacts = [],
+  variant = "primary",
+  size = "sm",
+  label = "Tin nhắn mới",
+}: {
+  quickContacts?: QuickContactItem[];
+  variant?: "primary" | "outline" | "secondary" | "ghost";
+  size?: "xs" | "sm" | "md";
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [toValue, setToValue] = useState("");
+
+  const handleOpen = () => {
+    setToValue("");
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <Button type="button" variant={variant} size={size} onClick={handleOpen}>
+        <MessageSquarePlus className="size-4" /> {label}
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        size="lg"
+        title="Soạn tin nhắn mới"
+        description="Trao đổi trực tiếp với Chủ dự án, Cộng tác viên hoặc thành viên cộng đồng ngay trong hộp thư."
+      >
+        <ActionForm
+          key={open ? "new-msg-open" : "new-msg-closed"}
+          action={startConversationAction}
+          onSuccess={() => setOpen(false)}
+          className="space-y-4"
+        >
+          <Field label="Người nhận (username hoặc email)" required hint="Ví dụ: hoanglinh, haiyen, nguyennhutthanh813">
+            <Input
+              name="to"
+              value={toValue}
+              onChange={(e) => setToValue(e.target.value)}
+              placeholder="Nhập @username hoặc email người nhận…"
+              required
+              list="quick-contacts-modal-list"
+            />
+            {quickContacts.length > 0 && (
+              <datalist id="quick-contacts-modal-list">
+                {quickContacts.map((c) => (
+                  <option key={c.username} value={c.username}>
+                    {c.display_name} ({c.hint})
+                  </option>
+                ))}
+              </datalist>
+            )}
+          </Field>
+
+          {quickContacts.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold text-muted">Chọn nhanh người liên hệ:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {quickContacts.map((c) => {
+                  const selected = toValue.trim().toLowerCase() === c.username.toLowerCase();
+                  return (
+                    <button
+                      key={c.username}
+                      type="button"
+                      onClick={() => setToValue(c.username)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition",
+                        selected
+                          ? "border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-300"
+                          : "border-line bg-surface-2 hover:border-violet-400/60",
+                      )}
+                    >
+                      <SafeAvatar name={c.display_name} src={c.avatar_url} size={18} />
+                      <span>{c.display_name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-3.5 sm:grid-cols-2">
+            <Field label="Slug dự án (tuỳ chọn)" hint="Ví dụ: orbit-one">
+              <Input name="project" placeholder="orbit-one" />
+            </Field>
+            <Field label="Chủ đề (tuỳ chọn)">
+              <Input name="subject" maxLength={120} placeholder="Hỏi về phần quà, tiến độ giao hàng…" />
+            </Field>
+          </div>
+
+          <Field label="Nội dung tin nhắn" required>
+            <Textarea name="body" required rows={4} maxLength={2000} placeholder="Viết tin nhắn gửi tới người nhận…" />
+          </Field>
+
+          <div className="flex justify-end gap-2 border-t border-line pt-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Huỷ
+            </Button>
+            <SubmitButton size="sm" pendingText="Đang gửi…">
+              <Send className="size-4" /> Gửi tin nhắn
+            </SubmitButton>
+          </div>
+        </ActionForm>
+      </Dialog>
+    </>
+  );
+}
+
 export function ConversationList({
   conversations,
   viewerId,
   activeId,
+  quickContacts = [],
 }: {
   conversations: ConversationRow[];
   viewerId: string;
   activeId?: string;
+  quickContacts?: QuickContactItem[];
 }) {
   return (
     <Card className="flex flex-col overflow-hidden">
@@ -29,18 +144,13 @@ export function ConversationList({
           <h2 className="text-sm font-bold">Hộp thư ({conversations.length})</h2>
           <p className="text-[11px] text-muted">Trao đổi trực tiếp cùng chủ dự án &amp; người ủng hộ</p>
         </div>
-        <ButtonLink href="/me/messages/new" size="xs">
-          <MessageSquarePlus className="size-3.5" /> Mới
-        </ButtonLink>
+        <NewMessageModalButton quickContacts={quickContacts} size="xs" label="Mới" />
       </div>
 
       <div className="divide-y divide-line max-h-[68vh] overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted">
-            Chưa có cuộc trò chuyện nào.{" "}
-            <Link href="/me/messages/new" className="font-semibold text-violet-600 hover:underline dark:text-violet-400">
-              Gửi tin nhắn đầu tiên
-            </Link>
+            Chưa có cuộc trò chuyện nào. Bấm nút <b>Mới</b> ở góc trên để gửi tin nhắn đầu tiên.
           </div>
         ) : (
           conversations.map((c) => {
@@ -301,7 +411,7 @@ export function NewMessageForm({
   prefillTo?: string;
   prefillToDisplay?: { username: string; display_name: string; avatar_url: string | null } | null;
   prefillProject?: { slug: string; title: string; status: string } | null;
-  quickContacts: { username: string; display_name: string; avatar_url: string | null; hint: string }[];
+  quickContacts: QuickContactItem[];
 }) {
   return (
     <Card className="p-5 sm:p-6">
@@ -383,7 +493,7 @@ export function NewMessageForm({
         </Field>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <Badge tone="slate">Không real-time · bấm Làm mới trong hộp thư để xem phản hồi</Badge>
+          <Badge tone="slate">Bấm Làm mới trong hộp thư để cập nhật tin phản hồi</Badge>
           <div className="flex gap-2">
             <ButtonLink href="/me/messages" variant="outline" size="sm">
               Huỷ

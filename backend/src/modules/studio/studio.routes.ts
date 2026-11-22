@@ -25,6 +25,7 @@ import {
   reviewHistory,
   rewardsData,
   rolePermissionList,
+  searchInvitableUsers,
   sidebarCounts,
   statusTimeline,
   studioAccess,
@@ -43,6 +44,7 @@ import {
   deleteUpdateDraft,
   inviteCollaborator,
   launchNowOp,
+  leaveProject,
   markCommentHandled,
   moderateStudioComment,
   moveFaq,
@@ -51,6 +53,7 @@ import {
   publishUpdate,
   removeCollaborator,
   replyInboxComment,
+  resendInvitation,
   revokeInvitation,
   runAiPrediction,
   saveAddOn,
@@ -369,8 +372,33 @@ studioRouter.post("/ai/predict", async (req, res) => {
   res.status(r.error ? 400 : 200).json(r);
 });
 
+studioRouter.get("/projects/:slug/team/search", async (req, res) => {
+  try {
+    const slug = String(req.params.slug);
+    const q = typeof req.query.q === "string" ? req.query.q : "";
+    const project = await getStudioProject(slug);
+    if (!project) {
+      res.status(404).json({ ok: false, error: "Không tìm thấy dự án." });
+      return;
+    }
+    if (!(await canProject(getDb(), req.viewer, project.id, "member.manage"))) {
+      res.status(403).json({ ok: false, error: "Chỉ Chủ dự án mới được tìm kiếm thành viên để mời." });
+      return;
+    }
+    const users = await searchInvitableUsers(project.id, q);
+    res.json({ ok: true, users });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: humanizeError(e) });
+  }
+});
+
 studioRouter.post("/team/invite", async (req, res) => {
   const r = await inviteCollaborator(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+studioRouter.post("/team/resend", async (req, res) => {
+  const r = await resendInvitation(req.viewer, req.body ?? {});
   res.status(r.error ? 400 : 200).json(r);
 });
 
@@ -381,6 +409,11 @@ studioRouter.post("/team/revoke", async (req, res) => {
 
 studioRouter.post("/team/remove", async (req, res) => {
   const r = await removeCollaborator(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+studioRouter.post("/team/leave", async (req, res) => {
+  const r = await leaveProject(req.viewer, req.body ?? {});
   res.status(r.error ? 400 : 200).json(r);
 });
 

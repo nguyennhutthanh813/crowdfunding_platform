@@ -55,8 +55,8 @@ async function nextStepFor(p: Omit<StudioCard, "next">): Promise<NextStep> {
             progress: Math.round((done / list.length) * 100),
           }
         : {
-            title: "Creator đang soạn bản nháp",
-            detail: `${done}/${list.length} mục đã xong — bạn có thể chuẩn bị FAQ`,
+            title: "Chủ dự án đang soạn bản nháp",
+            detail: `${done}/${list.length} mục đã xong — bạn có thể chuẩn bị câu hỏi thường gặp`,
             tone: "slate",
             href: `${base}?tab=faq`,
             progress: Math.round((done / list.length) * 100),
@@ -87,7 +87,7 @@ async function nextStepFor(p: Omit<StudioCard, "next">): Promise<NextStep> {
     case "SCHEDULED":
       return {
         title: "Sắp mở góp vốn",
-        detail: "Chuẩn bị FAQ và Update chào mừng",
+        detail: "Chuẩn bị câu hỏi thường gặp và bản tin chào mừng",
         tone: "sky",
         href: creator ? `${base}?tab=settings` : `${base}?tab=faq`,
         countdownTo: p.start_at,
@@ -108,21 +108,21 @@ async function nextStepFor(p: Omit<StudioCard, "next">): Promise<NextStep> {
       );
       const parts = [
         pending ? `${pending} góp ý chưa xử lý` : "",
-        drafts ? `${drafts} bản nháp Update chờ ${creator ? "duyệt" : "Creator duyệt"}` : "",
+        drafts ? `${drafts} bản tin nháp chờ ${creator ? "duyệt" : "Chủ dự án duyệt"}` : "",
       ].filter(Boolean);
       return parts.length
         ? {
-            title: pending ? "Trả lời cộng đồng" : "Duyệt Update",
+            title: pending ? "Trả lời cộng đồng" : "Duyệt bản tin",
             detail: parts.join(" · "),
             tone: "emerald",
             href: pending ? `${base}?tab=comments` : `${base}?tab=updates`,
           }
-        : { title: "Giữ nhịp chiến dịch", detail: "Đăng một Update mới để backer thêm hào hứng", tone: "emerald", href: `${base}?tab=updates` };
+        : { title: "Giữ nhịp chiến dịch", detail: "Đăng một bản tin cập nhật mới để người ủng hộ thêm hào hứng", tone: "emerald", href: `${base}?tab=updates` };
     }
     case "SUCCESS":
       return creator
-        ? { title: "Bắt đầu giao quà", detail: "Đã trừ tiền backer — tạo danh sách giao hàng", tone: "violet", href: `${base}?tab=fulfillment` }
-        : { title: "Dự án thành công 🎉", detail: "Creator sẽ bắt đầu giao quà", tone: "violet", href: base };
+        ? { title: "Bắt đầu giao quà", detail: "Đã trừ tiền người ủng hộ — tạo danh sách giao hàng", tone: "violet", href: `${base}?tab=fulfillment` }
+        : { title: "Dự án thành công 🎉", detail: "Chủ dự án sẽ bắt đầu giao quà", tone: "violet", href: base };
     case "FULFILLING": {
       const s = await one<{ total: number; done: number }>(
         db,
@@ -141,7 +141,7 @@ async function nextStepFor(p: Omit<StudioCard, "next">): Promise<NextStep> {
       };
     }
     case "COMPLETED":
-      return { title: "Đã hoàn thành", detail: "Gửi lời cảm ơn tới backer", tone: "emerald", href: creator ? `${base}?tab=settings` : base };
+      return { title: "Đã hoàn thành", detail: "Gửi lời cảm ơn tới người ủng hộ", tone: "emerald", href: creator ? `${base}?tab=settings` : base };
     case "FAILED":
       return { title: "Không đạt mục tiêu", detail: "Không ai bị trừ tiền — xem lại phân tích để thử lại", tone: "slate", href: base };
     case "SUSPENDED":
@@ -175,14 +175,67 @@ export async function listStudioProjects(userId: string) {
 }
 
 export async function pendingInvitationsFor(userId: string, email?: string) {
-  return all<{ id: string; title: string; slug: string; inviter: string; message: string }>(
+  return all<{
+    id: string;
+    title: string;
+    slug: string;
+    project_cover: string | null;
+    project_status: string;
+    inviter: string;
+    inviter_username: string;
+    inviter_avatar: string | null;
+    message: string;
+    expires_at: string;
+    created_at: string;
+  }>(
     getDb(),
-    `SELECT i.id, p.title, p.slug, u.display_name AS inviter, i.message FROM project_invitations i
-     JOIN projects p ON p.id = i.project_id JOIN users u ON u.id = i.invited_by
-     WHERE (i.invitee_id = ? OR LOWER(i.email) = LOWER(?)) AND i.status = 'PENDING' AND i.expires_at > ?`,
+    `SELECT i.id, p.title, p.slug, p.cover_url AS project_cover, p.status AS project_status,
+            u.display_name AS inviter, u.username AS inviter_username, u.avatar_url AS inviter_avatar,
+            i.message, i.expires_at, i.created_at
+     FROM project_invitations i
+     JOIN projects p ON p.id = i.project_id
+     JOIN users u ON u.id = i.invited_by
+     WHERE (i.invitee_id = ? OR LOWER(i.email) = LOWER(?))
+       AND i.status = 'PENDING' AND i.expires_at > ?
+     ORDER BY i.created_at DESC`,
     userId,
     email ?? "",
     nowIso(),
+  );
+}
+
+export async function searchInvitableUsers(projectId: string, qRaw: string) {
+  const db = getDb();
+  const q = qRaw.trim().replace(/^@/, "");
+  const now = nowIso();
+  const pattern = `%${q}%`;
+  const whereQ = q
+    ? `AND (LOWER(u.display_name) LIKE LOWER(?) OR LOWER(u.username) LIKE LOWER(?) OR LOWER(u.email) LIKE LOWER(?))`
+    : "";
+  const args = q ? [projectId, projectId, now, pattern, pattern, pattern] : [projectId, projectId, now];
+
+  return all<{
+    id: string;
+    username: string;
+    display_name: string;
+    email: string;
+    avatar_url: string | null;
+  }>(
+    db,
+    `SELECT u.id, u.username, u.display_name, u.email, u.avatar_url
+     FROM users u
+     WHERE u.status = 'ACTIVE'
+       AND NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_code = 'ADMIN')
+       AND NOT EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = ? AND pm.user_id = u.id AND pm.status = 'ACTIVE')
+       AND NOT EXISTS (
+         SELECT 1 FROM project_invitations pi
+         WHERE pi.project_id = ? AND (pi.invitee_id = u.id OR LOWER(pi.email) = LOWER(u.email))
+           AND pi.status = 'PENDING' AND pi.expires_at > ?
+       )
+       ${whereQ}
+     ORDER BY u.display_name ASC
+     LIMIT 8`,
+    ...args,
   );
 }
 

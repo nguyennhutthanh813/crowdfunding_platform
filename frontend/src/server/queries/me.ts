@@ -312,6 +312,39 @@ export async function conversationComposeMeta(to: string, project: string) {
   };
 }
 
+export interface QuickContactItem {
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  hint: string;
+}
+
+export function buildQuickContacts(
+  viewerUsername: string,
+  meta: Awaited<ReturnType<typeof conversationComposeMeta>>,
+  limit = 8,
+): QuickContactItem[] {
+  const seen = new Set<string>([viewerUsername]);
+  const quickContacts: QuickContactItem[] = [];
+
+  for (const c of meta.followed) {
+    if (seen.has(c.username)) continue;
+    seen.add(c.username);
+    quickContacts.push({ username: c.username, display_name: c.display_name, avatar_url: c.avatar_url, hint: "Đang theo dõi" });
+  }
+  for (const p of meta.pledges) {
+    if (seen.has(p.creator_username)) continue;
+    seen.add(p.creator_username);
+    quickContacts.push({ username: p.creator_username, display_name: p.creator_name, avatar_url: null, hint: p.title });
+  }
+  for (const s of meta.suggestions) {
+    if (seen.has(s.username)) continue;
+    seen.add(s.username);
+    quickContacts.push({ username: s.username, display_name: s.display_name, avatar_url: s.avatar_url, hint: "Chủ dự án" });
+  }
+  return quickContacts.slice(0, limit);
+}
+
 export async function conversationThread(conversationId: string) {
   const res = await apiGet<{
     ok?: boolean;
