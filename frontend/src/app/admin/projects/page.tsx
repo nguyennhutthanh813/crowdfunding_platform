@@ -107,7 +107,7 @@ export default async function AdminProjectsPage({
       ) : (
         <>
           {/* Mobile cards */}
-          <div className="space-y-3 md:hidden">
+          <div className="space-y-3 xl:hidden">
             {rows.map((p) => {
               const pct = percentOf(p.pledged_amount, p.goal_amount);
               const detailHref = p.status === "PENDING_REVIEW" ? `/admin/reviews/${p.slug}` : `/p/${p.slug}`;
@@ -159,15 +159,14 @@ export default async function AdminProjectsPage({
           </div>
 
           {/* Desktop table */}
-          <div className="card hidden overflow-x-auto md:block">
+          <div className="card hidden overflow-x-auto xl:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-surface-2/60 text-xs font-bold uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-4 py-3">Dự án</th>
                   <th className="px-4 py-3">Chủ dự án</th>
                   <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3">Góp vốn</th>
-                  <th className="px-4 py-3">Thời hạn</th>
+                  <th className="px-4 py-3">Góp vốn &amp; Hạn</th>
                   <th className="px-4 py-3 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -189,7 +188,6 @@ export default async function AdminProjectsPage({
                             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
                               <span className="size-2 rounded-full" style={{ backgroundColor: p.color }} />
                               <span>{p.category}</span>
-                              <span>· /{p.slug}</span>
                             </div>
                           </div>
                         </div>
@@ -200,9 +198,9 @@ export default async function AdminProjectsPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col items-start gap-1">
-                          <ProjectStatusBadge status={p.status} />
+                          <ProjectStatusBadge status={p.status} className="whitespace-nowrap" />
                           {p.open_reports > 0 && (
-                            <Badge tone={p.open_reports >= 3 ? "rose" : "amber"}>
+                            <Badge tone={p.open_reports >= 3 ? "rose" : "amber"} className="whitespace-nowrap">
                               {p.open_reports >= 3 && <AlertTriangle className="size-3" />}
                               {p.open_reports} báo cáo mở
                             </Badge>
@@ -214,14 +212,10 @@ export default async function AdminProjectsPage({
                           {formatCompactVnd(p.pledged_amount)} ({pct}%)
                         </div>
                         <div className="text-muted">
-                          Mục tiêu {formatCompactVnd(p.goal_amount)} · {p.backers_count} người ủng hộ
+                          Mục tiêu {formatCompactVnd(p.goal_amount)} · {p.backers_count} người ủng hộ · Đóng {formatDate(p.end_at)}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted">
-                        <div>Mở: {formatDate(p.start_at)}</div>
-                        <div>Đóng: {formatDate(p.end_at)}</div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="inline-flex items-center justify-end gap-1.5">
                           <ButtonLink href={detailHref} variant="ghost" size="xs">
                             <ExternalLink className="size-3.5" /> {p.status === "PENDING_REVIEW" ? "Duyệt" : "Xem"}

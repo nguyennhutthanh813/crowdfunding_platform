@@ -145,7 +145,7 @@ export default async function AdminTransactionsPage({
       ) : (
         <>
           {/* Mobile cards */}
-          <div className="space-y-3 lg:hidden">
+          <div className="space-y-3 xl:hidden">
             {txData.rows.map((r) => {
               const km = TX_KIND_META[r.kind] ?? { label: r.kind, tone: "neutral" as const, hint: "" };
               const sm = TX_STATUS_META[r.status] ?? { label: r.status, tone: "neutral" as const };
@@ -181,7 +181,7 @@ export default async function AdminTransactionsPage({
           </div>
 
           {/* Desktop table */}
-          <div className="card hidden overflow-x-auto lg:block">
+          <div className="card hidden overflow-x-auto xl:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-surface-2/60 text-xs font-bold uppercase tracking-wider text-muted">
                 <tr>
@@ -190,7 +190,6 @@ export default async function AdminTransactionsPage({
                   <th className="px-4 py-3">Mã góp vốn &amp; Người ủng hộ</th>
                   <th className="px-4 py-3">Dự án</th>
                   <th className="px-4 py-3 text-right">Số tiền</th>
-                  <th className="px-4 py-3">Tham chiếu cổng</th>
                   <th className="px-4 py-3 text-right">Quản trị</th>
                 </tr>
               </thead>
@@ -198,21 +197,29 @@ export default async function AdminTransactionsPage({
                 {txData.rows.map((r) => {
                   const km = TX_KIND_META[r.kind] ?? { label: r.kind, tone: "neutral" as const, hint: "" };
                   const sm = TX_STATUS_META[r.status] ?? { label: r.status, tone: "neutral" as const };
+                  const gatewayNote = [
+                    r.message,
+                    r.vnp_txn_ref,
+                    r.provider_ref ? `#${r.provider_ref}` : "",
+                    r.vnp_response_code ? `Mã ${r.vnp_response_code}` : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
                   return (
                     <tr key={r.id} className="transition hover:bg-surface-2/40">
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-muted">{formatDate(r.created_at, true)}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge tone={r.provider === "VNPAY" ? "sky" : "slate"}>
+                          <Badge tone={r.provider === "VNPAY" ? "sky" : "slate"} className="whitespace-nowrap">
                             {r.provider === "VNPAY" ? `VNPAY${r.bank_code ? ` · ${r.bank_code}` : ""}` : "Thẻ đã lưu"}
                           </Badge>
                           <span title={km.hint}>
-                            <Badge tone={km.tone}>{km.label}</Badge>
+                            <Badge tone={km.tone} className="whitespace-nowrap">{km.label}</Badge>
                           </span>
-                          <Badge tone={sm.tone}>{sm.label}</Badge>
+                          <Badge tone={sm.tone} className="whitespace-nowrap">{sm.label}</Badge>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs">
+                      <td className="px-4 py-3 text-xs" title={gatewayNote || undefined}>
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono font-bold">{r.code}</span>
                           <PledgeStatusBadge status={r.pledge_status} />
@@ -221,21 +228,14 @@ export default async function AdminTransactionsPage({
                           {r.backer} (@{r.backer_username})
                         </div>
                       </td>
-                      <td className="max-w-[220px] px-4 py-3">
+                      <td className="max-w-[240px] px-4 py-3">
                         <Link href={`/p/${r.slug}`} className="block truncate font-semibold hover:text-violet-600">
                           {r.title}
                         </Link>
+                        {r.message && <div className="truncate text-[11px] text-muted">{r.message}</div>}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-extrabold tabular-nums">
                         {formatVnd(r.amount)}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted">
-                        <div className="max-w-[240px] truncate">{r.message || "—"}</div>
-                        <div className="font-mono text-[10px]">
-                          {r.vnp_txn_ref ? `${r.vnp_txn_ref} · ` : ""}
-                          {r.provider_ref ? `#${r.provider_ref}` : ""}
-                          {r.vnp_response_code ? ` (Mã ${r.vnp_response_code})` : ""}
-                        </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <TransactionRowActions row={r} />

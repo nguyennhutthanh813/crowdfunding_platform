@@ -350,9 +350,9 @@ export default async function StudioProjectPage(props: {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl space-y-6 overflow-x-clip px-4 py-8 sm:px-6">
       {/* Studio Workspace Header */}
-      <div className="card space-y-5 p-5 sm:p-6">
+      <div className="card min-w-0 space-y-5 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/studio" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg">
             <ArrowLeft className="size-4" /> Danh sách dự án Studio
@@ -407,11 +407,11 @@ export default async function StudioProjectPage(props: {
         </div>
 
         {/* Lifecycle Stepper */}
-        <div className="border-t border-line pt-4">
+        <div className="no-scrollbar overflow-x-auto border-t border-line pt-4">
           {project.status === "CANCELLED" ? (
             <Badge tone="neutral">Chiến dịch đã bị huỷ</Badge>
           ) : (
-            <ol className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-1">
+            <ol className="flex min-w-max items-center gap-2 pb-1">
               {LIFECYCLE_STEPS.map((st, idx) => {
                 const isCurrent = idx === currentStepIdx;
                 const isDone = currentStepIdx > idx;
@@ -463,7 +463,7 @@ export default async function StudioProjectPage(props: {
       )}
 
       {/* Tabs */}
-      <div className="card p-2">
+      <div className="card min-w-0 overflow-hidden p-2">
         <LinkTabs items={tabItems} active={activeTab} id={`studio-${project.id}`} />
       </div>
 

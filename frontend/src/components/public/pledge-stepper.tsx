@@ -328,8 +328,8 @@ export function PledgeStepper({
       {/* Thanh tiến trình 3 bước */}
       <ol className="grid grid-cols-3 gap-2 sm:gap-3">
         {[
-          { n: 1 as const, label: "Chọn mức quà", shortLabel: "Chọn quà", icon: Gift },
-          { n: 2 as const, label: "Quà kèm & địa chỉ", shortLabel: "Địa chỉ", icon: Package },
+          { n: 1 as const, label: "Chọn mức quà", shortLabel: "Quà", icon: Gift },
+          { n: 2 as const, label: "Quà kèm & địa chỉ", shortLabel: "Giao hàng", icon: Package },
           { n: 3 as const, label: "Thanh toán", shortLabel: "Thanh toán", icon: CreditCard },
         ].map((s) => {
           const active = step === s.n;
@@ -367,7 +367,8 @@ export function PledgeStepper({
                   <span className="block truncate text-[10px] font-bold uppercase tracking-wider text-muted">
                     Bước {s.n}
                   </span>
-                  <span className="block truncate text-xs font-bold sm:text-sm">{s.label}</span>
+                  <span className="block truncate text-xs font-bold sm:hidden">{s.shortLabel}</span>
+                  <span className="hidden truncate text-sm font-bold sm:block">{s.label}</span>
                 </span>
               </button>
             </li>

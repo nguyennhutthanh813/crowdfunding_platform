@@ -70,7 +70,7 @@ export function CategoryManager({
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {categories.map((cat) => (
           <div
             key={cat.id}
@@ -89,14 +89,10 @@ export function CategoryManager({
                     <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat.color }} />
                     <h3 className="truncate font-bold">{cat.name}</h3>
                   </div>
-                  <div className="mt-0.5 truncate font-mono text-xs text-muted">/{cat.slug}</div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <Badge tone={cat.is_active === 1 ? "emerald" : "neutral"} dot>
                       {cat.is_active === 1 ? "Đang bật" : "Đã ẩn"}
                     </Badge>
-                    <span className="rounded-md bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-muted">
-                      #{cat.sort_order}
-                    </span>
                   </div>
                 </div>
               </div>

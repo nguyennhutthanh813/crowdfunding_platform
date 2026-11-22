@@ -41,11 +41,7 @@ export default async function MySettingsPage(props: {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Tài khoản & Bảo mật"
-        title="Cài đặt tài khoản"
-        description="Quản lý hồ sơ cá nhân, bảo mật đăng nhập 2FA, tuỳ chọn thông báo, địa chỉ và thẻ thanh toán."
-      />
+      <PageHeader title="Cài đặt tài khoản" />
 
       <LinkTabs id="settings-tabs" param="tab" active={activeTab} items={tabs} />
 

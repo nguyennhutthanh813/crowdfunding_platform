@@ -93,7 +93,7 @@ export default async function AdminUsersPage({
       ) : (
         <>
           {/* Mobile cards */}
-          <div className="space-y-3 lg:hidden">
+          <div className="space-y-3 xl:hidden">
             {data.rows.map((u) => {
               const detailHref = buildQueryHref("/admin/users", { ...currentParams, detail: u.id });
               return (
@@ -158,7 +158,7 @@ export default async function AdminUsersPage({
           </div>
 
           {/* Desktop table */}
-          <div className="card hidden overflow-x-auto lg:block">
+          <div className="card hidden overflow-x-auto xl:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-surface-2/60 text-xs font-bold uppercase tracking-wider text-muted">
                 <tr>
@@ -174,7 +174,7 @@ export default async function AdminUsersPage({
                   const detailHref = buildQueryHref("/admin/users", { ...currentParams, detail: u.id });
                   return (
                     <tr key={u.id} className="transition hover:bg-surface-2/40">
-                      <td className="px-4 py-3">
+                      <td className="max-w-[260px] px-4 py-3">
                         <div className="flex items-center gap-3">
                           <SafeAvatar name={u.display_name} src={u.avatar_url} size={36} />
                           <div className="min-w-0">
@@ -185,7 +185,7 @@ export default async function AdminUsersPage({
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="max-w-[260px] px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1">
                           {u.roles.map((r) => (
                             <RoleBadge key={r} role={r} />
@@ -222,7 +222,7 @@ export default async function AdminUsersPage({
                         </div>
                         <div>Đăng nhập: {formatDate(u.last_login_at)}</div>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="inline-flex items-center justify-end gap-1.5">
                           <Link
                             href={detailHref}

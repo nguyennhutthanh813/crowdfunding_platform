@@ -110,64 +110,71 @@ export default async function StudioDashboardPage() {
             />
           </div>
 
-          {/* Creator Projects */}
-          <section>
-            <SectionTitle
-              title={
-                <span className="flex items-center gap-2">
-                  Dự án của tôi <RoleBadge role="CREATOR" />
-                </span>
-              }
-              description="Các dự án do bạn tạo và toàn quyền cấu hình."
-              action={
-                <ButtonLink href="/studio/new" variant="ghost" size="sm">
-                  <Plus className="size-4" /> Tạo mới
-                </ButtonLink>
-              }
-            />
-            {mine.length === 0 ? (
-              <EmptyState
-                compact
-                image="/v3/roles/creator.webp"
-                title="Bạn chưa tạo dự án nào"
-                description="Hiện bạn đang cộng tác ở dự án bên dưới, hoặc bắt đầu chiến dịch riêng của bạn ngay."
-                action={
-                  <ButtonLink href="/studio/new" size="sm">
-                    <Rocket className="size-4" /> Tạo dự án mới
-                  </ButtonLink>
-                }
-              />
-            ) : (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {mine.map((p, i) => (
-                  <Reveal key={p.id} delay={(i % 3) * 0.05}>
-                    <StudioProjectCard card={p} />
-                  </Reveal>
-                ))}
-              </div>
-            )}
-          </section>
+          {(() => {
+            const creatorSection = (
+              <section key="creator">
+                {mine.length > 0 && (
+                  <SectionTitle
+                    title={
+                      <span className="flex items-center gap-2">
+                        Dự án của tôi <RoleBadge role="CREATOR" />
+                      </span>
+                    }
+                    description="Các dự án do bạn tạo và toàn quyền cấu hình."
+                    action={
+                      <ButtonLink href="/studio/new" variant="ghost" size="sm">
+                        <Plus className="size-4" /> Tạo mới
+                      </ButtonLink>
+                    }
+                  />
+                )}
+                {mine.length === 0 ? (
+                  <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold">Muốn khởi tạo chiến dịch riêng?</div>
+                      <p className="text-xs text-muted">Bắt đầu dự án mới của riêng bạn bất cứ lúc nào.</p>
+                    </div>
+                    <ButtonLink href="/studio/new" size="sm" className="shrink-0">
+                      <Rocket className="size-4" /> Tạo dự án mới
+                    </ButtonLink>
+                  </div>
+                ) : (
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {mine.map((p, i) => (
+                      <Reveal key={p.id} delay={(i % 3) * 0.05}>
+                        <StudioProjectCard card={p} />
+                      </Reveal>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
 
-          {/* Collaborator Projects */}
-          {collab.length > 0 && (
-            <section>
-              <SectionTitle
-                title={
-                  <span className="flex items-center gap-2">
-                    Dự án tham gia cộng tác <RoleBadge role="COLLABORATOR" />
-                  </span>
-                }
-                description="Bạn hỗ trợ soạn câu hỏi thường gặp, nháp bản tin, phản hồi bình luận AI và theo dõi thống kê."
-              />
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {collab.map((p, i) => (
-                  <Reveal key={p.id} delay={(i % 3) * 0.05}>
-                    <StudioProjectCard card={p} />
-                  </Reveal>
-                ))}
-              </div>
-            </section>
-          )}
+            const collabSection =
+              collab.length > 0 ? (
+                <section key="collab">
+                  <SectionTitle
+                    title={
+                      <span className="flex items-center gap-2">
+                        Dự án tham gia cộng tác <RoleBadge role="COLLABORATOR" />
+                      </span>
+                    }
+                    description="Bạn hỗ trợ soạn câu hỏi thường gặp, nháp bản tin, phản hồi bình luận AI và theo dõi thống kê."
+                  />
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {collab.map((p, i) => (
+                      <Reveal key={p.id} delay={(i % 3) * 0.05}>
+                        <StudioProjectCard card={p} />
+                      </Reveal>
+                    ))}
+                  </div>
+                </section>
+              ) : null;
+
+            return mine.length === 0 && collab.length > 0
+              ? [collabSection, creatorSection]
+              : [creatorSection, collabSection];
+          })()}
         </>
       )}
     </div>

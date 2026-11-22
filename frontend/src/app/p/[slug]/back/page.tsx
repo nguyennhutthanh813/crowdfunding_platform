@@ -72,7 +72,7 @@ export default async function BackProjectPage(props: {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+    <div className="mx-auto max-w-6xl space-y-6 px-4 pb-28 pt-8 sm:px-6 sm:pt-10 md:pb-10">
       <div className="flex items-center gap-2 text-sm text-muted">
         <Link href={`/p/${project.slug}`} className="inline-flex items-center gap-1.5 font-semibold hover:text-fg">
           <ArrowLeft className="size-4" /> Quay lại {project.title}

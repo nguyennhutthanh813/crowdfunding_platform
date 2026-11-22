@@ -1,14 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ExternalLink, Shield } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { meSummary } from "@/server/queries/me";
 import { MeNav } from "@/components/me/me-nav";
 import { SafeAvatar } from "@/components/me/safe-media";
-import { ButtonLink } from "@/components/ui/button";
-import { Card, RoleBadge } from "@/components/ui/primitives";
-import { formatCompactVnd } from "@/lib/utils";
+import { RoleBadge } from "@/components/ui/primitives";
 
 export default async function MeLayout({ children }: { children: ReactNode }) {
   const v = await requireViewer("/me");
@@ -18,80 +16,58 @@ export default async function MeLayout({ children }: { children: ReactNode }) {
   const isMember = v.systemRoles.includes("MEMBER");
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 pb-24 pt-6 sm:px-6 lg:pb-12">
-      {/* Compact personal header */}
-      <Card className="relative overflow-hidden p-4 sm:p-5">
-        <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-violet-500/10 blur-3xl" />
-        <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-center gap-3.5">
-            <SafeAvatar name={s.display_name} src={s.avatar_url} size={56} />
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <h1 className="truncate text-lg font-extrabold tracking-tight sm:text-xl">{s.display_name}</h1>
-                {isAdmin && <RoleBadge role="ADMIN" />}
-                {isMember && <RoleBadge role="BACKER" />}
-                {s.creator_count > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    <RoleBadge role="CREATOR" />
-                    <span className="text-[11px] font-semibold text-muted">×{s.creator_count}</span>
-                  </span>
-                )}
-                {s.collab_count > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    <RoleBadge role="COLLABORATOR" />
-                    <span className="text-[11px] font-semibold text-muted">×{s.collab_count}</span>
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                <span>@{s.username}</span>
-                <Link
-                  href={`/u/${s.username}`}
-                  className="inline-flex items-center gap-1 font-semibold text-violet-600 hover:underline dark:text-violet-400"
-                >
-                  Hồ sơ công khai <ExternalLink className="size-3" />
-                </Link>
-              </div>
+    <div className="mx-auto max-w-7xl space-y-6 overflow-x-clip px-4 pb-24 pt-6 sm:px-6 lg:pb-12">
+      {/* Slim personal header strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <SafeAvatar name={s.display_name} src={s.avatar_url} size={42} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h1 className="truncate text-base font-extrabold tracking-tight sm:text-lg">{s.display_name}</h1>
+              {isAdmin && <RoleBadge role="ADMIN" />}
+              {isMember && <RoleBadge role="BACKER" />}
+              {s.creator_count > 0 && (
+                <span className="inline-flex items-center gap-0.5">
+                  <RoleBadge role="CREATOR" />
+                  <span className="text-[11px] font-semibold text-muted">×{s.creator_count}</span>
+                </span>
+              )}
+              {s.collab_count > 0 && (
+                <span className="inline-flex items-center gap-0.5">
+                  <RoleBadge role="COLLABORATOR" />
+                  <span className="text-[11px] font-semibold text-muted">×{s.collab_count}</span>
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted">
+              <span>@{s.username}</span>
+              {isMember && (
+                <span>
+                  {s.following_count} đang theo dõi · {s.follower_count} người theo dõi
+                </span>
+              )}
             </div>
           </div>
+        </div>
 
-          {isMember ? (
-            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
-              <Link
-                href="/me/backed"
-                className="rounded-xl border border-line bg-surface-2/70 px-3 py-2 text-center transition hover:border-violet-400/50 sm:text-left"
-              >
-                <div className="text-[11px] text-muted">Đã góp</div>
-                <div className="text-sm font-extrabold">
-                  {s.backed_projects} dự án · {formatCompactVnd(s.total_backed)}
-                </div>
-              </Link>
-              <Link
-                href="/me/saved"
-                className="rounded-xl border border-line bg-surface-2/70 px-3 py-2 text-center transition hover:border-violet-400/50 sm:text-left"
-              >
-                <div className="text-[11px] text-muted">Đã lưu</div>
-                <div className="text-sm font-extrabold">{s.saved_count} dự án</div>
-              </Link>
-              <Link
-                href="/me/following"
-                className="rounded-xl border border-line bg-surface-2/70 px-3 py-2 text-center transition hover:border-violet-400/50 sm:text-left"
-              >
-                <div className="text-[11px] text-muted">Theo dõi</div>
-                <div className="text-sm font-extrabold">
-                  {s.following_count} · {s.follower_count} fan
-                </div>
-              </Link>
-            </div>
+        <div className="flex shrink-0 items-center gap-3 text-xs font-semibold">
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-rose-600 transition hover:bg-rose-500/15 dark:text-rose-400"
+            >
+              Bảng quản trị <ExternalLink className="size-3" />
+            </Link>
           ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <ButtonLink href="/admin" size="sm">
-                <Shield className="size-4" /> Bảng quản trị
-              </ButtonLink>
-            </div>
+            <Link
+              href={`/u/${s.username}`}
+              className="inline-flex items-center gap-1 text-violet-600 hover:underline dark:text-violet-400"
+            >
+              Hồ sơ công khai <ExternalLink className="size-3" />
+            </Link>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* Main layout: Sidebar + Content */}
       <div className="grid gap-6 lg:grid-cols-[235px_1fr] lg:items-start">
