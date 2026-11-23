@@ -3,7 +3,20 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FolderKanban, MessageSquare, MessageSquarePlus, RefreshCw, Search, Send } from "lucide-react";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  FolderKanban,
+  Loader2,
+  MessageSquare,
+  MessageSquarePlus,
+  RefreshCw,
+  Search,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import type { ConversationRow, QuickContactItem, RelatedProjectItem } from "@/server/queries/me";
 import { markConversationReadAction, sendMessageAction, startConversationAction } from "@/server/actions/me";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
@@ -14,6 +27,128 @@ import { Badge, Card, ProjectStatusBadge, RoleBadge } from "@/components/ui/prim
 import { SafeAvatar, SafeImage } from "./safe-media";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 
+interface ContactSearchResult {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  relation: string;
+}
+
+const vnDateFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function vnDayKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return vnDateFmt.format(d);
+}
+
+function formatDayDivider(dayKey: string): string {
+  const now = new Date();
+  const todayKey = vnDateFmt.format(now);
+  const yesterdayKey = vnDateFmt.format(new Date(now.getTime() - 86_400_000));
+  if (dayKey === todayKey) return "Hôm nay";
+  if (dayKey === yesterdayKey) return "Hôm qua";
+  const parts = dayKey.split("-");
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dayKey;
+}
+
+function RecipientSearchInput({
+  value,
+  onChange,
+  placeholder = "Gõ tên hoặc @username để tìm người nhận…",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<ContactSearchResult[]>([]);
+
+  useEffect(() => {
+    if (!focused) return;
+    const ctrl = new AbortController();
+    const q = value.trim().replace(/^@+/, "");
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      fetch(`/api/me/contacts/search?q=${encodeURIComponent(q)}&limit=8`, {
+        signal: ctrl.signal,
+        cache: "no-store",
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { ok?: boolean; users?: ContactSearchResult[] } | null) => {
+          if (!ctrl.signal.aborted && data?.ok && Array.isArray(data.users)) {
+            setResults(data.users);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!ctrl.signal.aborted) setLoading(false);
+        });
+    }, q ? 220 : 60);
+    return () => {
+      window.clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [value, focused]);
+
+  const showDropdown = focused && (loading || results.length > 0);
+
+  return (
+    <div className="relative">
+      <Input
+        name="to"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={placeholder}
+        autoComplete="off"
+        required
+      />
+      {showDropdown && (
+        <div className="card absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto border border-line bg-surface p-1.5 shadow-xl">
+          {loading && results.length === 0 ? (
+            <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted">
+              <Loader2 className="size-3.5 animate-spin" /> Đang tìm thành viên…
+            </div>
+          ) : (
+            results.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(u.username);
+                  setFocused(false);
+                }}
+                className="flex w-full items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition hover:bg-surface-2"
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <SafeAvatar name={u.display_name} src={u.avatar_url} size={28} />
+                  <div className="min-w-0">
+                    <div className="truncate font-bold text-fg">{u.display_name}</div>
+                    <div className="truncate text-[11px] text-muted">@{u.username}</div>
+                  </div>
+                </div>
+                <Badge tone="slate" className="shrink-0">
+                  {u.relation}
+                </Badge>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectContextField({ relatedProjects = [] }: { relatedProjects?: RelatedProjectItem[] }) {
   const [customMode, setCustomMode] = useState(relatedProjects.length === 0);
   const [projectVal, setProjectVal] = useState("");
@@ -21,7 +156,7 @@ function ProjectContextField({ relatedProjects = [] }: { relatedProjects?: Relat
   if (relatedProjects.length === 0) {
     return (
       <Field label="Mã dự án (tuỳ chọn)" hint="Nếu trao đổi riêng không theo dự án, hãy để trống">
-        <Input name="project" value={projectVal} onChange={(e) => setProjectVal(e.target.value)} placeholder="Để trống hoặc nhập mã đường dẫn dự án…" />
+        <Input name="project" value={projectVal} onChange={(e) => setProjectVal(e.target.value)} placeholder="Để trống hoặc nhập mã dự án…" />
       </Field>
     );
   }
@@ -51,7 +186,7 @@ function ProjectContextField({ relatedProjects = [] }: { relatedProjects?: Relat
         />
       ) : (
         <Select name="project" value={projectVal} onChange={(e) => setProjectVal(e.target.value)}>
-          <option value="">Không gắn dự án cụ thể (tin nhắn riêng)</option>
+          <option value="">Không gắn dự án (nhắn chung)</option>
           {relatedProjects.map((p) => (
             <option key={p.slug} value={p.slug}>
               {p.title}
@@ -104,24 +239,8 @@ export function NewMessageModalButton({
           onSuccess={() => setOpen(false)}
           className="space-y-4"
         >
-          <Field label="Người nhận (username hoặc email)" required hint="Ví dụ: hoanglinh, haiyen, nguyennhutthanh813">
-            <Input
-              name="to"
-              value={toValue}
-              onChange={(e) => setToValue(e.target.value)}
-              placeholder="Nhập @username hoặc email người nhận…"
-              required
-              list="quick-contacts-modal-list"
-            />
-            {quickContacts.length > 0 && (
-              <datalist id="quick-contacts-modal-list">
-                {quickContacts.map((c) => (
-                  <option key={c.username} value={c.username}>
-                    {c.display_name} ({c.hint})
-                  </option>
-                ))}
-              </datalist>
-            )}
+          <Field label="Người nhận (tìm theo tên, @username hoặc email)" required hint="Gõ tên để tìm hoặc bấm liên hệ gợi ý bên dưới">
+            <RecipientSearchInput value={toValue} onChange={setToValue} />
           </Field>
 
           {quickContacts.length > 0 && (
@@ -271,50 +390,108 @@ export function ConversationList({
   relatedProjects?: RelatedProjectItem[];
 }) {
   const [search, setSearch] = useState("");
+  const [filterTab, setFilterTab] = useState<"ALL" | "UNREAD" | "PROJECT">("ALL");
+
+  const propSig = `${conversations.length}:${conversations[0]?.id ?? ""}:${conversations[0]?.last_message_at ?? ""}:${conversations.reduce((s, c) => s + Number(c.unread), 0)}`;
+  const [polled, setPolled] = useState<{ sig: string; items: ConversationRow[] } | null>(null);
+  const items = polled && polled.sig === propSig ? polled.items : conversations;
+
+  useEffect(() => {
+    let active = true;
+    const poll = () => {
+      if (!active || document.hidden) return;
+      fetch("/api/me/messages", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { ok?: boolean; conversations?: ConversationRow[] } | null) => {
+          if (active && data?.ok && Array.isArray(data.conversations)) {
+            setPolled({ sig: propSig, items: data.conversations });
+          }
+        })
+        .catch(() => {});
+    };
+    const id = window.setInterval(poll, 8_000);
+    const onFocus = () => poll();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [propSig]);
+
+  const unreadCount = useMemo(() => items.filter((c) => Number(c.unread) > 0).length, [items]);
+  const projectCount = useMemo(() => items.filter((c) => Boolean(c.project_title)).length, [items]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter(
-      (c) =>
+    return items.filter((c) => {
+      if (filterTab === "UNREAD" && Number(c.unread) === 0) return false;
+      if (filterTab === "PROJECT" && !c.project_title) return false;
+      if (!q) return true;
+      return (
         (c.other_name ?? "").toLowerCase().includes(q) ||
         (c.other_username ?? "").toLowerCase().includes(q) ||
         (c.project_title ?? "").toLowerCase().includes(q) ||
         (c.subject ?? "").toLowerCase().includes(q) ||
-        (c.last_body ?? "").toLowerCase().includes(q),
-    );
-  }, [conversations, search]);
+        (c.last_body ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [items, search, filterTab]);
 
   return (
     <Card className="flex flex-col overflow-hidden">
       <div className="space-y-2.5 border-b border-line px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-bold">Hộp thư ({conversations.length})</h2>
-            <p className="text-[11px] text-muted">Trao đổi trực tiếp cùng chủ dự án &amp; người ủng hộ</p>
+            <h2 className="text-sm font-bold">Hộp thư ({items.length})</h2>
+            <p className="text-[11px] text-muted">Tự động cập nhật khi có tin nhắn mới</p>
           </div>
           <NewMessageModalButton quickContacts={quickContacts} relatedProjects={relatedProjects} size="xs" label="Mới" />
         </div>
-        {conversations.length > 0 && (
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm người nhận, dự án, nội dung…"
-              className="h-8 rounded-xl pl-8 text-xs"
-            />
-          </div>
+        {items.length > 0 && (
+          <>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm người nhận, dự án, nội dung…"
+                className="h-8 rounded-xl pl-8 text-xs"
+              />
+            </div>
+            <div className="flex gap-1.5 text-[11px] font-semibold">
+              {[
+                { key: "ALL" as const, label: `Tất cả (${items.length})` },
+                { key: "UNREAD" as const, label: `Chưa đọc (${unreadCount})` },
+                { key: "PROJECT" as const, label: `Theo dự án (${projectCount})` },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setFilterTab(tab.key)}
+                  className={cn(
+                    "rounded-lg px-2 py-1 transition",
+                    filterTab === tab.key
+                      ? "bg-violet-600 text-white shadow-sm"
+                      : "bg-surface-2 text-muted hover:text-fg",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
       <div className="divide-y divide-line max-h-[68vh] overflow-y-auto">
-        {conversations.length === 0 ? (
+        {items.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted">
             Chưa có cuộc trò chuyện nào. Bấm nút <b>Mới</b> ở góc trên để gửi tin nhắn đầu tiên.
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted">
-            Không tìm thấy hội thoại phù hợp với từ khoá đang nhập.
+            Không tìm thấy hội thoại phù hợp với bộ lọc hiện tại.
           </div>
         ) : (
           filtered.map((c) => {
@@ -424,16 +601,139 @@ export function ThreadView({
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
+  const [sending, setSending] = useState(false);
+  const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
 
-  const byId = new Map(participants.map((p) => [p.id, p]));
-  const others = participants.filter((p) => p.id !== viewerId);
-  const other = others[0];
+  const propSig = `${conv.id}:${messages.length}:${participants.map((p) => p.last_read_at ?? "").join(",")}`;
+  const [polled, setPolled] = useState<{
+    sig: string;
+    messages: ThreadMessage[];
+    participants: ThreadParticipant[];
+  } | null>(null);
+  const [optimistic, setOptimistic] = useState<{ sig: string; msg: ThreadMessage }[]>([]);
+
+  const baseMessages = polled && polled.sig === propSig ? polled.messages : messages;
+  const activeParticipants = polled && polled.sig === propSig ? polled.participants : participants;
+
+  const liveMessages = useMemo(() => {
+    const serverIds = new Set(baseMessages.map((m) => m.id));
+    const extras = optimistic
+      .filter((o) => o.sig === propSig && !serverIds.has(o.msg.id))
+      .map((o) => o.msg);
+    return [...baseMessages, ...extras];
+  }, [baseMessages, optimistic, propSig]);
+
+  const byId = useMemo(() => new Map(activeParticipants.map((p) => [p.id, p])), [activeParticipants]);
+  const other = useMemo(() => activeParticipants.find((p) => p.id !== viewerId), [activeParticipants, viewerId]);
+  const myParticipant = byId.get(viewerId);
+
+  const isTeamRole = myParticipant?.role === "CREATOR" || myParticipant?.role === "COLLABORATOR";
+  const quickReplies = conv.project_slug
+    ? isTeamRole
+      ? [
+          "Cảm ơn bạn đã ủng hộ! Nhóm đã ghi nhận thông tin và sẽ phản hồi chi tiết ngay.",
+          "Dự kiến nhóm sẽ cập nhật tiến độ sản xuất và lịch giao quà trong bản tin tuần này.",
+          "Bạn vui lòng xác nhận lại địa chỉ nhận quà và số điện thoại liên hệ nhé.",
+        ]
+      : [
+          "Chào nhóm dự án, cho mình hỏi tiến độ sản xuất và thời gian dự kiến giao quà nhé!",
+          "Mình vừa hoàn tất góp vốn và muốn xác nhận thêm thông tin về gói quà.",
+          "Cảm ơn nhóm đã phản hồi nhanh chóng, chúc chiến dịch thành công rực rỡ!",
+        ]
+    : [];
 
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, conv.id]);
+  }, [liveMessages.length, conv.id]);
+
+  // Tự động đồng bộ tin nhắn mới & trạng thái Đã xem mỗi 5 giây khi tab đang mở
+  useEffect(() => {
+    let active = true;
+    const syncThread = () => {
+      if (!active || document.hidden) return;
+      fetch(`/api/me/messages/${encodeURIComponent(conv.id)}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { ok?: boolean; thread?: { messages: ThreadMessage[]; participants: ThreadParticipant[] } } | null) => {
+          if (!active || !data?.ok || !data.thread) return;
+          const nextMsgs = data.thread.messages;
+          const nextParts = data.thread.participants;
+          setPolled({ sig: propSig, messages: nextMsgs, participants: nextParts });
+
+          const me = nextParts.find((p) => p.id === viewerId);
+          const hasIncomingUnread = nextMsgs.some(
+            (m) => m.sender_id !== viewerId && (!me?.last_read_at || m.created_at > me.last_read_at),
+          );
+          if (hasIncomingUnread) {
+            fetch(`/api/me/messages/${encodeURIComponent(conv.id)}/read`, { method: "POST" }).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    };
+
+    const id = window.setInterval(syncThread, 5_000);
+    const onFocus = () => syncThread();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [conv.id, propSig, viewerId]);
+
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const trimmed = draft.trim();
+    if (!trimmed || sending) return;
+
+    const tempId = `optimistic-${Date.now()}`;
+    const optimisticMsg: ThreadMessage = {
+      id: tempId,
+      sender_id: viewerId,
+      body: trimmed,
+      created_at: new Date().toISOString(),
+    };
+
+    setSending(true);
+    setDraft("");
+    setOptimistic((prev) => [...prev, { sig: propSig, msg: optimisticMsg }]);
+
+    try {
+      const fd = new FormData();
+      fd.set("conversationId", conv.id);
+      fd.set("body", trimmed);
+      const res = await sendMessageAction(null, fd);
+      if (res?.error) {
+        setOptimistic((prev) => prev.filter((o) => o.msg.id !== tempId));
+        setDraft(trimmed);
+        toast.error(res.error);
+        return;
+      }
+      if (res?.ok && res.messageItem) {
+        const confirmed = res.messageItem;
+        setOptimistic((prev) => [
+          ...prev.filter((o) => o.msg.id !== tempId),
+          { sig: propSig, msg: confirmed },
+        ]);
+      }
+      router.refresh();
+    } catch {
+      setOptimistic((prev) => prev.filter((o) => o.msg.id !== tempId));
+      setDraft(trimmed);
+      toast.error("Không gửi được tin nhắn, vui lòng thử lại.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  let lastMyMsgId: string | null = null;
+  for (let i = liveMessages.length - 1; i >= 0; i--) {
+    if (liveMessages[i].sender_id === viewerId) {
+      lastMyMsgId = liveMessages[i].id;
+      break;
+    }
+  }
 
   return (
     <Card className="flex flex-col overflow-hidden">
@@ -464,15 +764,20 @@ export function ThreadView({
           </div>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          disabled={refreshing}
-          onClick={() => startRefresh(() => router.refresh())}
-        >
-          <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} /> Làm mới
-        </Button>
+        <div className="flex items-center gap-2">
+          <Badge tone="emerald" dot className="hidden sm:inline-flex">
+            Tự động cập nhật
+          </Badge>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            disabled={refreshing}
+            onClick={() => startRefresh(() => router.refresh())}
+          >
+            <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} /> Làm mới
+          </Button>
+        </div>
       </div>
 
       {/* Project context bar */}
@@ -494,38 +799,72 @@ export function ThreadView({
         </Link>
       )}
 
-      {/* Message bubbles */}
+      {/* Message bubbles with Day Dividers & Read Receipts */}
       <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-4 max-h-[54vh] min-h-[280px]">
-        {messages.length === 0 ? (
+        {liveMessages.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted">Hãy gửi tin nhắn đầu tiên để bắt đầu trao đổi.</div>
         ) : (
-          messages.map((m) => {
+          liveMessages.map((m, idx) => {
             const mine = m.sender_id === viewerId;
             const sender = byId.get(m.sender_id);
+            const curDay = vnDayKey(m.created_at);
+            const prevDay = idx > 0 ? vnDayKey(liveMessages[idx - 1].created_at) : null;
+            const showDayDivider = curDay !== prevDay;
+            const isLastMine = m.id === lastMyMsgId;
+            const isOptimistic = m.id.startsWith("optimistic-");
+            const isSeen = Boolean(!isOptimistic && other?.last_read_at && other.last_read_at >= m.created_at);
+
             return (
-              <div key={m.id} className={cn("flex gap-2.5", mine ? "justify-end" : "justify-start")}>
-                {!mine && sender && (
-                  <SafeAvatar name={sender.display_name} src={sender.avatar_url} size={30} className="mt-1" />
-                )}
-                <div className={cn("max-w-[82%] space-y-1 sm:max-w-[72%]", mine && "items-end text-right")}>
-                  {!mine && sender && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted">
-                      <span className="font-semibold text-fg">{sender.display_name}</span>
-                      {sender.role && <RoleBadge role={sender.role} />}
-                    </div>
-                  )}
-                  <div
-                    className={cn(
-                      "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
-                      mine
-                        ? "rounded-br-sm bg-brand-gradient text-white shadow-[0_6px_18px_-8px_rgba(109,74,255,0.75)]"
-                        : "rounded-bl-sm border border-line bg-surface-2 text-fg",
-                    )}
-                  >
-                    {m.body}
+              <div key={m.id} className="space-y-2.5">
+                {showDayDivider && (
+                  <div className="flex items-center justify-center py-1" suppressHydrationWarning>
+                    <span className="rounded-full border border-line bg-surface-2 px-3 py-0.5 text-[11px] font-semibold text-muted">
+                      {formatDayDivider(curDay)}
+                    </span>
                   </div>
-                  <div className="text-[10px] text-muted" suppressHydrationWarning>
-                    {formatDate(m.created_at, true)}
+                )}
+
+                <div className={cn("flex gap-2.5", mine ? "justify-end" : "justify-start")}>
+                  {!mine && sender && (
+                    <SafeAvatar name={sender.display_name} src={sender.avatar_url} size={30} className="mt-1" />
+                  )}
+                  <div className={cn("max-w-[82%] space-y-1 sm:max-w-[72%]", mine && "flex flex-col items-end text-right")}>
+                    {!mine && sender && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted">
+                        <span className="font-semibold text-fg">{sender.display_name}</span>
+                        {sender.role && <RoleBadge role={sender.role} />}
+                      </div>
+                    )}
+                    <div
+                      className={cn(
+                        "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
+                        mine
+                          ? "rounded-br-sm bg-brand-gradient text-white shadow-[0_6px_18px_-8px_rgba(109,74,255,0.75)]"
+                          : "rounded-bl-sm border border-line bg-surface-2 text-fg",
+                        isOptimistic && "opacity-75",
+                      )}
+                    >
+                      {m.body}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted" suppressHydrationWarning>
+                      <span>{formatDate(m.created_at, true)}</span>
+                      {mine && isLastMine && (
+                        <span className="inline-flex items-center gap-0.5 font-semibold">
+                          ·{" "}
+                          {isOptimistic ? (
+                            "Đang gửi…"
+                          ) : isSeen ? (
+                            <span className="inline-flex items-center gap-0.5 text-violet-600 dark:text-violet-400">
+                              <CheckCheck className="size-3" /> Đã xem
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5">
+                              <Check className="size-3" /> Đã gửi
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -535,33 +874,59 @@ export function ThreadView({
       </div>
 
       {/* Composer */}
-      <ActionForm
-        action={sendMessageAction}
-        resetOnSuccess
-        onSuccess={() => router.refresh()}
-        className="border-t border-line bg-surface-2/40 p-3 sm:p-4"
-      >
-        <input type="hidden" name="conversationId" value={conv.id} />
+      <form onSubmit={handleSend} className="space-y-2.5 border-t border-line bg-surface-2/40 p-3 sm:p-4">
+        {quickReplies.length > 0 && (
+          <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted">
+              <Sparkles className="size-3 text-violet-500" /> Gợi ý nhanh:
+            </span>
+            {quickReplies.map((tpl) => (
+              <button
+                key={tpl}
+                type="button"
+                onClick={() => setDraft((prev) => (prev.trim() ? `${prev.trim()} ${tpl}` : tpl).slice(0, 2000))}
+                className="shrink-0 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-muted transition hover:border-violet-400/60 hover:text-fg"
+              >
+                {tpl.length > 44 ? `${tpl.slice(0, 44)}…` : tpl}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <Textarea
-            name="body"
-            required
-            maxLength={2000}
-            rows={2}
-            placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)"
-            className="min-h-[54px] flex-1 resize-none py-2.5"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                e.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
-          <SubmitButton size="md" pendingText="Đang gửi…" className="shrink-0">
-            <Send className="size-4" /> Gửi
-          </SubmitButton>
+          <div className="min-w-0 flex-1 space-y-1">
+            <Textarea
+              name="body"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              required
+              maxLength={2000}
+              rows={2}
+              placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)"
+              className="min-h-[54px] w-full resize-none py-2.5"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  void handleSend();
+                }
+              }}
+            />
+            <div className="flex justify-end text-[11px] tabular-nums text-muted">
+              {draft.length.toLocaleString("vi-VN")}/2.000
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            size="md"
+            disabled={sending || !draft.trim()}
+            className="shrink-0 sm:mb-5"
+          >
+            {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {sending ? "Đang gửi…" : "Gửi"}
+          </Button>
         </div>
-      </ActionForm>
+      </form>
     </Card>
   );
 }
@@ -579,6 +944,8 @@ export function NewMessageForm({
   quickContacts: QuickContactItem[];
   relatedProjects?: RelatedProjectItem[];
 }) {
+  const [toValue, setToValue] = useState(prefillTo ?? "");
+
   return (
     <Card className="p-5 sm:p-6">
       <ActionForm action={startConversationAction} className="space-y-4">
@@ -597,23 +964,8 @@ export function NewMessageForm({
             <input type="hidden" name="to" value={prefillToDisplay.username} />
           </div>
         ) : (
-          <Field label="Người nhận (username hoặc email)" required hint="Ví dụ: hoanglinh, haiyen, lachong">
-            <Input
-              name="to"
-              defaultValue={prefillTo ?? ""}
-              placeholder="Nhập username người nhận…"
-              required
-              list="quick-contacts-list"
-            />
-            {quickContacts.length > 0 && (
-              <datalist id="quick-contacts-list">
-                {quickContacts.map((c) => (
-                  <option key={c.username} value={c.username}>
-                    {c.display_name} ({c.hint})
-                  </option>
-                ))}
-              </datalist>
-            )}
+          <Field label="Người nhận (tìm theo tên, @username hoặc email)" required hint="Ví dụ: hoanglinh, haiyen, nguyennhutthanh813">
+            <RecipientSearchInput value={toValue} onChange={setToValue} />
           </Field>
         )}
 
@@ -657,7 +1009,7 @@ export function NewMessageForm({
         </Field>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <Badge tone="slate">Bấm Làm mới trong hộp thư để cập nhật tin phản hồi</Badge>
+          <Badge tone="slate">Cuộc trò chuyện tự động đồng bộ tin nhắn mới</Badge>
           <div className="flex gap-2">
             <ButtonLink href="/me/messages" variant="outline" size="sm">
               Huỷ

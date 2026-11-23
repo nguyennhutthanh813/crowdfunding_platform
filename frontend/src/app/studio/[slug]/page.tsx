@@ -187,7 +187,9 @@ export default async function StudioProjectPage(props: {
 
         <AiPanel
           projectId={project.id}
+          projectSlug={project.slug}
           prediction={aiDisplay}
+          predictionInput={ws.predictionInput ?? null}
           history={ov.history}
           canRunAi={permSet.has("ai.run")}
         />
@@ -309,6 +311,7 @@ export default async function StudioProjectPage(props: {
     contentEl = (
       <CommentsInbox
         projectId={project.id}
+        projectSlug={project.slug}
         comments={ws.inbox ?? []}
         canReply={permSet.has("comment.reply")}
         canModerate={permSet.has("comment.moderate")}

@@ -12,7 +12,7 @@ import {
   updateShipment,
   withdrawSubmission,
 } from "../services/lifecycle.js";
-import { runPrediction } from "../services/ai/run.js";
+import { reanalyzeProjectComments, runPrediction } from "../services/ai/run.js";
 import { bumpDailyStats } from "../services/stats.js";
 import {
   arrVal,
@@ -976,6 +976,21 @@ export async function promoteCommentToFaq(viewer: Viewer | null, bodyIn: Payload
     });
 
     return { ok: true, slug: p.slug, message: "Đã đưa câu hỏi vào mục hỏi đáp công khai!" };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+export async function reanalyzeComments(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
+  try {
+    const projectId = strVal(bodyIn, "project_id");
+    const { db, p } = await requireActor(viewer, projectId, "comment.reply");
+    const count = await reanalyzeProjectComments(db, projectId);
+    return {
+      ok: true,
+      slug: p.slug,
+      message: count > 0 ? `Đã phân tích lại ${count} bình luận theo AI v2.` : "Chưa có bình luận nào để phân tích.",
+    };
   } catch (e) {
     return { error: humanizeError(e) };
   }

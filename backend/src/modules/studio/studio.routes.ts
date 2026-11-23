@@ -20,6 +20,7 @@ import {
   listStudioProjects,
   listUpdates,
   livePrediction,
+  livePredictionInput,
   overviewData,
   pendingInvitationsFor,
   reviewHistory,
@@ -51,6 +52,7 @@ import {
   moveSection,
   promoteCommentToFaq,
   publishUpdate,
+  reanalyzeComments,
   removeCollaborator,
   replyInboxComment,
   resendInvitation,
@@ -130,6 +132,7 @@ studioRouter.get("/projects/:slug", async (req, res) => {
     let overview = null;
     let checklist = null;
     let draftPrediction = null;
+    let predictionInput = null;
     let team = null;
     let sections = null;
     let categories = null;
@@ -146,10 +149,11 @@ studioRouter.get("/projects/:slug", async (req, res) => {
     let anyPledge = false;
 
     if (tab === "overview" && perms.has("insight.view")) {
-      [overview, checklist, draftPrediction, team] = await Promise.all([
+      [overview, checklist, draftPrediction, predictionInput, team] = await Promise.all([
         overviewData(project.id, perms.has("backer.view")),
         checklistOf(project.id),
         livePrediction(project.id),
+        livePredictionInput(project.id),
         teamMembers(project.id),
       ]);
     } else if (tab === "content" && perms.has("project.edit")) {
@@ -188,6 +192,7 @@ studioRouter.get("/projects/:slug", async (req, res) => {
       overview,
       checklist,
       draftPrediction,
+      predictionInput,
       team,
       sections,
       categories,
@@ -222,12 +227,13 @@ studioRouter.get("/projects/:slug/setup", async (req, res) => {
       res.status(403).json({ ok: false, error: "Bạn không phải thành viên của dự án này." });
       return;
     }
-    const [categories, sections, rewards, checklist, prediction, reviews] = await Promise.all([
+    const [categories, sections, rewards, checklist, prediction, predictionInput, reviews] = await Promise.all([
       listCategoriesForStudio(),
       listSections(project.id),
       rewardsData(project.id),
       checklistOf(project.id),
       livePrediction(project.id),
+      livePredictionInput(project.id),
       reviewHistory(project.id),
     ]);
     res.json({
@@ -239,6 +245,7 @@ studioRouter.get("/projects/:slug/setup", async (req, res) => {
       rewards,
       checklist,
       prediction,
+      predictionInput,
       reviews,
     });
   } catch (e) {
@@ -364,6 +371,11 @@ studioRouter.post("/comments/moderate", async (req, res) => {
 
 studioRouter.post("/comments/promote-faq", async (req, res) => {
   const r = await promoteCommentToFaq(req.viewer, req.body ?? {});
+  res.status(r.error ? 400 : 200).json(r);
+});
+
+studioRouter.post("/comments/reanalyze", async (req, res) => {
+  const r = await reanalyzeComments(req.viewer, req.body ?? {});
   res.status(r.error ? 400 : 200).json(r);
 });
 

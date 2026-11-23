@@ -19,7 +19,7 @@ import {
   Upload,
 } from "lucide-react";
 import type { AddOnRow, SectionRow, StudioProject, TierRow } from "@/server/queries/studio";
-import type { PredictionResult } from "@/server/services/ai/predict";
+import type { PredictionInput, PredictionResult } from "@/server/services/ai/predict";
 import {
   createDraftProjectAction,
   saveFundingScheduleAction,
@@ -61,6 +61,7 @@ export function WizardShell({
   addOns = [],
   checklist = [],
   prediction = null,
+  predictionInput = null,
   latestReview = null,
 }: {
   mode: "create" | "edit";
@@ -72,6 +73,7 @@ export function WizardShell({
   addOns?: AddOnRow[];
   checklist?: ChecklistItem[];
   prediction?: PredictionResult | null;
+  predictionInput?: PredictionInput | null;
   latestReview?: { decision: string; note: string; created_at: string; reviewer: string } | null;
 }) {
   const step = mode === "create" ? 1 : Math.min(5, Math.max(1, initialStep));
@@ -565,8 +567,11 @@ export function WizardShell({
           {/* Pre-launch AI Prediction */}
           <AiPanel
             projectId={project.id}
+            projectSlug={project.slug}
+            isSetup
             canRunAi
             title="AI Chấm điểm trước khi mở chiến dịch"
+            predictionInput={predictionInput}
             prediction={
               prediction
                 ? {

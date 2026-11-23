@@ -20,6 +20,7 @@ import {
   recommendations,
   savedIdsList,
   savedProjects,
+  searchMessageRecipients,
   settingsData,
   userByUsername,
   waitingPledges,
@@ -167,6 +168,17 @@ meRouter.get("/conversations/compose-meta", async (req, res) => {
       suggestions,
       relatedProjects,
     });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: humanizeError(e) });
+  }
+});
+
+meRouter.get("/contacts/search", async (req, res) => {
+  try {
+    const q = typeof req.query.q === "string" ? req.query.q : "";
+    const limit = Math.min(20, Math.max(1, Number(req.query.limit) || 8));
+    const users = await searchMessageRecipients(req.viewer!.id, q, limit);
+    res.json({ ok: true, users });
   } catch (e) {
     res.status(500).json({ ok: false, error: humanizeError(e) });
   }

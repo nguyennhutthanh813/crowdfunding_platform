@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Check,
   CheckCheck,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   EyeOff,
   HelpCircle,
   MessageSquareHeart,
+  RefreshCw,
   RotateCcw,
+  Search,
   Send,
   Sparkles,
   Tag,
@@ -19,8 +24,10 @@ import {
   markCommentHandledAction,
   moderateStudioCommentAction,
   promoteCommentToFaqAction,
+  reanalyzeCommentsAction,
   replyInboxCommentAction,
 } from "@/server/actions/studio";
+import { QuickMessageModalButton } from "@/components/me/messages-ui";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -31,14 +38,18 @@ import { cn, timeAgo } from "@/lib/utils";
 import { COMMENT_FILTERS, SENTIMENT_META } from "./meta";
 import { CommentLabelDonut } from "./charts";
 
+const PAGE_SIZE = 10;
+
 export function CommentsInbox({
   projectId,
+  projectSlug,
   comments,
   canReply,
   canModerate,
   canFaq,
 }: {
   projectId: string;
+  projectSlug?: string;
   comments: InboxComment[];
   canReply: boolean;
   canModerate: boolean;
@@ -46,6 +57,8 @@ export function CommentsInbox({
 }) {
   const [filter, setFilter] = useState<string>("action");
   const [topicFilter, setTopicFilter] = useState<string>("");
+  const [query, setQuery] = useState<string>("");
+  const [page, setPage] = useState(1);
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [faqTarget, setFaqTarget] = useState<InboxComment | null>(null);
 
@@ -82,24 +95,56 @@ export function CommentsInbox({
   };
 
   const visible = useMemo(() => {
-    return comments.filter((c) => {
+    const q = query.trim().toLowerCase();
+    const list = comments.filter((c) => {
       if (topicFilter && c.topic !== topicFilter) return false;
-      if (filter === "all") return true;
-      if (filter === "action") return c.status === "VISIBLE" && c.needs_action === 1 && !c.handled_at;
-      if (filter === "handled") return Boolean(c.handled_at);
-      return c.label === filter;
+      if (filter === "action" && !(c.status === "VISIBLE" && c.needs_action === 1 && !c.handled_at)) return false;
+      else if (filter === "handled" && !c.handled_at) return false;
+      else if (filter !== "all" && filter !== "action" && filter !== "handled" && c.label !== filter) return false;
+      if (!q) return true;
+      return (
+        c.body.toLowerCase().includes(q) ||
+        c.author_name.toLowerCase().includes(q) ||
+        (c.topic ?? "").toLowerCase().includes(q) ||
+        (c.summary ?? "").toLowerCase().includes(q)
+      );
     });
-  }, [comments, filter, topicFilter]);
+    if (filter === "action") {
+      return [...list].sort((a, b) => {
+        const pa = a.label === "ISSUE" ? 2 : a.sentiment === "NEGATIVE" ? 1 : 0;
+        const pb = b.label === "ISSUE" ? 2 : b.sentiment === "NEGATIVE" ? 1 : 0;
+        return pb - pa;
+      });
+    }
+    return list;
+  }, [comments, filter, topicFilter, query]);
+
+  const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const curPage = Math.min(page, pages);
+  const startIdx = (curPage - 1) * PAGE_SIZE;
+  const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
 
   return (
     <div className="space-y-6">
       {/* AI Summary Row */}
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <div className="card p-5">
-          <h3 className="flex items-center gap-2 text-base font-bold">
-            <MessageSquareHeart className="size-4 text-violet-500" /> Phân bổ phân loại AI
-          </h3>
-          <p className="mt-0.5 text-xs text-muted">Tự động gắn nhãn câu hỏi, góp ý, vấn đề, khen ngợi và spam</p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="flex items-center gap-2 text-base font-bold">
+                <MessageSquareHeart className="size-4 text-violet-500" /> Phân bổ phân loại AI
+              </h3>
+              <p className="mt-0.5 text-xs text-muted">Tự động gắn nhãn câu hỏi, góp ý, vấn đề, khen ngợi và spam</p>
+            </div>
+            {canReply && comments.length > 0 && (
+              <ActionForm action={reanalyzeCommentsAction}>
+                <input type="hidden" name="project_id" value={projectId} />
+                <SubmitButton variant="ghost" size="xs" pendingText="Đang lọc…">
+                  <RefreshCw className="size-3.5" /> Phân tích lại AI
+                </SubmitButton>
+              </ActionForm>
+            )}
+          </div>
           {comments.length === 0 ? (
             <p className="py-10 text-center text-xs text-muted">Chưa có bình luận để phân tích.</p>
           ) : (
@@ -124,8 +169,24 @@ export function CommentsInbox({
 
         <div className="card flex flex-col justify-between gap-4 p-5">
           <div>
-            <h3 className="text-base font-bold">Chủ đề được cộng đồng nhắc nhiều</h3>
-            <p className="mt-0.5 text-xs text-muted">Chọn một chủ đề hoặc bộ lọc để tập trung xử lý nhanh</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-bold">Chủ đề được cộng đồng nhắc nhiều</h3>
+                <p className="mt-0.5 text-xs text-muted">Chọn chủ đề, bộ lọc hoặc gõ từ khoá để xử lý ưu tiên</p>
+              </div>
+              {topicFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTopicFilter("");
+                    setPage(1);
+                  }}
+                  className="text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
+                >
+                  Xoá lọc chủ đề
+                </button>
+              )}
+            </div>
             {topicClusters.length === 0 ? (
               <p className="mt-4 text-sm text-muted">Chưa có cụm chủ đề nào.</p>
             ) : (
@@ -136,7 +197,10 @@ export function CommentsInbox({
                     <button
                       key={topic}
                       type="button"
-                      onClick={() => setTopicFilter(active ? "" : topic)}
+                      onClick={() => {
+                        setTopicFilter(active ? "" : topic);
+                        setPage(1);
+                      }}
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition",
                         active
@@ -153,32 +217,50 @@ export function CommentsInbox({
             )}
           </div>
 
-          {/* Filter Chips */}
-          <div className="space-y-2 border-t border-line pt-4">
-            <div className="text-xs font-semibold text-muted">Bộ lọc hộp thư AI</div>
-            <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
-              {COMMENT_FILTERS.map((f) => {
-                const active = filter === f.key;
-                const count = filterCount(f.key);
-                return (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setFilter(f.key)}
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition",
-                      active
-                        ? "bg-brand-gradient text-white shadow"
-                        : "border border-line bg-surface hover:bg-surface-2",
-                    )}
-                  >
-                    {f.label}
-                    <span className={cn("rounded-full px-1.5 text-[10px] tabular-nums", active ? "bg-white/25" : "bg-surface-2")}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+          {/* Search & Filter Chips */}
+          <div className="space-y-3 border-t border-line pt-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <Input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Tìm bình luận theo nội dung, tác giả hoặc chủ đề…"
+                className="h-9 pl-9 text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold text-muted">Bộ lọc hộp thư AI</div>
+              <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+                {COMMENT_FILTERS.map((f) => {
+                  const active = filter === f.key;
+                  const count = filterCount(f.key);
+                  return (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => {
+                        setFilter(f.key);
+                        setPage(1);
+                      }}
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition",
+                        active
+                          ? "bg-brand-gradient text-white shadow"
+                          : "border border-line bg-surface hover:bg-surface-2",
+                      )}
+                    >
+                      {f.label}
+                      <span className={cn("rounded-full px-1.5 text-[10px] tabular-nums", active ? "bg-white/25" : "bg-surface-2")}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -189,15 +271,17 @@ export function CommentsInbox({
         <EmptyState
           compact
           title="Không có bình luận nào trong bộ lọc này"
-          description="Thử chuyển sang bộ lọc Tất cả hoặc xoá lọc chủ đề để xem thêm."
+          description="Thử chuyển sang bộ lọc Tất cả hoặc xoá từ khoá / lọc chủ đề để xem thêm."
           action={
-            filter !== "all" || topicFilter ? (
+            filter !== "all" || topicFilter || query ? (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setFilter("all");
                   setTopicFilter("");
+                  setQuery("");
+                  setPage(1);
                 }}
               >
                 Xem tất cả bình luận
@@ -207,11 +291,12 @@ export function CommentsInbox({
         />
       ) : (
         <div className="space-y-4">
-          {visible.map((c) => {
+          {pageItems.map((c) => {
             const label = (c.label as CommentLabel) || "OTHER";
             const labelMeta = LABEL_META[label] ?? LABEL_META.OTHER;
             const sentMeta = c.sentiment ? SENTIMENT_META[c.sentiment] : null;
             const isHandled = Boolean(c.handled_at);
+            const isHighUrgency = !isHandled && c.status === "VISIBLE" && label === "ISSUE";
             const draftVal = replyTexts[c.id] ?? "";
 
             return (
@@ -220,6 +305,7 @@ export function CommentsInbox({
                 className={cn(
                   "card p-4 sm:p-5",
                   c.status === "HIDDEN" && "border-dashed opacity-75",
+                  isHighUrgency && "border-rose-500/35",
                 )}
               >
                 {/* Header */}
@@ -239,6 +325,11 @@ export function CommentsInbox({
                         >
                           {labelMeta.name}
                         </span>
+                        {isHighUrgency && (
+                          <Badge tone="rose">
+                            <AlertTriangle className="size-3" /> Ưu tiên cao
+                          </Badge>
+                        )}
                         {sentMeta && (
                           <Badge tone={sentMeta.tone}>
                             {sentMeta.emoji} {sentMeta.label}
@@ -258,8 +349,19 @@ export function CommentsInbox({
                     </div>
                   </div>
 
-                  {/* Quick Moderation / Status */}
+                  {/* Quick Moderation / Direct Message / Status */}
                   <div className="flex flex-wrap items-center gap-1.5">
+                    {c.author_username && (
+                      <QuickMessageModalButton
+                        toUsername={c.author_username}
+                        toDisplayName={c.author_name}
+                        projectSlug={projectSlug ?? undefined}
+                        variant="ghost"
+                        size="xs"
+                        label="Nhắn tin riêng"
+                      />
+                    )}
+
                     {canReply && (
                       <ActionForm action={markCommentHandledAction}>
                         <input type="hidden" name="project_id" value={projectId} />
@@ -281,7 +383,7 @@ export function CommentsInbox({
 
                     {canFaq && (
                       <Button variant="ghost" size="xs" onClick={() => setFaqTarget(c)}>
-                        <HelpCircle className="size-3.5" /> Thêm vào FAQ
+                        <HelpCircle className="size-3.5" /> Thêm vào Hỏi đáp
                       </Button>
                     )}
 
@@ -380,11 +482,43 @@ export function CommentsInbox({
               </div>
             );
           })}
+
+          {visible.length > PAGE_SIZE && (
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+              <span>
+                Hiển thị <b className="text-fg">{startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, visible.length)}</b> trên{" "}
+                <b className="text-fg">{visible.length}</b> bình luận
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={curPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="size-3.5" /> Trước
+                </Button>
+                <span>
+                  Trang <b className="text-fg">{curPage}</b> / {pages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={curPage >= pages}
+                  onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                >
+                  Sau <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Promote to FAQ Dialog */}
-      <Dialog open={Boolean(faqTarget)} onClose={() => setFaqTarget(null)} title="Thêm câu hỏi vào FAQ công khai">
+      <Dialog open={Boolean(faqTarget)} onClose={() => setFaqTarget(null)} title="Thêm câu hỏi vào Hỏi đáp công khai">
         {faqTarget && (
           <ActionForm
             key={faqTarget.id}
@@ -395,7 +529,7 @@ export function CommentsInbox({
             <input type="hidden" name="project_id" value={projectId} />
             <input type="hidden" name="comment_id" value={faqTarget.id} />
 
-            <Field label="Câu hỏi hiển thị trên FAQ" required>
+            <Field label="Câu hỏi hiển thị trên mục Hỏi đáp" required>
               <Input
                 name="question"
                 minLength={5}
@@ -418,7 +552,7 @@ export function CommentsInbox({
               <Button type="button" variant="ghost" onClick={() => setFaqTarget(null)}>
                 Huỷ
               </Button>
-              <SubmitButton pendingText="Đang lưu…">Thêm vào FAQ</SubmitButton>
+              <SubmitButton pendingText="Đang lưu…">Thêm vào Hỏi đáp</SubmitButton>
             </div>
           </ActionForm>
         )}

@@ -29,8 +29,18 @@ export async function cancelMyPledgeAction(_: ActionResult, form: FormData): Pro
   return res;
 }
 
-export async function sendMessageAction(_: ActionResult, form: FormData): Promise<ActionResult> {
-  const res = await apiPost<Res & { conversationId?: string }>("/me/messages", formToPayload(form));
+export type SendMessageActionResult = ActionResult & {
+  conversationId?: string;
+  messageItem?: { id: string; sender_id: string; body: string; created_at: string };
+};
+
+export async function sendMessageAction(_: ActionResult, form: FormData): Promise<SendMessageActionResult> {
+  const res = await apiPost<
+    NonNullable<ActionResult> & {
+      conversationId?: string;
+      messageItem?: { id: string; sender_id: string; body: string; created_at: string };
+    }
+  >("/me/messages", formToPayload(form));
   if (res.ok) revalidateMe(res.conversationId ? [`/me/messages/${res.conversationId}`] : []);
   return res;
 }

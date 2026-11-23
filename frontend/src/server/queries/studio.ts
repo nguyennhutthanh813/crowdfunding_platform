@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { apiGet } from "../api";
 import type { ProjectRole } from "../rbac/rbac";
-import type { Factor, PredictionResult, Suggestion } from "../services/ai/predict";
+import type { Factor, PredictionInput, PredictionResult, Suggestion } from "../services/ai/predict";
 
 export interface NextStep {
   title: string;
@@ -144,6 +144,7 @@ export interface InboxComment {
   status: string;
   created_at: string;
   author_name: string;
+  author_username?: string;
   author_avatar: string | null;
   is_backer: number;
   label: string | null;
@@ -263,6 +264,7 @@ export const getStudioWorkspace = cache(async (slug: string, tab = "overview") =
     } | null;
     checklist?: { key: string; label: string; ok: boolean; required: boolean }[] | null;
     draftPrediction?: PredictionResult | null;
+    predictionInput?: PredictionInput | null;
     team?: {
       user_id: string;
       display_name: string;
@@ -311,6 +313,7 @@ export async function getStudioSetupBundle(slug: string) {
     rewards?: { tiers: TierRow[]; addOns: AddOnRow[] };
     checklist?: { key: string; label: string; ok: boolean; required: boolean }[];
     prediction?: PredictionResult | null;
+    predictionInput?: PredictionInput | null;
     reviews?: { id: string; decision: string; note: string; created_at: string; reviewer: string }[];
   }>(`/studio/projects/${encodeURIComponent(slug)}/setup`);
   if (!res.ok || !res.project || !res.access) return null;
@@ -322,6 +325,7 @@ export async function getStudioSetupBundle(slug: string) {
     rewards: res.rewards ?? { tiers: [], addOns: [] },
     checklist: res.checklist ?? [],
     prediction: res.prediction ?? null,
+    predictionInput: res.predictionInput ?? null,
     reviews: res.reviews ?? [],
   };
 }

@@ -9,6 +9,7 @@ import {
   Compass,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Moon,
   Plus,
   Rocket,
@@ -119,6 +120,21 @@ export function NavBar({ ctx }: { ctx: NavContext }) {
                   <Link href="/studio/new" className={buttonClass("primary", "sm", "hidden lg:inline-flex")}>
                     <Plus className="size-4" />
                     Tạo dự án
+                  </Link>
+                )}
+                {v.isMember && (
+                  <Link
+                    href="/me/messages"
+                    className="relative grid size-9 place-items-center rounded-xl text-muted transition hover:bg-surface-2 hover:text-fg"
+                    aria-label="Tin nhắn nội bộ"
+                    title="Tin nhắn nội bộ"
+                  >
+                    <MessageSquare className="size-[18px]" />
+                    {(ctx.unreadMessages ?? 0) > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 grid min-w-[18px] place-items-center rounded-full bg-violet-600 px-1 text-[10px] font-bold text-white ring-2 ring-bg">
+                        {(ctx.unreadMessages ?? 0) > 9 ? "9+" : ctx.unreadMessages}
+                      </span>
+                    )}
                   </Link>
                 )}
                 <NotificationBell ctx={ctx} />

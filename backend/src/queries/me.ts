@@ -292,10 +292,16 @@ export async function recommendations(
   const catWeights = await all<{ category_id: string; name: string; w: number }>(
     db,
     `SELECT x.category_id, c.name, SUM(x.w) AS w FROM (
-        SELECT p.category_id, 2 AS w FROM pledges pl JOIN projects p ON p.id = pl.project_id WHERE pl.backer_id = ? AND pl.status <> 'CANCELLED'
+        SELECT p.category_id, 2.0 AS w FROM pledges pl JOIN projects p ON p.id = pl.project_id WHERE pl.backer_id = ? AND pl.status <> 'CANCELLED'
         UNION ALL
-        SELECT p.category_id, 1 AS w FROM saved_projects s JOIN projects p ON p.id = s.project_id WHERE s.user_id = ?
+        SELECT p.category_id, 1.0 AS w FROM saved_projects s JOIN projects p ON p.id = s.project_id WHERE s.user_id = ?
+        UNION ALL
+        SELECT p.category_id, 1.0 AS w FROM comments cm JOIN projects p ON p.id = cm.project_id WHERE cm.author_id = ? AND cm.status = 'VISIBLE'
+        UNION ALL
+        SELECT p.category_id, 1.5 AS w FROM follows f JOIN projects p ON p.creator_id = f.followee_id WHERE f.follower_id = ? AND ${PUBLIC_WHERE}
      ) AS x JOIN categories c ON c.id = x.category_id GROUP BY x.category_id, c.name ORDER BY w DESC`,
+    userId,
+    userId,
     userId,
     userId,
   );
@@ -311,6 +317,8 @@ export async function recommendations(
   const maxBackers = Math.max(1, ...candidates.map((p) => Number(p.backers_count)));
 
   const items = candidates.map(({ category_id, momentum_amount, ends_soon, ...project }) => {
+    const goalProgress = Number(project.pledged_amount) / Math.max(1, Number(project.goal_amount));
+    const nearlyFunded = project.status === "LIVE" && goalProgress >= 0.75 && goalProgress < 1;
     const parts = {
       affinity: catMap.get(category_id) ?? 0,
       followed: followed.has(project.creator_id) ? 1 : 0,
@@ -318,16 +326,18 @@ export async function recommendations(
       popularity: Math.log1p(Number(project.backers_count)) / Math.log1p(maxBackers),
       urgency: Number(ends_soon) === 1 ? 1 : 0,
     };
-    const score = coldStart
+    const baseScore = coldStart
       ? 0.6 * parts.momentum + 0.3 * parts.popularity + 0.1 * parts.urgency
       : RECO_WEIGHTS.affinity * parts.affinity +
         RECO_WEIGHTS.followed * parts.followed +
         RECO_WEIGHTS.momentum * parts.momentum +
         RECO_WEIGHTS.popularity * parts.popularity +
         RECO_WEIGHTS.urgency * parts.urgency;
+    const score = baseScore + (nearlyFunded ? 0.08 : 0);
     const reasons: string[] = [];
     if (parts.affinity >= 0.34) reasons.push(`Bạn thích ${project.category_name}`);
     if (parts.followed) reasons.push("Chủ dự án bạn theo dõi");
+    if (nearlyFunded) reasons.push("Sắp cán đích");
     if (parts.momentum >= 0.5) reasons.push("Đang lên nhanh");
     if (parts.urgency) reasons.push("Sắp kết thúc");
     if (project.status === "SCHEDULED") reasons.push("Sắp mở — lưu để được báo");
@@ -337,10 +347,25 @@ export async function recommendations(
     return { project, score: Math.round(score * 1000) / 1000, reasons, parts };
   });
   items.sort((a, b) => b.score - a.score || Number(b.project.backers_count) - Number(a.project.backers_count));
+
+  // Đa dạng hoá thể loại: không để 1 thể loại chiếm quá 2 vị trí liên tiếp nếu còn lựa chọn khác.
+  const diversified: typeof items = [];
+  const pool = [...items];
+  while (pool.length > 0 && diversified.length < limit) {
+    const lastTwoSameCat =
+      diversified.length >= 2 &&
+      diversified[diversified.length - 1].project.category_slug === diversified[diversified.length - 2].project.category_slug
+        ? diversified[diversified.length - 1].project.category_slug
+        : null;
+    const pickIdx = lastTwoSameCat ? pool.findIndex((it) => it.project.category_slug !== lastTwoSameCat) : 0;
+    const idx = pickIdx >= 0 ? pickIdx : 0;
+    diversified.push(pool.splice(idx, 1)[0]);
+  }
+
   return {
-    items: items.slice(0, limit),
+    items: diversified,
     coldStart,
-    topCategories: catWeights.slice(0, 3).map((c) => ({ name: c.name, weight: Number(c.w) })),
+    topCategories: catWeights.slice(0, 3).map((c) => ({ name: c.name, weight: Math.round(Number(c.w) * 10) / 10 })),
   };
 }
 
@@ -578,6 +603,67 @@ export async function myRelatedProjects(userId: string): Promise<RelatedProjectI
     title: r.title,
     status: r.status,
     relation: relLabel(r.prio),
+  }));
+}
+
+export interface ContactSearchItem {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  relation: string;
+}
+
+export async function searchMessageRecipients(viewerId: string, rawQuery: string, limit = 8): Promise<ContactSearchItem[]> {
+  const clean = rawQuery.trim().replace(/^@+/, "");
+  const term = `%${clean}%`;
+  const hasQ = clean.length > 0;
+  const rows = await all<{
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url: string | null;
+    prio: number;
+  }>(
+    getDb(),
+    `SELECT u.id, u.username, u.display_name, u.avatar_url,
+       CASE
+         WHEN EXISTS (SELECT 1 FROM pledges pl JOIN project_members pm ON pm.project_id = pl.project_id WHERE pl.backer_id = u.id AND pm.user_id = ? AND pm.status = 'ACTIVE' AND pl.status <> 'CANCELLED') THEN 4
+         WHEN EXISTS (SELECT 1 FROM project_members pm1 JOIN project_members pm2 ON pm1.project_id = pm2.project_id WHERE pm1.user_id = ? AND pm1.status = 'ACTIVE' AND pm2.user_id = u.id AND pm2.status = 'ACTIVE') THEN 3
+         WHEN EXISTS (SELECT 1 FROM pledges pl JOIN projects p ON p.id = pl.project_id WHERE pl.backer_id = ? AND p.creator_id = u.id AND pl.status <> 'CANCELLED') THEN 2
+         WHEN EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id) THEN 1
+         ELSE 0
+       END AS prio
+     FROM users u
+     WHERE u.id <> ? AND u.status = 'ACTIVE'
+       AND NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_code = 'ADMIN')
+       ${hasQ ? "AND (LOWER(u.username) LIKE LOWER(?) OR LOWER(u.display_name) LIKE LOWER(?))" : ""}
+     ORDER BY prio DESC, u.display_name ASC
+     LIMIT ?`,
+    ...(hasQ
+      ? [viewerId, viewerId, viewerId, viewerId, viewerId, term, term, limit]
+      : [viewerId, viewerId, viewerId, viewerId, viewerId, limit]),
+  );
+  const labelOf = (prio: number) => {
+    switch (Number(prio)) {
+      case 4:
+        return "Người ủng hộ";
+      case 3:
+        return "Đồng đội dự án";
+      case 2:
+        return "Chủ dự án đã góp";
+      case 1:
+        return "Đang theo dõi";
+      default:
+        return "Thành viên";
+    }
+  };
+  return rows.map((r) => ({
+    id: r.id,
+    username: r.username,
+    display_name: r.display_name,
+    avatar_url: r.avatar_url,
+    relation: labelOf(r.prio),
   }));
 }
 

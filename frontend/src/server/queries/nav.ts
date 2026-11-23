@@ -16,6 +16,7 @@ export interface NavContext {
     backedCount: number;
   } | null;
   unread: number;
+  unreadMessages?: number;
   notifications: {
     id: string;
     title: string;
@@ -34,6 +35,7 @@ export const getNavContext = cache(async (): Promise<NavContext> => {
     res.ctx ?? {
       viewer: null,
       unread: 0,
+      unreadMessages: 0,
       notifications: [],
       searchIndex: [],
     }

@@ -1,4 +1,4 @@
-import { DomainError, all, insert, newId, tx, type DbClient } from "../../db/helpers.js";
+import { DomainError, all, insert, newId, nowIso, one, run, tx, type DbClient } from "../../db/helpers.js";
 import { buildPredictionInput } from "./features.js";
 import { predictSuccess, type PredictionResult } from "./predict.js";
 import { analyzeComment } from "./comments.js";
@@ -50,6 +50,54 @@ export async function analyzeProjectComments(db: DbClient, projectId: string): P
         confidence: a.confidence,
         source: "RULE",
       });
+    }
+    return rows.length;
+  });
+}
+
+/** Chạy lại phân tích AI v2 trên toàn bộ bình luận hợp lệ của dự án (giữ nguyên trạng thái handled_by/handled_at). */
+export async function reanalyzeProjectComments(db: DbClient, projectId: string): Promise<number> {
+  return tx(db, async () => {
+    const rows = await all<{ id: string; body: string }>(
+      db,
+      `SELECT c.id, c.body FROM comments c
+       WHERE c.project_id = ? AND c.parent_id IS NULL AND c.status <> 'DELETED'
+         AND NOT EXISTS (SELECT 1 FROM project_members m WHERE m.project_id = c.project_id AND m.user_id = c.author_id AND m.status = 'ACTIVE')`,
+      projectId,
+    );
+    const now = nowIso();
+    for (const r of rows) {
+      const a = analyzeComment(r.body);
+      const exists = await one(db, `SELECT 1 FROM comment_analyses WHERE comment_id = ?`, r.id);
+      if (exists) {
+        await run(
+          db,
+          `UPDATE comment_analyses
+           SET label = ?, sentiment = ?, needs_action = ?, topic = ?, summary = ?, suggested_reply = ?, confidence = ?, analyzed_at = ?
+           WHERE comment_id = ?`,
+          a.label,
+          a.sentiment,
+          a.needsAction ? 1 : 0,
+          a.topic,
+          a.summary,
+          a.suggestedReply,
+          a.confidence,
+          now,
+          r.id,
+        );
+      } else {
+        await insert(db, "comment_analyses", {
+          comment_id: r.id,
+          label: a.label,
+          sentiment: a.sentiment,
+          needs_action: a.needsAction ? 1 : 0,
+          topic: a.topic,
+          summary: a.summary,
+          suggested_reply: a.suggestedReply,
+          confidence: a.confidence,
+          source: "RULE",
+        });
+      }
     }
     return rows.length;
   });

@@ -86,6 +86,9 @@ export async function moderateStudioCommentAction(_p: ActionResult, form: FormDa
 export async function promoteCommentToFaqAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runStudioPost("/studio/comments/promote-faq", form);
 }
+export async function reanalyzeCommentsAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
+  return runStudioPost("/studio/comments/reanalyze", form);
+}
 
 export async function runAiPredictionAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
   return runStudioPost("/studio/ai/predict", form);

@@ -16,6 +16,7 @@ export interface NavContext {
     backedCount: number;
   } | null;
   unread: number;
+  unreadMessages: number;
   notifications: {
     id: string;
     title: string;
@@ -37,14 +38,19 @@ export async function getNavContext(v: Viewer | null): Promise<NavContext> {
      WHERE p.status IN ('LIVE','SCHEDULED','SUCCESS','FULFILLING','COMPLETED','FAILED')
      ORDER BY CASE WHEN p.status = 'LIVE' THEN 1 ELSE 0 END DESC, p.backers_count DESC LIMIT 60`,
   );
-  if (!v) return { viewer: null, unread: 0, notifications: [], searchIndex };
+  if (!v) return { viewer: null, unread: 0, unreadMessages: 0, notifications: [], searchIndex };
 
-  const counts = (await one<{ creator: number; collab: number; backed: number; unread: number }>(
+  const counts = (await one<{ creator: number; collab: number; backed: number; unread: number; unread_messages: number }>(
     db,
     `SELECT (SELECT COUNT(*) FROM project_members WHERE user_id = ? AND role_code = 'CREATOR') AS creator,
             (SELECT COUNT(*) FROM project_members WHERE user_id = ? AND role_code = 'COLLABORATOR' AND status = 'ACTIVE') AS collab,
             (SELECT COUNT(*) FROM pledges WHERE backer_id = ? AND status NOT IN ('CANCELLED')) AS backed,
-            (SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL) AS unread`,
+            (SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL) AS unread,
+            (SELECT COUNT(*) FROM conversation_participants cp WHERE cp.user_id = ? AND EXISTS (
+               SELECT 1 FROM messages m WHERE m.conversation_id = cp.conversation_id AND m.sender_id <> ?
+                 AND m.created_at > COALESCE(cp.last_read_at, ''))) AS unread_messages`,
+    v.id,
+    v.id,
     v.id,
     v.id,
     v.id,
@@ -71,6 +77,7 @@ export async function getNavContext(v: Viewer | null): Promise<NavContext> {
       backedCount: Number(counts.backed),
     },
     unread: Number(counts.unread),
+    unreadMessages: Number(counts.unread_messages ?? 0),
     notifications,
     searchIndex,
   };

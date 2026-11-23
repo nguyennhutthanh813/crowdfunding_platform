@@ -22,7 +22,7 @@ export default async function StudioSetupPage(props: {
   const stepRaw = typeof sp.step === "string" ? Number(sp.step) : 1;
   const initialStep = Number.isFinite(stepRaw) ? Math.min(5, Math.max(1, Math.round(stepRaw))) : 1;
 
-  const { project, categories, sections, rewards, checklist, prediction, reviews } = bundle;
+  const { project, categories, sections, rewards, checklist, prediction, predictionInput, reviews } = bundle;
 
   return (
     <WizardShell
@@ -35,6 +35,7 @@ export default async function StudioSetupPage(props: {
       addOns={rewards.addOns}
       checklist={checklist}
       prediction={prediction}
+      predictionInput={predictionInput}
       latestReview={reviews[0] ?? null}
     />
   );

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getDb } from "../db/index.js";
-import { audit, DomainError, humanizeError, insert, newId, notify, nowIso, one, all, run, tx } from "../db/helpers.js";
+import { audit, DomainError, humanizeError, insert, newId, notify, nowIso, one, all, run, tx, type DbClient } from "../db/helpers.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { hasSystemPerm, type Viewer } from "../rbac/rbac.js";
 import { findDirectConversation } from "../queries/me.js";
@@ -173,6 +173,44 @@ export async function cancelMyPledge(viewer: Viewer | null, bodyIn: Payload): Pr
 
 // ───────────────────────── Tin nhắn nội bộ ─────────────────────────
 
+async function upsertMessageNotification(
+  db: DbClient,
+  opts: { userId: string; senderName: string; body: string; conversationId: string; actorId: string; projectId: string | null },
+) {
+  const pref = await one<{ notify_message: number }>(db, `SELECT notify_message FROM user_settings WHERE user_id = ?`, opts.userId);
+  if (pref && pref.notify_message !== 1) return;
+  const link = `/me/messages/${opts.conversationId}`;
+  const preview = opts.body.length > 100 ? `${opts.body.slice(0, 99)}…` : opts.body;
+  const title = `${opts.senderName} gửi tin nhắn`;
+  const existing = await one<{ id: string }>(
+    db,
+    `SELECT id FROM notifications WHERE user_id = ? AND type = 'MESSAGE' AND link = ? AND read_at IS NULL LIMIT 1`,
+    opts.userId,
+    link,
+  );
+  if (existing) {
+    await run(
+      db,
+      `UPDATE notifications SET title = ?, body = ?, actor_id = ?, created_at = ? WHERE id = ?`,
+      title,
+      preview,
+      opts.actorId,
+      nowIso(),
+      existing.id,
+    );
+    return;
+  }
+  await notify(db, {
+    userId: opts.userId,
+    type: "MESSAGE",
+    title,
+    body: preview,
+    link,
+    actorId: opts.actorId,
+    projectId: opts.projectId,
+  });
+}
+
 export async function sendMessage(viewer: Viewer | null, bodyIn: Payload): Promise<ActionResult> {
   const auth = requireActor(viewer, "message.send");
   if (!auth.ok) return err(auth.error);
@@ -186,7 +224,7 @@ export async function sendMessage(viewer: Viewer | null, bodyIn: Payload): Promi
 
   const db = getDb();
   try {
-    await tx(db, async () => {
+    const messageItem = await tx(db, async () => {
       const member = await one(
         db,
         `SELECT 1 FROM conversation_participants WHERE conversation_id = ? AND user_id = ?`,
@@ -204,8 +242,9 @@ export async function sendMessage(viewer: Viewer | null, bodyIn: Payload): Promi
       );
 
       const now = nowIso();
+      const msgId = newId();
       await insert(db, "messages", {
-        id: newId(),
+        id: msgId,
         conversation_id: conversationId,
         sender_id: v.id,
         body,
@@ -221,22 +260,20 @@ export async function sendMessage(viewer: Viewer | null, bodyIn: Payload): Promi
       );
 
       for (const o of others) {
-        const pref = await one<{ notify_message: number }>(db, `SELECT notify_message FROM user_settings WHERE user_id = ?`, o.user_id);
-        if (!pref || pref.notify_message === 1) {
-          await notify(db, {
-            userId: o.user_id,
-            type: "MESSAGE",
-            title: `${v.displayName} gửi tin nhắn`,
-            body: body.length > 100 ? `${body.slice(0, 99)}…` : body,
-            link: `/me/messages/${conversationId}`,
-            actorId: v.id,
-            projectId: conv?.project_id ?? null,
-          });
-        }
+        await upsertMessageNotification(db, {
+          userId: o.user_id,
+          senderName: v.displayName,
+          body,
+          conversationId,
+          actorId: v.id,
+          projectId: conv?.project_id ?? null,
+        });
       }
+
+      return { id: msgId, sender_id: v.id, body, created_at: now };
     });
 
-    return { ok: true, conversationId };
+    return { ok: true, conversationId, messageItem };
   } catch (e) {
     return err(humanizeError(e));
   }
@@ -246,8 +283,9 @@ export async function markConversationRead(v: Viewer | null, conversationId: str
   if (!v || !conversationId) return { ok: false, updated: false };
 
   const db = getDb();
-  const hasUnread = Boolean(
-    await one(
+  const link = `/me/messages/${conversationId}`;
+  const [hasUnreadMsg, hasUnreadNotif] = await Promise.all([
+    one(
       db,
       `SELECT 1 FROM messages m
        JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = ?
@@ -257,17 +295,34 @@ export async function markConversationRead(v: Viewer | null, conversationId: str
       conversationId,
       v.id,
     ),
-  );
-  if (!hasUnread) return { ok: true, updated: false };
+    one(
+      db,
+      `SELECT 1 FROM notifications WHERE user_id = ? AND type = 'MESSAGE' AND link = ? AND read_at IS NULL LIMIT 1`,
+      v.id,
+      link,
+    ),
+  ]);
+  if (!hasUnreadMsg && !hasUnreadNotif) return { ok: true, updated: false };
 
   const now = nowIso();
-  await run(
-    db,
-    `UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND user_id = ?`,
-    now,
-    conversationId,
-    v.id,
-  );
+  if (hasUnreadMsg) {
+    await run(
+      db,
+      `UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND user_id = ?`,
+      now,
+      conversationId,
+      v.id,
+    );
+  }
+  if (hasUnreadNotif) {
+    await run(
+      db,
+      `UPDATE notifications SET read_at = ? WHERE user_id = ? AND type = 'MESSAGE' AND link = ? AND read_at IS NULL`,
+      now,
+      v.id,
+      link,
+    );
+  }
   return { ok: true, updated: true };
 }
 
@@ -362,18 +417,14 @@ export async function startConversation(viewer: Viewer | null, bodyIn: Payload):
           cid,
           v.id,
         );
-        const pref = await one<{ notify_message: number }>(db, `SELECT notify_message FROM user_settings WHERE user_id = ?`, target.id);
-        if (!pref || pref.notify_message === 1) {
-          await notify(db, {
-            userId: target.id,
-            type: "MESSAGE",
-            title: `${v.displayName} gửi tin nhắn`,
-            body: body.length > 100 ? `${body.slice(0, 99)}…` : body,
-            link: `/me/messages/${cid}`,
-            actorId: v.id,
-            projectId: project?.id ?? null,
-          });
-        }
+        await upsertMessageNotification(db, {
+          userId: target.id,
+          senderName: v.displayName,
+          body,
+          conversationId: cid,
+          actorId: v.id,
+          projectId: project?.id ?? null,
+        });
       }
 
       return cid;

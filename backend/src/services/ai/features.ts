@@ -15,6 +15,11 @@ export async function buildPredictionInput(db: DbClient, projectId: string, now 
   const tiers = await all<Row>(db, `SELECT amount FROM reward_tiers WHERE project_id = ? AND is_active = 1`, projectId);
   const sections = await all<Row>(db, `SELECT kind, body FROM project_sections WHERE project_id = ?`, projectId);
   const storyLength = sections.reduce((s, x) => s + String(x.body ?? "").length, 0);
+  const storyWordCount = sections.reduce(
+    (s, x) => s + String(x.body ?? "").trim().split(/\s+/).filter(Boolean).length,
+    0,
+  );
+  const imageSectionCount = sections.filter((s) => s.kind === "IMAGE").length;
   const finished = await one<Row>(
     db,
     `SELECT COALESCE(SUM(CASE WHEN status IN ('SUCCESS','FULFILLING','COMPLETED') THEN 1 ELSE 0 END), 0) AS ok,
@@ -37,9 +42,13 @@ export async function buildPredictionInput(db: DbClient, projectId: string, now 
     hasVideo: Boolean(p.video_url) || sections.some((s) => s.kind === "VIDEO"),
     sectionCount: sections.length,
     storyLength,
+    storyWordCount,
+    imageSectionCount,
+    hasCover: Boolean(p.cover_url),
     blurbLength: String(p.blurb ?? "").length,
-    hasRisks: String(p.risks ?? "").trim().length > 20,
+    hasRisks: String(p.risks ?? "").trim().length >= 20,
     faqCount: await n(`SELECT COUNT(*) AS v FROM faqs WHERE project_id = ?`, projectId),
+    addOnCount: await n(`SELECT COUNT(*) AS v FROM add_ons WHERE project_id = ? AND is_active = 1`, projectId),
     categorySuccessRate,
     creatorSuccessCount: await n(
       `SELECT COUNT(*) AS v FROM projects WHERE creator_id = ? AND status IN ('SUCCESS','FULFILLING','COMPLETED') AND id <> ?`,
@@ -55,6 +64,8 @@ export async function buildPredictionInput(db: DbClient, projectId: string, now 
     input.pledgedAmount = Number(p.pledged_amount);
     input.backersCount = Number(p.backers_count);
     input.elapsedDays = Math.max(0.5, (now.getTime() - start) / DAY);
+    input.updateCount = await n(`SELECT COUNT(*) AS v FROM project_updates WHERE project_id = ? AND status = 'PUBLISHED'`, projectId);
+    input.avgPledgeAmount = Number(p.backers_count) > 0 ? Math.round(Number(p.pledged_amount) / Number(p.backers_count)) : 0;
     const dailyRows = await all<Row>(
       db,
       `SELECT pledged_amount FROM project_daily_stats WHERE project_id = ? ORDER BY stat_date`,
@@ -85,6 +96,11 @@ export function buildPredictionInputSync(db: DatabaseSync, projectId: string, no
   const tiers = db.prepare(`SELECT amount FROM reward_tiers WHERE project_id = ? AND is_active = 1`).all(projectId) as Row[];
   const sections = db.prepare(`SELECT kind, body FROM project_sections WHERE project_id = ?`).all(projectId) as Row[];
   const storyLength = sections.reduce((s, x) => s + String(x.body ?? "").length, 0);
+  const storyWordCount = sections.reduce(
+    (s, x) => s + String(x.body ?? "").trim().split(/\s+/).filter(Boolean).length,
+    0,
+  );
+  const imageSectionCount = sections.filter((s) => s.kind === "IMAGE").length;
   const finished = db.prepare(
     `SELECT COALESCE(SUM(CASE WHEN status IN ('SUCCESS','FULFILLING','COMPLETED') THEN 1 ELSE 0 END), 0) AS ok, COUNT(*) AS total
      FROM projects WHERE category_id = ? AND status IN ('SUCCESS','FULFILLING','COMPLETED','FAILED')`,
@@ -104,9 +120,13 @@ export function buildPredictionInputSync(db: DatabaseSync, projectId: string, no
     hasVideo: Boolean(p.video_url) || sections.some((s) => s.kind === "VIDEO"),
     sectionCount: sections.length,
     storyLength,
+    storyWordCount,
+    imageSectionCount,
+    hasCover: Boolean(p.cover_url),
     blurbLength: String(p.blurb ?? "").length,
-    hasRisks: String(p.risks ?? "").trim().length > 20,
+    hasRisks: String(p.risks ?? "").trim().length >= 20,
     faqCount: n(`SELECT COUNT(*) v FROM faqs WHERE project_id = ?`, projectId),
+    addOnCount: n(`SELECT COUNT(*) v FROM add_ons WHERE project_id = ? AND is_active = 1`, projectId),
     categorySuccessRate,
     creatorSuccessCount: n(
       `SELECT COUNT(*) v FROM projects WHERE creator_id = ? AND status IN ('SUCCESS','FULFILLING','COMPLETED') AND id <> ?`,
@@ -122,6 +142,8 @@ export function buildPredictionInputSync(db: DatabaseSync, projectId: string, no
     input.pledgedAmount = Number(p.pledged_amount);
     input.backersCount = Number(p.backers_count);
     input.elapsedDays = Math.max(0.5, (now.getTime() - start) / DAY);
+    input.updateCount = n(`SELECT COUNT(*) v FROM project_updates WHERE project_id = ? AND status = 'PUBLISHED'`, projectId);
+    input.avgPledgeAmount = Number(p.backers_count) > 0 ? Math.round(Number(p.pledged_amount) / Number(p.backers_count)) : 0;
     input.dailyAmounts = (
       db.prepare(`SELECT pledged_amount FROM project_daily_stats WHERE project_id = ? ORDER BY stat_date`).all(projectId) as Row[]
     ).map((r) => Number(r.pledged_amount));
