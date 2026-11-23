@@ -315,6 +315,10 @@ export async function startConversation(viewer: Viewer | null, bodyIn: Payload):
           ? await one<{ id: string; title: string }>(db, `SELECT id, title FROM projects WHERE slug = ?`, projectSlug)
           : undefined;
 
+      if ((projectIdRaw || projectSlug) && !project) {
+        throw new DomainError("Không tìm thấy dự án tương ứng. Vui lòng chọn từ danh sách hoặc để trống.", "NOT_FOUND");
+      }
+
       let cid = await findDirectConversation(v.id, target.id, project?.id ?? null);
       const now = nowIso();
 

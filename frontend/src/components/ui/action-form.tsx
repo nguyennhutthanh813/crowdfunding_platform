@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { buttonClass } from "./button";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { Button, buttonClass } from "./button";
+import { Dialog } from "./dialog";
 import { celebrate } from "@/components/fx/confetti";
 
 export type ActionResult = { ok?: boolean; error?: string; message?: string; fieldErrors?: Record<string, string>; redirect?: string; celebrate?: boolean } | null;
@@ -41,6 +42,8 @@ export function ActionForm({ action, children, className, resetOnSuccess, onSucc
   confirm?: string;
 }) {
   const [state, formAction] = useActionState(action, null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const confirmedRef = useRef(false);
   const ref = useRef<HTMLFormElement>(null);
   const router = useRouter();
   useEffect(() => {
@@ -59,14 +62,54 @@ export function ActionForm({ action, children, className, resetOnSuccess, onSucc
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
   return (
     <form
       ref={ref}
       action={formAction}
       className={className}
-      onSubmit={confirm ? (e) => { if (!window.confirm(confirm)) e.preventDefault(); } : undefined}
+      onSubmit={
+        confirm
+          ? (e) => {
+              if (!confirmedRef.current) {
+                e.preventDefault();
+                setConfirmOpen(true);
+                return;
+              }
+              confirmedRef.current = false;
+            }
+          : undefined
+      }
     >
       {typeof children === "function" ? children(state) : children}
+
+      {confirm && (
+        <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} size="sm" title="Xác nhận thao tác">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-sm text-fg">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="leading-relaxed">{confirm}</p>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmOpen(false)}>
+                Huỷ
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  confirmedRef.current = true;
+                  setConfirmOpen(false);
+                  ref.current?.requestSubmit();
+                }}
+              >
+                Xác nhận
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </form>
   );
 }

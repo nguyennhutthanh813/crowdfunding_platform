@@ -511,24 +511,74 @@ export async function conversationThread(conversationId: string, userId: string)
 }
 
 export async function findDirectConversation(userId: string, otherId: string, projectId: string | null): Promise<string | null> {
-  const row = await one<{ id: string }>(
-    getDb(),
-    `SELECT c.id FROM conversations c
-     WHERE EXISTS (SELECT 1 FROM conversation_participants a WHERE a.conversation_id = c.id AND a.user_id = ?)
-       AND EXISTS (SELECT 1 FROM conversation_participants b WHERE b.conversation_id = c.id AND b.user_id = ?)
-       AND (SELECT COUNT(*) FROM conversation_participants x WHERE x.conversation_id = c.id) = 2
-       AND (? IS NULL OR c.project_id = ?)
-     ORDER BY CASE WHEN (? IS NOT NULL AND c.project_id = ?) OR (? IS NULL AND c.project_id IS NULL) THEN 1 ELSE 0 END DESC,
-              c.last_message_at DESC LIMIT 1`,
-    userId,
-    otherId,
-    projectId,
-    projectId,
-    projectId,
-    projectId,
-    projectId,
-  );
+  const row = projectId
+    ? await one<{ id: string }>(
+        getDb(),
+        `SELECT c.id FROM conversations c
+         WHERE EXISTS (SELECT 1 FROM conversation_participants a WHERE a.conversation_id = c.id AND a.user_id = ?)
+           AND EXISTS (SELECT 1 FROM conversation_participants b WHERE b.conversation_id = c.id AND b.user_id = ?)
+           AND (SELECT COUNT(*) FROM conversation_participants x WHERE x.conversation_id = c.id) = 2
+           AND c.project_id = ?
+         ORDER BY c.last_message_at DESC LIMIT 1`,
+        userId,
+        otherId,
+        projectId,
+      )
+    : await one<{ id: string }>(
+        getDb(),
+        `SELECT c.id FROM conversations c
+         WHERE EXISTS (SELECT 1 FROM conversation_participants a WHERE a.conversation_id = c.id AND a.user_id = ?)
+           AND EXISTS (SELECT 1 FROM conversation_participants b WHERE b.conversation_id = c.id AND b.user_id = ?)
+           AND (SELECT COUNT(*) FROM conversation_participants x WHERE x.conversation_id = c.id) = 2
+           AND c.project_id IS NULL
+         ORDER BY c.last_message_at DESC LIMIT 1`,
+        userId,
+        otherId,
+      );
   return row?.id ?? null;
+}
+
+export interface RelatedProjectItem {
+  slug: string;
+  title: string;
+  status: string;
+  relation: string;
+}
+
+export async function myRelatedProjects(userId: string): Promise<RelatedProjectItem[]> {
+  const rows = await all<{ slug: string; title: string; status: string; prio: number }>(
+    getDb(),
+    `SELECT p.slug, p.title, p.status, MIN(x.prio) AS prio
+     FROM (
+       SELECT pr.id, pr.updated_at AS sort_at, 1 AS prio
+       FROM project_members pm JOIN projects pr ON pr.id = pm.project_id
+       WHERE pm.user_id = ? AND pm.status = 'ACTIVE'
+       UNION ALL
+       SELECT pr.id, pl.created_at AS sort_at, 2 AS prio
+       FROM pledges pl JOIN projects pr ON pr.id = pl.project_id
+       WHERE pl.backer_id = ? AND pl.status <> 'CANCELLED'
+       UNION ALL
+       SELECT pr.id, s.created_at AS sort_at, 3 AS prio
+       FROM saved_projects s JOIN projects pr ON pr.id = s.project_id
+       WHERE s.user_id = ?
+     ) AS x
+     JOIN projects p ON p.id = x.id
+     WHERE p.status <> 'CANCELLED'
+     GROUP BY p.id, p.slug, p.title, p.status
+     ORDER BY MAX(x.sort_at) DESC
+     LIMIT 30`,
+    userId,
+    userId,
+    userId,
+  );
+  const relLabel = (prio: number) =>
+    Number(prio) === 1 ? "Studio" : Number(prio) === 2 ? "Đã góp vốn" : "Đã lưu";
+  return rows.map((r) => ({
+    slug: r.slug,
+    title: r.title,
+    status: r.status,
+    relation: relLabel(r.prio),
+  }));
 }
 
 export async function userByUsername(username: string) {

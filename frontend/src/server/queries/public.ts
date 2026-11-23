@@ -222,6 +222,18 @@ export async function getProjectCheckout(slug: string) {
   };
 }
 
+export interface VnpayBankOption {
+  code: string;
+  name: string;
+  shortName: string;
+  channel: "VNPAYQR" | "VNBANK" | "INTCARD";
+}
+
+export async function getVnpayBanks(): Promise<VnpayBankOption[]> {
+  const res = await apiGet<{ ok?: boolean; banks?: VnpayBankOption[] }>("/vnpay/banks");
+  return res.ok && Array.isArray(res.banks) ? res.banks : [];
+}
+
 export const getPublicProfileBundle = cache(async (username: string) => {
   const res = await apiGet<{
     ok?: boolean;

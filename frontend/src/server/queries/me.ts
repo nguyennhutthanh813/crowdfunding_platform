@@ -291,6 +291,13 @@ export async function myConversations(): Promise<ConversationRow[]> {
   return res.conversations ?? [];
 }
 
+export interface RelatedProjectItem {
+  slug: string;
+  title: string;
+  status: string;
+  relation?: string;
+}
+
 export async function conversationComposeMeta(to: string, project: string) {
   const qs = new URLSearchParams();
   if (to) qs.set("to", to);
@@ -302,6 +309,7 @@ export async function conversationComposeMeta(to: string, project: string) {
     followed?: FollowedCreator[];
     pledges?: MyPledge[];
     suggestions?: { username: string; display_name: string; avatar_url: string | null }[];
+    relatedProjects?: RelatedProjectItem[];
   }>(`/me/conversations/compose-meta?${qs.toString()}`);
   return {
     targetUser: res.targetUser ?? null,
@@ -309,6 +317,7 @@ export async function conversationComposeMeta(to: string, project: string) {
     followed: res.followed ?? [],
     pledges: res.pledges ?? [],
     suggestions: res.suggestions ?? [],
+    relatedProjects: res.relatedProjects ?? [],
   };
 }
 

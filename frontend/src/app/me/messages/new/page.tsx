@@ -70,6 +70,7 @@ export default async function NewMessagePage(props: {
         }
         prefillProject={projValid}
         quickContacts={quickContacts}
+        relatedProjects={meta.relatedProjects}
       />
     </div>
   );

@@ -16,6 +16,7 @@ import {
 import type { MyPledge } from "@/server/queries/me";
 import { cancelMyPledgeAction } from "@/server/actions/me";
 import { createVnpayRetryOrderAction } from "@/server/actions/public";
+import { QuickMessageModalButton } from "@/components/me/messages-ui";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { ButtonLink } from "@/components/ui/button";
 import { FundingBar } from "@/components/ui/funding-bar";
@@ -305,6 +306,15 @@ export function PledgeCard({ p }: { p: MyPledge }) {
           <ButtonLink href={`/p/${p.slug}`} variant="ghost" size="xs">
             <ExternalLink className="size-3.5" /> Xem dự án
           </ButtonLink>
+          <QuickMessageModalButton
+            toUsername={p.creator_username}
+            toDisplayName={p.creator_name}
+            projectSlug={p.slug}
+            projectTitle={p.title}
+            variant="outline"
+            size="xs"
+            label="Nhắn chủ dự án"
+          />
           {p.status === "CAPTURE_FAILED" && (
             <ActionForm action={createVnpayRetryOrderAction}>
               <input type="hidden" name="retryPledgeId" value={p.id} />

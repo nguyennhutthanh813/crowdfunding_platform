@@ -258,6 +258,8 @@ function TierFormBody({
   addOns: AddOnRow[];
   onDone: () => void;
 }) {
+  const [amountStr, setAmountStr] = useState(String(initial?.amount ?? 250000));
+  const [shippingStr, setShippingStr] = useState(String(initial?.ships_physical === 1 ? initial.shipping_fee : 0));
   const [shipsPhysical, setShipsPhysical] = useState(initial ? initial.ships_physical === 1 : true);
   const [items, setItems] = useState<{ name: string; quantity: number }[]>(
     initial?.items?.length ? initial.items : [{ name: "", quantity: 1 }],
@@ -266,6 +268,8 @@ function TierFormBody({
   const [defaultMonth] = useState(
     () => initial?.estimated_delivery || new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 7),
   );
+  const parsedAmount = Number(amountStr) || 0;
+  const parsedShipping = Number(shippingStr) || 0;
 
   return (
     <ActionForm action={saveTierAction} onSuccess={onDone} className="space-y-4">
@@ -282,7 +286,11 @@ function TierFormBody({
         <Field
           label="Số tiền (VND)"
           required
-          hint={priceLocked ? "Đã có người ủng hộ chọn nên giá được khoá" : "Tối thiểu 10.000đ"}
+          hint={
+            priceLocked
+              ? `Đã có người chọn nên khoá giá: ${formatVnd(parsedAmount)}`
+              : `Hiển thị: ${formatVnd(parsedAmount)} (tối thiểu 10.000đ)`
+          }
         >
           {priceLocked && <input type="hidden" name="amount" value={initial?.amount} />}
           <Input
@@ -290,7 +298,8 @@ function TierFormBody({
             type="number"
             min={10000}
             step={1000}
-            defaultValue={initial?.amount ?? 250000}
+            value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value)}
             disabled={priceLocked}
             required
           />
@@ -314,13 +323,23 @@ function TierFormBody({
             placeholder="Không giới hạn"
           />
         </Field>
-        <Field label="Phí giao hàng (VND)" hint={shipsPhysical ? "0đ = miễn phí ship" : "Quà số không tính phí ship"}>
+        <Field
+          label="Phí giao hàng (VND)"
+          hint={
+            !shipsPhysical
+              ? "Quà số không tính phí ship"
+              : parsedShipping > 0
+                ? `Hiển thị: ${formatVnd(parsedShipping)}`
+                : "0đ = miễn phí giao hàng"
+          }
+        >
           <Input
             name="shipping_fee"
             type="number"
             min={0}
             step={1000}
-            defaultValue={shipsPhysical ? initial?.shipping_fee ?? 0 : 0}
+            value={shipsPhysical ? shippingStr : "0"}
+            onChange={(e) => setShippingStr(e.target.value)}
             disabled={!shipsPhysical}
           />
         </Field>
@@ -428,6 +447,9 @@ function AddOnFormBody({
   tiers: TierRow[];
   onDone: () => void;
 }) {
+  const [priceStr, setPriceStr] = useState(String(initial?.price ?? 150000));
+  const parsedPrice = Number(priceStr) || 0;
+
   return (
     <ActionForm action={saveAddOnAction} onSuccess={onDone} className="space-y-4">
       <input type="hidden" name="project_id" value={projectId} />
@@ -443,8 +465,16 @@ function AddOnFormBody({
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Giá bán (VND)" required>
-          <Input name="price" type="number" min={1000} step={1000} defaultValue={initial?.price ?? 150000} required />
+        <Field label="Giá bán (VND)" required hint={`Hiển thị: ${formatVnd(parsedPrice)}`}>
+          <Input
+            name="price"
+            type="number"
+            min={1000}
+            step={1000}
+            value={priceStr}
+            onChange={(e) => setPriceStr(e.target.value)}
+            required
+          />
         </Field>
         <Field label="Tồn kho" hint="Trống = không giới hạn">
           <Input name="stock" type="number" min={initial?.sold_count ?? 0} defaultValue={initial?.stock ?? ""} />

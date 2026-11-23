@@ -13,6 +13,7 @@ import {
   myConversations,
   myNotifications,
   myPledges,
+  myRelatedProjects,
   pendingInvitations,
   projectBySlug,
   recentNotifications,
@@ -149,12 +150,13 @@ meRouter.get("/conversations/compose-meta", async (req, res) => {
     const v = req.viewer!;
     const to = typeof req.query.to === "string" ? req.query.to.trim().replace(/^@/, "") : "";
     const project = typeof req.query.project === "string" ? req.query.project.trim() : "";
-    const [targetUser, targetProject, followed, pledges, suggestions] = await Promise.all([
+    const [targetUser, targetProject, followed, pledges, suggestions, relatedProjects] = await Promise.all([
       to ? userByUsername(to) : Promise.resolve(undefined),
       project ? projectBySlug(project) : Promise.resolve(undefined),
       followedCreators(v.id),
       myPledges(v.id),
       creatorSuggestions(v.id, 4),
+      myRelatedProjects(v.id),
     ]);
     res.json({
       ok: true,
@@ -163,6 +165,7 @@ meRouter.get("/conversations/compose-meta", async (req, res) => {
       followed,
       pledges,
       suggestions,
+      relatedProjects,
     });
   } catch (e) {
     res.status(500).json({ ok: false, error: humanizeError(e) });

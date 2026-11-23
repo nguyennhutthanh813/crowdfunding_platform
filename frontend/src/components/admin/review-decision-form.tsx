@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, MessageSquareWarning, XCircle } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2, MessageSquareWarning, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { decideReviewAction } from "@/server/actions/admin";
-import { ActionForm, SubmitButton } from "@/components/ui/action-form";
+import { buttonClass } from "@/components/ui/button";
 import { Field, Textarea } from "@/components/ui/form";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -71,7 +73,34 @@ export function ReviewDecisionForm({
 }) {
   const [decision, setDecision] = useState<Decision>("APPROVED");
   const [note, setNote] = useState("");
+  const [noteError, setNoteError] = useState<string | undefined>(undefined);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const current = OPTIONS.find((o) => o.key === decision)!;
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setNoteError(undefined);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const res = await decideReviewAction(null, fd);
+      if (!res) return;
+      if (res.error) {
+        if (res.fieldErrors?.note) setNoteError(res.fieldErrors.note);
+        toast.error(res.error);
+        return;
+      }
+      if (res.ok) {
+        if (res.message) toast.success(res.message);
+        onSuccess?.();
+        if (res.redirect && !onSuccess) {
+          router.push(res.redirect);
+        } else {
+          router.refresh();
+        }
+      }
+    });
+  };
 
   if (status !== "PENDING_REVIEW") {
     return (
@@ -99,71 +128,73 @@ export function ReviewDecisionForm({
         </div>
       )}
 
-      <ActionForm action={decideReviewAction} onSuccess={onSuccess} className="space-y-4">
-        {(state) => (
-          <>
-            <input type="hidden" name="projectId" value={projectId} />
-            <input type="hidden" name="decision" value={decision} />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input type="hidden" name="projectId" value={projectId} />
+        <input type="hidden" name="decision" value={decision} />
 
-            <div className="grid gap-2">
-              {OPTIONS.map((opt) => {
-                const selected = decision === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setDecision(opt.key)}
-                    className={cn(
-                      "flex items-start gap-3 rounded-xl border p-3 text-left transition",
-                      selected ? opt.ring : "border-line bg-surface hover:border-violet-400/40",
-                    )}
-                  >
-                    <opt.icon className="mt-0.5 size-4 shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold">{opt.label}</div>
-                      <div className="text-xs opacity-80">{opt.desc}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="grid gap-2">
+          {OPTIONS.map((opt) => {
+            const selected = decision === opt.key;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setDecision(opt.key)}
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border p-3 text-left transition",
+                  selected ? opt.ring : "border-line bg-surface hover:border-violet-400/40",
+                )}
+              >
+                <opt.icon className="mt-0.5 size-4 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-sm font-bold">{opt.label}</div>
+                  <div className="text-xs opacity-80">{opt.desc}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-            <Field
-              label={decision === "APPROVED" ? "Ghi chú duyệt (tuỳ chọn)" : "Lý do / góp ý cho Chủ dự án"}
-              required={decision !== "APPROVED"}
-              error={state?.fieldErrors?.note}
-              hint={decision === "APPROVED" ? "Ghi chú sẽ lưu vào lịch sử duyệt." : "Bắt buộc ít nhất 5 ký tự để Chủ dự án biết cần sửa gì."}
+        <Field
+          label={decision === "APPROVED" ? "Ghi chú duyệt (tuỳ chọn)" : "Lý do / góp ý cho Chủ dự án"}
+          required={decision !== "APPROVED"}
+          error={noteError}
+          hint={decision === "APPROVED" ? "Ghi chú sẽ lưu vào lịch sử duyệt." : "Bắt buộc ít nhất 5 ký tự để Chủ dự án biết cần sửa gì."}
+        >
+          <Textarea
+            name="note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            required={decision !== "APPROVED"}
+            minLength={decision === "APPROVED" ? 0 : 5}
+            placeholder="Nhập nhận xét kiểm duyệt..."
+            className="min-h-24"
+          />
+        </Field>
+
+        <div className="flex flex-wrap gap-1.5">
+          {QUICK_NOTES.map((tpl) => (
+            <button
+              key={tpl}
+              type="button"
+              onClick={() => setNote(tpl)}
+              className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-muted transition hover:border-violet-400/50 hover:text-fg"
             >
-              <Textarea
-                name="note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                required={decision !== "APPROVED"}
-                minLength={decision === "APPROVED" ? 0 : 5}
-                placeholder="Nhập nhận xét kiểm duyệt..."
-                className="min-h-24"
-              />
-            </Field>
+              + {tpl.slice(0, 34)}…
+            </button>
+          ))}
+        </div>
 
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_NOTES.map((tpl) => (
-                <button
-                  key={tpl}
-                  type="button"
-                  onClick={() => setNote(tpl)}
-                  className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-muted transition hover:border-violet-400/50 hover:text-fg"
-                >
-                  + {tpl.slice(0, 34)}…
-                </button>
-              ))}
-            </div>
-
-            <SubmitButton variant={current.btnVariant} className="w-full" pendingText="Đang xử lý...">
-              {current.submitText}
-            </SubmitButton>
-          </>
-        )}
-      </ActionForm>
+        <button
+          type="submit"
+          disabled={pending}
+          aria-busy={pending}
+          className={buttonClass(current.btnVariant, "md", "w-full")}
+        >
+          {pending && <Loader2 className="size-4 animate-spin" />}
+          {pending ? "Đang lưu quyết định…" : current.submitText}
+        </button>
+      </form>
     </div>
   );
 }

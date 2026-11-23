@@ -10,9 +10,13 @@ import {
   CheckCircle2,
   CircleDashed,
   Eye,
+  HelpCircle,
+  Image as ImageIcon,
   LayoutDashboard,
+  Link2,
   Rocket,
   Sparkles,
+  Upload,
 } from "lucide-react";
 import type { AddOnRow, SectionRow, StudioProject, TierRow } from "@/server/queries/studio";
 import type { PredictionResult } from "@/server/services/ai/predict";
@@ -23,7 +27,7 @@ import {
   updateBasicsAction,
 } from "@/server/actions/studio";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Field, Input, Select, Textarea, Toggle } from "@/components/ui/form";
 import { ImageUploadButton } from "@/components/ui/image-upload";
 import { Badge, ProjectStatusBadge } from "@/components/ui/primitives";
@@ -74,12 +78,19 @@ export function WizardShell({
   const [title, setTitle] = useState(project?.title ?? "");
   const [blurb, setBlurb] = useState(project?.blurb ?? "");
   const [coverUrl, setCoverUrl] = useState(project?.cover_url ?? COVER_GALLERY[0]);
+  const [coverTab, setCoverTab] = useState<"upload" | "gallery">("upload");
+  const [manualCoverUrl, setManualCoverUrl] = useState(false);
   const [categoryId, setCategoryId] = useState(project?.category_id ?? categories[0]?.id ?? "");
   const [goalAmount, setGoalAmount] = useState(project?.goal_amount ?? 50_000_000);
   const [durationDays, setDurationDays] = useState(project?.duration_days ?? 30);
 
   const selectedCat = categories.find((c) => c.id === categoryId) ?? categories[0];
   const requiredMissing = checklist.filter((c) => c.required && !c.ok);
+  const suggestsFaq = Boolean(
+    prediction?.suggestions?.some(
+      (s) => s.key === "faq" || /hỏi đáp|faq/i.test(`${s.title ?? ""} ${s.detail ?? ""}`),
+    ),
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
@@ -103,7 +114,7 @@ export function WizardShell({
         {project && (
           <div className="flex items-center gap-2">
             <ButtonLink href={`/p/${project.slug}`} variant="outline" size="sm">
-              <Eye className="size-4" /> Xem preview
+              <Eye className="size-4" /> Xem trước
             </ButtonLink>
             <ButtonLink href={`/studio/${project.slug}`} variant="secondary" size="sm">
               <LayoutDashboard className="size-4" /> Studio quản lý
@@ -250,48 +261,93 @@ export function WizardShell({
               />
             </Field>
 
-            {/* 3D Cover Gallery Picker */}
-            <div className="space-y-2.5">
+            {/* Ảnh bìa chiến dịch (2 tab gọn gàng) */}
+            <div className="space-y-3 rounded-2xl border border-line bg-surface-2/35 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-semibold">
-                  Tải ảnh bìa từ máy tính hoặc chọn mẫu 3D ({COVER_GALLERY.length} mẫu)
-                </span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <ImageUploadButton folder="projects" label="Tải ảnh lên" onUploaded={setCoverUrl} />
-                  <Input
-                    value={coverUrl}
-                    onChange={(e) => setCoverUrl(e.target.value)}
-                    placeholder="Dán đường dẫn ảnh bìa (https://...)"
-                    className="h-9 sm:w-64"
-                  />
+                <span className="text-sm font-semibold">Ảnh bìa chiến dịch</span>
+                <div className="inline-flex rounded-xl border border-line bg-surface p-1 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setCoverTab("upload")}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition",
+                      coverTab === "upload" ? "bg-violet-600 text-white shadow-sm" : "text-muted hover:text-fg",
+                    )}
+                  >
+                    <Upload className="size-3.5" /> Tải ảnh từ máy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCoverTab("gallery")}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition",
+                      coverTab === "gallery" ? "bg-violet-600 text-white shadow-sm" : "text-muted hover:text-fg",
+                    )}
+                  >
+                    <ImageIcon className="size-3.5" /> Thư viện mẫu 3D ({COVER_GALLERY.length} mẫu)
+                  </button>
                 </div>
               </div>
 
-              <div className="grid max-h-64 grid-cols-3 gap-2.5 overflow-y-auto rounded-2xl border border-line bg-surface-2/40 p-2.5 sm:grid-cols-4 md:grid-cols-6">
-                {COVER_GALLERY.map((url) => {
-                  const selected = coverUrl === url;
-                  return (
-                    <button
-                      key={url}
-                      type="button"
-                      onClick={() => setCoverUrl(url)}
-                      className={cn(
-                        "group relative aspect-[16/10] overflow-hidden rounded-xl border-2 transition",
-                        selected
-                          ? "border-violet-500 ring-2 ring-violet-500/35"
-                          : "border-transparent hover:border-violet-400/50",
-                      )}
-                    >
-                      <StudioImage src={url} alt="" sizes="140px" />
-                      {selected && (
-                        <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-violet-600 text-white shadow">
-                          <Check className="size-3" />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              {coverTab === "upload" ? (
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="relative h-24 w-40 shrink-0 overflow-hidden rounded-xl border border-line bg-surface">
+                      <StudioImage src={coverUrl} alt={title || "Ảnh bìa đã chọn"} sizes="160px" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <p className="text-xs text-muted">
+                        Chọn ảnh chất lượng cao tỉ lệ 16:10 (khuyến nghị PNG/JPG/WebP dưới 8MB) để hiển thị sắc nét trên trang khám phá.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ImageUploadButton folder="projects" label="Tải ảnh bìa từ máy" onUploaded={setCoverUrl} />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => setManualCoverUrl((prev) => !prev)}
+                        >
+                          <Link2 className="size-3.5" />
+                          {manualCoverUrl ? "Ẩn ô liên kết" : "Hoặc dán liên kết ảnh thủ công"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {manualCoverUrl && (
+                    <Input
+                      value={coverUrl}
+                      onChange={(e) => setCoverUrl(e.target.value)}
+                      placeholder="Dán đường dẫn ảnh bìa (https://...)"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="grid max-h-60 grid-cols-3 gap-2.5 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 sm:grid-cols-4 md:grid-cols-6">
+                  {COVER_GALLERY.map((url) => {
+                    const selected = coverUrl === url;
+                    return (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => setCoverUrl(url)}
+                        className={cn(
+                          "group relative aspect-[16/10] overflow-hidden rounded-xl border-2 transition",
+                          selected
+                            ? "border-violet-500 ring-2 ring-violet-500/35"
+                            : "border-transparent hover:border-violet-400/50",
+                        )}
+                      >
+                        <StudioImage src={url} alt="" sizes="140px" />
+                        {selected && (
+                          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-violet-600 text-white shadow">
+                            <Check className="size-3" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -532,8 +588,14 @@ export function WizardShell({
             </ButtonLink>
 
             <div className="flex flex-wrap items-center gap-3">
+              {suggestsFaq && (
+                <ButtonLink href={`/studio/${project.slug}?tab=faq`} variant="outline">
+                  <HelpCircle className="size-4" /> Bổ sung Hỏi đáp (FAQ)
+                </ButtonLink>
+              )}
+
               <ButtonLink href={`/p/${project.slug}`} variant="secondary">
-                <Eye className="size-4" /> Xem preview
+                <Eye className="size-4" /> Xem trước
               </ButtonLink>
 
               <ActionForm action={submitForReviewAction}>

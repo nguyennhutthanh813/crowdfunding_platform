@@ -37,7 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <main className="min-h-[70vh]">{children}</main>
         <SiteFooter />
         <MobileNav ctx={ctx} />
-        <Toaster position="top-center" richColors closeButton toastOptions={{ className: "!rounded-2xl !font-sans" }} />
+        <Toaster position="bottom-right" richColors closeButton offset={20} toastOptions={{ className: "!rounded-2xl !font-sans" }} />
       </body>
     </html>
   );

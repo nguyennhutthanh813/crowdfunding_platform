@@ -1,26 +1,78 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MessageSquarePlus, RefreshCw, Send } from "lucide-react";
-import type { ConversationRow, QuickContactItem } from "@/server/queries/me";
+import { ArrowLeft, FolderKanban, MessageSquare, MessageSquarePlus, RefreshCw, Search, Send } from "lucide-react";
+import type { ConversationRow, QuickContactItem, RelatedProjectItem } from "@/server/queries/me";
 import { markConversationReadAction, sendMessageAction, startConversationAction } from "@/server/actions/me";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input, Textarea } from "@/components/ui/form";
+import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { Badge, Card, ProjectStatusBadge, RoleBadge } from "@/components/ui/primitives";
 import { SafeAvatar, SafeImage } from "./safe-media";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 
+function ProjectContextField({ relatedProjects = [] }: { relatedProjects?: RelatedProjectItem[] }) {
+  const [customMode, setCustomMode] = useState(relatedProjects.length === 0);
+  const [projectVal, setProjectVal] = useState("");
+
+  if (relatedProjects.length === 0) {
+    return (
+      <Field label="Mã dự án (tuỳ chọn)" hint="Nếu trao đổi riêng không theo dự án, hãy để trống">
+        <Input name="project" value={projectVal} onChange={(e) => setProjectVal(e.target.value)} placeholder="Để trống hoặc nhập mã đường dẫn dự án…" />
+      </Field>
+    );
+  }
+
+  return (
+    <Field
+      label="Dự án liên quan (tuỳ chọn)"
+      hint={
+        <button
+          type="button"
+          onClick={() => {
+            setCustomMode((prev) => !prev);
+            setProjectVal("");
+          }}
+          className="font-semibold text-violet-600 hover:underline dark:text-violet-400"
+        >
+          {customMode ? "Chọn từ danh sách dự án liên quan" : "Nhập mã đường dẫn dự án khác"}
+        </button>
+      }
+    >
+      {customMode ? (
+        <Input
+          name="project"
+          value={projectVal}
+          onChange={(e) => setProjectVal(e.target.value)}
+          placeholder="Nhập mã đường dẫn dự án (để trống nếu nhắn chung)…"
+        />
+      ) : (
+        <Select name="project" value={projectVal} onChange={(e) => setProjectVal(e.target.value)}>
+          <option value="">Không gắn dự án cụ thể (tin nhắn riêng)</option>
+          {relatedProjects.map((p) => (
+            <option key={p.slug} value={p.slug}>
+              {p.title}
+              {p.relation ? ` (${p.relation})` : ""}
+            </option>
+          ))}
+        </Select>
+      )}
+    </Field>
+  );
+}
+
 export function NewMessageModalButton({
   quickContacts = [],
+  relatedProjects = [],
   variant = "primary",
   size = "sm",
   label = "Tin nhắn mới",
 }: {
   quickContacts?: QuickContactItem[];
+  relatedProjects?: RelatedProjectItem[];
   variant?: "primary" | "outline" | "secondary" | "ghost";
   size?: "xs" | "sm" | "md";
   label?: string;
@@ -100,9 +152,7 @@ export function NewMessageModalButton({
           )}
 
           <div className="grid gap-3.5 sm:grid-cols-2">
-            <Field label="Slug dự án (tuỳ chọn)" hint="Ví dụ: orbit-one">
-              <Input name="project" placeholder="orbit-one" />
-            </Field>
+            <ProjectContextField relatedProjects={relatedProjects} />
             <Field label="Chủ đề (tuỳ chọn)">
               <Input name="subject" maxLength={120} placeholder="Hỏi về phần quà, tiến độ giao hàng…" />
             </Field>
@@ -126,25 +176,135 @@ export function NewMessageModalButton({
   );
 }
 
+export function QuickMessageModalButton({
+  toUsername,
+  toDisplayName,
+  projectSlug,
+  projectTitle,
+  variant = "outline",
+  size = "xs",
+  label = "Nhắn tin",
+  className,
+}: {
+  toUsername: string;
+  toDisplayName: string;
+  projectSlug?: string | null;
+  projectTitle?: string | null;
+  variant?: "primary" | "outline" | "secondary" | "ghost";
+  size?: "xs" | "sm" | "md";
+  label?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button type="button" variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
+        <MessageSquare className="size-3.5" /> {label}
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        size="md"
+        title={`Nhắn tin tới ${toDisplayName}`}
+        description={`Cuộc trò chuyện trực tiếp sẽ mở riêng theo ngữ cảnh${projectTitle ? ` dự án "${projectTitle}"` : ""}.`}
+      >
+        <ActionForm
+          key={open ? `quick-msg-${toUsername}-${projectSlug ?? "dm"}` : "quick-msg-closed"}
+          action={startConversationAction}
+          onSuccess={() => setOpen(false)}
+          className="space-y-4"
+        >
+          <input type="hidden" name="to" value={toUsername} />
+          <input type="hidden" name="project" value={projectSlug ?? ""} />
+
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-500/25 bg-violet-500/8 px-3.5 py-2.5 text-xs">
+            <div className="flex items-center gap-2">
+              <SafeAvatar name={toDisplayName} size={28} />
+              <div>
+                <div className="font-bold text-fg">{toDisplayName}</div>
+                <div className="text-muted">@{toUsername}</div>
+              </div>
+            </div>
+            {(projectTitle || projectSlug) && (
+              <Badge tone="violet" className="max-w-full truncate">
+                <FolderKanban className="size-3 shrink-0" />
+                <span className="truncate">{projectTitle || projectSlug}</span>
+              </Badge>
+            )}
+          </div>
+
+          <Field label="Chủ đề (tuỳ chọn)">
+            <Input name="subject" maxLength={120} placeholder="Hỏi về phần quà, giao hàng hoặc góp ý dự án…" />
+          </Field>
+
+          <Field label="Nội dung tin nhắn" required>
+            <Textarea name="body" required rows={4} maxLength={2000} placeholder={`Nhập lời nhắn gửi ${toDisplayName}…`} />
+          </Field>
+
+          <div className="flex justify-end gap-2 border-t border-line pt-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Huỷ
+            </Button>
+            <SubmitButton size="sm" pendingText="Đang gửi…">
+              <Send className="size-4" /> Gửi tin nhắn
+            </SubmitButton>
+          </div>
+        </ActionForm>
+      </Dialog>
+    </>
+  );
+}
+
 export function ConversationList({
   conversations,
   viewerId,
   activeId,
   quickContacts = [],
+  relatedProjects = [],
 }: {
   conversations: ConversationRow[];
   viewerId: string;
   activeId?: string;
   quickContacts?: QuickContactItem[];
+  relatedProjects?: RelatedProjectItem[];
 }) {
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter(
+      (c) =>
+        (c.other_name ?? "").toLowerCase().includes(q) ||
+        (c.other_username ?? "").toLowerCase().includes(q) ||
+        (c.project_title ?? "").toLowerCase().includes(q) ||
+        (c.subject ?? "").toLowerCase().includes(q) ||
+        (c.last_body ?? "").toLowerCase().includes(q),
+    );
+  }, [conversations, search]);
+
   return (
     <Card className="flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-line px-4 py-3">
-        <div>
-          <h2 className="text-sm font-bold">Hộp thư ({conversations.length})</h2>
-          <p className="text-[11px] text-muted">Trao đổi trực tiếp cùng chủ dự án &amp; người ủng hộ</p>
+      <div className="space-y-2.5 border-b border-line px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold">Hộp thư ({conversations.length})</h2>
+            <p className="text-[11px] text-muted">Trao đổi trực tiếp cùng chủ dự án &amp; người ủng hộ</p>
+          </div>
+          <NewMessageModalButton quickContacts={quickContacts} relatedProjects={relatedProjects} size="xs" label="Mới" />
         </div>
-        <NewMessageModalButton quickContacts={quickContacts} size="xs" label="Mới" />
+        {conversations.length > 0 && (
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm người nhận, dự án, nội dung…"
+              className="h-8 rounded-xl pl-8 text-xs"
+            />
+          </div>
+        )}
       </div>
 
       <div className="divide-y divide-line max-h-[68vh] overflow-y-auto">
@@ -152,8 +312,12 @@ export function ConversationList({
           <div className="p-6 text-center text-sm text-muted">
             Chưa có cuộc trò chuyện nào. Bấm nút <b>Mới</b> ở góc trên để gửi tin nhắn đầu tiên.
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted">
+            Không tìm thấy hội thoại phù hợp với từ khoá đang nhập.
+          </div>
         ) : (
-          conversations.map((c) => {
+          filtered.map((c) => {
             const active = c.id === activeId;
             const otherName = c.other_name ?? "Thành viên";
             return (
@@ -407,11 +571,13 @@ export function NewMessageForm({
   prefillToDisplay,
   prefillProject,
   quickContacts,
+  relatedProjects = [],
 }: {
   prefillTo?: string;
   prefillToDisplay?: { username: string; display_name: string; avatar_url: string | null } | null;
   prefillProject?: { slug: string; title: string; status: string } | null;
   quickContacts: QuickContactItem[];
+  relatedProjects?: RelatedProjectItem[];
 }) {
   return (
     <Card className="p-5 sm:p-6">
@@ -479,9 +645,7 @@ export function NewMessageForm({
             <input type="hidden" name="project" value={prefillProject.slug} />
           </div>
         ) : (
-          <Field label="Slug dự án (tuỳ chọn)" hint="Nếu muốn gắn ngữ cảnh dự án, ví dụ: orbit-one">
-            <Input name="project" placeholder="orbit-one" />
-          </Field>
+          <ProjectContextField relatedProjects={relatedProjects} />
         )}
 
         <Field label="Chủ đề (tuỳ chọn)">

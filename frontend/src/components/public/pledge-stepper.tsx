@@ -21,7 +21,7 @@ import {
   Truck,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { AddOnVM, TierVM } from "@/server/queries/public";
+import type { AddOnVM, TierVM, VnpayBankOption } from "@/server/queries/public";
 import { submitPledgeAction } from "@/server/actions/public";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
@@ -136,12 +136,25 @@ function formatCardNumber(raw: string) {
     .trim();
 }
 
+const FALLBACK_VNPAY_BANKS: VnpayBankOption[] = [
+  { code: "VNPAYQR", name: "Quét mã VNPAY-QR / VietQR Ngân hàng", shortName: "VNPAY-QR", channel: "VNPAYQR" },
+  { code: "NCB", name: "Ngân hàng Quốc Dân (NCB Sandbox)", shortName: "NCB", channel: "VNBANK" },
+  { code: "VCB", name: "Ngân hàng Ngoại thương (Vietcombank)", shortName: "Vietcombank", channel: "VNBANK" },
+  { code: "TCB", name: "Ngân hàng Kỹ thương (Techcombank)", shortName: "Techcombank", channel: "VNBANK" },
+  { code: "MBB", name: "Ngân hàng Quân đội (MB Bank)", shortName: "MB Bank", channel: "VNBANK" },
+  { code: "BIDV", name: "Ngân hàng Đầu tư & Phát triển (BIDV)", shortName: "BIDV", channel: "VNBANK" },
+  { code: "CTG", name: "Ngân hàng Công thương (VietinBank)", shortName: "VietinBank", channel: "VNBANK" },
+  { code: "ACB", name: "Ngân hàng Á Châu (ACB)", shortName: "ACB", channel: "VNBANK" },
+  { code: "VISA", name: "Thẻ quốc tế Visa / MasterCard / JCB", shortName: "Visa / MC / JCB", channel: "INTCARD" },
+];
+
 export function PledgeStepper({
   project,
   tiers,
   addOns,
   cards,
   addresses,
+  vnpayBanks,
   viewerName,
   initialTierId,
   initialBonus,
@@ -164,6 +177,7 @@ export function PledgeStepper({
   addOns: AddOnVM[];
   cards: SavedCardItem[];
   addresses: SavedAddressItem[];
+  vnpayBanks?: VnpayBankOption[];
   viewerName: string;
   initialTierId: string | null;
   initialBonus: number;
@@ -174,6 +188,8 @@ export function PledgeStepper({
   initialNote: string;
   existingPledge: { code: string; total_amount: number; tier_title: string | null } | null;
 }) {
+  const bankList = vnpayBanks && vnpayBanks.length > 0 ? vnpayBanks : FALLBACK_VNPAY_BANKS;
+  const domesticBanks = bankList.filter((b) => b.channel === "VNBANK");
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // Bước 1: Quà & ủng hộ thêm
@@ -713,7 +729,7 @@ export function PledgeStepper({
                           <Input
                             value={recipientName}
                             onChange={(e) => setRecipientName(e.target.value)}
-                            placeholder="Nguyễn Minh Anh"
+                            placeholder="Nhập họ và tên người nhận"
                           />
                         </Field>
                         <Field label="Số điện thoại" required hint="9–12 chữ số">
@@ -900,18 +916,11 @@ export function PledgeStepper({
                       <div className="space-y-2">
                         <div className="text-xs font-bold text-fg">Chọn ngân hàng nội địa:</div>
                         <div className="flex flex-wrap gap-2">
-                          {[
-                            { code: "NCB", label: "NCB" },
-                            { code: "VCB", label: "Vietcombank" },
-                            { code: "TCB", label: "Techcombank" },
-                            { code: "MBB", label: "MB Bank" },
-                            { code: "BIDV", label: "BIDV" },
-                            { code: "CTG", label: "VietinBank" },
-                            { code: "ACB", label: "ACB" },
-                          ].map((b) => (
+                          {domesticBanks.map((b) => (
                             <button
                               key={b.code}
                               type="button"
+                              title={b.name}
                               onClick={() => setVnpBankCode(b.code)}
                               className={cn(
                                 "rounded-xl border px-3 py-1.5 text-xs font-bold transition",
@@ -920,7 +929,7 @@ export function PledgeStepper({
                                   : "border-line bg-surface text-muted hover:text-fg",
                               )}
                             >
-                              {b.label}
+                              {b.shortName}
                             </button>
                           ))}
                         </div>

@@ -36,7 +36,7 @@ export default async function MessageThreadPage(props: {
       <PageHeader
         eyebrow="Hộp thư"
         title="Tin nhắn nội bộ"
-        actions={<NewMessageModalButton quickContacts={quickContacts} size="sm" />}
+        actions={<NewMessageModalButton quickContacts={quickContacts} relatedProjects={composeMeta.relatedProjects} size="sm" />}
       />
 
       <div className="grid gap-5 lg:grid-cols-[340px_1fr] lg:items-start">
@@ -46,6 +46,7 @@ export default async function MessageThreadPage(props: {
             viewerId={v.id}
             activeId={id}
             quickContacts={quickContacts}
+            relatedProjects={composeMeta.relatedProjects}
           />
         </div>
         <ThreadView

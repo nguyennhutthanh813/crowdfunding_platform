@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, FileText, Image as ImageIcon, Pencil, Plus, ShieldAlert, Trash2, Video } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, FileText, Image as ImageIcon, Link2, Pencil, Plus, ShieldAlert, Trash2, Video } from "lucide-react";
 import type { SectionRow } from "@/server/queries/studio";
 import { deleteSectionAction, moveSectionAction, saveRisksAction, saveSectionAction } from "@/server/actions/studio";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
@@ -15,9 +15,9 @@ import { COVER_GALLERY } from "./meta";
 import { StudioImage } from "./media";
 
 const KIND_META = {
-  TEXT: { label: "Đoạn văn", icon: FileText, tone: "violet" as const },
-  IMAGE: { label: "Hình ảnh", icon: ImageIcon, tone: "sky" as const },
-  VIDEO: { label: "Video", icon: Video, tone: "emerald" as const },
+  TEXT: { label: "Đoạn văn bản", icon: FileText, tone: "violet" as const },
+  IMAGE: { label: "Hình ảnh & chú thích", icon: ImageIcon, tone: "sky" as const },
+  VIDEO: { label: "Video giới thiệu", icon: Video, tone: "emerald" as const },
 };
 
 export function ContentEditor({
@@ -36,14 +36,14 @@ export function ContentEditor({
 
   return (
     <div className="space-y-6">
-      {/* Sections List */}
+      {/* Danh sách mục nội dung */}
       <div className="card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-bold">Nội dung Campaign (Sections)</h3>
+              <h3 className="text-lg font-bold">Câu chuyện chiến dịch</h3>
               <Badge tone={textCount >= 2 ? "emerald" : "amber"}>
-                {textCount}/2 section chữ tối thiểu
+                {textCount}/2 mục văn bản tối thiểu
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted">
@@ -51,16 +51,16 @@ export function ContentEditor({
             </p>
           </div>
           <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="size-4" /> Thêm section
+            <Plus className="size-4" /> Thêm mục nội dung
           </Button>
         </div>
 
         <div className="mt-5 space-y-3">
           {sections.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line bg-surface-2/40 p-8 text-center">
-              <p className="text-sm font-medium text-muted">Chưa có section nội dung nào. Hãy thêm section đầu tiên để kể câu chuyện dự án!</p>
+              <p className="text-sm font-medium text-muted">Chưa có mục nội dung nào. Hãy thêm mục nội dung đầu tiên để kể câu chuyện dự án!</p>
               <Button size="sm" className="mt-3" onClick={() => setCreating(true)}>
-                <Plus className="size-4" /> Thêm section đầu tiên
+                <Plus className="size-4" /> Thêm mục nội dung đầu tiên
               </Button>
             </div>
           ) : (
@@ -116,17 +116,19 @@ export function ContentEditor({
                   {s.kind === "IMAGE" && s.media_url && (
                     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="relative h-24 w-40 shrink-0 overflow-hidden rounded-xl border border-line">
-                        <StudioImage src={s.media_url} alt={s.heading || "Ảnh campaign"} sizes="160px" />
+                        <StudioImage src={s.media_url} alt={s.heading || "Ảnh chiến dịch"} sizes="160px" />
                       </div>
-                      <div className="min-w-0 text-xs text-muted">
-                        <div className="truncate font-mono">{s.media_url}</div>
-                        {s.body && <p className="mt-1 line-clamp-2 text-sm text-fg">{s.body}</p>}
+                      <div className="min-w-0 space-y-1 text-xs">
+                        <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="size-3.5" /> Ảnh minh hoạ đã tải lên
+                        </div>
+                        {s.body && <p className="line-clamp-2 text-sm text-fg">{s.body}</p>}
                       </div>
                     </div>
                   )}
                   {s.kind === "VIDEO" && s.media_url && (
                     <div className="mt-2.5 rounded-xl bg-surface px-3 py-2 text-xs text-muted">
-                      <span className="font-semibold text-fg">Video URL: </span>
+                      <span className="font-semibold text-fg">Liên kết video: </span>
                       <span className="break-all font-mono">{s.media_url}</span>
                       {s.body && <p className="mt-1 text-fg">{s.body}</p>}
                     </div>
@@ -178,8 +180,8 @@ export function ContentEditor({
           setCreating(false);
           setEditing(null);
         }}
-        title={editing ? "Chỉnh sửa section nội dung" : "Thêm section nội dung"}
-        description="Hỗ trợ đoạn văn (TEXT), hình ảnh minh hoạ (IMAGE) hoặc video (VIDEO)."
+        title={editing ? "Chỉnh sửa mục nội dung" : "Thêm mục nội dung"}
+        description="Hỗ trợ đoạn văn bản, hình ảnh minh hoạ hoặc video giới thiệu."
         wide
       >
         {(creating || editing) && (
@@ -209,6 +211,7 @@ function SectionFormBody({
 }) {
   const [kind, setKind] = useState<"TEXT" | "IMAGE" | "VIDEO">(initial?.kind ?? "TEXT");
   const [mediaUrl, setMediaUrl] = useState(initial?.media_url ?? "");
+  const [manualUrlOpen, setManualUrlOpen] = useState(false);
 
   return (
     <ActionForm action={saveSectionAction} onSuccess={onDone} className="space-y-4">
@@ -217,7 +220,7 @@ function SectionFormBody({
       <input type="hidden" name="kind" value={kind} />
 
       <div>
-        <span className="mb-1.5 block text-sm font-semibold">Loại section</span>
+        <span className="mb-1.5 block text-sm font-semibold">Loại nội dung</span>
         <div className="grid grid-cols-3 gap-2">
           {(["TEXT", "IMAGE", "VIDEO"] as const).map((k) => {
             const m = KIND_META[k];
@@ -246,48 +249,80 @@ function SectionFormBody({
         <Input name="heading" defaultValue={initial?.heading ?? ""} placeholder="Ví dụ: Câu chuyện ra đời, Thiết kế chi tiết…" />
       </Field>
 
-      {kind !== "TEXT" && (
+      {kind === "IMAGE" && (
         <div className="space-y-3">
-          <Field
-            label={kind === "IMAGE" ? "Đường dẫn hình ảnh" : "Đường dẫn video (YouTube / MP4)"}
-            required
-          >
-            <div className="flex flex-wrap gap-2">
-              <Input
-                name="media_url"
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-                placeholder={kind === "IMAGE" ? "Dán đường dẫn ảnh (https://...) hoặc tải lên" : "https://www.youtube.com/watch?v=..."}
-                className="min-w-[200px] flex-1"
-                required
-              />
-              {kind === "IMAGE" && (
-                <ImageUploadButton folder="sections" label="Tải ảnh lên" onUploaded={setMediaUrl} className="h-11 px-3" />
-              )}
+          <input type="hidden" name="media_url" value={mediaUrl} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold">
+              Hình ảnh minh hoạ <span className="text-rose-500">*</span>
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <ImageUploadButton folder="sections" label="Tải ảnh lên" onUploaded={setMediaUrl} className="h-9 px-3" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => setManualUrlOpen((prev) => !prev)}
+              >
+                <Link2 className="size-3.5" />
+                {manualUrlOpen ? "Ẩn ô liên kết" : "Hoặc dán liên kết ảnh thủ công"}
+              </Button>
             </div>
-          </Field>
+          </div>
 
-          {kind === "IMAGE" && (
-            <div>
-              <div className="mb-1.5 text-xs font-semibold text-muted">Hoặc chọn nhanh ảnh minh hoạ 3D có sẵn:</div>
-              <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto rounded-xl border border-line bg-surface-2/40 p-2 sm:grid-cols-6">
-                {COVER_GALLERY.slice(0, 16).map((url) => (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={() => setMediaUrl(url)}
-                    className={cn(
-                      "relative aspect-[16/10] overflow-hidden rounded-lg border-2 transition",
-                      mediaUrl === url ? "border-violet-500 ring-2 ring-violet-500/30" : "border-transparent hover:border-line",
-                    )}
-                  >
-                    <StudioImage src={url} alt="" sizes="100px" />
-                  </button>
-                ))}
+          {mediaUrl && (
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-2.5">
+              <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-lg border border-line bg-surface">
+                <StudioImage src={mediaUrl} alt="Xem trước ảnh mục nội dung" sizes="112px" />
+              </div>
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 className="size-3.5" /> Đã chọn ảnh minh hoạ
+                </div>
+                <p className="mt-0.5 text-muted">Bạn có thể tải ảnh khác thay thế hoặc chọn mẫu 3D bên dưới.</p>
               </div>
             </div>
           )}
+
+          {manualUrlOpen && (
+            <Input
+              value={mediaUrl}
+              onChange={(e) => setMediaUrl(e.target.value)}
+              placeholder="Dán đường dẫn ảnh (https://...)"
+            />
+          )}
+
+          <div>
+            <div className="mb-1.5 text-xs font-semibold text-muted">Hoặc chọn nhanh ảnh minh hoạ 3D có sẵn:</div>
+            <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto rounded-xl border border-line bg-surface-2/40 p-2 sm:grid-cols-6">
+              {COVER_GALLERY.slice(0, 16).map((url) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setMediaUrl(url)}
+                  className={cn(
+                    "relative aspect-[16/10] overflow-hidden rounded-lg border-2 transition",
+                    mediaUrl === url ? "border-violet-500 ring-2 ring-violet-500/30" : "border-transparent hover:border-line",
+                  )}
+                >
+                  <StudioImage src={url} alt="" sizes="100px" />
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+      )}
+
+      {kind === "VIDEO" && (
+        <Field label="Đường dẫn video (YouTube / MP4)" required>
+          <Input
+            name="media_url"
+            value={mediaUrl}
+            onChange={(e) => setMediaUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            required
+          />
+        </Field>
       )}
 
       <Field
@@ -307,8 +342,8 @@ function SectionFormBody({
         <Button type="button" variant="ghost" onClick={onDone}>
           Huỷ
         </Button>
-        <SubmitButton pendingText="Đang lưu…">
-          {initial ? "Lưu thay đổi" : "Thêm section"}
+        <SubmitButton pendingText="Đang lưu…" disabled={kind === "IMAGE" && !mediaUrl.trim()}>
+          {initial ? "Lưu thay đổi" : "Thêm mục nội dung"}
         </SubmitButton>
       </div>
     </ActionForm>

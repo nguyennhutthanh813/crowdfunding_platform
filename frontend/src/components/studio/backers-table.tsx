@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, MapPin, Search, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, MapPin, Search, Users } from "lucide-react";
 import type { BackerRow } from "@/server/queries/studio";
-import { buttonClass } from "@/components/ui/button";
+import { QuickMessageModalButton } from "@/components/me/messages-ui";
+import { Button, buttonClass } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { EmptyState } from "@/components/ui/layout-bits";
 import { Badge, PledgeStatusBadge } from "@/components/ui/primitives";
 import { COUNTRY_NAMES, flagOf, formatDate, formatVnd } from "@/lib/utils";
+
+const PAGE_SIZE = 10;
 
 export function BackersTable({
   slug,
@@ -18,6 +21,7 @@ export function BackersTable({
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -33,6 +37,11 @@ export function BackersTable({
       );
     });
   }, [backers, query, statusFilter]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const curPage = Math.min(page, pages);
+  const startIdx = (curPage - 1) * PAGE_SIZE;
+  const pageRows = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
   const activeTotal = useMemo(
     () => backers.filter((b) => ["AUTHORIZED", "CAPTURED", "CAPTURE_FAILED"].includes(b.status)).reduce((s, b) => s + b.total_amount, 0),
@@ -56,18 +65,28 @@ export function BackersTable({
         </a>
       </div>
 
-      {/* Filters */}
+      {/* Bộ lọc */}
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
             placeholder="Tìm theo mã góp vốn, tên người ủng hộ, mức quà, tỉnh thành…"
             className="pl-10"
           />
         </div>
-        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="sm:w-56">
+        <Select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          className="sm:w-56"
+        >
           <option value="ALL">Tất cả trạng thái</option>
           <option value="AUTHORIZED">Đang giữ chỗ</option>
           <option value="CAPTURED">Đã thanh toán</option>
@@ -88,7 +107,7 @@ export function BackersTable({
         <>
           {/* Mobile stacked cards */}
           <div className="space-y-3 md:hidden">
-            {filtered.map((b) => (
+            {pageRows.map((b) => (
               <div key={b.id} className="card space-y-2.5 p-4 text-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -123,6 +142,17 @@ export function BackersTable({
                   </div>
                 )}
                 {b.note && <div className="text-xs italic text-muted">Ghi chú: “{b.note}”</div>}
+
+                <div className="flex justify-end border-t border-line pt-2">
+                  <QuickMessageModalButton
+                    toUsername={b.username}
+                    toDisplayName={b.name}
+                    projectSlug={slug}
+                    variant="outline"
+                    size="xs"
+                    label="Nhắn tin"
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -139,10 +169,11 @@ export function BackersTable({
                     <th className="px-4 py-3 font-semibold">Số tiền</th>
                     <th className="px-4 py-3 font-semibold">Trạng thái</th>
                     <th className="px-4 py-3 font-semibold">Giao hàng</th>
+                    <th className="px-4 py-3 text-right font-semibold">Liên hệ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {filtered.map((b) => (
+                  {pageRows.map((b) => (
                     <tr key={b.id} className="align-top transition hover:bg-surface-2/30">
                       <td className="px-4 py-3">
                         <div className="font-mono text-xs font-bold">{b.code}</div>
@@ -192,11 +223,53 @@ export function BackersTable({
                           <span className="text-muted">Quà số / không cần giao</span>
                         )}
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        <QuickMessageModalButton
+                          toUsername={b.username}
+                          toDisplayName={b.name}
+                          projectSlug={slug}
+                          variant="outline"
+                          size="xs"
+                          label="Nhắn tin"
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+            <span>
+              Hiển thị <b className="text-fg">{startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, filtered.length)}</b> trên{" "}
+              <b className="text-fg">{filtered.length}</b> lượt góp vốn
+            </span>
+            {pages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={curPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="size-3.5" /> Trước
+                </Button>
+                <span>
+                  Trang <b className="text-fg">{curPage}</b> / {pages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={curPage >= pages}
+                  onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                >
+                  Sau <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         </>
       )}

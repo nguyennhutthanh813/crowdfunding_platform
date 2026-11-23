@@ -27,18 +27,18 @@ export default async function MessagesInboxPage() {
         eyebrow="Hộp thư"
         title="Tin nhắn nội bộ"
         description="Trao đổi trực tiếp với Chủ dự án, Cộng tác viên hoặc Người ủng hộ về dự án và phần quà."
-        actions={<NewMessageModalButton quickContacts={quickContacts} size="sm" />}
+        actions={<NewMessageModalButton quickContacts={quickContacts} relatedProjects={composeMeta.relatedProjects} size="sm" />}
       />
 
       {conversations.length === 0 ? (
         <EmptyState
           title="Hộp thư trống"
           description="Bạn chưa có cuộc trò chuyện nào. Hãy nhắn tin trực tiếp tới Chủ dự án trên trang dự án hoặc bắt đầu hội thoại mới."
-          action={<NewMessageModalButton quickContacts={quickContacts} size="md" label="Gửi tin nhắn mới" />}
+          action={<NewMessageModalButton quickContacts={quickContacts} relatedProjects={composeMeta.relatedProjects} size="md" label="Gửi tin nhắn mới" />}
         />
       ) : (
         <div className="grid gap-5 lg:grid-cols-[340px_1fr] lg:items-start">
-          <ConversationList conversations={conversations} viewerId={v.id} quickContacts={quickContacts} />
+          <ConversationList conversations={conversations} viewerId={v.id} quickContacts={quickContacts} relatedProjects={composeMeta.relatedProjects} />
 
           <Card className="hidden flex-col items-center justify-center gap-3 p-10 text-center lg:flex">
             <span className="grid size-14 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
@@ -48,7 +48,7 @@ export default async function MessagesInboxPage() {
             <p className="max-w-sm text-sm text-muted">
               Chọn hội thoại ở danh sách bên trái để xem lịch sử trao đổi và gửi tin nhắn, hoặc soạn hội thoại mới ngay tại đây.
             </p>
-            <NewMessageModalButton quickContacts={quickContacts} variant="outline" size="sm" label="Soạn tin nhắn mới" />
+            <NewMessageModalButton quickContacts={quickContacts} relatedProjects={composeMeta.relatedProjects} variant="outline" size="sm" label="Soạn tin nhắn mới" />
           </Card>
         </div>
       )}

@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { RotateCcw, ShieldBan } from "lucide-react";
+import { AlertTriangle, Calendar, ExternalLink, Eye, RotateCcw, ShieldBan, Users } from "lucide-react";
 import { restoreProjectAction, takedownProjectAction } from "@/server/actions/admin";
+import { SafeImage } from "@/components/admin/safe-image";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Textarea } from "@/components/ui/form";
-import { formatDate } from "@/lib/utils";
+import { FundingBar } from "@/components/ui/funding-bar";
+import { Badge, ProjectStatusBadge } from "@/components/ui/primitives";
+import { formatCompactVnd, formatDate, formatVnd, percentOf } from "@/lib/utils";
 
 const SUSPEND_TEMPLATES = [
   "Nghi vi phạm bản quyền hình ảnh / nội dung — tạm gỡ để xác minh.",
@@ -139,6 +142,100 @@ export function RestoreProjectButton({
             </SubmitButton>
           </div>
         </ActionForm>
+      </Dialog>
+    </>
+  );
+}
+
+export interface AdminProjectInspectSummary {
+  id: string;
+  slug: string;
+  title: string;
+  cover_url: string | null;
+  category: string;
+  color: string;
+  creator: string;
+  creator_username: string;
+  status: string;
+  pledged_amount: number;
+  goal_amount: number;
+  backers_count: number;
+  open_reports: number;
+  end_at: string | null;
+}
+
+export function QuickProjectInspectButton({ project: p }: { project: AdminProjectInspectSummary }) {
+  const [open, setOpen] = useState(false);
+  const pct = percentOf(p.pledged_amount, p.goal_amount);
+  const detailHref = p.status === "PENDING_REVIEW" ? `/admin/reviews/${p.slug}` : `/p/${p.slug}`;
+
+  return (
+    <>
+      <Button type="button" variant="ghost" size="xs" onClick={() => setOpen(true)}>
+        <Eye className="size-3.5" /> Xem nhanh
+      </Button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        size="md"
+        title={p.title}
+        description={`${p.category} · Chủ dự án: ${p.creator} (@${p.creator_username})`}
+      >
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden rounded-2xl border border-line bg-surface-2 sm:w-44">
+              <SafeImage src={p.cover_url} alt={p.title} fill sizes="176px" className="object-cover" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-2.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white" style={{ backgroundColor: p.color }}>
+                  {p.category}
+                </span>
+                <ProjectStatusBadge status={p.status} />
+                {p.open_reports > 0 && (
+                  <Badge tone={p.open_reports >= 3 ? "rose" : "amber"}>
+                    <AlertTriangle className="size-3" /> {p.open_reports} báo cáo mở
+                  </Badge>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface-2/50 p-3 text-xs space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {formatVnd(p.pledged_amount)} ({pct}%)
+                  </span>
+                  <span className="text-muted">Mục tiêu {formatCompactVnd(p.goal_amount)}</span>
+                </div>
+                <FundingBar percent={pct} size="sm" />
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-muted">
+                  <span className="inline-flex items-center gap-1">
+                    <Users className="size-3.5" /> {p.backers_count} người ủng hộ
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="size-3.5" /> Đóng: {p.end_at ? formatDate(p.end_at, true) : "Chưa đặt lịch"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+            <div className="flex flex-wrap gap-2">
+              <ButtonLink href={detailHref} variant="primary" size="sm">
+                <ExternalLink className="size-3.5" /> {p.status === "PENDING_REVIEW" ? "Mở hồ sơ kiểm duyệt" : "Mở trang công khai"}
+              </ButtonLink>
+              {p.open_reports > 0 && (
+                <ButtonLink href="/admin/reports" variant="outline" size="sm">
+                  <AlertTriangle className="size-3.5" /> Xem báo cáo vi phạm
+                </ButtonLink>
+              )}
+            </div>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Đóng
+            </Button>
+          </div>
+        </div>
       </Dialog>
     </>
   );

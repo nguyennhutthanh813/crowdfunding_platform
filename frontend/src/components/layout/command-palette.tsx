@@ -3,7 +3,27 @@
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { Compass, LayoutDashboard, Plus, Rocket, Search, Settings, Shield, UserRound } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  Bookmark,
+  Compass,
+  Flag,
+  FolderKanban,
+  HandCoins,
+  HeartHandshake,
+  LayoutDashboard,
+  MessageSquare,
+  Plus,
+  Receipt,
+  Rocket,
+  Search,
+  Settings,
+  Shield,
+  Timer,
+  UserRound,
+  Users,
+} from "lucide-react";
 import type { NavContext } from "@/server/queries/nav";
 import { PROJECT_STATUS } from "@/lib/status";
 
@@ -17,13 +37,22 @@ export function CommandPalette({ open, onOpenChange, ctx }: { open: boolean; onO
   const pages = [
     { href: "/explore", label: "Khám phá dự án", icon: Compass, show: true },
     { href: "/explore?status=SCHEDULED", label: "Dự án sắp mở", icon: Rocket, show: true },
-    { href: "/me", label: "Của tôi — dự án đã góp vốn", icon: UserRound, show: Boolean(v?.isMember) },
-    { href: "/me/saved", label: "Dự án đã lưu", icon: UserRound, show: Boolean(v?.isMember) },
-    { href: "/me/messages", label: "Tin nhắn", icon: UserRound, show: Boolean(v?.isMember) },
-    { href: "/studio", label: "Studio — quản lý dự án", icon: LayoutDashboard, show: Boolean(v?.isMember) },
+    { href: "/me", label: "Trang cá nhân — Tổng quan", icon: UserRound, show: Boolean(v?.isMember) },
+    { href: "/me/backed", label: "Dự án đã góp vốn", icon: HandCoins, show: Boolean(v?.isMember) },
+    { href: "/me/saved", label: "Dự án đã lưu", icon: Bookmark, show: Boolean(v?.isMember) },
+    { href: "/me/following", label: "Đang theo dõi", icon: HeartHandshake, show: Boolean(v?.isMember) },
+    { href: "/me/messages", label: "Tin nhắn nội bộ", icon: MessageSquare, show: Boolean(v?.isMember) },
+    { href: "/me/notifications", label: "Thông báo", icon: Bell, show: Boolean(v?.isMember) },
+    { href: "/studio", label: "Studio — Quản lý dự án", icon: LayoutDashboard, show: Boolean(v?.isMember) },
     { href: "/studio/new", label: "Tạo dự án mới", icon: Plus, show: Boolean(v?.isMember) },
-    { href: "/admin", label: "Quản trị — tổng quan", icon: Shield, show: Boolean(v?.isAdmin) },
-    { href: "/admin/reviews", label: "Quản trị — hàng chờ duyệt", icon: Shield, show: Boolean(v?.isAdmin) },
+    { href: "/admin", label: "Quản trị — Tổng quan", icon: Shield, show: Boolean(v?.isAdmin) },
+    { href: "/admin/reviews", label: "Quản trị — Hàng chờ duyệt", icon: Shield, show: Boolean(v?.isAdmin) },
+    { href: "/admin/projects", label: "Quản trị — Quản lý dự án", icon: FolderKanban, show: Boolean(v?.isAdmin) },
+    { href: "/admin/users", label: "Quản trị — Tài khoản & Phân quyền", icon: Users, show: Boolean(v?.isAdmin) },
+    { href: "/admin/transactions", label: "Quản trị — Giao dịch & VNPAY", icon: Receipt, show: Boolean(v?.isAdmin) },
+    { href: "/admin/reports", label: "Quản trị — Báo cáo vi phạm", icon: Flag, show: Boolean(v?.isAdmin) },
+    { href: "/admin/scheduler", label: "Quản trị — Tác vụ tự động", icon: Timer, show: Boolean(v?.isAdmin) },
+    { href: "/admin/audit", label: "Quản trị — Nhật ký hệ thống", icon: Activity, show: Boolean(v?.isAdmin) },
     { href: "/me/settings?tab=account", label: "Cài đặt tài khoản & Bảo mật 2FA", icon: Settings, show: Boolean(v) },
   ].filter((p) => p.show);
 

@@ -3,7 +3,7 @@ import { AlertTriangle, ExternalLink, Search } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
 import { adminProjectsBundle } from "@/server/queries/admin";
 import { buildQueryHref } from "@/components/admin/admin-helpers";
-import { RestoreProjectButton, TakedownProjectButton } from "@/components/admin/project-moderation-dialogs";
+import { QuickProjectInspectButton, RestoreProjectButton, TakedownProjectButton } from "@/components/admin/project-moderation-dialogs";
 import { SafeImage } from "@/components/admin/safe-image";
 import { PaginationBar } from "@/components/ui/pagination";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -147,9 +147,12 @@ export default async function AdminProjectsPage({
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-                    <ButtonLink href={detailHref} variant="outline" size="xs">
-                      <ExternalLink className="size-3.5" /> {p.status === "PENDING_REVIEW" ? "Duyệt" : "Xem"}
-                    </ButtonLink>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <QuickProjectInspectButton project={p} />
+                      <ButtonLink href={detailHref} variant="outline" size="xs">
+                        <ExternalLink className="size-3.5" /> {p.status === "PENDING_REVIEW" ? "Duyệt" : "Xem"}
+                      </ButtonLink>
+                    </div>
                     <div className="flex gap-2">
                       <TakedownProjectButton projectId={p.id} projectTitle={p.title} status={p.status} openReports={p.open_reports} />
                       <RestoreProjectButton projectId={p.id} projectTitle={p.title} status={p.status} endAt={p.end_at} />
@@ -219,6 +222,7 @@ export default async function AdminProjectsPage({
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="inline-flex items-center justify-end gap-1.5">
+                          <QuickProjectInspectButton project={p} />
                           <ButtonLink href={detailHref} variant="ghost" size="xs">
                             <ExternalLink className="size-3.5" /> {p.status === "PENDING_REVIEW" ? "Duyệt" : "Xem"}
                           </ButtonLink>

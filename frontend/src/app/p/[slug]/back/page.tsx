@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
-import { getProjectCheckout, getProjectDetail } from "@/server/queries/public";
+import { getProjectCheckout, getProjectDetail, getVnpayBanks } from "@/server/queries/public";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/layout-bits";
 import { PledgeStepper } from "@/components/public/pledge-stepper";
@@ -28,7 +28,7 @@ export default async function BackProjectPage(props: {
   const nextUrl = `/p/${slug}/back${tierParam ? `?tier=${encodeURIComponent(tierParam)}` : changeParam}`;
 
   const viewer = await requireViewer(nextUrl);
-  const data = await getProjectCheckout(slug);
+  const [data, vnpayBanks] = await Promise.all([getProjectCheckout(slug), getVnpayBanks()]);
   if (!data) notFound();
 
   const { project, blocker, tiers, addOns, cards, addresses, existing, existingAddOns } = data;
@@ -98,6 +98,7 @@ export default async function BackProjectPage(props: {
         addOns={addOns}
         cards={cards}
         addresses={addresses}
+        vnpayBanks={vnpayBanks}
         viewerName={viewer.displayName}
         initialTierId={initialTierId}
         initialBonus={existing ? existing.bonus_amount : 0}
