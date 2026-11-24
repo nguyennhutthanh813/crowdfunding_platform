@@ -5,7 +5,7 @@ import { Toaster } from "sonner";
 import { getNavContext } from "@/server/queries/nav";
 import { NavBar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
-import { SiteFooter } from "@/components/layout/footer";
+import { ConditionalFooter } from "@/components/layout/conditional-footer";
 import { RouteProgress } from "@/components/layout/route-progress";
 import "./globals.css";
 
@@ -34,8 +34,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <RouteProgress />
         </Suspense>
         <NavBar ctx={ctx} />
-        <main className="min-h-[70vh]">{children}</main>
-        <SiteFooter />
+        <main className="min-h-[calc(100dvh-4rem)]">{children}</main>
+        <ConditionalFooter />
         <MobileNav ctx={ctx} />
         <Toaster position="bottom-right" richColors closeButton offset={20} toastOptions={{ className: "!rounded-2xl !font-sans" }} />
       </body>

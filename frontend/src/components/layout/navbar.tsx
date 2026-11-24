@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
 import {
   Bell,
   Compass,
@@ -61,16 +62,32 @@ export function NavBar({ ctx }: { ctx: NavContext }) {
   }, []);
   const items = navItems(ctx);
   const isActive = (m: string[]) => m.some((x) => pathname === x || pathname.startsWith(x.endsWith("/") ? x : `${x}/`) || pathname === x);
+  const isWorkspace =
+    pathname === "/me" ||
+    pathname.startsWith("/me/") ||
+    pathname === "/studio" ||
+    pathname.startsWith("/studio/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/");
 
   return (
     <>
       <header
         className={cn(
           "sticky top-0 z-50 transition-all duration-300",
-          scrolled ? "glass border-b border-line shadow-[0_8px_30px_-20px_rgba(52,33,140,0.35)]" : "bg-transparent",
+          isWorkspace
+            ? "border-b border-line bg-surface/95 backdrop-blur-md"
+            : scrolled
+              ? "glass border-b border-line shadow-[0_8px_30px_-20px_rgba(52,33,140,0.35)]"
+              : "bg-transparent",
         )}
       >
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
+        <div
+          className={cn(
+            "flex h-16 items-center gap-3",
+            isWorkspace ? "w-full px-4 sm:px-5" : "mx-auto max-w-7xl px-4 sm:px-6",
+          )}
+        >
           <Logo />
           <nav className="ml-4 hidden items-center gap-1 md:flex">
             {items.map((it) => {
@@ -196,6 +213,16 @@ function Popover({
   const [openPath, setOpenPath] = useState<string | null>(null);
   const open = openPath === pathname;
   const close = () => setOpenPath(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenPath(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <div className="relative">
       <div onClick={() => setOpenPath((p) => (p === pathname ? null : pathname))}>{trigger(open)}</div>
@@ -224,13 +251,30 @@ function Popover({
 }
 
 function NotificationBell({ ctx }: { ctx: NavContext }) {
+  const router = useRouter();
+  const [markingAll, startMarking] = useTransition();
+
+  const handleMarkAll = () => {
+    if (markingAll) return;
+    startMarking(async () => {
+      const res = await markNotificationsReadAction();
+      if (res?.ok) {
+        toast.success("Đã đánh dấu tất cả thông báo là đã đọc.");
+        router.refresh();
+      } else {
+        toast.error("Không thể cập nhật trạng thái thông báo.");
+      }
+    });
+  };
+
   return (
     <Popover
       width="w-[22rem]"
-      trigger={() => (
+      trigger={(open) => (
         <button
           className="relative grid size-9 place-items-center rounded-xl text-muted transition hover:bg-surface-2 hover:text-fg"
           aria-label="Thông báo"
+          aria-expanded={open}
         >
           <Bell className="size-[18px]" />
           {ctx.unread > 0 && (
@@ -247,10 +291,12 @@ function NotificationBell({ ctx }: { ctx: NavContext }) {
             <span className="text-sm font-bold">Thông báo</span>
             {ctx.unread > 0 && (
               <button
-                onClick={() => markNotificationsReadAction()}
-                className="text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
+                type="button"
+                disabled={markingAll}
+                onClick={handleMarkAll}
+                className="text-xs font-semibold text-violet-600 hover:underline disabled:opacity-50 dark:text-violet-400"
               >
-                Đánh dấu đã đọc
+                {markingAll ? "Đang xử lý…" : "Đánh dấu đã đọc"}
               </button>
             )}
           </div>
@@ -262,7 +308,9 @@ function NotificationBell({ ctx }: { ctx: NavContext }) {
                 href={n.link ?? "/me/notifications"}
                 onClick={() => {
                   close();
-                  if (!n.read_at) markNotificationsReadAction([n.id]);
+                  if (!n.read_at) {
+                    markNotificationsReadAction([n.id]).then(() => router.refresh());
+                  }
                 }}
                 className="flex gap-3 rounded-xl px-3 py-2.5 transition hover:bg-surface-2"
               >
@@ -295,6 +343,7 @@ function UserMenu({ ctx }: { ctx: NavContext }) {
       width="w-72"
       trigger={(open) => (
         <button
+          aria-expanded={open}
           className={cn(
             "flex items-center gap-2 rounded-full p-0.5 pr-0.5 transition sm:pr-3",
             open ? "bg-surface-2" : "hover:bg-surface-2",

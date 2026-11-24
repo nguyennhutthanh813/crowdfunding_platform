@@ -116,7 +116,15 @@ export function StudioOverviewCharts({ daily, goalAmount }: { daily: DailyStatPo
                   labelFormatter={(label) => `Ngày ${label}`}
                 />
                 <ReferenceLine y={goalAmount} stroke="#F59E0B" strokeDasharray="5 4" strokeWidth={2} />
-                <Area type="monotone" dataKey="cumulative_amount" stroke="#7C5CFF" strokeWidth={2.5} fill="url(#fvCumFill)" isAnimationActive={false} />
+                <Area
+                  type="monotone"
+                  dataKey="cumulative_amount"
+                  stroke="#7C5CFF"
+                  strokeWidth={2.5}
+                  fill="url(#fvCumFill)"
+                  dot={data.length <= 3 ? { r: 4, fill: "#7C5CFF", strokeWidth: 2, stroke: "var(--surface)" } : false}
+                  isAnimationActive={false}
+                />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -154,7 +162,7 @@ export function StudioOverviewCharts({ daily, goalAmount }: { daily: DailyStatPo
                   tickFormatter={(v) => formatCompactVnd(Number(v))}
                   width={54}
                 />
-                <YAxis yAxisId="cnt" orientation="right" tick={{ fontSize: 11, fill: "currentColor" }} tickLine={false} axisLine={false} width={32} />
+                <YAxis yAxisId="cnt" orientation="right" allowDecimals={false} tick={{ fontSize: 11, fill: "currentColor" }} tickLine={false} axisLine={false} width={32} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   formatter={(value, name) =>

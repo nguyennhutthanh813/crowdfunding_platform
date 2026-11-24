@@ -27,7 +27,12 @@ export function ProjectCard({ p, saved = false, showSave = true, priority, class
           </div>
           {showSave && <div className="absolute right-3 top-3"><SaveButton projectId={p.id} saved={saved} /></div>}
           {(scheduled || ended || p.status === "LIVE") && (
-            <div className="absolute bottom-3 left-3"><ProjectStatusBadge status={p.status} className="glass" /></div>
+            <div className="absolute bottom-3 left-3">
+              <ProjectStatusBadge
+                status={p.status}
+                className="bg-surface/95 shadow-sm ring-1 ring-black/10 backdrop-blur-md"
+              />
+            </div>
           )}
         </div>
         <div className="flex flex-1 flex-col gap-3 p-4">

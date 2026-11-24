@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronLeft, ChevronRight, Clock, Plus, Rocket, Search, Sparkles, Users } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clock, Rocket, Search, Sparkles, Users } from "lucide-react";
 import type { StudioCard } from "@/server/queries/studio";
 import { LeaveProjectButton } from "@/components/studio/studio-invitations";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -189,9 +189,6 @@ export function StudioProjectsGrid({ mine, collab }: { mine: StudioCard[]; colla
               Hiển thị <b className="text-fg">{startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, filtered.length)}</b> trên{" "}
               <b className="text-fg">{filtered.length}</b> dự án
             </span>
-            <ButtonLink href="/studio/new" variant="ghost" size="xs">
-              <Plus className="size-3.5" /> Tạo mới
-            </ButtonLink>
           </div>
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -274,7 +271,7 @@ function StudioProjectCard({ card: p }: { card: StudioCard }) {
             <RoleBadge role={p.role_code} />
           </div>
           <div className="absolute bottom-3 left-3">
-            <ProjectStatusBadge status={p.status} className="glass" />
+            <ProjectStatusBadge status={p.status} className="bg-surface/95 shadow-sm ring-1 ring-black/10 backdrop-blur-md" />
           </div>
         </div>
 

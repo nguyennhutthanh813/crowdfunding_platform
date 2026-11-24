@@ -1,24 +1,24 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { motion } from "motion/react";
 import {
-  AlertTriangle,
+  Bell,
   ClipboardCheck,
   Clock,
   Flag,
   FolderKanban,
+  Home,
   LayoutDashboard,
-  PanelLeftClose,
-  PanelLeftOpen,
   Receipt,
   ScrollText,
+  Shield,
   Tags,
   Users,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { WorkspaceShell, type WorkspaceNavGroup } from "@/components/layout/workspace-shell";
+import { RoleBadge } from "@/components/ui/primitives";
 
 export interface AdminBadgeCounts {
   pending: number;
@@ -26,161 +26,168 @@ export interface AdminBadgeCounts {
   flagged: number;
 }
 
-interface NavDef {
+interface AdminNavDef {
   href: string;
   label: string;
-  shortLabel: string;
   perm: string;
-  icon: typeof LayoutDashboard;
+  iconKey: string;
   exact?: boolean;
   badgeKey?: "pending" | "reports";
 }
 
-const ADMIN_NAV_ITEMS: NavDef[] = [
-  { href: "/admin", label: "Tổng quan", shortLabel: "Tổng quan", perm: "admin.dashboard.view", icon: LayoutDashboard, exact: true },
-  { href: "/admin/reviews", label: "Duyệt dự án", shortLabel: "Duyệt", perm: "admin.project.review", icon: ClipboardCheck, badgeKey: "pending" },
-  { href: "/admin/projects", label: "Dự án", shortLabel: "Dự án", perm: "admin.project.takedown", icon: FolderKanban },
-  { href: "/admin/users", label: "Người dùng", shortLabel: "Người dùng", perm: "admin.user.lock", icon: Users },
-  { href: "/admin/reports", label: "Báo cáo vi phạm", shortLabel: "Báo cáo", perm: "admin.report.handle", icon: Flag, badgeKey: "reports" },
-  { href: "/admin/transactions", label: "Giao dịch", shortLabel: "Giao dịch", perm: "admin.transaction.view", icon: Receipt },
-  { href: "/admin/categories", label: "Thể loại", shortLabel: "Thể loại", perm: "admin.category.manage", icon: Tags },
-  { href: "/admin/scheduler", label: "Bộ lập lịch", shortLabel: "Lập lịch", perm: "admin.scheduler.run", icon: Clock },
-  { href: "/admin/audit", label: "Nhật ký", shortLabel: "Nhật ký", perm: "admin.audit.view", icon: ScrollText },
+const ADMIN_GROUPS: { title: string; items: AdminNavDef[] }[] = [
+  {
+    title: "Điều hành",
+    items: [
+      { href: "/admin", label: "Tổng quan", perm: "admin.dashboard.view", iconKey: "dashboard", exact: true },
+      { href: "/admin/reviews", label: "Duyệt dự án", perm: "admin.project.review", iconKey: "reviews", badgeKey: "pending" },
+      { href: "/admin/projects", label: "Quản lý dự án", perm: "admin.project.takedown", iconKey: "projects" },
+    ],
+  },
+  {
+    title: "Cộng đồng",
+    items: [
+      { href: "/admin/users", label: "Người dùng", perm: "admin.user.lock", iconKey: "users" },
+      { href: "/admin/reports", label: "Báo cáo vi phạm", perm: "admin.report.handle", iconKey: "reports", badgeKey: "reports" },
+    ],
+  },
+  {
+    title: "Tài chính & Hệ thống",
+    items: [
+      { href: "/admin/transactions", label: "Giao dịch & VNPAY", perm: "admin.transaction.view", iconKey: "tx" },
+      { href: "/admin/categories", label: "Thể loại", perm: "admin.category.manage", iconKey: "tags" },
+      { href: "/admin/scheduler", label: "Bộ lập lịch", perm: "admin.scheduler.run", iconKey: "clock" },
+      { href: "/admin/audit", label: "Nhật ký hệ thống", perm: "admin.audit.view", iconKey: "audit" },
+    ],
+  },
 ];
 
-export function AdminNav({ perms, badges }: { perms: string[]; badges: AdminBadgeCounts }) {
+function renderAdminIcon(iconKey: string, className?: string) {
+  switch (iconKey) {
+    case "dashboard":
+      return <LayoutDashboard className={className} />;
+    case "reviews":
+      return <ClipboardCheck className={className} />;
+    case "projects":
+      return <FolderKanban className={className} />;
+    case "users":
+      return <Users className={className} />;
+    case "reports":
+      return <Flag className={className} />;
+    case "tx":
+      return <Receipt className={className} />;
+    case "tags":
+      return <Tags className={className} />;
+    case "clock":
+      return <Clock className={className} />;
+    case "audit":
+      return <ScrollText className={className} />;
+    default:
+      return <LayoutDashboard className={className} />;
+  }
+}
+
+export function AdminWorkspaceShell({
+  perms,
+  badges,
+  children,
+}: {
+  perms: string[];
+  badges: AdminBadgeCounts;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
   const permSet = new Set(perms);
-  const visible = ADMIN_NAV_ITEMS.filter((item) => permSet.has(item.perm));
 
-  const isActive = (item: NavDef) =>
-    item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const groups: WorkspaceNavGroup[] = ADMIN_GROUPS.map((g) => ({
+    title: g.title,
+    items: g.items
+      .filter((it) => permSet.has(it.perm))
+      .map((it) => ({
+        href: it.href,
+        label: it.label,
+        iconKey: it.iconKey,
+        exact: it.exact,
+        badge: it.badgeKey ? badges[it.badgeKey] : undefined,
+        badgeTone: "rose" as const,
+        alertDot: it.badgeKey === "reports" && badges.flagged > 0,
+      })),
+  })).filter((g) => g.items.length > 0);
 
-  const badgeOf = (item: NavDef) => (item.badgeKey ? badges[item.badgeKey] : 0);
+  const flatItems = groups.flatMap((g) => g.items);
+  const current = flatItems.find((item) =>
+    item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
 
   return (
-    <>
-      {/* Mobile: thanh cuộn ngang */}
-      <nav aria-label="Điều hướng quản trị" className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 lg:hidden">
-        {visible.map((item) => {
-          const active = isActive(item);
-          const count = badgeOf(item);
-          const hasFlag = item.badgeKey === "reports" && badges.flagged > 0;
-          return (
+    <WorkspaceShell
+      accent="rose"
+      groups={groups}
+      renderIcon={renderAdminIcon}
+      maxContentWidth="max-w-[1400px]"
+      mobileTitle={current?.label ?? "Quản trị"}
+      header={(collapsed) =>
+        collapsed ? (
+          <div className="flex justify-center">
+            <span className="grid size-8 place-items-center rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-300">
+              <Shield className="size-4" />
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-300">
+              <Shield className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-extrabold text-fg">Quản trị FundViet</div>
+              <div className="mt-0.5">
+                <RoleBadge role="ADMIN" />
+              </div>
+            </div>
+          </div>
+        )
+      }
+      footer={(collapsed) =>
+        collapsed ? (
+          <div className="flex flex-col items-center gap-1">
             <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "relative flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition",
-                active
-                  ? "border-rose-500/30 bg-gradient-to-r from-rose-600 to-indigo-600 text-white shadow-[0_6px_18px_-6px_rgba(225,29,72,0.55)]"
-                  : "border-line bg-surface text-muted hover:border-rose-400/40 hover:text-fg",
-              )}
+              href="/me/notifications"
+              title="Thông báo"
+              aria-label="Thông báo"
+              className="grid size-9 place-items-center rounded-xl text-muted transition hover:bg-surface-2 hover:text-fg"
             >
-              <item.icon className="size-3.5" />
-              <span>{item.shortLabel}</span>
-              {count > 0 && (
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 py-0.2 text-[10px] font-bold tabular-nums",
-                    active ? "bg-white/25 text-white" : "bg-rose-500/15 text-rose-600 dark:text-rose-300",
-                  )}
-                >
-                  {count}
-                </span>
-              )}
-              {hasFlag && <AlertTriangle className={cn("size-3.5", active ? "text-amber-200" : "text-rose-500")} />}
+              <Bell className="size-4" />
             </Link>
-          );
-        })}
-      </nav>
-
-      {/* Desktop: thanh bên có thể thu gọn */}
-      <aside
-        aria-label="Điều hướng quản trị"
-        className={cn(
-          "hidden shrink-0 transition-all duration-300 lg:block",
-          collapsed ? "w-[74px]" : "w-64",
-        )}
-      >
-        <div className="card sticky top-20 overflow-hidden p-2.5">
-          <div className={cn("mb-2 flex items-center px-2 py-1", collapsed ? "justify-center" : "justify-between")}>
-            {!collapsed && <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Khu vực quản trị</span>}
-            <button
-              type="button"
-              onClick={() => setCollapsed((v) => !v)}
-              className="grid size-8 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-fg"
-              title={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
-              aria-label={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
+            <Link
+              href="/"
+              title="Về trang chủ"
+              aria-label="Về trang chủ"
+              className="grid size-9 place-items-center rounded-xl text-muted transition hover:bg-surface-2 hover:text-fg"
             >
-              {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-            </button>
+              <Home className="size-4" />
+            </Link>
           </div>
-
+        ) : (
           <div className="space-y-1">
-            {visible.map((item) => {
-              const active = isActive(item);
-              const count = badgeOf(item);
-              const hasFlag = item.badgeKey === "reports" && badges.flagged > 0;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={collapsed ? item.label : undefined}
-                  className={cn(
-                    "relative flex items-center rounded-xl py-2.5 text-sm font-semibold transition-colors",
-                    collapsed ? "justify-center px-2" : "gap-2.5 px-3",
-                    active ? "text-white" : "text-muted hover:bg-surface-2 hover:text-fg",
-                  )}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="admin-nav-pill"
-                      className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-indigo-600 shadow-[0_8px_22px_-8px_rgba(225,29,72,0.7)]"
-                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                    />
-                  )}
-                  <span className="relative flex items-center gap-2.5 truncate">
-                    <item.icon className="size-4 shrink-0" />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
-                  </span>
-
-                  {!collapsed && (count > 0 || hasFlag) && (
-                    <span className="relative ml-auto flex items-center gap-1">
-                      {hasFlag && (
-                        <span
-                          title={`${badges.flagged} dự án có từ 3 báo cáo vi phạm đang mở`}
-                          className={cn(
-                            "grid size-5 place-items-center rounded-full",
-                            active ? "bg-amber-400/25 text-amber-200" : "bg-rose-500/15 text-rose-600 dark:text-rose-300",
-                          )}
-                        >
-                          <AlertTriangle className="size-3" />
-                        </span>
-                      )}
-                      {count > 0 && (
-                        <span
-                          className={cn(
-                            "min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums",
-                            active ? "bg-white/25 text-white" : "bg-rose-500/15 text-rose-600 dark:text-rose-300",
-                          )}
-                        >
-                          {count}
-                        </span>
-                      )}
-                    </span>
-                  )}
-
-                  {collapsed && count > 0 && (
-                    <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-rose-400 ring-2 ring-surface" />
-                  )}
-                </Link>
-              );
-            })}
+            <Link
+              href="/me/notifications"
+              className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-semibold text-muted transition hover:bg-surface-2 hover:text-fg"
+            >
+              <Bell className="size-4" /> Thông báo hệ thống
+            </Link>
+            <div className="flex items-center justify-between gap-2 px-2.5 pt-0.5 text-[11px] font-semibold text-muted">
+              <Link href="/me/settings?tab=account" className="hover:text-fg">
+                Bảo mật 2FA
+              </Link>
+              <Link href="/" className="hover:text-fg">
+                Về trang chủ →
+              </Link>
+            </div>
           </div>
-        </div>
-      </aside>
-    </>
+        )
+      }
+    >
+      {children}
+    </WorkspaceShell>
   );
 }

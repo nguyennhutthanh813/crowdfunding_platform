@@ -3,8 +3,7 @@ import { requireViewer } from "@/server/auth/session";
 import { hasSystemPerm } from "@/server/rbac/rbac";
 import { buildQuickContacts, conversationComposeMeta, conversationThread, myConversations } from "@/server/queries/me";
 import { AdminOnlyNotice } from "@/components/me/admin-only-notice";
-import { ConversationList, MarkReadOnMount, NewMessageModalButton, ThreadView } from "@/components/me/messages-ui";
-import { PageHeader } from "@/components/ui/layout-bits";
+import { MarkReadOnMount, MessengerWorkspace } from "@/components/me/messages-ui";
 
 export const metadata = { title: "Cuộc trò chuyện" };
 
@@ -14,7 +13,11 @@ export default async function MessageThreadPage(props: {
   const { id } = await props.params;
   const v = await requireViewer(`/me/messages/${id}`);
   if (!hasSystemPerm(v, "message.send")) {
-    return <AdminOnlyNotice area="Tin nhắn nội bộ" />;
+    return (
+      <div className="p-4 sm:p-6">
+        <AdminOnlyNotice area="Tin nhắn nội bộ" />
+      </div>
+    );
   }
 
   const [thread, conversations, composeMeta] = await Promise.all([
@@ -30,32 +33,18 @@ export default async function MessageThreadPage(props: {
   );
 
   return (
-    <div className="space-y-5">
+    <>
       <MarkReadOnMount conversationId={id} hasUnread={hasUnread} />
-
-      <PageHeader
-        eyebrow="Hộp thư"
-        title="Tin nhắn nội bộ"
-        actions={<NewMessageModalButton quickContacts={quickContacts} relatedProjects={composeMeta.relatedProjects} size="sm" />}
+      <MessengerWorkspace
+        key={id}
+        initialConversations={conversations}
+        viewerId={v.id}
+        initialActiveId={id}
+        initialThread={thread}
+        mobileMode="thread"
+        quickContacts={quickContacts}
+        relatedProjects={composeMeta.relatedProjects}
       />
-
-      <div className="grid gap-5 lg:grid-cols-[340px_1fr] lg:items-start">
-        <div className="hidden lg:block">
-          <ConversationList
-            conversations={conversations}
-            viewerId={v.id}
-            activeId={id}
-            quickContacts={quickContacts}
-            relatedProjects={composeMeta.relatedProjects}
-          />
-        </div>
-        <ThreadView
-          conv={thread.conv}
-          participants={thread.participants}
-          messages={thread.messages}
-          viewerId={v.id}
-        />
-      </div>
-    </div>
+    </>
   );
 }

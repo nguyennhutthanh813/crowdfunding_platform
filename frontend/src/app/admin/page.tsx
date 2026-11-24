@@ -15,7 +15,7 @@ import {
 import { requireSystemPerm } from "@/server/auth/session";
 import { adminDashboard, REPORT_REASON } from "@/server/queries/admin";
 import { DashboardCharts } from "@/components/admin/dashboard-charts";
-import { auditTone, formatWaiting, REPORT_TARGET_META } from "@/components/admin/admin-helpers";
+import { auditTone, formatAuditAction, formatWaiting, REPORT_TARGET_META } from "@/components/admin/admin-helpers";
 import { CountUp, Reveal } from "@/components/fx/motion";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader, SectionTitle, StatCard } from "@/components/ui/layout-bits";
@@ -298,7 +298,7 @@ export default async function AdminDashboardPage() {
             data.recentAudit.map((row) => (
               <div key={row.id} className="flex flex-col gap-1.5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Badge tone={auditTone(row.action)}>{row.action}</Badge>
+                  <Badge tone={auditTone(row.action)}>{formatAuditAction(row.action)}</Badge>
                   <span className="font-semibold">{row.actor ?? "Hệ thống"}</span>
                   <span className="max-w-full truncate text-muted">
                     {row.project_title || row.user_name || row.category_name || row.entity_type}

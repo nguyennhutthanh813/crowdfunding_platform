@@ -63,6 +63,7 @@ export function CountUp({ value, format = "number", className, duration = 0.65 }
     if (format === "compact") {
       if (value >= 1e9) return `${(n / 1e9).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} tỷ`;
       if (value >= 1e6) return `${(n / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tr`;
+      return `${Math.round(n).toLocaleString("vi-VN")}đ`;
     }
     return Math.round(n).toLocaleString("vi-VN");
   };

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { FolderKanban, HandCoins, Plus, Rocket, Users } from "lucide-react";
 import { requireViewer } from "@/server/auth/session";
 import { getStudioIndexBundle } from "@/server/queries/studio";
+import { StudioHubShell } from "@/components/studio/studio-workspace-shell";
 import { StudioInvitationsPanel } from "@/components/studio/studio-invitations";
 import { StudioProjectsGrid } from "@/components/studio/studio-projects-grid";
 import { ButtonLink } from "@/components/ui/button";
@@ -21,7 +22,11 @@ export default async function StudioDashboardPage() {
   const liveCount = allProjects.filter((p) => p.status === "LIVE").length;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6">
+    <StudioHubShell
+      mine={mine.map((p) => ({ slug: p.slug, title: p.title, status: p.status }))}
+      collab={collab.map((p) => ({ slug: p.slug, title: p.title, status: p.status }))}
+      pendingInvites={invitations.length}
+    >
       <PageHeader
         eyebrow="Studio quản lý dự án"
         title="Không gian quản lý dự án"
@@ -50,7 +55,7 @@ export default async function StudioDashboardPage() {
       ) : (
         <>
           {/* Chỉ số tổng quan */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
             <StatCard
               label="Dự án tham gia"
               value={<CountUp value={allProjects.length} />}
@@ -77,6 +82,6 @@ export default async function StudioDashboardPage() {
           <StudioProjectsGrid mine={mine} collab={collab} />
         </>
       )}
-    </div>
+    </StudioHubShell>
   );
 }

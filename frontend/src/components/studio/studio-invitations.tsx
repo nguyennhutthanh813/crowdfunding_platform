@@ -65,13 +65,11 @@ export function CollaboratorRoleInfoButton() {
 
 function InvitationDecisionActions({ inv }: { inv: StudioInvitationItem }) {
   const router = useRouter();
+  const [declineOpen, setDeclineOpen] = useState(false);
   const [pendingDecision, setPendingDecision] = useState<"ACCEPT" | "DECLINE" | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const submitDecision = (decision: "ACCEPT" | "DECLINE") => {
-    if (decision === "DECLINE" && !window.confirm(`Từ chối lời mời cộng tác trên "${inv.title}"?`)) {
-      return;
-    }
     setPendingDecision(decision);
     startTransition(async () => {
       const fd = new FormData();
@@ -83,6 +81,7 @@ function InvitationDecisionActions({ inv }: { inv: StudioInvitationItem }) {
         toast.error(res.error);
         return;
       }
+      setDeclineOpen(false);
       if (res?.ok) {
         if (res.message) toast.success(res.message);
         if (res.celebrate) celebrate();
@@ -93,36 +92,71 @@ function InvitationDecisionActions({ inv }: { inv: StudioInvitationItem }) {
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-2.5">
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        disabled={isPending}
-        onClick={() => submitDecision("DECLINE")}
+    <>
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-2.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          disabled={isPending}
+          onClick={() => setDeclineOpen(true)}
+        >
+          {isPending && pendingDecision === "DECLINE" ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <X className="size-3.5" />
+          )}{" "}
+          Từ chối
+        </Button>
+        <Button
+          type="button"
+          variant="success"
+          size="xs"
+          disabled={isPending}
+          onClick={() => submitDecision("ACCEPT")}
+        >
+          {isPending && pendingDecision === "ACCEPT" ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Check className="size-3.5" />
+          )}{" "}
+          Chấp nhận &amp; vào Studio
+        </Button>
+      </div>
+
+      <Dialog
+        open={declineOpen}
+        onClose={() => !isPending && setDeclineOpen(false)}
+        size="sm"
+        title="Từ chối lời mời cộng tác"
+        description={`Bạn xác nhận từ chối lời mời tham gia cộng tác trên dự án “${inv.title}”?`}
       >
-        {isPending && pendingDecision === "DECLINE" ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <X className="size-3.5" />
-        )}{" "}
-        Từ chối
-      </Button>
-      <Button
-        type="button"
-        variant="success"
-        size="xs"
-        disabled={isPending}
-        onClick={() => submitDecision("ACCEPT")}
-      >
-        {isPending && pendingDecision === "ACCEPT" ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <Check className="size-3.5" />
-        )}{" "}
-        Chấp nhận &amp; vào Studio
-      </Button>
-    </div>
+        <div className="space-y-4">
+          <p className="text-xs text-muted">
+            Chủ dự án sẽ nhận được thông báo. Nếu muốn tham gia lại sau, bạn cần được gửi lời mời mới.
+          </p>
+          <div className="flex justify-end gap-2 border-t border-line pt-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDeclineOpen(false)} disabled={isPending}>
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={isPending}
+              onClick={() => submitDecision("DECLINE")}
+            >
+              {isPending && pendingDecision === "DECLINE" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <X className="size-3.5" />
+              )}
+              {isPending && pendingDecision === "DECLINE" ? "Đang từ chối…" : "Xác nhận từ chối"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </>
   );
 }
 

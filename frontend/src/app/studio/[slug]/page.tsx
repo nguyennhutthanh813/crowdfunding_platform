@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   AlertTriangle,
-  ArrowLeft,
   Check,
   ExternalLink,
   Eye,
@@ -22,12 +21,11 @@ import { ButtonLink } from "@/components/ui/button";
 import { FundingBar } from "@/components/ui/funding-bar";
 import { StatCard } from "@/components/ui/layout-bits";
 import { Avatar, Badge, PledgeStatusBadge, ProjectStatusBadge, RoleBadge } from "@/components/ui/primitives";
-import { LinkTabs } from "@/components/ui/tabs";
 import { CountUp } from "@/components/fx/motion";
+import { PROJECT_STATUS } from "@/lib/status";
 import { cn, formatCompactVnd, formatDate, formatVnd, percentOf, timeAgo, timeLeft } from "@/lib/utils";
 import { LIFECYCLE_STEPS, LOCK_REASON, STUDIO_TABS, type StudioTabKey } from "@/components/studio/meta";
-import { StudioImage } from "@/components/studio/media";
-import { LeaveProjectButton } from "@/components/studio/studio-invitations";
+import { StudioProjectShell } from "@/components/studio/studio-workspace-shell";
 import { StudioOverviewCharts } from "@/components/studio/charts";
 import { AiPanel } from "@/components/studio/ai-panel";
 import { ContentTab } from "@/components/studio/content-tab";
@@ -73,29 +71,14 @@ export default async function StudioProjectPage(props: {
   const activeTab: StudioTabKey = requestedMeta ? requestedMeta.key : (allowedTabs[0]?.key ?? "overview");
   const isAllowed = requestedMeta ? permSet.has(requestedMeta.perm) : true;
 
-  const tabItems = allowedTabs.map((t) => ({
-    key: t.key,
-    label: t.label,
-    count:
-      t.key === "comments" && counts.pendingComments > 0
-        ? counts.pendingComments
-        : t.key === "updates" && counts.draftUpdates > 0
-          ? counts.draftUpdates
-          : t.key === "faq" && counts.faqs > 0
-            ? counts.faqs
-            : t.key === "backers" && counts.backers > 0
-              ? counts.backers
-              : undefined,
-  }));
-
   const pct = percentOf(project.pledged_amount, project.goal_amount);
   const left = timeLeft(project.end_at);
   const currentStepIdx = LIFECYCLE_STEPS.findIndex((s) => (s.statuses as readonly string[]).includes(project.status));
 
   const latestReview = project.status === "REJECTED" ? reviews[0] : undefined;
   const latestSuspend = project.status === "SUSPENDED" ? timeline[0] : undefined;
+  const canOpenWizard = permSet.has("project.edit") && ["DRAFT", "REJECTED"].includes(project.status);
 
-  // Chuẩn bị dữ liệu riêng theo tab đang mở & đã qua kiểm tra quyền
   let contentEl: React.ReactNode = null;
   if (!isAllowed && requestedMeta) {
     contentEl = (
@@ -152,6 +135,38 @@ export default async function StudioProjectPage(props: {
 
     contentEl = (
       <div className="space-y-6">
+        {/* Compact 1-line Lifecycle bar on Overview */}
+        <div className="card no-scrollbar overflow-x-auto px-4 py-2.5">
+          {project.status === "CANCELLED" ? (
+            <Badge tone="neutral">Chiến dịch đã bị huỷ</Badge>
+          ) : (
+            <ol className="flex min-w-max items-center gap-2">
+              {LIFECYCLE_STEPS.map((st, idx) => {
+                const isCurrent = idx === currentStepIdx;
+                const isDone = currentStepIdx > idx;
+                return (
+                  <li key={st.key} className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold transition",
+                        isCurrent
+                          ? "bg-brand-gradient text-white shadow"
+                          : isDone
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                            : "bg-surface-2 text-muted",
+                      )}
+                    >
+                      {isDone ? <Check className="size-3" /> : <span>{idx + 1}.</span>}
+                      {st.label}
+                    </span>
+                    {idx < LIFECYCLE_STEPS.length - 1 && <span className="h-px w-3 bg-line" />}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Số tiền đã góp"
@@ -354,95 +369,65 @@ export default async function StudioProjectPage(props: {
     );
   }
 
+  const currentTabLabel = STUDIO_TABS.find((t) => t.key === activeTab)?.label ?? "Tổng quan";
+  const statusLabel = PROJECT_STATUS[project.status]?.label ?? project.status;
+
   return (
-    <div className="mx-auto max-w-7xl space-y-5 overflow-x-clip px-4 py-6 sm:px-6">
-      {/* Studio Workspace Header */}
-      <div className="card min-w-0 space-y-4 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/studio" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg">
-            <ArrowLeft className="size-4" /> Danh sách dự án Studio
-          </Link>
+    <StudioProjectShell
+      project={{
+        id: project.id,
+        slug: project.slug,
+        title: project.title,
+        cover_url: project.cover_url,
+        status: project.status,
+      }}
+      role={access.role!}
+      perms={access.perms}
+      activeTab={activeTab}
+      counts={counts}
+    >
+      {/* Compact Workspace Summary Bar (~64px) */}
+      <div className="card flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            {access.role === "COLLABORATOR" && (
-              <LeaveProjectButton projectId={project.id} projectTitle={project.title} size="sm" />
-            )}
-            {permSet.has("project.edit") && ["DRAFT", "REJECTED"].includes(project.status) && (
-              <ButtonLink href={`/studio/${project.slug}/setup`} size="sm">
-                <Rocket className="size-4" /> Mở Wizard 5 bước
-              </ButtonLink>
-            )}
-            <ButtonLink href={`/p/${project.slug}`} variant="outline" size="sm">
-              <ExternalLink className="size-4" /> Xem trang dự án
-            </ButtonLink>
+            <h1 className="truncate text-lg font-extrabold tracking-tight sm:text-xl">{project.title}</h1>
+            <Badge tone="violet" className="shrink-0">{currentTabLabel}</Badge>
           </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted">
+            <span>
+              Đã góp <b className="text-emerald-600 dark:text-emerald-400">{formatVnd(project.pledged_amount)}</b> /{" "}
+              {formatCompactVnd(project.goal_amount)} ({pct}%)
+            </span>
+            <span>
+              <b className="text-fg">{project.backers_count}</b> người ủng hộ
+            </span>
+            {project.status === "LIVE" && (
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{left.label}</span>
+            )}
+            {project.status === "SCHEDULED" && (
+              <span className="font-semibold text-sky-600 dark:text-sky-400">Mở lúc {formatDate(project.start_at, true)}</span>
+            )}
+          </div>
+          <FundingBar percent={pct} size="sm" />
         </div>
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative h-24 w-40 shrink-0 overflow-hidden rounded-2xl border border-line">
-            <StudioImage src={project.cover_url} alt={project.title} sizes="160px" priority />
-          </div>
-
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white"
-                style={{ background: project.category_color }}
-              >
-                {project.category_name}
-              </span>
-              <ProjectStatusBadge status={project.status} />
-              <RoleBadge role={access.role!} />
-            </div>
-
-            <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">{project.title}</h1>
-
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-              <span>
-                Đã góp: <b className="text-emerald-600 dark:text-emerald-400">{formatVnd(project.pledged_amount)}</b>
-                <span className="text-muted"> / {formatVnd(project.goal_amount)} ({pct}%)</span>
-              </span>
-              <span className="text-muted">
-                <b className="text-fg">{project.backers_count}</b> người ủng hộ
-              </span>
-              {project.status === "LIVE" && <span className="font-semibold text-emerald-600 dark:text-emerald-400">{left.label}</span>}
-              {project.status === "SCHEDULED" && (
-                <span className="font-semibold text-sky-600 dark:text-sky-400">Mở lúc {formatDate(project.start_at, true)}</span>
-              )}
-            </div>
-
-            <FundingBar percent={pct} size="sm" />
-          </div>
-        </div>
-
-        {/* Lifecycle Stepper */}
-        <div className="no-scrollbar overflow-x-auto border-t border-line pt-4">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {project.status === "CANCELLED" ? (
-            <Badge tone="neutral">Chiến dịch đã bị huỷ</Badge>
+            <Badge tone="neutral">Đã huỷ</Badge>
           ) : (
-            <ol className="flex min-w-max items-center gap-2 pb-1">
-              {LIFECYCLE_STEPS.map((st, idx) => {
-                const isCurrent = idx === currentStepIdx;
-                const isDone = currentStepIdx > idx;
-                return (
-                  <li key={st.key} className="flex shrink-0 items-center gap-2">
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition",
-                        isCurrent
-                          ? "bg-brand-gradient text-white shadow"
-                          : isDone
-                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                            : "bg-surface-2 text-muted",
-                      )}
-                    >
-                      {isDone ? <Check className="size-3.5" /> : <span>{idx + 1}.</span>}
-                      {st.label}
-                    </span>
-                    {idx < LIFECYCLE_STEPS.length - 1 && <span className="h-px w-4 bg-line" />}
-                  </li>
-                );
-              })}
-            </ol>
+            <ProjectStatusBadge status={project.status} />
+          )}
+          <span className="hidden text-xs font-semibold text-muted xl:inline">
+            {currentStepIdx >= 0 ? `Bước ${currentStepIdx + 1}/${LIFECYCLE_STEPS.length} · ${statusLabel}` : statusLabel}
+          </span>
+          {canOpenWizard ? (
+            <ButtonLink href={`/studio/${project.slug}/setup`} size="xs">
+              <Rocket className="size-3.5" /> Mở Wizard 5 bước
+            </ButtonLink>
+          ) : (
+            <ButtonLink href={`/p/${project.slug}`} variant="outline" size="xs">
+              <ExternalLink className="size-3.5" /> Xem trang dự án
+            </ButtonLink>
           )}
         </div>
       </div>
@@ -470,13 +455,8 @@ export default async function StudioProjectPage(props: {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="card min-w-0 overflow-hidden p-2">
-        <LinkTabs items={tabItems} active={activeTab} id={`studio-${project.id}`} />
-      </div>
-
       {/* Tab Content */}
       <div>{contentEl}</div>
-    </div>
+    </StudioProjectShell>
   );
 }

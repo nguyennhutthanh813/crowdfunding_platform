@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  ArrowDown,
   ArrowLeft,
   Check,
   CheckCheck,
@@ -33,6 +34,38 @@ interface ContactSearchResult {
   display_name: string;
   avatar_url: string | null;
   relation: string;
+}
+
+export interface ThreadParticipant {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  role: string | null;
+  last_read_at: string | null;
+}
+
+export interface ThreadMessage {
+  id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+}
+
+export interface MessengerThreadData {
+  conv: {
+    id: string;
+    subject: string;
+    created_at?: string;
+    project_id?: string | null;
+    project_title: string | null;
+    project_slug: string | null;
+    project_status: string | null;
+    project_cover: string | null;
+  };
+  participants: ThreadParticipant[];
+  messages: ThreadMessage[];
+  myLastReadAt?: string | null;
 }
 
 const vnDateFmt = new Intl.DateTimeFormat("en-CA", {
@@ -382,12 +415,16 @@ export function ConversationList({
   activeId,
   quickContacts = [],
   relatedProjects = [],
+  embedded = false,
+  onSelectConversation,
 }: {
   conversations: ConversationRow[];
   viewerId: string;
-  activeId?: string;
+  activeId?: string | null;
   quickContacts?: QuickContactItem[];
   relatedProjects?: RelatedProjectItem[];
+  embedded?: boolean;
+  onSelectConversation?: (conv: ConversationRow, e: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const [search, setSearch] = useState("");
   const [filterTab, setFilterTab] = useState<"ALL" | "UNREAD" | "PROJECT">("ALL");
@@ -397,6 +434,7 @@ export function ConversationList({
   const items = polled && polled.sig === propSig ? polled.items : conversations;
 
   useEffect(() => {
+    if (embedded) return;
     let active = true;
     const poll = () => {
       if (!active || document.hidden) return;
@@ -417,7 +455,7 @@ export function ConversationList({
       window.clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
-  }, [propSig]);
+  }, [propSig, embedded]);
 
   const unreadCount = useMemo(() => items.filter((c) => Number(c.unread) > 0).length, [items]);
   const projectCount = useMemo(() => items.filter((c) => Boolean(c.project_title)).length, [items]);
@@ -438,13 +476,13 @@ export function ConversationList({
     });
   }, [items, search, filterTab]);
 
-  return (
-    <Card className="flex flex-col overflow-hidden">
-      <div className="space-y-2.5 border-b border-line px-4 py-3">
+  const inner = (
+    <>
+      <div className="shrink-0 space-y-2.5 border-b border-line px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-bold">Hộp thư ({items.length})</h2>
-            <p className="text-[11px] text-muted">Tự động cập nhật khi có tin nhắn mới</p>
+            <h1 className="text-base font-extrabold text-fg">Tin nhắn ({items.length})</h1>
+            <p className="text-[11px] text-muted">Tự động đồng bộ tin nhắn mới</p>
           </div>
           <NewMessageModalButton quickContacts={quickContacts} relatedProjects={relatedProjects} size="xs" label="Mới" />
         </div>
@@ -459,7 +497,7 @@ export function ConversationList({
                 className="h-8 rounded-xl pl-8 text-xs"
               />
             </div>
-            <div className="flex gap-1.5 text-[11px] font-semibold">
+            <div className="flex flex-wrap gap-1 text-[11px] font-semibold">
               {[
                 { key: "ALL" as const, label: `Tất cả (${items.length})` },
                 { key: "UNREAD" as const, label: `Chưa đọc (${unreadCount})` },
@@ -484,7 +522,7 @@ export function ConversationList({
         )}
       </div>
 
-      <div className="divide-y divide-line max-h-[68vh] overflow-y-auto">
+      <div className={cn("min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain", !embedded && "max-h-[68vh]")}>
         {items.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted">
             Chưa có cuộc trò chuyện nào. Bấm nút <b>Mới</b> ở góc trên để gửi tin nhắn đầu tiên.
@@ -501,6 +539,7 @@ export function ConversationList({
               <Link
                 key={c.id}
                 href={`/me/messages/${c.id}`}
+                onClick={(e) => onSelectConversation?.(c, e)}
                 className={cn(
                   "flex gap-3 px-4 py-3 transition hover:bg-surface-2/70",
                   active && "bg-violet-500/10 ring-1 ring-inset ring-violet-500/20",
@@ -546,8 +585,14 @@ export function ConversationList({
           })
         )}
       </div>
-    </Card>
+    </>
   );
+
+  if (embedded) {
+    return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface">{inner}</div>;
+  }
+
+  return <Card className="flex flex-col overflow-hidden">{inner}</Card>;
 }
 
 export function MarkReadOnMount({ conversationId, hasUnread }: { conversationId: string; hasUnread: boolean }) {
@@ -565,45 +610,35 @@ export function MarkReadOnMount({ conversationId, hasUnread }: { conversationId:
   return null;
 }
 
-export interface ThreadParticipant {
-  id: string;
-  username: string;
-  display_name: string;
-  avatar_url: string | null;
-  role: string | null;
-  last_read_at: string | null;
-}
-
-export interface ThreadMessage {
-  id: string;
-  sender_id: string;
-  body: string;
-  created_at: string;
-}
-
 export function ThreadView({
   conv,
   participants,
   messages,
   viewerId,
+  embedded = false,
+  onMessageSent,
+  onSyncThreadData,
 }: {
-  conv: {
-    id: string;
-    subject: string;
-    project_title: string | null;
-    project_slug: string | null;
-    project_status: string | null;
-    project_cover: string | null;
-  };
+  conv: MessengerThreadData["conv"];
   participants: ThreadParticipant[];
   messages: ThreadMessage[];
   viewerId: string;
+  embedded?: boolean;
+  onMessageSent?: (convId: string, msg: ThreadMessage) => void;
+  onSyncThreadData?: (convId: string, data: { messages: ThreadMessage[]; participants: ThreadParticipant[] }) => void;
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState("");
+  const [showJumpBottom, setShowJumpBottom] = useState(false);
+  const [hasNewIncoming, setHasNewIncoming] = useState(false);
+
   const listRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const isNearBottomRef = useRef(true);
+  const prevConvIdRef = useRef(conv.id);
+  const prevMsgCountRef = useRef(messages.length);
 
   const propSig = `${conv.id}:${messages.length}:${participants.map((p) => p.last_read_at ?? "").join(",")}`;
   const [polled, setPolled] = useState<{
@@ -643,12 +678,59 @@ export function ThreadView({
         ]
     : [];
 
+  // Auto-resize composer textarea cleanly (1..4 lines)
+  useEffect(() => {
+    const ta = composerRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(116, Math.max(44, ta.scrollHeight))}px`;
+  }, [draft]);
+
+  // Smart scroll handling on conversation change & new messages
   useEffect(() => {
     const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [liveMessages.length, conv.id]);
+    if (!el) return;
+    const convChanged = prevConvIdRef.current !== conv.id;
+    const msgGrew = liveMessages.length > prevMsgCountRef.current;
+    const lastMsg = liveMessages[liveMessages.length - 1];
 
-  // Tự động đồng bộ tin nhắn mới & trạng thái Đã xem mỗi 5 giây khi tab đang mở
+    prevConvIdRef.current = conv.id;
+    prevMsgCountRef.current = liveMessages.length;
+
+    if (convChanged) {
+      el.scrollTop = el.scrollHeight;
+      isNearBottomRef.current = true;
+      return;
+    }
+
+    if (msgGrew) {
+      if (lastMsg?.sender_id === viewerId || isNearBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+        isNearBottomRef.current = true;
+      }
+    }
+  }, [liveMessages, conv.id, viewerId]);
+
+  const handleListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const near = dist < 120;
+    isNearBottomRef.current = near;
+    setShowJumpBottom(!near);
+    if (near) setHasNewIncoming(false);
+  };
+
+  const scrollToBottom = (smooth = true) => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    isNearBottomRef.current = true;
+    setShowJumpBottom(false);
+    setHasNewIncoming(false);
+  };
+
+  // Live poll every 5s while tab is visible
   useEffect(() => {
     let active = true;
     const syncThread = () => {
@@ -659,7 +741,20 @@ export function ThreadView({
           if (!active || !data?.ok || !data.thread) return;
           const nextMsgs = data.thread.messages;
           const nextParts = data.thread.participants;
-          setPolled({ sig: propSig, messages: nextMsgs, participants: nextParts });
+
+          setPolled((prev) => {
+            const prevLen = prev && prev.sig === propSig ? prev.messages.length : messages.length;
+            if (nextMsgs.length > prevLen && !isNearBottomRef.current) {
+              const latest = nextMsgs[nextMsgs.length - 1];
+              if (latest?.sender_id !== viewerId) {
+                setHasNewIncoming(true);
+                setShowJumpBottom(true);
+              }
+            }
+            return { sig: propSig, messages: nextMsgs, participants: nextParts };
+          });
+
+          onSyncThreadData?.(conv.id, { messages: nextMsgs, participants: nextParts });
 
           const me = nextParts.find((p) => p.id === viewerId);
           const hasIncomingUnread = nextMsgs.some(
@@ -680,7 +775,7 @@ export function ThreadView({
       window.clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
-  }, [conv.id, propSig, viewerId]);
+  }, [conv.id, propSig, viewerId, messages.length, onSyncThreadData]);
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -697,6 +792,9 @@ export function ThreadView({
 
     setSending(true);
     setDraft("");
+    isNearBottomRef.current = true;
+    setShowJumpBottom(false);
+    setHasNewIncoming(false);
     setOptimistic((prev) => [...prev, { sig: propSig, msg: optimisticMsg }]);
 
     try {
@@ -716,8 +814,11 @@ export function ThreadView({
           ...prev.filter((o) => o.msg.id !== tempId),
           { sig: propSig, msg: confirmed },
         ]);
+        onMessageSent?.(conv.id, confirmed);
+      } else {
+        onMessageSent?.(conv.id, optimisticMsg);
       }
-      router.refresh();
+      if (!embedded) router.refresh();
     } catch {
       setOptimistic((prev) => prev.filter((o) => o.msg.id !== tempId));
       setDraft(trimmed);
@@ -735,11 +836,11 @@ export function ThreadView({
     }
   }
 
-  return (
-    <Card className="flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4">
-        <div className="flex min-w-0 items-center gap-3">
+  const content = (
+    <>
+      {/* Fixed Header with Compact Project Context Chip */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b border-line bg-surface px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <Link
             href="/me/messages"
             className="grid size-8 shrink-0 place-items-center rounded-xl border border-line text-muted hover:bg-surface-2 hover:text-fg lg:hidden"
@@ -747,163 +848,231 @@ export function ThreadView({
           >
             <ArrowLeft className="size-4" />
           </Link>
-          {other && <SafeAvatar name={other.display_name} src={other.avatar_url} size={40} />}
+          {other && <SafeAvatar name={other.display_name} src={other.avatar_url} size={38} />}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               {other ? (
-                <Link href={`/u/${other.username}`} className="truncate font-bold hover:underline">
+                <Link href={`/u/${other.username}`} className="truncate text-sm font-bold hover:underline">
                   {other.display_name}
                 </Link>
               ) : (
-                <span className="font-bold">Cuộc trò chuyện</span>
+                <span className="text-sm font-bold">Cuộc trò chuyện</span>
               )}
               {other?.role && <RoleBadge role={other.role} />}
-              {other && <span className="text-xs text-muted">@{other.username}</span>}
+              {other && <span className="hidden text-xs text-muted sm:inline">@{other.username}</span>}
             </div>
             <div className="truncate text-xs text-muted">{conv.subject}</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Badge tone="emerald" dot className="hidden sm:inline-flex">
-            Tự động cập nhật
-          </Badge>
+        <div className="flex max-w-full items-center gap-2">
+          {conv.project_slug && conv.project_title && (
+            <Link
+              href={`/p/${conv.project_slug}`}
+              className="hidden max-w-[260px] items-center gap-2 rounded-xl border border-line bg-surface-2/70 px-2.5 py-1 text-xs transition hover:border-violet-400/50 sm:inline-flex"
+              title={`Mở dự án: ${conv.project_title}`}
+            >
+              {conv.project_cover && (
+                <span className="relative h-5 w-8 shrink-0 overflow-hidden rounded border border-line">
+                  <SafeImage src={conv.project_cover} alt={conv.project_title} fill sizes="32px" className="object-cover" />
+                </span>
+              )}
+              <span className="truncate font-semibold text-fg">{conv.project_title}</span>
+              {conv.project_status && <ProjectStatusBadge status={conv.project_status} />}
+            </Link>
+          )}
+
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="xs"
             disabled={refreshing}
-            onClick={() => startRefresh(() => router.refresh())}
+            title="Làm mới hội thoại"
+            aria-label="Làm mới hội thoại"
+            onClick={() =>
+              startRefresh(async () => {
+                const res = await fetch(`/api/me/messages/${encodeURIComponent(conv.id)}`, { cache: "no-store" })
+                  .then((r) => (r.ok ? r.json() : null))
+                  .catch(() => null);
+                if (res?.ok && res.thread) {
+                  setPolled({
+                    sig: propSig,
+                    messages: res.thread.messages,
+                    participants: res.thread.participants,
+                  });
+                  onSyncThreadData?.(conv.id, {
+                    messages: res.thread.messages,
+                    participants: res.thread.participants,
+                  });
+                }
+                router.refresh();
+              })
+            }
           >
-            <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} /> Làm mới
+            <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+            <span className="hidden xl:inline">Làm mới</span>
           </Button>
         </div>
       </div>
 
-      {/* Project context bar */}
-      {conv.project_slug && conv.project_title && (
-        <Link
-          href={`/p/${conv.project_slug}`}
-          className="flex items-center gap-3 border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs transition hover:bg-surface-2"
+      {/* Scrollable Message Viewport */}
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div
+          ref={listRef}
+          onScroll={handleListScroll}
+          className="h-full space-y-1.5 overflow-y-auto overscroll-contain px-4 py-4"
         >
-          {conv.project_cover && (
-            <span className="relative h-9 w-14 shrink-0 overflow-hidden rounded-lg border border-line">
-              <SafeImage src={conv.project_cover} alt={conv.project_title} fill sizes="56px" className="object-cover" />
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-bold text-fg">{conv.project_title}</div>
-            <div className="text-[11px] text-muted">Ngữ cảnh dự án · nhấn để mở trang dự án</div>
-          </div>
-          {conv.project_status && <ProjectStatusBadge status={conv.project_status} />}
-        </Link>
-      )}
+          {liveMessages.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted">Hãy gửi tin nhắn đầu tiên để bắt đầu trao đổi.</div>
+          ) : (
+            liveMessages.map((m, idx) => {
+              const mine = m.sender_id === viewerId;
+              const sender = byId.get(m.sender_id);
+              const curDay = vnDayKey(m.created_at);
+              const prev = idx > 0 ? liveMessages[idx - 1] : null;
+              const next = idx < liveMessages.length - 1 ? liveMessages[idx + 1] : null;
+              const showDayDivider = !prev || curDay !== vnDayKey(prev.created_at);
 
-      {/* Message bubbles with Day Dividers & Read Receipts */}
-      <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-4 max-h-[54vh] min-h-[280px]">
-        {liveMessages.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted">Hãy gửi tin nhắn đầu tiên để bắt đầu trao đổi.</div>
-        ) : (
-          liveMessages.map((m, idx) => {
-            const mine = m.sender_id === viewerId;
-            const sender = byId.get(m.sender_id);
-            const curDay = vnDayKey(m.created_at);
-            const prevDay = idx > 0 ? vnDayKey(liveMessages[idx - 1].created_at) : null;
-            const showDayDivider = curDay !== prevDay;
-            const isLastMine = m.id === lastMyMsgId;
-            const isOptimistic = m.id.startsWith("optimistic-");
-            const isSeen = Boolean(!isOptimistic && other?.last_read_at && other.last_read_at >= m.created_at);
+              const curMs = new Date(m.created_at).getTime();
+              const prevMs = prev ? new Date(prev.created_at).getTime() : 0;
+              const nextMs = next ? new Date(next.created_at).getTime() : 0;
 
-            return (
-              <div key={m.id} className="space-y-2.5">
-                {showDayDivider && (
-                  <div className="flex items-center justify-center py-1" suppressHydrationWarning>
-                    <span className="rounded-full border border-line bg-surface-2 px-3 py-0.5 text-[11px] font-semibold text-muted">
-                      {formatDayDivider(curDay)}
-                    </span>
-                  </div>
-                )}
+              const groupedWithPrev =
+                !showDayDivider &&
+                Boolean(prev) &&
+                prev?.sender_id === m.sender_id &&
+                !Number.isNaN(curMs) &&
+                !Number.isNaN(prevMs) &&
+                Math.abs(curMs - prevMs) <= 180_000;
 
-                <div className={cn("flex gap-2.5", mine ? "justify-end" : "justify-start")}>
-                  {!mine && sender && (
-                    <SafeAvatar name={sender.display_name} src={sender.avatar_url} size={30} className="mt-1" />
-                  )}
-                  <div className={cn("max-w-[82%] space-y-1 sm:max-w-[72%]", mine && "flex flex-col items-end text-right")}>
-                    {!mine && sender && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted">
-                        <span className="font-semibold text-fg">{sender.display_name}</span>
-                        {sender.role && <RoleBadge role={sender.role} />}
-                      </div>
-                    )}
-                    <div
-                      className={cn(
-                        "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
-                        mine
-                          ? "rounded-br-sm bg-brand-gradient text-white shadow-[0_6px_18px_-8px_rgba(109,74,255,0.75)]"
-                          : "rounded-bl-sm border border-line bg-surface-2 text-fg",
-                        isOptimistic && "opacity-75",
-                      )}
-                    >
-                      {m.body}
+              const groupedWithNext =
+                Boolean(next) &&
+                next?.sender_id === m.sender_id &&
+                vnDayKey(next.created_at) === curDay &&
+                !Number.isNaN(curMs) &&
+                !Number.isNaN(nextMs) &&
+                Math.abs(nextMs - curMs) <= 180_000;
+
+              const isLastMine = m.id === lastMyMsgId;
+              const isOptimistic = m.id.startsWith("optimistic-");
+              const isSeen = Boolean(!isOptimistic && other?.last_read_at && other.last_read_at >= m.created_at);
+              const showMetaLine = !groupedWithNext || isLastMine;
+
+              return (
+                <div key={m.id} className={cn(!groupedWithPrev && idx > 0 && "pt-2")}>
+                  {showDayDivider && (
+                    <div className="flex items-center justify-center py-2" suppressHydrationWarning>
+                      <span className="rounded-full border border-line bg-surface px-3 py-0.5 text-[11px] font-semibold text-muted shadow-xs">
+                        {formatDayDivider(curDay)}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted" suppressHydrationWarning>
-                      <span>{formatDate(m.created_at, true)}</span>
-                      {mine && isLastMine && (
-                        <span className="inline-flex items-center gap-0.5 font-semibold">
-                          ·{" "}
-                          {isOptimistic ? (
-                            "Đang gửi…"
-                          ) : isSeen ? (
-                            <span className="inline-flex items-center gap-0.5 text-violet-600 dark:text-violet-400">
-                              <CheckCheck className="size-3" /> Đã xem
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-0.5">
-                              <Check className="size-3" /> Đã gửi
+                  )}
+
+                  <div className={cn("flex items-end gap-2", mine ? "justify-end" : "justify-start")}>
+                    {!mine &&
+                      (groupedWithPrev ? (
+                        <span className="w-[30px] shrink-0" aria-hidden />
+                      ) : sender ? (
+                        <SafeAvatar name={sender.display_name} src={sender.avatar_url} size={30} className="mb-0.5" />
+                      ) : (
+                        <span className="w-[30px] shrink-0" aria-hidden />
+                      ))}
+                    <div className={cn("max-w-[82%] sm:max-w-[70%]", mine && "flex flex-col items-end text-right")}>
+                      {!mine && !groupedWithPrev && sender && (
+                        <div className="mb-1 flex items-center gap-1.5 text-[11px] text-muted">
+                          <span className="font-semibold text-fg">{sender.display_name}</span>
+                          {sender.role && <RoleBadge role={sender.role} />}
+                        </div>
+                      )}
+                      <div
+                        className={cn(
+                          "rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words",
+                          mine
+                            ? "rounded-br-sm bg-brand-gradient text-white shadow-[0_4px_14px_-6px_rgba(109,74,255,0.7)]"
+                            : "rounded-bl-sm border border-line bg-surface text-fg shadow-xs",
+                          isOptimistic && "opacity-75",
+                        )}
+                      >
+                        {m.body}
+                      </div>
+                      {showMetaLine && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted" suppressHydrationWarning>
+                          <span>{formatDate(m.created_at, true)}</span>
+                          {mine && isLastMine && (
+                            <span className="inline-flex items-center gap-0.5 font-semibold">
+                              ·{" "}
+                              {isOptimistic ? (
+                                "Đang gửi…"
+                              ) : isSeen ? (
+                                <span className="inline-flex items-center gap-0.5 text-violet-600 dark:text-violet-400">
+                                  <CheckCheck className="size-3" /> Đã xem
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5">
+                                  <Check className="size-3" /> Đã gửi
+                                </span>
+                              )}
                             </span>
                           )}
-                        </span>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })
+          )}
+        </div>
+
+        {showJumpBottom && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom(true)}
+            className={cn(
+              "absolute bottom-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold shadow-lg transition hover:scale-105",
+              hasNewIncoming
+                ? "border-violet-500 bg-violet-600 text-white"
+                : "border-line bg-surface/95 text-fg backdrop-blur-md",
+            )}
+          >
+            <ArrowDown className="size-3.5" />
+            {hasNewIncoming ? "Tin nhắn mới" : "Xuống cuối"}
+          </button>
         )}
       </div>
 
-      {/* Composer */}
-      <form onSubmit={handleSend} className="space-y-2.5 border-t border-line bg-surface-2/40 p-3 sm:p-4">
-        {quickReplies.length > 0 && (
+      {/* Fixed Composer */}
+      <form onSubmit={handleSend} className="shrink-0 space-y-2 border-t border-line bg-surface px-3 py-2.5 sm:px-4 sm:py-3">
+        {quickReplies.length > 0 && draft.length === 0 && (
           <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
             <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted">
-              <Sparkles className="size-3 text-violet-500" /> Gợi ý nhanh:
+              <Sparkles className="size-3 text-violet-500" /> Gợi ý:
             </span>
             {quickReplies.map((tpl) => (
               <button
                 key={tpl}
                 type="button"
                 onClick={() => setDraft((prev) => (prev.trim() ? `${prev.trim()} ${tpl}` : tpl).slice(0, 2000))}
-                className="shrink-0 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-muted transition hover:border-violet-400/60 hover:text-fg"
+                className="shrink-0 rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-muted transition hover:border-violet-400/60 hover:text-fg"
               >
-                {tpl.length > 44 ? `${tpl.slice(0, 44)}…` : tpl}
+                {tpl.length > 42 ? `${tpl.slice(0, 42)}…` : tpl}
               </button>
             ))}
           </div>
         )}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
             <Textarea
+              ref={composerRef}
               name="body"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               required
               maxLength={2000}
-              rows={2}
+              rows={1}
               placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)"
-              className="min-h-[54px] w-full resize-none py-2.5"
+              className="min-h-[44px] max-h-28 w-full resize-none py-2.5"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
@@ -911,23 +1080,224 @@ export function ThreadView({
                 }
               }}
             />
-            <div className="flex justify-end text-[11px] tabular-nums text-muted">
-              {draft.length.toLocaleString("vi-VN")}/2.000
-            </div>
           </div>
 
           <Button
             type="submit"
             size="md"
             disabled={sending || !draft.trim()}
-            className="shrink-0 sm:mb-5"
+            className="h-[44px] shrink-0"
           >
             {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {sending ? "Đang gửi…" : "Gửi"}
+            <span className="hidden sm:inline">{sending ? "Đang gửi…" : "Gửi"}</span>
           </Button>
         </div>
+
+        {draft.length > 0 && (
+          <div className="flex justify-end text-[11px] tabular-nums text-muted">
+            {draft.length.toLocaleString("vi-VN")}/2.000
+          </div>
+        )}
       </form>
-    </Card>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex h-full min-h-0 flex-col bg-bg/40">{content}</div>;
+  }
+
+  return <Card className="flex h-[75vh] min-h-[420px] flex-col overflow-hidden">{content}</Card>;
+}
+
+export function MessengerWorkspace({
+  initialConversations,
+  viewerId,
+  initialActiveId,
+  initialThread,
+  mobileMode,
+  quickContacts = [],
+  relatedProjects = [],
+}: {
+  initialConversations: ConversationRow[];
+  viewerId: string;
+  initialActiveId: string | null;
+  initialThread: MessengerThreadData | null;
+  mobileMode: "inbox" | "thread";
+  quickContacts?: QuickContactItem[];
+  relatedProjects?: RelatedProjectItem[];
+}) {
+  const router = useRouter();
+  const [conversations, setConversations] = useState<ConversationRow[]>(initialConversations);
+  const [activeId, setActiveId] = useState<string | null>(initialActiveId);
+  const [activeThread, setActiveThread] = useState<MessengerThreadData | null>(initialThread);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  const threadCacheRef = useRef<Record<string, MessengerThreadData>>(
+    initialThread ? { [initialThread.conv.id]: initialThread } : {},
+  );
+
+  // Live poll inbox list every 8s and on window focus
+  useEffect(() => {
+    let active = true;
+    const poll = () => {
+      if (!active || document.hidden) return;
+      fetch("/api/me/messages", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { ok?: boolean; conversations?: ConversationRow[] } | null) => {
+          if (active && data?.ok && Array.isArray(data.conversations)) {
+            setConversations(data.conversations);
+          }
+        })
+        .catch(() => {});
+    };
+    const id = window.setInterval(poll, 8_000);
+    const onFocus = () => poll();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
+
+  const handleSelectConversation = async (c: ConversationRow, e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      return; // Mobile navigates cleanly to /me/messages/[id]
+    }
+    e.preventDefault();
+    setActiveId(c.id);
+    window.history.replaceState(null, "", `/me/messages/${encodeURIComponent(c.id)}`);
+
+    const hadUnread = Number(c.unread) > 0;
+    if (hadUnread) {
+      setConversations((prev) => prev.map((row) => (row.id === c.id ? { ...row, unread: 0 } : row)));
+    }
+
+    const cached = threadCacheRef.current[c.id];
+    if (cached) {
+      setActiveThread(cached);
+    } else {
+      setLoadingId(c.id);
+    }
+
+    try {
+      const res = await fetch(`/api/me/messages/${encodeURIComponent(c.id)}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (res?.ok && res.thread) {
+        threadCacheRef.current[c.id] = res.thread;
+        setActiveThread(res.thread);
+      }
+      if (hadUnread) {
+        await fetch(`/api/me/messages/${encodeURIComponent(c.id)}/read`, { method: "POST" }).catch(() => {});
+        router.refresh();
+      }
+    } finally {
+      setLoadingId((cur) => (cur === c.id ? null : cur));
+    }
+  };
+
+  const handleMessageSent = (convId: string, msg: ThreadMessage) => {
+    setConversations((prev) => {
+      const target = prev.find((c) => c.id === convId);
+      if (!target) return prev;
+      const updated: ConversationRow = {
+        ...target,
+        last_body: msg.body,
+        last_sender: viewerId,
+        last_message_at: msg.created_at,
+        unread: 0,
+      };
+      return [updated, ...prev.filter((c) => c.id !== convId)];
+    });
+    const cur = threadCacheRef.current[convId];
+    if (cur && !cur.messages.some((m) => m.id === msg.id)) {
+      const nextThread: MessengerThreadData = { ...cur, messages: [...cur.messages, msg] };
+      threadCacheRef.current[convId] = nextThread;
+      setActiveThread((t) => (t?.conv.id === convId ? nextThread : t));
+    }
+  };
+
+  const handleSyncThreadData = (
+    convId: string,
+    data: { messages: ThreadMessage[]; participants: ThreadParticipant[] },
+  ) => {
+    const existing = threadCacheRef.current[convId];
+    if (existing) {
+      threadCacheRef.current[convId] = { ...existing, messages: data.messages, participants: data.participants };
+    }
+    const last = data.messages[data.messages.length - 1];
+    if (last) {
+      setConversations((prev) =>
+        prev.map((row) =>
+          row.id === convId
+            ? { ...row, last_body: last.body, last_sender: last.sender_id, last_message_at: last.created_at, unread: 0 }
+            : row,
+        ),
+      );
+    }
+  };
+
+  return (
+    <div className="flex h-full min-h-0 w-full overflow-hidden bg-surface">
+      {/* Left Column: Conversation Inbox */}
+      <div
+        className={cn(
+          "h-full min-h-0 shrink-0 flex-col border-r border-line bg-surface lg:flex lg:w-[320px] xl:w-[352px]",
+          mobileMode === "inbox" ? "flex w-full" : "hidden",
+        )}
+      >
+        <ConversationList
+          conversations={conversations}
+          viewerId={viewerId}
+          activeId={activeId}
+          quickContacts={quickContacts}
+          relatedProjects={relatedProjects}
+          embedded
+          onSelectConversation={handleSelectConversation}
+        />
+      </div>
+
+      {/* Right Column: Active Chat Thread */}
+      <div
+        className={cn(
+          "h-full min-h-0 min-w-0 flex-1 flex-col bg-bg/40 lg:flex",
+          mobileMode === "thread" ? "flex w-full" : "hidden",
+        )}
+      >
+        {loadingId && loadingId === activeId && (!activeThread || activeThread.conv.id !== activeId) ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-sm text-muted">
+            <Loader2 className="size-6 animate-spin text-violet-500" />
+            Đang tải cuộc trò chuyện…
+          </div>
+        ) : activeThread ? (
+          <ThreadView
+            key={activeThread.conv.id}
+            conv={activeThread.conv}
+            participants={activeThread.participants}
+            messages={activeThread.messages}
+            viewerId={viewerId}
+            embedded
+            onMessageSent={handleMessageSent}
+            onSyncThreadData={handleSyncThreadData}
+          />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+            <span className="grid size-14 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
+              <MessageSquare className="size-7" />
+            </span>
+            <h2 className="text-lg font-bold">
+              {conversations.length === 0 ? "Hộp thư của bạn đang trống" : "Chọn một cuộc trò chuyện"}
+            </h2>
+            <p className="max-w-sm text-sm text-muted">
+              {conversations.length === 0
+                ? "Bắt đầu trao đổi với Chủ dự án, Cộng tác viên hoặc Người ủng hộ ngay tại đây."
+                : "Chọn một hội thoại bên danh sách trái để xem lịch sử trao đổi và nhắn tin."}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -1,33 +1,26 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "motion/react";
 import {
   Activity,
-  ArrowLeft,
   Bell,
   Bookmark,
   Compass,
+  ExternalLink,
   HandCoins,
   LayoutGrid,
   MessageSquare,
+  Rocket,
   Settings,
+  Shield,
   Sparkles,
   Users,
-  type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-type MeNavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  badge?: number;
-  badgeTone?: "amber" | "violet" | "rose";
-  count?: number;
-  exact?: boolean;
-};
+import { WorkspaceShell, type WorkspaceNavGroup } from "@/components/layout/workspace-shell";
+import { RoleBadge } from "@/components/ui/primitives";
+import { SafeAvatar } from "./safe-media";
 
 export interface MeNavCounts {
   pendingInvites: number;
@@ -38,160 +31,224 @@ export interface MeNavCounts {
   unreadNotifications: number;
 }
 
-export function MeNav({ isMember, isAdmin, counts }: { isMember: boolean; isAdmin: boolean; counts: MeNavCounts }) {
+export interface MeProfileMini {
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  creatorCount: number;
+  collabCount: number;
+  followerCount: number;
+  followingCount: number;
+}
+
+function renderMeIcon(iconKey: string, className?: string) {
+  switch (iconKey) {
+    case "grid":
+      return <LayoutGrid className={className} />;
+    case "handCoins":
+      return <HandCoins className={className} />;
+    case "bookmark":
+      return <Bookmark className={className} />;
+    case "users":
+      return <Users className={className} />;
+    case "sparkles":
+      return <Sparkles className={className} />;
+    case "activity":
+      return <Activity className={className} />;
+    case "message":
+      return <MessageSquare className={className} />;
+    case "bell":
+      return <Bell className={className} />;
+    case "settings":
+      return <Settings className={className} />;
+    default:
+      return <LayoutGrid className={className} />;
+  }
+}
+
+export function MeWorkspaceShell({
+  profile,
+  isMember,
+  isAdmin,
+  counts,
+  children,
+}: {
+  profile: MeProfileMini;
+  isMember: boolean;
+  isAdmin: boolean;
+  counts: MeNavCounts;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
+  const isMessagesIndex = pathname === "/me/messages";
+  const isMessagesThread = pathname.startsWith("/me/messages/") && pathname !== "/me/messages/new";
+  const viewportLocked = isMessagesIndex || isMessagesThread;
 
-  const activityItems: MeNavItem[] = isMember
-    ? [
-        { href: "/me", label: "Tổng quan", icon: LayoutGrid, badge: counts.pendingInvites, badgeTone: "amber", exact: true },
-        { href: "/me/backed", label: "Đã góp vốn", icon: HandCoins, count: counts.backedProjects },
-        { href: "/me/saved", label: "Đã lưu", icon: Bookmark, count: counts.savedCount },
-        { href: "/me/following", label: "Đang theo dõi", icon: Users, count: counts.followingCount },
-        { href: "/me/recommended", label: "Gợi ý", icon: Sparkles },
-        { href: "/me/activity", label: "Hoạt động", icon: Activity },
-      ]
-    : [];
+  const groups: WorkspaceNavGroup[] = [
+    ...(isMember
+      ? [
+          {
+            title: "Hoạt động",
+            items: [
+              {
+                href: "/me",
+                label: "Tổng quan",
+                iconKey: "grid",
+                badge: counts.pendingInvites,
+                badgeTone: "amber" as const,
+                exact: true,
+              },
+              { href: "/me/backed", label: "Đã góp vốn", iconKey: "handCoins", count: counts.backedProjects },
+              { href: "/me/saved", label: "Đã lưu", iconKey: "bookmark", count: counts.savedCount },
+              { href: "/me/following", label: "Đang theo dõi", iconKey: "users", count: counts.followingCount },
+              { href: "/me/recommended", label: "Gợi ý AI", iconKey: "sparkles" },
+              { href: "/me/activity", label: "Hoạt động", iconKey: "activity" },
+            ],
+          },
+        ]
+      : []),
+    {
+      title: "Liên lạc & Tài khoản",
+      items: [
+        ...(isMember
+          ? [
+              {
+                href: "/me/messages",
+                label: "Tin nhắn",
+                iconKey: "message",
+                badge: counts.unreadMessages,
+                badgeTone: "violet" as const,
+              },
+            ]
+          : []),
+        {
+          href: "/me/notifications",
+          label: "Thông báo",
+          iconKey: "bell",
+          badge: counts.unreadNotifications,
+          badgeTone: "rose" as const,
+        },
+        { href: "/me/settings", label: "Cài đặt & Bảo mật", iconKey: "settings" },
+      ],
+    },
+  ];
 
-  const accountItems: MeNavItem[] = isMember
-    ? [
-        { href: "/me/messages", label: "Tin nhắn", icon: MessageSquare, badge: counts.unreadMessages, badgeTone: "violet" },
-        { href: "/me/notifications", label: "Thông báo", icon: Bell, badge: counts.unreadNotifications, badgeTone: "rose" },
-        { href: "/me/settings", label: "Cài đặt", icon: Settings },
-      ]
-    : [
-        { href: "/me/notifications", label: "Thông báo", icon: Bell, badge: counts.unreadNotifications, badgeTone: "rose" },
-        { href: "/me/settings", label: "Cài đặt", icon: Settings },
-      ];
-
-  const items = [...activityItems, ...accountItems];
-
-  const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
-
-  const badgeStyle = (tone?: "amber" | "violet" | "rose", active?: boolean) => {
-    if (active) return "bg-white/25 text-white";
-    if (tone === "rose") return "bg-rose-500 text-white";
-    if (tone === "amber") return "bg-amber-500 text-amber-950";
-    return "bg-violet-600 text-white";
-  };
-
-  const renderDesktopItem = (it: (typeof items)[number]) => {
-    const on = isActive(it.href, it.exact);
-    const badgeVal = it.badge && it.badge > 0 ? it.badge : undefined;
-    return (
-      <Link
-        key={it.href}
-        href={it.href}
-        className={cn(
-          "relative flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
-          on ? "text-white" : "text-muted hover:bg-surface-2 hover:text-fg",
-        )}
-      >
-        {on && (
-          <motion.span
-            layoutId="me-nav-desktop"
-            className="absolute inset-0 rounded-xl bg-brand-gradient shadow-[0_8px_22px_-8px_rgba(109,74,255,0.75)]"
-            transition={{ type: "spring", stiffness: 420, damping: 34 }}
-          />
-        )}
-        <span className="relative flex items-center gap-2.5">
-          <it.icon className="size-4 shrink-0" />
-          {it.label}
-        </span>
-        {badgeVal !== undefined ? (
-          <span className={cn("relative rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums", badgeStyle(it.badgeTone, on))}>
-            {badgeVal > 99 ? "99+" : badgeVal}
-          </span>
-        ) : it.count !== undefined && it.count > 0 ? (
-          <span className={cn("relative rounded-full px-1.5 py-0.5 text-[11px] tabular-nums", on ? "bg-white/20 text-white" : "bg-surface-2 text-muted")}>
-            {it.count}
-          </span>
-        ) : null}
-      </Link>
-    );
-  };
+  const allItems = groups.flatMap((g) => g.items);
+  const currentItem = allItems.find((item) =>
+    item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
 
   return (
-    <>
-      {/* Mobile horizontal nav */}
-      <nav aria-label="Menu cá nhân" className="no-scrollbar flex min-w-0 gap-1.5 overflow-x-auto pb-2 lg:hidden">
-        {items.map((it) => {
-          const on = isActive(it.href, it.exact);
-          const badgeVal = it.badge && it.badge > 0 ? it.badge : undefined;
-          return (
-            <Link
-              key={it.href}
-              href={it.href}
-              className={cn(
-                "relative flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition",
-                on
-                  ? "border-transparent text-white"
-                  : "border-line bg-surface text-muted hover:border-violet-400/50 hover:text-fg",
-              )}
-            >
-              {on && (
-                <motion.span
-                  layoutId="me-nav-mobile"
-                  className="absolute inset-0 rounded-xl bg-brand-gradient shadow-[0_6px_18px_-6px_rgba(109,74,255,0.7)]"
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                />
-              )}
-              <span className="relative flex items-center gap-1.5">
-                <it.icon className="size-3.5" />
-                {it.label}
-                {badgeVal !== undefined ? (
-                  <span className={cn("rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums", badgeStyle(it.badgeTone, on))}>
-                    {badgeVal > 99 ? "99+" : badgeVal}
-                  </span>
-                ) : it.count !== undefined && it.count > 0 ? (
-                  <span className={cn("rounded-full px-1.5 py-px text-[10px] tabular-nums", on ? "bg-white/20" : "bg-surface-2 text-muted")}>
-                    {it.count}
-                  </span>
-                ) : null}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Desktop sticky sidebar */}
-      <aside aria-label="Menu cá nhân" className="hidden lg:block">
-        <div className="card sticky top-20 space-y-3 p-2.5">
-          {activityItems.length > 0 && (
-            <div className="space-y-1">
-              <div className="px-3 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">Hoạt động</div>
-              {activityItems.map(renderDesktopItem)}
-            </div>
-          )}
-
-          <div className={cn("space-y-1", activityItems.length > 0 && "border-t border-line pt-2.5")}>
-            <div className="px-3 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">Tài khoản</div>
-            {accountItems.map(renderDesktopItem)}
+    <WorkspaceShell
+      accent="violet"
+      groups={groups}
+      renderIcon={renderMeIcon}
+      viewportLocked={viewportLocked}
+      hideMobileBar={isMessagesThread}
+      mobileTitle={currentItem?.label ?? "Cá nhân"}
+      mobileAction={
+        isMember ? (
+          <Link
+            href={`/u/${profile.username}`}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
+          >
+            Hồ sơ <ExternalLink className="size-3" />
+          </Link>
+        ) : undefined
+      }
+      header={(collapsed) =>
+        collapsed ? (
+          <div className="flex justify-center">
+            <SafeAvatar name={profile.displayName} src={profile.avatarUrl} size={34} />
           </div>
-
-          {isAdmin && (
-            <div className="mt-2 border-t border-line pt-2">
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <SafeAvatar name={profile.displayName} src={profile.avatarUrl} size={36} />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-extrabold leading-tight text-fg">{profile.displayName}</div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                <span className="truncate text-[11px] text-muted">@{profile.username}</span>
+                {isAdmin ? (
+                  <RoleBadge role="ADMIN" />
+                ) : (
+                  <RoleBadge role="BACKER" />
+                )}
+                {profile.creatorCount > 0 && <RoleBadge role="CREATOR" />}
+                {profile.collabCount > 0 && <RoleBadge role="COLLABORATOR" />}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      footer={(collapsed) =>
+        collapsed ? (
+          <div className="flex flex-col items-center gap-1">
+            {isMember && (
+              <Link
+                href="/studio"
+                title="Studio dự án"
+                aria-label="Studio dự án"
+                className="grid size-9 place-items-center rounded-xl text-violet-600 transition hover:bg-violet-500/10 dark:text-violet-400"
+              >
+                <Rocket className="size-4" />
+              </Link>
+            )}
+            {isAdmin && (
               <Link
                 href="/admin"
-                className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-400"
+                title="Bảng quản trị"
+                aria-label="Bảng quản trị"
+                className="grid size-9 place-items-center rounded-xl text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-400"
               >
-                <ArrowLeft className="size-3.5" /> Về Bảng quản trị
+                <Shield className="size-4" />
               </Link>
-            </div>
-          )}
-
-          {isMember && (
-            <div className="mt-2 border-t border-line pt-2">
+            )}
+            <Link
+              href="/explore"
+              title="Khám phá dự án"
+              aria-label="Khám phá dự án"
+              className="grid size-9 place-items-center rounded-xl text-muted transition hover:bg-surface-2 hover:text-fg"
+            >
+              <Compass className="size-4" />
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {isMember && (
               <Link
-                href="/explore"
-                className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-violet-600 transition hover:bg-violet-500/10 dark:text-violet-400"
+                href="/studio"
+                className="flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-xs font-bold text-violet-600 transition hover:bg-violet-500/10 dark:text-violet-400"
               >
-                <Compass className="size-3.5" /> Khám phá thêm dự án
+                <span className="flex items-center gap-2">
+                  <Rocket className="size-4" /> Studio dự án
+                </span>
+                <span className="text-[11px] opacity-80">→</span>
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-400"
+              >
+                <span className="flex items-center gap-2">
+                  <Shield className="size-4" /> Bảng quản trị
+                </span>
+                <span className="text-[11px] opacity-80">→</span>
+              </Link>
+            )}
+            <div className="flex items-center justify-between gap-1 px-1 pt-0.5 text-[11px] font-semibold text-muted">
+              <Link href={`/u/${profile.username}`} className="inline-flex items-center gap-1 hover:text-fg">
+                Hồ sơ công khai <ExternalLink className="size-3" />
+              </Link>
+              <Link href="/explore" className="inline-flex items-center gap-1 hover:text-fg">
+                <Compass className="size-3" /> Khám phá
               </Link>
             </div>
-          )}
-        </div>
-      </aside>
-    </>
+          </div>
+        )
+      }
+    >
+      {children}
+    </WorkspaceShell>
   );
 }

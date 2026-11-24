@@ -35,7 +35,7 @@ import { Avatar, Badge, Divider, PledgeStatusBadge, ProjectStatusBadge, RoleBadg
 import { LinkTabs, type TabItem } from "@/components/ui/tabs";
 import { CommentsSection } from "@/components/public/comments-section";
 import { CommunityChart } from "@/components/public/community-chart";
-import { HeroMedia, ReportDialog, ShareButton, ViewTracker } from "@/components/public/project-hero-actions";
+import { HeroMedia, MobileStickyPledgeBar, ReportDialog, ShareButton, ViewTracker } from "@/components/public/project-hero-actions";
 import { SmartImage, VideoFrame } from "@/components/public/smart-image";
 import { PROJECT_STATUS } from "@/lib/status";
 import {
@@ -220,8 +220,8 @@ export default async function ProjectDetailPage(props: {
     </div>
   );
 
-  const renderHeaderBlock = () => (
-    <div className="space-y-4">
+  const renderTitleBand = () => (
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         <Link href="/explore" className="hover:text-fg">
           Khám phá
@@ -239,27 +239,47 @@ export default async function ProjectDetailPage(props: {
         </span>
       </div>
 
-      <div>
-        <h1 className="text-2xl font-black tracking-tight text-balance sm:text-3xl">{project.title}</h1>
-        {project.blurb && <p className="mt-2 text-sm leading-relaxed text-muted sm:text-base">{project.blurb}</p>}
-      </div>
+      <h1 className="text-2xl font-black tracking-tight text-balance sm:text-3xl">{project.title}</h1>
+      {project.blurb && <p className="max-w-3xl text-sm leading-relaxed text-muted sm:text-base">{project.blurb}</p>}
+    </div>
+  );
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface-2/50 p-3">
-        <Link href={`/u/${project.creator_username}`} className="flex min-w-0 items-center gap-2.5">
-          <Avatar name={project.creator_name} src={project.creator_avatar} size={38} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="truncate text-sm font-bold">{project.creator_name}</span>
-              <RoleBadge role="CREATOR" />
-            </div>
-            <div className="text-xs text-muted">
-              @{project.creator_username}
-              {project.creator_province ? ` · ${project.creator_province}` : ""}
-            </div>
+  const renderCreatorCard = () => (
+    <div className="space-y-2.5 rounded-2xl border border-line bg-surface-2/50 p-3">
+      <Link href={`/u/${project.creator_username}`} className="flex min-w-0 items-center gap-2.5">
+        <Avatar name={project.creator_name} src={project.creator_avatar} size={38} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="truncate text-sm font-bold">{project.creator_name}</span>
+            <RoleBadge role="CREATOR" />
           </div>
-        </Link>
-        {showFollow && <FollowButton userId={project.creator_id} following={ctx.followingCreator} size="sm" />}
-      </div>
+          <div className="truncate text-xs text-muted">
+            @{project.creator_username}
+            {project.creator_province ? ` · ${project.creator_province}` : ""}
+          </div>
+        </div>
+      </Link>
+      {(showFollow || showMessage) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {showFollow && (
+            <FollowButton userId={project.creator_id} following={ctx.followingCreator} size="sm" className="flex-1" />
+          )}
+          {showMessage && (
+            <ButtonLink
+              href={
+                viewer
+                  ? `/me/messages/new?to=${encodeURIComponent(project.creator_username)}&project=${encodeURIComponent(project.slug)}`
+                  : `/login?next=${encodeURIComponent(`/me/messages/new?to=${project.creator_username}&project=${project.slug}`)}`
+              }
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              <MessageSquare className="size-4" /> Nhắn tin
+            </ButtonLink>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -350,6 +370,9 @@ export default async function ProjectDetailPage(props: {
         )}
       </div>
 
+      {/* ───────── TIÊU ĐỀ TRÊN CÙNG (ABOVE THE FOLD) ───────── */}
+      {renderTitleBand()}
+
       {/* ───────── BỐ CỤC CHÍNH (HERO + TABS + SIDEBAR STICKY) ───────── */}
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_350px]">
         {/* Cột trái: Media -> (Mobile Funding Card) -> Tabs -> Tab Content */}
@@ -363,8 +386,8 @@ export default async function ProjectDetailPage(props: {
           />
 
           {/* Thẻ thông tin & góp vốn trên mobile (< lg) */}
-          <div className="card space-y-5 p-5 lg:hidden">
-            {renderHeaderBlock()}
+          <div id="mobile-funding-anchor" className="card space-y-4 p-5 lg:hidden">
+            {renderCreatorCard()}
             <Divider />
             {renderFundingBlock()}
           </div>
@@ -911,43 +934,32 @@ export default async function ProjectDetailPage(props: {
 
         {/* Cột phải sticky (desktop lg+) */}
         <aside className="hidden lg:sticky lg:top-24 lg:block">
-          <div className="card space-y-5 p-6">
-            {renderHeaderBlock()}
+          <div className="card space-y-4 p-5">
+            {renderCreatorCard()}
             <Divider />
             {renderFundingBlock()}
           </div>
         </aside>
       </div>
 
-      {/* Thanh CTA cố định trên mobile (đặt phía trên MobileNav) */}
+      {/* Thanh CTA cố định trên mobile (chỉ xuất hiện sau khi cuộn qua khối gọi vốn) */}
       {(blocker === null || blocker === "LOGIN") && (
-        <div className="fixed inset-x-3 bottom-[64px] z-40 md:hidden">
-          <div className="glass flex items-center justify-between gap-3 rounded-2xl border border-line px-3.5 py-2.5 shadow-lg">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-black text-emerald-600 dark:text-emerald-400">
-                {formatCompactVnd(project.pledged_amount)}
-              </div>
-              <div className="text-[11px] text-muted">
-                {pct}% · {left.label}
-              </div>
-            </div>
-            <ButtonLink
-              href={
-                blocker === null
-                  ? `/p/${project.slug}/back${ctx.pledge?.status === "AUTHORIZED" ? "?change=1" : ""}`
-                  : `/login?next=${encodeURIComponent(`/p/${project.slug}/back`)}`
-              }
-              size="sm"
-              className="shrink-0"
-            >
-              {blocker === "LOGIN"
-                ? "Đăng nhập để góp"
-                : ctx.pledge?.status === "AUTHORIZED"
-                  ? "Đổi mức góp"
-                  : "Góp vốn ngay"}
-            </ButtonLink>
-          </div>
-        </div>
+        <MobileStickyPledgeBar
+          amountLabel={formatCompactVnd(project.pledged_amount)}
+          metaLabel={`${pct}% · ${left.label}`}
+          href={
+            blocker === null
+              ? `/p/${project.slug}/back${ctx.pledge?.status === "AUTHORIZED" ? "?change=1" : ""}`
+              : `/login?next=${encodeURIComponent(`/p/${project.slug}/back`)}`
+          }
+          ctaLabel={
+            blocker === "LOGIN"
+              ? "Đăng nhập để góp"
+              : ctx.pledge?.status === "AUTHORIZED"
+                ? "Đổi mức góp"
+                : "Góp vốn ngay"
+          }
+        />
       )}
     </div>
   );
@@ -990,7 +1002,7 @@ function CompletedDisplayCard({
         <p className="text-xs leading-relaxed text-muted">
           Dự án gọi được <b className="text-fg">{formatVnd(project.pledged_amount)}</b> ({pct}% mục tiêu{" "}
           {formatVnd(project.goal_amount)}) từ <b className="text-fg">{project.backers_count}</b> người ủng hộ. Theo cơ
-          chế All-or-Nothing, toàn bộ khoản giữ chỗ đã được giải phóng và không ai bị trừ tiền.
+          chế đạt mục tiêu mới thu tiền, toàn bộ khoản giữ chỗ đã được giải phóng và không ai bị trừ tiền.
         </p>
       </div>
     );
@@ -1000,7 +1012,7 @@ function CompletedDisplayCard({
     return (
       <div className="space-y-3 rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/12 via-surface-2 to-emerald-500/10 p-4">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">
-          <Sparkles className="size-4" /> Lời cảm ơn từ Creator
+          <Sparkles className="size-4" /> Lời cảm ơn từ Chủ dự án
         </div>
         <p className="text-sm font-medium leading-relaxed text-fg">
           “{project.completed_message || "Cảm ơn cộng đồng đã tin tưởng và đồng hành cùng dự án thành công!"}”
@@ -1011,7 +1023,7 @@ function CompletedDisplayCard({
             <b className="text-fg">{project.creator_name}</b>
           </span>
           <span className="tabular-nums">
-            {formatCompactVnd(project.pledged_amount)} · {project.backers_count} backer
+            {formatCompactVnd(project.pledged_amount)} · {project.backers_count} người ủng hộ
           </span>
         </div>
       </div>
@@ -1086,7 +1098,7 @@ function CompletedDisplayCard({
         </div>
         <div className="rounded-xl bg-surface p-2.5">
           <div className="text-muted">Người ủng hộ</div>
-          <div className="mt-0.5 font-extrabold tabular-nums">{project.backers_count} backer</div>
+          <div className="mt-0.5 font-extrabold tabular-nums">{project.backers_count} người</div>
         </div>
       </div>
       {project.completed_message && <p className="text-xs text-muted">{project.completed_message}</p>}

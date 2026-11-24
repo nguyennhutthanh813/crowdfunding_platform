@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Flag, Play, Share2 } from "lucide-react";
+import { Check, Flag, Play, Share2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { recordProjectViewAction } from "@/server/actions/public";
 import { reportAction } from "@/server/actions/social";
-import { Button, buttonClass } from "@/components/ui/button";
+import { Button, ButtonLink, buttonClass } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Select, Textarea } from "@/components/ui/form";
 import { SmartImage, VideoFrame } from "./smart-image";
@@ -243,5 +243,56 @@ export function HeroMedia({
         </Dialog>
       )}
     </>
+  );
+}
+
+/** Thanh CTA cố định đáy mobile — chỉ xuất hiện sau khi người dùng cuộn qua khối gọi vốn chính. */
+export function MobileStickyPledgeBar({
+  targetId = "mobile-funding-anchor",
+  amountLabel,
+  metaLabel,
+  href,
+  ctaLabel,
+}: {
+  targetId?: string;
+  amountLabel: string;
+  metaLabel: string;
+  href: string;
+  ctaLabel: string;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = document.getElementById(targetId);
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        const scrolledPast = !entry.isIntersecting && entry.boundingClientRect.bottom < 72;
+        setVisible(scrolledPast);
+      },
+      { threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [targetId]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-x-3 bottom-[64px] z-40 md:hidden">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface/95 px-3.5 py-2.5 shadow-xl backdrop-blur-md">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-black text-emerald-600 dark:text-emerald-400">
+            {amountLabel}
+          </div>
+          <div className="truncate text-[11px] text-muted">{metaLabel}</div>
+        </div>
+        <ButtonLink href={href} size="sm" className="shrink-0">
+          <Wallet className="size-4" /> {ctaLabel}
+        </ButtonLink>
+      </div>
+    </div>
   );
 }

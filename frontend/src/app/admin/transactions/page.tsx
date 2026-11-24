@@ -202,12 +202,12 @@ export default async function AdminTransactionsPage({
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-surface-2/60 text-xs font-bold uppercase tracking-wider text-muted">
                 <tr>
-                  <th className="px-4 py-3">Thời gian</th>
-                  <th className="px-4 py-3">Cổng &amp; Nghiệp vụ</th>
-                  <th className="px-4 py-3">Mã góp vốn &amp; Người ủng hộ</th>
-                  <th className="px-4 py-3">Dự án</th>
-                  <th className="px-4 py-3 text-right">Số tiền</th>
-                  <th className="px-4 py-3 text-right">Quản trị</th>
+                  <th className="px-3 py-2.5">Thời gian</th>
+                  <th className="px-3 py-2.5">Cổng &amp; Nghiệp vụ</th>
+                  <th className="px-3 py-2.5">Mã góp vốn &amp; Người ủng hộ</th>
+                  <th className="px-3 py-2.5">Dự án</th>
+                  <th className="px-3 py-2.5 text-right">Số tiền</th>
+                  <th className="px-3 py-2.5 text-right">Quản trị</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -224,37 +224,39 @@ export default async function AdminTransactionsPage({
                     .join(" · ");
                   return (
                     <tr key={r.id} className="transition hover:bg-surface-2/40">
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted">{formatDate(r.created_at, true)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-1.5">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted">{formatDate(r.created_at, true)}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col items-start gap-1">
                           <Badge tone={r.provider === "VNPAY" ? "sky" : "slate"} className="whitespace-nowrap">
                             {r.provider === "VNPAY" ? `VNPAY${r.bank_code ? ` · ${r.bank_code}` : ""}` : "Thẻ đã lưu"}
                           </Badge>
-                          <span title={km.hint}>
-                            <Badge tone={km.tone} className="whitespace-nowrap">{km.label}</Badge>
-                          </span>
-                          <Badge tone={sm.tone} className="whitespace-nowrap">{sm.label}</Badge>
+                          <div className="flex flex-nowrap items-center gap-1">
+                            <span title={km.hint}>
+                              <Badge tone={km.tone} className="whitespace-nowrap">{km.label}</Badge>
+                            </span>
+                            <Badge tone={sm.tone} className="whitespace-nowrap">{sm.label}</Badge>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs" title={gatewayNote || undefined}>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold">{r.code}</span>
+                      <td className="px-3 py-2.5 text-xs" title={gatewayNote || undefined}>
+                        <div className="flex flex-nowrap items-center gap-1.5">
+                          <span className="whitespace-nowrap font-mono font-bold">{r.code}</span>
                           <PledgeStatusBadge status={r.pledge_status} />
                         </div>
-                        <div className="mt-0.5 text-muted">
+                        <div className="mt-0.5 max-w-[190px] truncate text-muted">
                           {r.backer} (@{r.backer_username})
                         </div>
                       </td>
-                      <td className="max-w-[240px] px-4 py-3">
-                        <Link href={`/p/${r.slug}`} className="block truncate font-semibold hover:text-violet-600">
+                      <td className="max-w-[190px] px-3 py-2.5">
+                        <Link href={`/p/${r.slug}`} className="block truncate text-xs font-semibold hover:text-violet-600" title={r.title}>
                           {r.title}
                         </Link>
                         {r.message && <div className="truncate text-[11px] text-muted">{r.message}</div>}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-extrabold tabular-nums">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-extrabold tabular-nums">
                         {formatVnd(r.amount)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right">
                         <TransactionRowActions row={r} />
                       </td>
                     </tr>

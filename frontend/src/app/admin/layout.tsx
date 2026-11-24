@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { requireSystemPerm } from "@/server/auth/session";
 import { adminBadges } from "@/server/queries/admin";
-import { AdminNav } from "@/components/admin/admin-nav";
+import { AdminWorkspaceShell } from "@/components/admin/admin-nav";
 
 export const metadata: Metadata = {
   title: { default: "Quản trị hệ thống", template: "%s · Quản trị · FundViet" },
@@ -16,7 +16,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const perms = Array.from(viewer.systemPerms);
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-6 overflow-x-clip px-4 py-6 sm:px-6">
+    <AdminWorkspaceShell perms={perms} badges={badges}>
       {badges.flagged > 0 && (
         <Link
           href="/admin/reports"
@@ -29,12 +29,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <span className="shrink-0 font-bold">Xem báo cáo →</span>
         </Link>
       )}
-
-      {/* Thân trang: sidebar / mobile scroll nav + nội dung chính */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <AdminNav perms={perms} badges={badges} />
-        <div className="min-w-0 flex-1 space-y-6">{children}</div>
-      </div>
-    </div>
+      {children}
+    </AdminWorkspaceShell>
   );
 }
