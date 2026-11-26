@@ -364,6 +364,8 @@ async function main() {
     { key: "SMTP_USER", value: pick("SMTP_USER"), secret: false },
     { key: "SMTP_PASS", value: pick("SMTP_PASS"), secret: true },
     { key: "MAIL_FROM", value: pick("MAIL_FROM"), secret: false },
+    { key: "DEEPSEEK_API_KEY", value: pick("DEEPSEEK_API_KEY"), secret: true },
+    { key: "DEEPSEEK_MODEL", value: pick("DEEPSEEK_MODEL"), secret: false },
   ]);
 
   let backendDeployUrl = "";

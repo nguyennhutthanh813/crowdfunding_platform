@@ -985,11 +985,16 @@ export async function reanalyzeComments(viewer: Viewer | null, bodyIn: Payload):
   try {
     const projectId = strVal(bodyIn, "project_id");
     const { db, p } = await requireActor(viewer, projectId, "comment.reply");
-    const count = await reanalyzeProjectComments(db, projectId);
+    const { count, llmCount } = await reanalyzeProjectComments(db, projectId);
     return {
       ok: true,
       slug: p.slug,
-      message: count > 0 ? `Đã phân tích lại ${count} bình luận theo AI v2.` : "Chưa có bình luận nào để phân tích.",
+      message:
+        count === 0
+          ? "Chưa có bình luận nào để phân tích."
+          : llmCount > 0
+            ? `DeepSeek AI đã phân tích lại ${llmCount}/${count} bình luận (phân loại, cảm xúc, chủ đề và nháp trả lời).`
+            : `Đã phân tích lại ${count} bình luận bằng bộ luật tiếng Việt (AI DeepSeek đang tạm không khả dụng).`,
     };
   } catch (e) {
     return { error: humanizeError(e) };

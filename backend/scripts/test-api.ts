@@ -344,6 +344,70 @@ async function main() {
     assert.equal(catDelete.status, 200);
     console.log("  ✓ Cổng VNPAY Sandbox (HMAC-SHA512, QR, NCB OTP, Return, Admin Refund/Retry) & CRUD Bình luận/Thể loại hoạt động chuẩn");
 
+    // 7c. Mô-đun AI (chế độ luật khi chạy test offline): kiểm duyệt bình luận, trợ lý, duyệt nội dung, gian lận
+    const aiStatus = await req<{ ok: boolean; llm: boolean }>("/ai/status");
+    assert.equal(aiStatus.status, 200);
+
+    const toxic = await req<{ error?: string }>("/comments", {
+      method: "POST",
+      token: tokens["Người dùng"],
+      body: { projectId: orbitProj.id, body: "Dự án lừa đảo vcl, đồ ngu" },
+    });
+    assert.equal(toxic.status, 400, "Bình luận tục tĩu phải bị AI chặn");
+    assert.ok(toxic.data.error?.includes("kiểm duyệt"));
+    const toxicSaved = await one(getDb(), `SELECT 1 FROM comments WHERE body = ?`, "Dự án lừa đảo vcl, đồ ngu");
+    assert.equal(toxicSaved, undefined, "Bình luận bị chặn không được lưu vào CSDL");
+
+    const askGuest = await req<{ ok: boolean; answer: string; followUps: string[] }>("/ai/assistant", {
+      method: "POST",
+      body: { slug: "orbit-one", messages: [{ role: "user", content: "Nếu dự án không đạt mục tiêu thì tiền có được hoàn không?" }] },
+    });
+    assert.equal(askGuest.status, 200);
+    assert.ok(askGuest.data.answer.length > 20);
+    assert.ok(askGuest.data.followUps.length > 0);
+    const askEmpty = await req("/ai/assistant", { method: "POST", body: { messages: [] } });
+    assert.equal(askEmpty.status, 400);
+
+    const ownProject = await one<{ id: string; slug: string }>(
+      getDb(),
+      `SELECT p.id, p.slug FROM projects p JOIN users u ON u.id = p.creator_id WHERE u.email = 'nguyennhutthanh813@gmail.com' LIMIT 1`,
+    );
+    assert.ok(ownProject?.id);
+    const review = await req<{ ok: boolean; review: { score: number; checklist: unknown[] } }>("/ai/content-review", {
+      method: "POST",
+      token: tokens["Chủ dự án"],
+      body: { project_id: ownProject.id },
+    });
+    assert.equal(review.status, 200);
+    assert.ok(review.data.review.checklist.length >= 5);
+    const reviewForbidden = await req("/ai/content-review", {
+      method: "POST",
+      token: tokens["Người dùng"],
+      body: { project_id: ownProject.id },
+    });
+    assert.equal(reviewForbidden.status, 403, "Người ủng hộ không được dùng trợ lý nội dung của dự án khác");
+
+    const insights = await req<{ ok: boolean; insight: { headline: string } }>("/ai/insights", {
+      method: "POST",
+      token: tokens["Chủ dự án"],
+      body: { project_id: ownProject.id },
+    });
+    assert.equal(insights.status, 200);
+    assert.ok(insights.data.insight.headline);
+
+    const fraud = await req<{ ok: boolean; assessment: { score: number; level: string; ai: { summary: string } | null } }>(
+      "/ai/fraud/orbit-one?deep=1",
+      { token: tokens["Admin"] },
+    );
+    assert.equal(fraud.status, 200);
+    assert.ok(fraud.data.assessment.score >= 0 && fraud.data.assessment.score <= 100);
+    assert.ok(fraud.data.assessment.ai?.summary);
+    const fraudForbidden = await req("/ai/fraud/orbit-one", { token: tokens["Người dùng"] });
+    assert.equal(fraudForbidden.status, 403);
+    console.log(
+      `  ✓ Mô-đun AI: chặn bình luận độc hại, trợ lý hỏi đáp, duyệt nội dung (${review.data.review.score}/100), tổng hợp cộng đồng, rủi ro gian lận (${fraud.data.assessment.level}) & phân quyền`,
+    );
+
     // 8. JSON hỏng phải trả lỗi 400 rõ ràng thay vì 500
     const bad = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{oops" });
     const badJson = (await bad.json()) as { code?: string };

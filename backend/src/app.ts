@@ -15,6 +15,7 @@ import { meRouter } from "./modules/me/me.routes.js";
 import { studioRouter } from "./modules/studio/studio.routes.js";
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { vnpayRouter } from "./modules/vnpay/vnpay.routes.js";
+import { aiRouter } from "./modules/ai/ai.routes.js";
 
 export function createApp() {
   const app = express();
@@ -111,6 +112,7 @@ export function createApp() {
   app.use("/api/v1/me", meRouter);
   app.use("/api/v1/studio", studioRouter);
   app.use("/api/v1/admin", adminRouter);
+  app.use("/api/v1/ai", aiRouter);
   app.use("/api/v1", publicRouter);
 
   app.use((_req, res) => {

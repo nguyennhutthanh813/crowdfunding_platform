@@ -576,6 +576,7 @@ export interface InboxComment {
   summary: string | null;
   suggested_reply: string | null;
   confidence: number | null;
+  ai_source: string | null;
   handled_at: string | null;
   handled_by_name: string | null;
   replies: { id: string; body: string; created_at: string; author_name: string; role_code: string | null; status: string }[];
@@ -586,7 +587,7 @@ export async function commentInbox(projectId: string): Promise<InboxComment[]> {
     db,
     `SELECT c.id, c.body, c.status, c.created_at, u.display_name AS author_name, u.username AS author_username, u.avatar_url AS author_avatar,
             CASE WHEN EXISTS (SELECT 1 FROM pledges pl WHERE pl.project_id = c.project_id AND pl.backer_id = c.author_id AND pl.status NOT IN ('CANCELLED')) THEN 1 ELSE 0 END AS is_backer,
-            a.label, a.sentiment, a.needs_action, a.topic, a.summary, a.suggested_reply, a.confidence, a.handled_at, hu.display_name AS handled_by_name
+            a.label, a.sentiment, a.needs_action, a.topic, a.summary, a.suggested_reply, a.confidence, a.source AS ai_source, a.handled_at, hu.display_name AS handled_by_name
      FROM comments c JOIN users u ON u.id = c.author_id
      LEFT JOIN comment_analyses a ON a.comment_id = c.id
      LEFT JOIN users hu ON hu.id = a.handled_by

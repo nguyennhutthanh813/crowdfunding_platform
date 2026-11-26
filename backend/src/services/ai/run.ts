@@ -2,6 +2,8 @@ import { DomainError, all, insert, newId, nowIso, one, run, tx, type DbClient } 
 import { buildPredictionInput } from "./features.js";
 import { predictSuccess, type PredictionResult } from "./predict.js";
 import { analyzeComment } from "./comments.js";
+import { loadProjectContext } from "./project-context.js";
+import { smartAnalyzeBatch } from "./smart-comments.js";
 
 /** Chạy dự đoán AI và lưu lịch sử. Quyền ai.run kiểm ở tầng gọi. */
 export async function runPrediction(db: DbClient, projectId: string, actorId: string | null): Promise<PredictionResult & { id: string }> {
@@ -55,25 +57,39 @@ export async function analyzeProjectComments(db: DbClient, projectId: string): P
   });
 }
 
-/** Chạy lại phân tích AI v2 trên toàn bộ bình luận hợp lệ của dự án (giữ nguyên trạng thái handled_by/handled_at). */
-export async function reanalyzeProjectComments(db: DbClient, projectId: string): Promise<number> {
-  return tx(db, async () => {
-    const rows = await all<{ id: string; body: string }>(
-      db,
-      `SELECT c.id, c.body FROM comments c
-       WHERE c.project_id = ? AND c.parent_id IS NULL AND c.status <> 'DELETED'
-         AND NOT EXISTS (SELECT 1 FROM project_members m WHERE m.project_id = c.project_id AND m.user_id = c.author_id AND m.status = 'ACTIVE')`,
-      projectId,
-    );
+/**
+ * Chạy lại phân tích trên toàn bộ bình luận hợp lệ của dự án (giữ nguyên trạng thái handled_by/handled_at).
+ * Ưu tiên DeepSeek LLM (batch 20, có ngữ cảnh dự án); bình luận nào LLM lỗi sẽ dùng bộ luật.
+ */
+export async function reanalyzeProjectComments(db: DbClient, projectId: string): Promise<{ count: number; llmCount: number }> {
+  const rows = await all<{ id: string; body: string }>(
+    db,
+    `SELECT c.id, c.body FROM comments c
+     WHERE c.project_id = ? AND c.parent_id IS NULL AND c.status <> 'DELETED'
+       AND NOT EXISTS (SELECT 1 FROM project_members m WHERE m.project_id = c.project_id AND m.user_id = c.author_id AND m.status = 'ACTIVE')
+     ORDER BY c.created_at DESC LIMIT 200`,
+    projectId,
+  );
+  if (rows.length === 0) return { count: 0, llmCount: 0 };
+
+  // Gọi LLM bên ngoài transaction để không giữ kết nối DB trong lúc chờ mạng
+  const ctx = await loadProjectContext(db, { id: projectId }, { storyChars: 2400 });
+  const results = await smartAnalyzeBatch(rows, { title: ctx?.title ?? "", contextText: ctx?.text });
+  let llmCount = 0;
+
+  await tx(db, async () => {
     const now = nowIso();
     for (const r of rows) {
-      const a = analyzeComment(r.body);
+      const res = results.get(r.id);
+      const a = res?.analysis ?? analyzeComment(r.body);
+      const source = res?.source ?? "RULE";
+      if (source === "LLM") llmCount++;
       const exists = await one(db, `SELECT 1 FROM comment_analyses WHERE comment_id = ?`, r.id);
       if (exists) {
         await run(
           db,
           `UPDATE comment_analyses
-           SET label = ?, sentiment = ?, needs_action = ?, topic = ?, summary = ?, suggested_reply = ?, confidence = ?, analyzed_at = ?
+           SET label = ?, sentiment = ?, needs_action = ?, topic = ?, summary = ?, suggested_reply = ?, confidence = ?, source = ?, analyzed_at = ?
            WHERE comment_id = ?`,
           a.label,
           a.sentiment,
@@ -82,6 +98,7 @@ export async function reanalyzeProjectComments(db: DbClient, projectId: string):
           a.summary,
           a.suggestedReply,
           a.confidence,
+          source,
           now,
           r.id,
         );
@@ -95,10 +112,10 @@ export async function reanalyzeProjectComments(db: DbClient, projectId: string):
           summary: a.summary,
           suggested_reply: a.suggestedReply,
           confidence: a.confidence,
-          source: "RULE",
+          source,
         });
       }
     }
-    return rows.length;
   });
+  return { count: rows.length, llmCount };
 }

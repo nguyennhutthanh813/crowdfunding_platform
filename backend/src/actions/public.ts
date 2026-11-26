@@ -3,11 +3,19 @@ import { audit, humanizeError, insert, newId, notify, nowIso, one, run, tx } fro
 import { PUBLIC_STATUSES, canProject, hasSystemPerm, loadProjectAccess, type Viewer } from "../rbac/rbac.js";
 import { bumpDailyStats } from "../services/stats.js";
 import { analyzeComment } from "../services/ai/comments.js";
+import { loadProjectContext } from "../services/ai/project-context.js";
+import { smartAnalyzeComment, type SmartCommentResult } from "../services/ai/smart-comments.js";
 import { createPledge, type PledgeInput } from "../services/pledge.js";
 import { createVnpayOrder } from "../services/vnpay.js";
 import { boolVal, intVal, strVal, type ActionResult, type Payload } from "../utils-shared.js";
 
 export type CommentLikeResult = { ok: boolean; on?: boolean; error?: string; needLogin?: boolean };
+
+function blockedMessage(reason: string): string {
+  const core = reason.replace(/^Bình luận có\s*/i, "").replace(/\.$/, "").trim() || "nội dung chưa phù hợp";
+  const what = core.charAt(0).toLowerCase() + core.slice(1);
+  return `Bình luận chưa được đăng vì AI kiểm duyệt phát hiện ${what}. Bạn vui lòng điều chỉnh lời lẽ theo tiêu chuẩn cộng đồng rồi gửi lại nhé.`;
+}
 
 export async function recordProjectView(projectId: string) {
   if (!projectId) return { ok: false };
@@ -94,6 +102,19 @@ export async function addComment(v: Viewer | null, bodyIn: Payload): Promise<Act
     const commentId = newId();
     const now = nowIso();
 
+    // Lọc AI trước khi đăng (chỉ áp dụng với người ngoài nhóm dự án): chặn tục tĩu, xúc phạm, lừa đảo, spam.
+    let smart: SmartCommentResult | null = null;
+    if (!isMember) {
+      const ctx = await loadProjectContext(db, { id: project.id }, { storyChars: 2200 });
+      smart = await smartAnalyzeComment(
+        body,
+        { title: project.title, contextText: ctx?.text },
+        { wantAnalysis: !rootParentId },
+      );
+      if (smart.moderation.verdict === "BLOCK") {
+        return { error: blockedMessage(smart.moderation.reason) };
+      }
+    }
     await tx(db, async () => {
       await insert(db, "comments", {
         id: commentId,
@@ -110,7 +131,7 @@ export async function addComment(v: Viewer | null, bodyIn: Payload): Promise<Act
       });
 
       if (!rootParentId && !isMember) {
-        const a = analyzeComment(body);
+        const a = smart?.analysis ?? analyzeComment(body);
         await insert(db, "comment_analyses", {
           comment_id: commentId,
           label: a.label,
@@ -120,7 +141,7 @@ export async function addComment(v: Viewer | null, bodyIn: Payload): Promise<Act
           summary: a.summary,
           suggested_reply: a.suggestedReply,
           confidence: a.confidence,
-          source: "RULE",
+          source: smart?.source ?? "RULE",
           handled_by: null,
           handled_at: null,
           analyzed_at: now,
@@ -163,7 +184,15 @@ export async function addComment(v: Viewer | null, bodyIn: Payload): Promise<Act
       }
     });
 
-    return { ok: true, slug: project.slug, message: rootParentId ? "Đã gửi trả lời." : "Đã đăng bình luận." };
+    return {
+      ok: true,
+      slug: project.slug,
+      message: rootParentId
+        ? "Đã gửi trả lời."
+        : smart?.moderation.verdict === "REVIEW"
+          ? "Đã đăng bình luận. AI đã chuyển bình luận cho nhóm dự án xem xét thêm."
+          : "Đã đăng bình luận.",
+    };
   } catch (e) {
     return { error: humanizeError(e) };
   }
@@ -214,14 +243,20 @@ export async function editComment(v: Viewer | null, bodyIn: Payload): Promise<Ac
   try {
     const now = nowIso();
     const access = await loadProjectAccess(db, v.id, row.project_id);
+    let smart: SmartCommentResult | null = null;
+    if (access.role === null) {
+      const ctx = await loadProjectContext(db, { id: row.project_id }, { storyChars: 2200 });
+      smart = await smartAnalyzeComment(body, { title: ctx?.title ?? "", contextText: ctx?.text }, { wantAnalysis: !row.parent_id });
+      if (smart.moderation.verdict === "BLOCK") return { error: blockedMessage(smart.moderation.reason) };
+    }
     await tx(db, async () => {
       await run(db, `UPDATE comments SET body = ?, updated_at = ? WHERE id = ?`, body, now, row.id);
       if (!row.parent_id && access.role === null) {
-        const a = analyzeComment(body);
+        const a = smart?.analysis ?? analyzeComment(body);
         await run(
           db,
           `UPDATE comment_analyses
-           SET label = ?, sentiment = ?, needs_action = ?, topic = ?, summary = ?, suggested_reply = ?, confidence = ?, analyzed_at = ?
+           SET label = ?, sentiment = ?, needs_action = ?, topic = ?, summary = ?, suggested_reply = ?, confidence = ?, source = ?, analyzed_at = ?
            WHERE comment_id = ?`,
           a.label,
           a.sentiment,
@@ -230,6 +265,7 @@ export async function editComment(v: Viewer | null, bodyIn: Payload): Promise<Ac
           a.summary,
           a.suggestedReply,
           a.confidence,
+          smart?.source ?? "RULE",
           now,
           row.id,
         );

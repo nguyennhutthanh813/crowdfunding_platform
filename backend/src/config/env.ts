@@ -62,6 +62,13 @@ export const env = {
   smtpUser: cleanSecret(process.env.SMTP_USER),
   smtpPass: cleanSecret(process.env.SMTP_PASS).replace(/\s+/g, ""),
   mailFrom: cleanSecret(process.env.MAIL_FROM) || `FundViet <${cleanSecret(process.env.SMTP_USER) || "noreply@fundviet.vn"}>`,
+
+  // LLM (DeepSeek, giao thức tương thích OpenAI)
+  llmApiKey: cleanSecret(process.env.DEEPSEEK_API_KEY) || cleanSecret(process.env.LLM_API_KEY),
+  llmBaseUrl: (cleanSecret(process.env.DEEPSEEK_BASE_URL) || "https://api.deepseek.com").replace(/\/+$/, ""),
+  llmModel: cleanSecret(process.env.DEEPSEEK_MODEL) || "deepseek-chat",
+  llmEnabled: (process.env.LLM_ENABLED || "true").toLowerCase() !== "false",
+  llmTimeoutMs: Number(process.env.LLM_TIMEOUT_MS || 12000),
 };
 
 if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
@@ -72,3 +79,10 @@ export const isPostgresConfigured = () => Boolean(env.databaseUrl && /^postgres(
 export const isCloudinaryConfigured = () =>
   Boolean(env.cloudinaryCloudName && env.cloudinaryApiKey && env.cloudinaryApiSecret);
 export const isSmtpConfigured = () => Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
+/** LLM chỉ bật khi có API key, không tắt thủ công và không chạy trong bộ test offline (trừ khi bật LLM_ALLOW_IN_TESTS). */
+export const isLlmConfigured = () =>
+  Boolean(
+    env.llmEnabled &&
+      env.llmApiKey &&
+      (process.env.FUNDVIET_TEST_SQLITE !== "1" || process.env.LLM_ALLOW_IN_TESTS === "1"),
+  );
