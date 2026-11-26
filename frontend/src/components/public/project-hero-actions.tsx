@@ -269,10 +269,10 @@ export function MobileStickyPledgeBar({
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        const scrolledPast = !entry.isIntersecting && entry.boundingClientRect.bottom < 72;
+        const scrolledPast = !entry.isIntersecting && entry.boundingClientRect.bottom <= 72;
         setVisible(scrolledPast);
       },
-      { threshold: 0 },
+      { threshold: 0, rootMargin: "-64px 0px 0px 0px" },
     );
     io.observe(el);
     return () => io.disconnect();

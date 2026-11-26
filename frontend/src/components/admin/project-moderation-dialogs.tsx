@@ -164,15 +164,29 @@ export interface AdminProjectInspectSummary {
   end_at: string | null;
 }
 
-export function QuickProjectInspectButton({ project: p }: { project: AdminProjectInspectSummary }) {
+export function QuickProjectInspectButton({
+  project: p,
+  compact = false,
+}: {
+  project: AdminProjectInspectSummary;
+  compact?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const pct = percentOf(p.pledged_amount, p.goal_amount);
   const detailHref = p.status === "PENDING_REVIEW" ? `/admin/reviews/${p.slug}` : `/p/${p.slug}`;
 
   return (
     <>
-      <Button type="button" variant="ghost" size="xs" onClick={() => setOpen(true)}>
-        <Eye className="size-3.5" /> Xem nhanh
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        onClick={() => setOpen(true)}
+        title="Xem nhanh"
+        aria-label="Xem nhanh"
+      >
+        <Eye className="size-3.5" />
+        {compact ? <span className="hidden 2xl:inline">Xem nhanh</span> : "Xem nhanh"}
       </Button>
 
       <Dialog

@@ -168,11 +168,11 @@ export default async function AdminProjectsPage({
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-surface-2/60 text-xs font-bold uppercase tracking-wider text-muted">
                 <tr>
-                  <th className="px-3 py-2.5">Dự án</th>
-                  <th className="px-3 py-2.5">Chủ dự án</th>
-                  <th className="px-3 py-2.5">Trạng thái</th>
-                  <th className="px-3 py-2.5">Góp vốn &amp; Hạn</th>
-                  <th className="px-3 py-2.5 text-right">Thao tác</th>
+                  <th className="py-2.5 pl-4 pr-2.5">Dự án</th>
+                  <th className="px-2.5 py-2.5">Chủ dự án</th>
+                  <th className="px-2.5 py-2.5">Trạng thái</th>
+                  <th className="px-2.5 py-2.5">Góp vốn &amp; Hạn</th>
+                  <th className="py-2.5 pl-2.5 pr-4 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -181,12 +181,12 @@ export default async function AdminProjectsPage({
                   const detailHref = p.status === "PENDING_REVIEW" ? `/admin/reviews/${p.slug}` : `/p/${p.slug}`;
                   return (
                     <tr key={p.id} className="transition hover:bg-surface-2/40">
-                      <td className="px-3 py-2.5">
+                      <td className="py-2.5 pl-4 pr-2.5">
                         <div className="flex items-center gap-2.5">
                           <div className="relative size-10 shrink-0 overflow-hidden rounded-xl border border-line bg-surface-2">
                             <SafeImage src={p.cover_url} alt={p.title} fill sizes="40px" className="object-cover" />
                           </div>
-                          <div className="min-w-0 max-w-[205px]">
+                          <div className="min-w-0 max-w-[180px] 2xl:max-w-[240px]">
                             <Link href={detailHref} className="block truncate font-bold hover:text-violet-600" title={p.title}>
                               {p.title}
                             </Link>
@@ -197,11 +197,11 @@ export default async function AdminProjectsPage({
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-xs">
-                        <div className="max-w-[130px] truncate font-semibold">{p.creator}</div>
-                        <div className="max-w-[130px] truncate text-muted">@{p.creator_username}</div>
+                      <td className="px-2.5 py-2.5 text-xs">
+                        <div className="max-w-[116px] truncate font-semibold 2xl:max-w-[150px]">{p.creator}</div>
+                        <div className="max-w-[116px] truncate text-muted 2xl:max-w-[150px]">@{p.creator_username}</div>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2.5 py-2.5">
                         <div className="flex flex-col items-start gap-1">
                           <ProjectStatusBadge status={p.status} className="whitespace-nowrap" />
                           {p.open_reports > 0 && (
@@ -212,7 +212,7 @@ export default async function AdminProjectsPage({
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-xs tabular-nums">
+                      <td className="px-2.5 py-2.5 text-xs tabular-nums">
                         <div className="whitespace-nowrap font-bold text-emerald-600 dark:text-emerald-400">
                           {formatCompactVnd(p.pledged_amount)} ({pct}%)
                         </div>
@@ -221,9 +221,9 @@ export default async function AdminProjectsPage({
                         </div>
                         <div className="whitespace-nowrap text-[11px] text-muted">Đóng {formatDate(p.end_at)}</div>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                      <td className="whitespace-nowrap py-2.5 pl-2.5 pr-4 text-right">
                         <div className="inline-flex items-center justify-end gap-1">
-                          <QuickProjectInspectButton project={p} />
+                          <QuickProjectInspectButton project={p} compact />
                           <ButtonLink href={detailHref} variant="ghost" size="xs">
                             <ExternalLink className="size-3.5" /> {p.status === "PENDING_REVIEW" ? "Duyệt" : "Xem"}
                           </ButtonLink>
