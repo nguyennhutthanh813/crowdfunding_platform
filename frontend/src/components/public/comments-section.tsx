@@ -88,7 +88,7 @@ export function CommentsSection({
               <CommentComposerFields
                 placeholder="Đặt câu hỏi về sản phẩm, giao hàng hoặc gửi góp ý cho nhóm…"
                 minHeightClass="min-h-24"
-                helperText="Góp ý của bạn sẽ được hệ thống chuyển đến đúng bộ phận phụ trách."
+                helperText="Bình luận được AI kiểm duyệt tự động để giữ cộng đồng văn minh; câu hỏi và góp ý sẽ được chuyển ngay tới nhóm dự án."
                 submitLabel={<><Send className="size-4" /> Gửi bình luận</>}
               />
             </div>

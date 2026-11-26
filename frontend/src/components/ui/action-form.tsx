@@ -45,11 +45,29 @@ export function ActionForm({ action, children, className, resetOnSuccess, onSucc
   const [confirmOpen, setConfirmOpen] = useState(false);
   const confirmedRef = useRef(false);
   const ref = useRef<HTMLFormElement>(null);
+  const lastSubmitted = useRef<FormData | null>(null);
   const router = useRouter();
+  const submit = (fd: FormData) => {
+    lastSubmitted.current = fd;
+    formAction(fd);
+  };
   useEffect(() => {
     if (!state) return;
-    if (state.error) toast.error(state.error);
-    else if (state.ok) {
+    if (state.error) {
+      toast.error(state.error);
+      // React tự xoá form sau khi gửi; khi lỗi thì khôi phục nội dung người dùng đã nhập để họ sửa tiếp
+      const form = ref.current;
+      const fd = lastSubmitted.current;
+      if (form && fd) {
+        for (const [key, value] of fd.entries()) {
+          if (typeof value !== "string") continue;
+          const el = form.elements.namedItem(key);
+          if ((el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && el.type !== "hidden" && el.type !== "file")) && !el.value) {
+            el.value = value;
+          }
+        }
+      }
+    } else if (state.ok) {
       if (state.message) toast.success(state.message);
       if (state.celebrate) celebrate();
       if (resetOnSuccess) ref.current?.reset();
@@ -66,7 +84,7 @@ export function ActionForm({ action, children, className, resetOnSuccess, onSucc
   return (
     <form
       ref={ref}
-      action={formAction}
+      action={submit}
       className={className}
       onSubmit={
         confirm

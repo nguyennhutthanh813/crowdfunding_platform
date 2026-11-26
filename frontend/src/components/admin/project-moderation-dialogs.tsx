@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, Calendar, ExternalLink, Eye, RotateCcw, ShieldBan, Users } from "lucide-react";
 import { restoreProjectAction, takedownProjectAction } from "@/server/actions/admin";
 import { SafeImage } from "@/components/admin/safe-image";
+import { FraudRiskPanel } from "@/components/admin/fraud-risk-panel";
 import { ActionForm, SubmitButton } from "@/components/ui/action-form";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -233,6 +234,12 @@ export function QuickProjectInspectButton({
               </div>
             </div>
           </div>
+
+          {open && (
+            <div className="rounded-2xl border border-line p-3.5">
+              <FraudRiskPanel slug={p.slug} compact />
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
             <div className="flex flex-wrap gap-2">

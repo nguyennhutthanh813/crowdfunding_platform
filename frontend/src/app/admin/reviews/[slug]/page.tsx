@@ -26,6 +26,7 @@ import {
   toYoutubeEmbedUrl,
 } from "@/components/admin/admin-helpers";
 import { ReviewDecisionForm } from "@/components/admin/review-decision-form";
+import { FraudRiskPanel } from "@/components/admin/fraud-risk-panel";
 import { SafeAvatar, SafeImage } from "@/components/admin/safe-image";
 import { Gauge } from "@/components/fx/gauge";
 import { ButtonLink } from "@/components/ui/button";
@@ -318,6 +319,9 @@ export default async function AdminReviewDetailPage({
             requiredOk={requiredOk}
           />
 
+          {/* AI phát hiện gian lận */}
+          <FraudRiskPanel slug={p.slug} />
+
           {/* Checklist & Kiểm tra bổ sung */}
           <section className="card space-y-4 p-5">
             <div>
@@ -371,7 +375,8 @@ export default async function AdminReviewDetailPage({
               </div>
               {prediction && (
                 <Badge tone={prediction.band === "HIGH" ? "emerald" : prediction.band === "MEDIUM" ? "amber" : "rose"}>
-                  {prediction.mode} · {prediction.band}
+                  {prediction.mode === "LIVE" ? "Đang gọi vốn" : "Trước khi mở"} ·{" "}
+                  {prediction.band === "HIGH" ? "Khả quan" : prediction.band === "MEDIUM" ? "Trung bình" : "Cần cải thiện"}
                 </Badge>
               )}
             </div>

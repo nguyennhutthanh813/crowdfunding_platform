@@ -7,6 +7,7 @@ import { NavBar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ConditionalFooter } from "@/components/layout/conditional-footer";
 import { RouteProgress } from "@/components/layout/route-progress";
+import { AssistantWidget } from "@/components/ai/assistant-widget";
 import "./globals.css";
 
 const font = Be_Vietnam_Pro({ subsets: ["latin", "vietnamese"], weight: ["400", "500", "600", "700", "800", "900"], variable: "--font-be-vietnam", display: "swap" });
@@ -37,6 +38,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <main className="min-h-[calc(100dvh-4rem)]">{children}</main>
         <ConditionalFooter />
         <MobileNav ctx={ctx} />
+        <AssistantWidget />
         <Toaster position="bottom-right" richColors closeButton offset={20} toastOptions={{ className: "!rounded-2xl !font-sans" }} />
       </body>
     </html>

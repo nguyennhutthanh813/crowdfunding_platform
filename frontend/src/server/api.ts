@@ -19,14 +19,14 @@ export function backendUrl(path: string): string {
   return `${BACKEND_BASE}${p}`;
 }
 
-async function safeNetworkFetch(url: string, init: RequestInit): Promise<Response | null> {
+async function safeNetworkFetch(url: string, init: RequestInit, timeoutMs = 15_000): Promise<Response | null> {
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     if (url.startsWith("http://localhost:")) {
       const ipv4Url = url.replace("http://localhost:", "http://127.0.0.1:");
       try {
-        return await fetch(ipv4Url, { ...init, signal: AbortSignal.timeout(15_000) });
+        return await fetch(ipv4Url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
       } catch {
         // rơi xuống trả null bên dưới
       }
@@ -116,6 +116,8 @@ export async function apiFetch<T = Record<string, unknown>>(
     body?: unknown;
     formData?: FormData;
     auth?: boolean;
+    /** Thời gian chờ tối đa (ms). Mặc định 15 giây; các tác vụ AI dài cần tăng lên. */
+    timeoutMs?: number;
   } = {},
 ): Promise<{ status: number; data: T }> {
   const jar = await cookies();
@@ -138,12 +140,16 @@ export async function apiFetch<T = Record<string, unknown>>(
       bodyInit = JSON.stringify(opts.body);
     }
 
-    return safeNetworkFetch(backendUrl(path), {
-      method: opts.method ?? "GET",
-      headers: reqHeaders,
-      body: bodyInit,
-      cache: "no-store",
-    });
+    return safeNetworkFetch(
+      backendUrl(path),
+      {
+        method: opts.method ?? "GET",
+        headers: reqHeaders,
+        body: bodyInit,
+        cache: "no-store",
+      },
+      opts.timeoutMs,
+    );
   };
 
   let res = await doCall(token);

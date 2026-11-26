@@ -154,6 +154,7 @@ export interface InboxComment {
   summary: string | null;
   suggested_reply: string | null;
   confidence: number | null;
+  ai_source?: string | null;
   handled_at: string | null;
   handled_by_name: string | null;
   replies: { id: string; body: string; created_at: string; author_name: string; role_code: string | null; status: string }[];

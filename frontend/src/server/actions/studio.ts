@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/components/ui/action-form";
-import { apiGet, apiPost, formToPayload } from "../api";
+import { apiFetch, apiGet, apiPost, formToPayload } from "../api";
 
 function revalidateProject(slug?: string) {
   revalidatePath("/studio");
@@ -87,7 +87,14 @@ export async function promoteCommentToFaqAction(_p: ActionResult, form: FormData
   return runStudioPost("/studio/comments/promote-faq", form);
 }
 export async function reanalyzeCommentsAction(_p: ActionResult, form: FormData): Promise<ActionResult> {
-  return runStudioPost("/studio/comments/reanalyze", form);
+  // DeepSeek đọc lại toàn bộ bình luận theo lô nên cần thời gian chờ dài hơn mặc định
+  const { data: res } = await apiFetch<ActionResult & { slug?: string }>("/studio/comments/reanalyze", {
+    method: "POST",
+    body: formToPayload(form),
+    timeoutMs: 100_000,
+  });
+  if (res.ok) revalidateProject(res.slug);
+  return res;
 }
 
 export async function runAiPredictionAction(_p: ActionResult, form: FormData): Promise<ActionResult> {

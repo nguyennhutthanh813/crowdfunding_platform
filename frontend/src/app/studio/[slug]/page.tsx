@@ -28,6 +28,7 @@ import { LIFECYCLE_STEPS, LOCK_REASON, STUDIO_TABS, type StudioTabKey } from "@/
 import { StudioProjectShell } from "@/components/studio/studio-workspace-shell";
 import { StudioOverviewCharts } from "@/components/studio/charts";
 import { AiPanel } from "@/components/studio/ai-panel";
+import { AiContentReview } from "@/components/studio/ai-content-review";
 import { ContentTab } from "@/components/studio/content-tab";
 import { RewardsEditor } from "@/components/studio/rewards-editor";
 import { UpdatesPanel } from "@/components/studio/updates-panel";
@@ -209,9 +210,11 @@ export default async function StudioProjectPage(props: {
           canRunAi={permSet.has("ai.run")}
         />
 
+        <AiContentReview projectId={project.id} projectSlug={project.slug} canEdit={permSet.has("project.edit")} />
+
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Team summary */}
-          <div className="card p-5">
+          <div className="card min-w-0 p-5">
             <div className="flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 font-bold">
                 <Users className="size-4 text-violet-500" /> Nhóm dự án ({activeMembers.length})
@@ -242,7 +245,7 @@ export default async function StudioProjectPage(props: {
           </div>
 
           {/* Recent Activity */}
-          <div className="card p-5">
+          <div className="card min-w-0 p-5">
             <div className="flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 font-bold">
                 <TrendingUp className="size-4 text-emerald-500" /> Hoạt động gần đây
