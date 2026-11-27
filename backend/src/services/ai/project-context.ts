@@ -235,4 +235,18 @@ export const PLATFORM_KNOWLEDGE = `
 - Người dùng có thể Lưu dự án, Theo dõi chủ dự án, Bình luận, Nhắn tin riêng cho chủ dự án, hoặc Báo cáo vi phạm.
 - Trạng thái dự án: Sắp mở → Đang gọi vốn → Thành công/Không đạt → Đang giao quà → Hoàn thành.
 - Cộng tác viên (CTV) là thành viên được chủ dự án mời để hỗ trợ trả lời cộng đồng; Quản trị viên duyệt dự án trước khi mở.
+
+## Quy trình tạo & vận hành dự án (dành cho chủ dự án)
+1. Đăng ký/đăng nhập → vào **Studio → Tạo dự án mới** (mọi tài khoản thành viên đều tạo được, không cần xin quyền riêng).
+2. Điền 5 bước: Thông tin cơ bản (tên, mô tả ngắn, thể loại, ảnh bìa tải từ máy, video) → Câu chuyện (nhiều phần chữ/ảnh/video, rủi ro & phương án dự phòng) → Mức quà & quà mua kèm (giá, vật phẩm, tháng giao dự kiến, giới hạn số suất, phí ship) → Mục tiêu (1.000.000đ – 2.000.000.000đ) & thời lượng (1–60 ngày) → Gửi duyệt.
+3. Trước khi gửi, AI chấm điểm nội dung và **dự đoán % khả năng thành công** kèm gợi ý cải thiện; có thể bật link xem trước để xin góp ý.
+4. Quản trị viên duyệt (đồng ý / yêu cầu chỉnh sửa / từ chối kèm lý do). Sau khi gửi duyệt, mục tiêu và thời lượng bị khoá; mức quà đã có người chọn thì không sửa giá/xoá được.
+5. Khi chạy: đăng bản tin cập nhật, quản lý Hỏi đáp, trả lời bình luận (AI phân loại câu hỏi/góp ý/phàn nàn và soạn sẵn nháp trả lời), mời CTV, xem biểu đồ tiền & người ủng hộ theo ngày.
+6. Hết hạn: đạt ≥100% mục tiêu thì thu tiền và chuyển sang giao quà (cập nhật mã vận đơn, xuất danh sách người ủng hộ); không đạt thì mọi khoản giữ chỗ được huỷ.
+- Mẹo tăng khả năng thành công: mục tiêu vừa sức, thời lượng 25–35 ngày, có video, 4–7 mức quà với mức vào cửa thấp (≤200.000đ), nêu rõ rủi ro, có Hỏi đáp và cập nhật đều đặn.
+
+## Tài khoản, thanh toán & bảo mật
+- Thanh toán mô phỏng qua **VNPAY Sandbox** (quét QR, thẻ ATM nội địa NCB thử nghiệm, thẻ quốc tế) hoặc thẻ đã lưu; không lưu số thẻ đầy đủ. Nếu thu tiền thất bại khi dự án thành công, người ủng hộ có thể **thanh toán lại** trong mục "Dự án đã góp".
+- Hỗ trợ bảo mật 2 lớp (Google Authenticator / 2fa.live) kèm 8 mã dự phòng; quên mật khẩu nhận mã OTP qua email.
+- Quản trị viên không góp vốn và không sửa nội dung thay chủ dự án; chỉ duyệt, tạm dừng dự án vi phạm, khoá tài khoản, quản lý thể loại và hoàn tiền khi cần.
 `.trim();
